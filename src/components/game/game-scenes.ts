@@ -247,11 +247,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       [tx0 + 580, "envelope", "Household"],
     ];
     for (const [x, prop, key] of docs) {
+      const pad = prop === "envelope" ? ENVELOPE_FOOT_PAD : 0;
       k.add([
         k.sprite("props", { frame: PROP[prop], width: 40, height: 40 }),
-        k.pos(x, GROUND_Y - 4),
+        k.pos(x, GROUND_Y - 4 + pad),
         k.anchor("bot"),
-        k.area({ shape: new k.Rect(k.vec2(-16, -36), 32, 36) }),
+        // Hitbox stays over the visible pixels (top of the frame minus pad)
+        k.area({ shape: new k.Rect(k.vec2(-16, -36 - pad), 32, 36) }),
         k.z(3),
         "doc",
         { docKey: key },

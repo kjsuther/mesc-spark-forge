@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.promote_feedback_on_vote() FROM PUBLIC, anon, authenticated;

@@ -1,0 +1,1 @@
+GRANT SELECT ON public.feedback TO anon, authenticated;

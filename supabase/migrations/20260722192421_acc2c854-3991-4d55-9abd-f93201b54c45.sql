@@ -1,0 +1,1 @@
+ALTER TABLE public.versions ADD COLUMN IF NOT EXISTS snapshot jsonb;

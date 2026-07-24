@@ -1,0 +1,1 @@
+ALTER TABLE public.votes ADD COLUMN IF NOT EXISTS bucket text NOT NULL DEFAULT 'should' CHECK (bucket IN ('must','should','could'));

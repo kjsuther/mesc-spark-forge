@@ -1,0 +1,1 @@
+ALTER TABLE public.votes DROP CONSTRAINT IF EXISTS votes_feedback_id_voter_fingerprint_key;

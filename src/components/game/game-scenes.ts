@@ -19,7 +19,13 @@ export type WinResult = {
   mode: "before" | "after";
   farthestZone: number; // 0..4
   won: boolean;
+  score: number;
+  distancePx: number;
+  jumpsLanded: number;
+  enemiesPassed: number;
+  deaths: number;
 };
+
 
 export type StartGameOpts = {
   canvas: HTMLCanvasElement;
@@ -52,11 +58,12 @@ const PLAYER_W = 44;
 const PLAYER_H = 64;
 // Sprite bottom-padding compensation (transparent pixels below drawn feet).
 // Anchor("bot") puts the frame bottom on the ground; visible feet float above by this many pixels.
-const PLAYER_FOOT_PAD = 9;
+const PLAYER_FOOT_PAD = 12;
 const RANGER_FOOT_PAD = 10;
-const MONSTER_FOOT_PAD = 30;
-const ENVELOPE_FOOT_PAD = 25;
-const DENIED_FOOT_PAD = 36;
+const MONSTER_FOOT_PAD = 31;
+const ENVELOPE_FOOT_PAD = 26;
+const DENIED_FOOT_PAD = 37;
+
 
 export async function startGame(opts: StartGameOpts): Promise<() => void> {
   const kaplay = (await import("kaplay")).default;
@@ -472,9 +479,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         lastGroundedAt: k.time(),
         jumpBufferedAt: -1,
         farthestZone: Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W))),
+        rightmostX: spawnX,
+        wasGrounded: true,
+        wasOnPlatform: false,
+        score: 0,
+        jumpsLanded: 0,
+        enemiesPassed: 0,
+        deaths: 0,
+        distancePx: 0,
+        passedMonsters: new Set<unknown>(),
+        visitedZones: new Set<number>([Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)))]),
         riding: null as null | { pos: { x: number; y: number }; platformSpeed: { x: number; y: number }; width: number; height: number },
       },
     ]);
+
 
     // Track platform ride: when player lands on a platform, remember it
     player.onCollide("platform", (p, col) => {
@@ -554,6 +572,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     player.onCollide("doc", (d) => {
       const doc = d as unknown as { docKey: string; destroy: () => void };
       player.docs.add(doc.docKey);
+      player.score += 750;
       doc.destroy();
       updateHud();
     });
@@ -579,6 +598,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (k.time() < player.invulnUntil) return;
       player.invulnUntil = k.time() + INVULN_S;
       player.lives -= 1;
+      player.deaths += 1;
+      player.score = Math.max(0, player.score - 500);
       if (player.lives <= 0) {
         player.dead = true;
         showEnd(false, reason);
@@ -595,15 +616,29 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     function buildResult(won: boolean): WinResult {
+      const durationMs = Math.round((k.time() - startTime) * 1000);
+      let finalScore = player.score;
+      if (won) {
+        finalScore += 2000;
+        finalScore += player.lives * 500;
+        finalScore += Math.max(0, 4000 - Math.floor(durationMs / 100));
+      }
       return {
-        durationMs: Math.round((k.time() - startTime) * 1000),
+        durationMs,
         docs: player.docs.size,
         lives: player.lives,
         mode: opts.mode,
         farthestZone: player.farthestZone,
         won,
+        score: Math.max(0, Math.round(finalScore)),
+        distancePx: Math.round(player.distancePx),
+        jumpsLanded: player.jumpsLanded,
+        enemiesPassed: player.enemiesPassed,
+        deaths: player.deaths,
       };
     }
+
+
 
     player.onCollide("finish", () => {
       if (player.won || player.dead) return;
@@ -708,6 +743,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (z > player.farthestZone) player.farthestZone = z;
       if (z !== currentZone) {
         currentZone = z;
+        if (!player.visitedZones.has(z)) {
+          player.visitedZones.add(z);
+          player.score += 1000;
+        }
         showTitleCard(
           k,
           ZONES[z].phase.toUpperCase(),
@@ -717,10 +756,40 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         );
       }
 
+      // Per-frame distance + rightmost tracking (+2 per new pixel, +1 per frame moving forward)
+      if (player.pos.x > player.rightmostX) {
+        const gained = player.pos.x - player.rightmostX;
+        player.rightmostX = player.pos.x;
+        player.distancePx += gained;
+        player.score += gained * 2;
+      }
+
+      // Enemies passed (crossed without hit)
+      const monsters = k.get("monster") as unknown as Array<{ pos: { x: number } }>;
+      for (const m of monsters) {
+        if (!player.passedMonsters.has(m) && player.pos.x > m.pos.x + 40) {
+          player.passedMonsters.add(m);
+          player.enemiesPassed += 1;
+          player.score += 100;
+        }
+      }
+
+
+      // Landed-on-platform bonus (once per airborne -> platform touchdown)
+      const groundedNow = player.isGrounded();
+      if (groundedNow && !player.wasGrounded) {
+        if (player.riding) {
+          player.jumpsLanded += 1;
+          player.score += 250;
+        }
+      }
+      player.wasGrounded = groundedNow;
+
       // Ground tracking for coyote time
-      if (player.isGrounded()) {
+      if (groundedNow) {
         player.lastGroundedAt = now;
       }
+
 
       // Verify player is still on the tracked platform; drop ride otherwise.
       if (player.riding) {
@@ -743,6 +812,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (w?.__gameInput?.right) dir += 1;
       dir = Math.sign(dir);
       player.move(dir * MOVE_SPEED, 0);
+      if (dir > 0) player.score += 1; // per-frame forward-motion bonus
+
 
       // Moving-platform carry: apply platform horizontal velocity while riding
       if (player.riding) {

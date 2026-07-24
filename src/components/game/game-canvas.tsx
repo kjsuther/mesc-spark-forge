@@ -5,7 +5,7 @@ type Props = {
   flags: GameFlags;
   mode: "before" | "after";
   onWin?: (result: WinResult) => void;
-  onLose?: () => void;
+  onLose?: (result: WinResult) => void;
 };
 
 type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };

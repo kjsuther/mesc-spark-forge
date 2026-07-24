@@ -56,13 +56,17 @@ const JUMP_BUFFER_S = 0.12;
 const INVULN_S = 0.6;
 const PLAYER_W = 44;
 const PLAYER_H = 64;
+const MONSTER_W = 88;
+const MONSTER_H = 88;
 // Sprite bottom-padding compensation (transparent pixels below drawn feet).
 // Anchor("bot") puts the frame bottom on the ground; visible feet float above by this many pixels.
 const PLAYER_FOOT_PAD = 12;
 const RANGER_FOOT_PAD = 10;
-const MONSTER_FOOT_PAD = 31;
+const MONSTER_FOOT_PAD = 56;
 const ENVELOPE_FOOT_PAD = 26;
 const DENIED_FOOT_PAD = 37;
+const PLATFORM_SNAP_TOLERANCE = 22;
+const PLATFORM_EDGE_TOLERANCE = 16;
 
 
 export async function startGame(opts: StartGameOpts): Promise<() => void> {
@@ -272,11 +276,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     for (const mx of monsterSpots) {
       const speed = active.plain_language ? 40 : 110;
       const m = k.add([
-        k.sprite("props", { frame: PROP.formMonster, width: 48, height: 48 }),
+        k.sprite("props", { frame: PROP.formMonster, width: MONSTER_W, height: MONSTER_H }),
         k.pos(mx, GROUND_Y + MONSTER_FOOT_PAD),
         k.anchor("bot"),
-        // Hitbox covers the visible body (upper 40px of the 48px frame) above the pad
-        k.area({ shape: new k.Rect(k.vec2(-18, -42 - MONSTER_FOOT_PAD), 36, 40) }),
+        // Hitbox covers the visible monster body, not the transparent padding in the sheet.
+        k.area({ shape: new k.Rect(k.vec2(-26, -36 - MONSTER_FOOT_PAD), 52, 36) }),
         k.z(3),
         "monster",
         { dir: 1, home: mx, range: 80 },
@@ -487,6 +491,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         enemiesPassed: 0,
         deaths: 0,
         distancePx: 0,
+        prevFeetY: GROUND_Y,
         passedMonsters: new Set<unknown>(),
         visitedZones: new Set<number>([Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)))]),
         riding: null as null | { pos: { x: number; y: number }; platformSpeed: { x: number; y: number }; width: number; height: number },
@@ -494,18 +499,65 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ]);
 
 
-    // Track platform ride: when player lands on a platform, remember it
-    player.onCollide("platform", (p, col) => {
-      // Only consider it a "ride" if we hit the top surface
-      if (col?.isBottom()) {
-        const plat = p as unknown as {
-          pos: { x: number; y: number };
-          platformSpeed: { x: number; y: number };
-          width: number;
-          height: number;
-        };
-        player.riding = plat;
+    type PlatformRide = {
+      pos: { x: number; y: number };
+      platformSpeed: { x: number; y: number };
+      width: number;
+      height: number;
+    };
+
+    function asPlatformRide(p: unknown): PlatformRide | null {
+      const candidate = p as Partial<PlatformRide>;
+      if (!candidate.pos || typeof candidate.pos.x !== "number" || typeof candidate.pos.y !== "number") {
+        return null;
       }
+      const width = typeof candidate.width === "number" ? candidate.width : 0;
+      const height = typeof candidate.height === "number" ? candidate.height : 0;
+      if (width <= 0 || height <= 0) return null;
+      return {
+        pos: candidate.pos,
+        platformSpeed: candidate.platformSpeed ?? k.vec2(0, 0),
+        width,
+        height,
+      };
+    }
+
+    function snapToPlatform(plat: PlatformRide) {
+      player.riding = plat;
+      player.pos.y = plat.pos.y + PLAYER_FOOT_PAD;
+      if (player.vel.y > 0) player.vel.y = 0;
+      player.lastGroundedAt = k.time();
+    }
+
+    function findTopPlatformContact(): PlatformRide | null {
+      const feetY = player.pos.y - PLAYER_FOOT_PAD;
+      const prevFeetY = player.prevFeetY;
+      const platforms = k.get("platform");
+      for (const raw of platforms) {
+        const plat = asPlatformRide(raw);
+        if (!plat) continue;
+        const left = plat.pos.x - PLATFORM_EDGE_TOLERANCE;
+        const right = plat.pos.x + plat.width + PLATFORM_EDGE_TOLERANCE;
+        const top = plat.pos.y;
+        const withinX = player.pos.x >= left && player.pos.x <= right;
+        const fallingThroughTop =
+          player.vel.y >= -80 &&
+          prevFeetY <= top + PLATFORM_SNAP_TOLERANCE &&
+          feetY >= top - PLATFORM_SNAP_TOLERANCE &&
+          feetY <= top + PLATFORM_SNAP_TOLERANCE * 1.4;
+        const alreadyStanding = Math.abs(feetY - top) <= 10 && player.vel.y >= -80;
+        if (withinX && (fallingThroughTop || alreadyStanding)) return plat;
+      }
+      return null;
+    }
+
+    // Track platform ride: when player lands on a platform, remember it.
+    player.onCollide("platform", (p, col) => {
+      const plat = asPlatformRide(p);
+      if (!plat) return;
+      const feetY = player.pos.y - PLAYER_FOOT_PAD;
+      const nearTop = feetY >= plat.pos.y - PLATFORM_SNAP_TOLERANCE && feetY <= plat.pos.y + PLATFORM_SNAP_TOLERANCE;
+      if (nearTop || col?.isBottom()) snapToPlatform(plat);
     });
 
     // ================= Ranger helper =================
@@ -715,7 +767,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (player.dead || player.won) return;
       const now = k.time();
       const canCoyote = now - player.lastGroundedAt < COYOTE_S;
-      if (player.isGrounded() || canCoyote) {
+      if (player.isGrounded() || player.riding || canCoyote) {
         player.jump(JUMP_VEL);
         player.jumpBufferedAt = -1;
         // If we jumped off a moving platform, transfer its horizontal speed once
@@ -775,35 +827,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
 
 
-      // Landed-on-platform bonus (once per airborne -> platform touchdown)
-      const groundedNow = player.isGrounded();
-      if (groundedNow && !player.wasGrounded) {
-        if (player.riding) {
-          player.jumpsLanded += 1;
-          player.score += 250;
-        }
-      }
-      player.wasGrounded = groundedNow;
-
-      // Ground tracking for coyote time
-      if (groundedNow) {
-        player.lastGroundedAt = now;
-      }
-
-
-      // Verify player is still on the tracked platform; drop ride otherwise.
-      if (player.riding) {
-        const halfW = player.riding.width / 2;
-        const platCenterX = player.riding.pos.x + halfW;
-        const withinX = Math.abs(player.pos.x - platCenterX) < halfW + 12;
-        const platTop = player.riding.pos.y;
-        const expectedFeetY = platTop + PLAYER_FOOT_PAD;
-        const nearTop = Math.abs(player.pos.y - expectedFeetY) < 8;
-        if (!withinX || !nearTop || !player.isGrounded()) {
-          player.riding = null;
-        }
-      }
-
       // Horizontal input
       let dir = 0;
       for (const key of leftKeys) if (k.isKeyDown(key as never)) dir -= 1;
@@ -821,16 +844,44 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         player.pos.x += player.riding.platformSpeed.x * dt;
         // Snap feet to platform top (accounting for sprite foot padding)
         player.pos.y = player.riding.pos.y + PLAYER_FOOT_PAD;
+        if (player.vel.y > 0) player.vel.y = 0;
+      }
+
+      const platformContact = findTopPlatformContact();
+      if (platformContact) snapToPlatform(platformContact);
+
+      // Verify player is still on the tracked platform; drop ride otherwise.
+      if (player.riding) {
+        const withinX =
+          player.pos.x >= player.riding.pos.x - PLATFORM_EDGE_TOLERANCE &&
+          player.pos.x <= player.riding.pos.x + player.riding.width + PLATFORM_EDGE_TOLERANCE;
+        const expectedY = player.riding.pos.y + PLAYER_FOOT_PAD;
+        const nearTop = Math.abs(player.pos.y - expectedY) <= PLATFORM_SNAP_TOLERANCE;
+        if (!withinX || !nearTop) player.riding = null;
+      }
+
+      const groundedNow = player.isGrounded() || !!player.riding;
+
+      // Landed-on-platform bonus (once per airborne -> platform touchdown)
+      if (groundedNow && !player.wasGrounded && player.riding) {
+        player.jumpsLanded += 1;
+        player.score += 250;
+      }
+      player.wasGrounded = groundedNow;
+
+      // Ground tracking for coyote time
+      if (groundedNow) {
+        player.lastGroundedAt = now;
       }
 
       if (dir !== 0) {
         player.facing = dir as 1 | -1;
         player.flipX = dir < 0;
-        if (player.isGrounded() && player.getCurAnim()?.name !== "walk") player.play("walk");
-      } else if (player.isGrounded() && player.getCurAnim()?.name !== "idle") {
+        if (groundedNow && player.getCurAnim()?.name !== "walk") player.play("walk");
+      } else if (groundedNow && player.getCurAnim()?.name !== "idle") {
         player.play("idle");
       }
-      if (!player.isGrounded() && player.getCurAnim()?.name !== "jump") player.play("jump");
+      if (!groundedNow && player.getCurAnim()?.name !== "jump") player.play("jump");
 
       // Touch jump edge (buffered)
       if (w?.__gameInput?.jumpReq) {
@@ -839,10 +890,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
 
       // Consume buffered jump if we just landed
-      if (player.jumpBufferedAt > 0 && player.isGrounded() && now - player.jumpBufferedAt < JUMP_BUFFER_S) {
+      if (player.jumpBufferedAt > 0 && groundedNow && now - player.jumpBufferedAt < JUMP_BUFFER_S) {
         player.jump(JUMP_VEL);
         player.jumpBufferedAt = -1;
       }
+
+      player.prevFeetY = player.pos.y - PLAYER_FOOT_PAD;
 
       // Camera follow — recompute width() every frame for fullscreen changes
       const camX = Math.max(k.width() / 2, Math.min(player.pos.x, LEVEL_END - k.width() / 2));

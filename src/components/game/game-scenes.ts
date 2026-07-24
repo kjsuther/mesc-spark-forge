@@ -569,11 +569,34 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     type TouchInput = { left: boolean; right: boolean; jumpReq: boolean };
     const w = typeof window !== "undefined" ? (window as unknown as { __gameInput?: TouchInput }) : undefined;
 
+    // Zone tracking + cinematic transitions
+    let currentZone = Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)));
+    // Opening title card
+    showTitleCard(
+      k,
+      `STAGE ${currentZone + 1}`,
+      ZONES[currentZone].label.toUpperCase(),
+      [255, 220, 90],
+      1.8,
+    );
+
     k.onUpdate(() => {
       if (player.dead || player.won) {
-        // stop animation
         return;
       }
+      // Check for zone crossings and play title cards
+      const z = Math.min(ZONES.length - 1, Math.max(0, Math.floor(player.pos.x / BIOME_W)));
+      if (z !== currentZone) {
+        currentZone = z;
+        showTitleCard(
+          k,
+          `STAGE ${z + 1}`,
+          ZONES[z].label.toUpperCase(),
+          [255, 220, 90],
+          1.4,
+        );
+      }
+
       let dir = 0;
       for (const key of leftKeys) if (k.isKeyDown(key as never)) dir -= 1;
       for (const key of rightKeys) if (k.isKeyDown(key as never)) dir += 1;

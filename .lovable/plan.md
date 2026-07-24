@@ -1,135 +1,116 @@
+## Overhaul: SNES-style "Blazing the Trail to Coverage" + live voting rounds + mobile
 
-## Goal
+Rebuild the game with real 16-bit pixel art, biome-based backgrounds tied to the Medicaid journey phase, punishingly hard baseline difficulty, admin-triggered 5-minute voting rounds over a curated improvement pool, and full mobile support.
 
-Replace the current Client Demo Tool at `/tool` with a 16-bit pixel-art side-scroller called **Blazing the Trail to Coverage**. The player walks a short trail from "I need health coverage" to "Covered!" Barriers represent real barriers to public assistance. Five preset UX improvements can be toggled to visibly smooth the journey, and attendees vote live in the app for which improvement should be applied next. A Before/After switch flips between the raw trail and the trail with all currently-enabled improvements applied.
+### 1. SNES-style art (AI-generated sprite sheets)
 
-## What replaces what
+Generate pixel-art PNG assets with `imagegen--generate_image` (premium, transparent bg where appropriate) into `src/assets/game/`, then externalize each via `lovable-assets create` → `.asset.json` pointer.
 
-- `/tool` route: swap the entire Navigator UI for the game. Route keeps its path, so the admin **Poster View** iframe (`/tool?embed=1`) automatically shows the game with no changes to `admin.poster.tsx`.
-- Nav label "Demo Client Tool" → **"Demo Game"** in `site-header.tsx` and any admin references.
-- The Navigator action pages (`/actions/*`) are left alone — they are still linked from the changelog and elsewhere.
-- Sitemap/head meta on `/tool` updated to the game.
+Assets (all 16-bit, crisp pixel grid, SNES palette, no anti-aliasing):
+- **Character sprite sheet** — client walking/jumping/idle (4-frame walk, 1 jump, 1 idle), facing right, transparent
+- **Parallax backgrounds per biome** (1920×540, layered sky + midground + foreground):
+  1. `forest` — "Finding the Trail" (Pacific NW pines, morning fog)
+  2. `river` — "Crossing the River" (rushing blue river, mossy banks)
+  3. `town` — "Gathering What You Need" (small town w/ county office, mailbox, forms blowing)
+  4. `mountain` — "Application Mountain" (steep cliffs, switchbacks, storm clouds)
+  5. `clinic` — "Health Coverage!" (sunny valley w/ clinic building, welcoming)
+- **Tileset** — grass, dirt, stone, log platforms, water tiles, snow tiles
+- **Barrier / hazard sprites** — signpost with 5 arrows, jagged rocks, "DENIED" stamp, confusing form-paper enemy, red-tape vines
+- **Collectible icons** — ID card, paystub, household doc, insurance card
+- **Improvement sprites** (revealed when enabled) — wooden bridge, guide NPC (park-ranger style), paper map, campfire save-point, backpack
+- **UI chrome** — pixel HUD frame, heart/lives icon, timer digits
 
-## Game design
+Render sprites in Kaplay via `loadSprite`; keep everything at a fixed internal resolution (e.g. 480×270) scaled up with `crisp: true` / `pixelDensity` and `imageRendering: pixelated` for that true SNES look.
 
-**Tech:** [Kaplay](https://kaplayjs.com/) (successor to kaboom.js), added via `bun add kaplay`. Rendered inside a client-only `<canvas>` component (dynamic import guarded by `<ClientOnly>` / `useEffect`, since Kaplay touches `window` at import time). Fixed 960×540 internal resolution scaled responsively.
+### 2. Biome-driven scenes tied to the Medicaid journey
 
-**Structure — one continuous side-scrolling level with 5 named zones:**
+Rewrite `src/components/game/game-scenes.ts` as a horizontal level split into five biome segments; the camera scroll triggers a background/parallax swap plus a top-corner "phase label" banner:
 
-1. **Finding the Trail** — spawn area with multiple confusing forks. Signs are blank unless "Add clearer directions" is on.
-2. **Crossing the River** — a river gap with two tricky floating log platforms. "Add a bridge" replaces them with a solid bridge.
-3. **Gathering What You Need** — 3 collectible pixel icons (ID card, income doc, household doc). Without the backpack improvement, they must be re-collected if the player dies. With it, they persist and a HUD strip shows what's still missing.
-4. **Application Mountain** — a steep slope of small platforms. "Add clearer directions" adds trail markers + a gentler stepped path.
-5. **Health Coverage** — a 🏥 flag; touching it triggers the win banner: *"You successfully found your path to coverage."*
-
-**Controls:** Arrow keys / A-D to move, Space / W / Up to jump, R to reset. On-screen touch buttons for tablet demo.
-
-**Aesthetic:** procedural pixel art drawn with Kaplay primitives — no external sprite sheets needed. Pacific-Northwest palette: pine green, river blue, mountain slate, cream sky, warm accent orange for the trail. Character is a simple 16×16 backpacker sprite drawn from rects.
-
-## Five audience-votable improvements
-
-Presented as UX-language options (per the user's tweak):
-
-| Vote label | Internal flag | In-game effect |
-|---|---|---|
-| Add clearer directions | `clearer_directions` | Sign text becomes legible; Application Mountain gets stepped path + arrow markers |
-| Add a helper | `helper` | Ranger NPC walks a few steps ahead of the player pointing to the next objective |
-| Show required documents earlier | `documents_earlier` | Persistent HUD showing which of the 3 docs are still needed appears from spawn |
-| Let users save progress | `save_progress` | Campfire checkpoint after River zone; death respawns there instead of level start |
-| Add a bridge | `bridge` | Bridge planks appear over the river; log platforms hidden |
-
-All five are independent toggles. Each is a small conditional inside the game's scene setup so improvements can be swapped in/out at runtime by re-mounting the scene.
-
-## Live voting + realtime sync
-
-Voting integrates with the existing `feedback` + `votes` tables, without polluting real user feedback:
-
-**New migration** — a small dedicated table (kept separate from `feedback` so it doesn't appear in the triage board):
-
-```sql
-create table public.game_improvements (
-  key text primary key,           -- 'bridge', 'helper', etc.
-  label text not null,
-  description text not null,
-  enabled boolean not null default false,
-  sort_order int not null default 0,
-  updated_at timestamptz not null default now()
-);
-grant select on public.game_improvements to anon, authenticated;
-grant all on public.game_improvements to service_role;
-alter table public.game_improvements enable row level security;
-create policy "Public can read improvements" on public.game_improvements
-  for select to anon, authenticated using (true);
-
-create table public.game_improvement_votes (
-  id uuid primary key default gen_random_uuid(),
-  improvement_key text not null references public.game_improvements(key) on delete cascade,
-  voter_fingerprint text not null,
-  created_at timestamptz not null default now(),
-  unique (improvement_key, voter_fingerprint)
-);
-grant select, insert, delete on public.game_improvement_votes to anon, authenticated;
-grant all on public.game_improvement_votes to service_role;
-alter table public.game_improvement_votes enable row level security;
-create policy "Public can read votes" on public.game_improvement_votes
-  for select to anon, authenticated using (true);
-create policy "Anyone can vote" on public.game_improvement_votes
-  for insert to anon, authenticated
-  with check (length(voter_fingerprint) between 8 and 200);
-create policy "Own vote can be removed" on public.game_improvement_votes
-  for delete to anon, authenticated using (true);
-
-alter publication supabase_realtime add table public.game_improvements;
-alter publication supabase_realtime add table public.game_improvement_votes;
+```
+[FOREST] Finding the trail  →  [RIVER] Crossing the river  →
+[TOWN] Gathering documents  →  [MOUNTAIN] Application mountain  →  [CLINIC] Covered!
 ```
 
-Seed the 5 improvements in the same migration (all `enabled=false`).
+Each biome has its own parallax layers, tileset, ambient hazards, and a gate that blocks progress until solved.
+
+### 3. Punishingly hard baseline (beatable only by a pro)
+
+Baseline "before" experience — no improvements enabled:
+- **Forest gate** — 5 signposts pointing 5 directions, 4 are dead-ends that reset the player to spawn. Only trial-and-error finds the path.
+- **River gate** — 4 tiny 8px-wide platforms over deep water, spaced near max jump distance, moving up/down out of phase. Fall = full level restart.
+- **Town gate** — 3 required documents scattered off the main path behind hazards; missing any means the mountain gate rejects you.
+- **Mountain gate** — near-vertical climb with disappearing ledges, falling rocks, and a wind gust that pushes left. No checkpoints.
+- **Clinic gate** — requires all 3 docs stamped; without the "clearer directions" improvement the stamp queue rejects randomly.
+- **3 lives, no checkpoints, 3-minute timer.** Time out or lose all lives = "Application denied — try again."
+
+Each enabled improvement removes exactly one of these teeth:
+| Improvement | Baseline pain removed |
+|---|---|
+| `clearer_directions` | Correct signpost glows; stamp queue accepts on first try |
+| `helper` | Guide NPC walks ahead and marks the safe river platforms |
+| `documents_earlier` | Backpack HUD lists required docs from spawn; docs pulse |
+| `save_progress` | Campfire checkpoints at each biome; deaths respawn at last fire |
+| `bridge` | Solid bridge over the river gate |
+| (admin-added pool items) | Each maps to a specific baseline tooth in code |
+
+Beatable in theory, effectively impossible in practice without ≥3 improvements.
+
+### 4. Live voting rounds (admin-triggered, 5-min countdown, curated pool)
+
+**Schema changes** (migration):
+- New table `game_improvement_pool` (curated pool the admin builds):
+  `key text pk`, `label text`, `description text`, `baseline_pain text` (which tooth it removes), `code_hook text` (matches a switch in game code), `created_at`
+- New table `game_vote_rounds`:
+  `id uuid pk`, `started_at`, `ends_at`, `status text ('active'|'ended'|'applied')`, `winner_key text nullable`, `applied_at nullable`
+- New table `game_round_candidates`:
+  `round_id uuid`, `improvement_key text`, PK (round_id, improvement_key) — the subset the admin picked for this round
+- Reuse existing `game_improvement_votes` but add nullable `round_id uuid` column so votes scope to the active round
+- All tables: GRANT to anon/authenticated per policy, RLS on, realtime enabled
 
 **Server functions** (`src/lib/game.functions.ts`):
-- `listImprovements()` — public read; returns rows + vote counts.
-- `castImprovementVote({ key })` — anon-safe insert using the existing `voter.ts` fingerprint; upsert-style (delete then insert).
-- `setImprovementEnabled({ key, enabled })` — admin-only, gated by `requireAdmin()` from `admin-session.server.ts` (matches how the existing admin surfaces work).
-- `applyTopVote()` — admin-only convenience: enables the improvement with the most votes.
+- `createVoteRound({ candidate_keys, duration_seconds = 300 })` — admin only, closes any active round first
+- `endActiveRound()` — sets status='ended', computes winner
+- `applyRoundWinner()` — flips `game_improvements.enabled=true` for the winner, sets status='applied'
+- `addPoolItem` / `removePoolItem` — admin curates the pool
 
-**Frontend wiring:**
-- On `/tool`, a compact **"What should we improve next?"** panel below the canvas lists the 5 options with vote counts and a single-select radio (one vote per fingerprint). Voting invalidates the query; Supabase realtime subscription on `game_improvement_votes` triggers refetch so counts update live.
-- Realtime subscription on `game_improvements` triggers a game scene re-mount whenever a flag flips, so the trail visibly changes mid-demo.
-- **Admin page** `admin.game.tsx` (new): table of improvements with enable/disable switches, live vote tallies, and an "Apply top vote" button. Added to the admin nav next to "Now Building."
+**Voting rules** (RLS):
+- Insert allowed only when an `active` round exists and `improvement_key` is in that round's candidates
+- Enforced by a `SECURITY DEFINER` function `cast_round_vote(_key, _fingerprint)` that checks the round, dedupes per fingerprint, returns the new tally
 
-## Before/After toggle
+**Client — `/tool`**:
+- Voting panel is **hidden during play**; on player win/lose/timeout OR when an admin round is active, a **round overlay** appears with:
+  - Biome-styled pixel card, 5-minute countdown ticker
+  - The round's candidate improvements as vote cards
+  - Live tallies via realtime; "You voted" state per fingerprint
+  - When round ends: winner highlighted + "Applying to the trail…" animation, then game reloads with the new improvement enabled
+- If no active round, panel shows: "Waiting for next round — presenter will start voting shortly."
 
-Single toggle rendered above the canvas (and mirrored to a persistent flag so the poster view respects it):
-- **Before** — ignore all enabled improvements; player experiences the raw trail.
-- **After** — apply every currently-enabled improvement.
+**Client — `/admin/game`**:
+- Existing improvement on/off table kept for manual control
+- New **"Pool"** section: add/remove items (label, description, baseline pain, code hook select)
+- New **"Round"** section: multi-select candidates from pool → "Start 5-min round" button; live countdown; "End early" and "Apply winner" buttons; history of past rounds
 
-Stored client-side in `localStorage` for the tool page; on the admin page a "Broadcast: Before/After" switch writes to a new `game_settings` singleton row (`before_after text`) also subscribed to via realtime so the poster view can be flipped from the podium.
+### 5. Mobile support (touch controls + responsive canvas)
 
-Closing message shown on the win screen in After mode:
-> "Every trail starts somewhere. Better trails are built by listening to the people who use them."
+- **Touch overlay** on the canvas: left/right D-pad on the bottom-left, jump button on the bottom-right, both semi-transparent pixel-art buttons. Detect via `useIsMobile()` (already exists) plus `pointer: coarse` media query.
+- Kaplay: bind touch buttons to the same `player.move` / `player.jump` actions as keyboard. Prevent default touch scrolling on the canvas element.
+- **Responsive scaling**: canvas keeps 16:9 aspect but internal resolution stays 480×270; CSS scales it to `100vw` with `max-height: 60vh` on mobile so the vote panel and controls stay visible.
+- **Vote overlay**: full-width bottom sheet on mobile, side card on desktop; large tap targets (min 44px).
+- **Portrait warning**: brief pixel banner suggesting landscape when portrait+narrow (dismissible).
+- Set preview to mobile viewport when the build is done so the user can verify.
 
-## File plan
+### 6. File changes
 
-New:
-- `src/routes/tool.tsx` — rewritten. Renders `<GameCanvas />`, before/after toggle, live vote panel, closing message.
-- `src/components/game/game-canvas.tsx` — client-only Kaplay mount; accepts `improvements`, `mode` props; remounts on prop change.
-- `src/components/game/game-scenes.ts` — Kaplay scene definitions (spawn, river, docs, mountain, finish) with per-improvement branches.
-- `src/components/game/vote-panel.tsx` — vote UI + realtime.
-- `src/lib/game.functions.ts` — server fns above.
-- `src/lib/game.queries.ts` — `queryOptions` for improvements and votes.
-- `src/routes/admin.game.tsx` — admin control panel; linked from `admin.tsx` sub-nav.
-- `supabase/migrations/<ts>_game_improvements.sql` — schema, grants, RLS, seed rows, realtime.
+- **New**: `src/assets/game/*.png.asset.json` (all sprite pointers), `src/components/game/touch-controls.tsx`, `src/components/game/vote-round-overlay.tsx`, `src/components/game/phase-banner.tsx`, `src/lib/game-round.queries.ts`
+- **Rewrite**: `src/components/game/game-scenes.ts` (biome scenes, sprite loading, hard mode logic, improvement hooks), `src/components/game/game-canvas.tsx` (touch input + responsive sizing), `src/routes/tool.tsx` (round-driven overlay, hide vote panel during play), `src/routes/admin.game.tsx` (pool + round controls), `src/lib/game.functions.ts` (round mutations), `src/lib/game.queries.ts` (round queries)
+- **Migration**: new tables + realtime + RLS + seed pool with the 5 preset improvements
 
-Edited:
-- `src/components/site-header.tsx` — rename "Demo Client Tool" → "Demo Game".
-- `src/routes/admin.tsx` — add "Demo Game" link to admin sub-nav.
-- `src/routes/admin.poster.tsx` — update the iframe header label from "Live Demo — Client Tool" to "Live Demo — Trail to Coverage"; keep `/tool?embed=1` source.
-- `src/data/actions.ts` — untouched (still used elsewhere).
+### 7. Verification
 
-Package: `bun add kaplay`.
+- Build clean, then Playwright: load `/tool` on desktop viewport → confirm sprites render, character moves, first signpost gate blocks; load on mobile viewport (390×844) → confirm touch buttons appear and jump works; `/admin/game` → start a 15-second test round, cast a vote from another session, confirm winner applies and canvas reloads with the improvement.
 
-## Non-goals
+### Out of scope
 
-- No sprite sheets, no music, no sound effects in v1 (can be added later based on feedback — that's the point of the exercise).
-- No per-user save games or leaderboards.
-- No mobile-optimized layout beyond scaling the canvas + on-screen buttons.
-- The existing Navigator action pages (`/actions/*`) stay in place; only `/tool` swaps.
+- Sound effects / chiptune music (can add later on request)
+- Multi-player synchronized play (each attendee plays their own session; voting is shared)
+- Persistent leaderboards

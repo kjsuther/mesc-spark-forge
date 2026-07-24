@@ -7,7 +7,7 @@ import { NowBuildingBanner } from "@/components/now-building-banner";
 import { SectionHeading } from "@/components/trail/section-heading";
 import { GameCanvas } from "@/components/game/game-canvas";
 import { VotePanel } from "@/components/game/vote-panel";
-import { improvementsQuery, gameSettingsQuery } from "@/lib/game.queries";
+import { improvementsQuery, gameSettingsQuery, activeRoundQuery } from "@/lib/game.queries";
 import { nowBuildingQuery, versionsQuery } from "@/lib/queries";
 import { IMPROVEMENT_KEYS, type ImprovementKey } from "@/lib/game.functions";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,6 +33,7 @@ export const Route = createFileRoute("/tool")({
   loader: ({ context }) => {
     context.queryClient.ensureQueryData(improvementsQuery);
     context.queryClient.ensureQueryData(gameSettingsQuery);
+    context.queryClient.ensureQueryData(activeRoundQuery);
     context.queryClient.ensureQueryData(nowBuildingQuery);
     context.queryClient.ensureQueryData(versionsQuery);
   },
@@ -46,6 +47,7 @@ function ToolPage() {
   const { data: settings } = useQuery(gameSettingsQuery);
   const qc = useQueryClient();
   const [localMode, setLocalMode] = useState<"before" | "after" | null>(null);
+  const [gameEnded, setGameEnded] = useState(false);
 
   const current = versions.find((v) => v.is_current) ?? versions[versions.length - 1];
 
@@ -61,6 +63,16 @@ function ToolPage() {
         "postgres_changes",
         { event: "*", schema: "public", table: "game_settings" },
         () => qc.invalidateQueries({ queryKey: ["game_settings"] }),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "game_vote_rounds" },
+        () => qc.invalidateQueries({ queryKey: ["game_round"] }),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "game_improvement_votes" },
+        () => qc.invalidateQueries({ queryKey: ["game_round"] }),
       )
       .on("postgres_changes", { event: "*", schema: "public", table: "feedback" }, () =>
         qc.invalidateQueries({ queryKey: ["now_building"] }),
@@ -133,9 +145,14 @@ function ToolPage() {
           </span>
         </div>
 
-        <ClientGameCanvas flags={flags} mode={mode} />
+        <ClientGameCanvas
+          flags={flags}
+          mode={mode}
+          onWin={() => setGameEnded(true)}
+          onLose={() => setGameEnded(true)}
+        />
 
-        <VotePanel />
+        <VotePanel highlight={gameEnded} />
 
         <p className="mt-8 text-center text-sm text-dark-gray/70 italic max-w-2xl mx-auto">
           Every trail starts somewhere. Better trails are built by listening to the people who use
@@ -148,7 +165,12 @@ function ToolPage() {
   );
 }
 
-function ClientGameCanvas(props: { flags: Record<ImprovementKey, boolean>; mode: "before" | "after" }) {
+function ClientGameCanvas(props: {
+  flags: Record<ImprovementKey, boolean>;
+  mode: "before" | "after";
+  onWin?: () => void;
+  onLose?: () => void;
+}) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   if (!mounted) {

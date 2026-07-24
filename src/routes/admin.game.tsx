@@ -1,15 +1,20 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { improvementsQuery, gameSettingsQuery } from "@/lib/game.queries";
+import {
+  improvementsQuery,
+  gameSettingsQuery,
+  activeRoundQuery,
+} from "@/lib/game.queries";
 import {
   setImprovementEnabled,
   setBeforeAfter,
-  applyTopVote,
   resetImprovements,
+  startVoteRound,
+  endAndApplyRound,
   IMPROVEMENT_KEYS,
   type ImprovementKey,
 } from "@/lib/game.functions";
@@ -28,28 +33,35 @@ function AdminGamePage() {
   const qc = useQueryClient();
   const { data: improvements = [] } = useQuery(improvementsQuery);
   const { data: settings } = useQuery(gameSettingsQuery);
+  const { data: round } = useQuery(activeRoundQuery);
   const toggle = useServerFn(setImprovementEnabled);
   const setMode = useServerFn(setBeforeAfter);
-  const applyTop = useServerFn(applyTopVote);
   const reset = useServerFn(resetImprovements);
+  const startRound = useServerFn(startVoteRound);
+  const endRound = useServerFn(endAndApplyRound);
+
+  const [selected, setSelected] = useState<Set<ImprovementKey>>(new Set());
+  const [durationMin, setDurationMin] = useState(5);
 
   useEffect(() => {
     const ch = supabase
       .channel("admin-game")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "game_improvements" },
-        () => qc.invalidateQueries({ queryKey: ["game_improvements"] }),
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_improvements" }, () =>
+        qc.invalidateQueries({ queryKey: ["game_improvements"] }),
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "game_improvement_votes" },
-        () => qc.invalidateQueries({ queryKey: ["game_improvements"] }),
+        () => {
+          qc.invalidateQueries({ queryKey: ["game_improvements"] });
+          qc.invalidateQueries({ queryKey: ["game_round"] });
+        },
       )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "game_settings" },
-        () => qc.invalidateQueries({ queryKey: ["game_settings"] }),
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_settings" }, () =>
+        qc.invalidateQueries({ queryKey: ["game_settings"] }),
+      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_vote_rounds" }, () =>
+        qc.invalidateQueries({ queryKey: ["game_round"] }),
       )
       .subscribe();
     return () => {
@@ -57,33 +69,52 @@ function AdminGamePage() {
     };
   }, [qc]);
 
-  const totalVotes = improvements.reduce((s, i) => s + i.votes, 0);
   const mode = settings?.before_after ?? "before";
+  const disabledImprovements = useMemo(
+    () => improvements.filter((i) => !i.enabled),
+    [improvements],
+  );
+  const secondsLeft = useCountdown(round?.endsAt ?? null);
 
   async function handleToggle(key: ImprovementKey, enabled: boolean) {
     await toggle({ data: { key, enabled } });
-    qc.invalidateQueries({ queryKey: ["game_improvements"] });
-    toast.success(`${enabled ? "Enabled" : "Disabled"}`);
+    toast.success(enabled ? "Enabled" : "Disabled");
   }
-
   async function handleMode(next: "before" | "after") {
     await setMode({ data: { mode: next } });
-    qc.invalidateQueries({ queryKey: ["game_settings"] });
     toast.success(`Broadcasting ${next.toUpperCase()}`);
   }
-
-  async function handleApplyTop() {
-    const res = await applyTop();
-    qc.invalidateQueries({ queryKey: ["game_improvements"] });
-    if (res.key) toast.success(`Applied: ${res.key}`);
-    else toast.info("No unapplied improvement has votes yet.");
-  }
-
   async function handleReset() {
     if (!confirm("Reset all improvements to disabled and clear all votes?")) return;
     await reset();
-    qc.invalidateQueries({ queryKey: ["game_improvements"] });
     toast.success("Reset");
+  }
+  async function handleStartRound(auto: boolean) {
+    try {
+      const keys = auto ? undefined : Array.from(selected);
+      const res = await startRound({
+        data: { candidateKeys: keys, durationSec: durationMin * 60, count: 3 },
+      });
+      toast.success(`Round started (${durationMin} min)`);
+      setSelected(new Set());
+      void res;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to start round");
+    }
+  }
+  async function handleEndRound() {
+    const res = await endRound();
+    if (res.winner) toast.success(`Applied winner: ${res.winner.key} (${res.winner.votes} votes)`);
+    else toast.info("No winner to apply");
+  }
+
+  function toggleSelect(k: ImprovementKey) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(k)) next.delete(k);
+      else next.add(k);
+      return next;
+    });
   }
 
   return (
@@ -92,19 +123,18 @@ function AdminGamePage() {
         Demo Game
       </h1>
       <p className="text-sm text-dark-gray/70 mb-6">
-        Toggle UX improvements live during the demo. Changes broadcast to every open game canvas
-        (including Poster View) in real time.
+        Toggle UX improvements live, or run a 5-minute voting round so attendees pick the next
+        one to apply.
       </p>
 
+      {/* Before/After */}
       <section className="mb-6 bg-cream border-2 border-mn-blue/30 rounded-lg p-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h2 className="font-bold text-mn-blue uppercase tracking-wide text-sm mb-1">
               Broadcast Before / After
             </h2>
-            <p className="text-xs text-dark-gray/70">
-              Flips the game canvas for every viewer.
-            </p>
+            <p className="text-xs text-dark-gray/70">Flips the game for every viewer.</p>
           </div>
           <div className="inline-flex rounded-full border-2 border-mn-blue/40 bg-white p-1">
             <button
@@ -127,22 +157,101 @@ function AdminGamePage() {
         </div>
       </section>
 
+      {/* Voting round */}
+      <section className="mb-6 bg-white border-2 border-accent-orange/60 rounded-lg p-4">
+        <h2 className="font-bold text-mn-blue uppercase tracking-wide text-sm mb-3">
+          Live Voting Round
+        </h2>
+        {round ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="text-sm font-semibold text-dark-gray">
+                Round in progress — <b>{fmtCountdown(secondsLeft)}</b> remaining
+              </span>
+              <button
+                onClick={handleEndRound}
+                className="bg-mn-green text-white font-bold text-sm px-4 py-2 rounded hover:brightness-110"
+              >
+                End round & apply winner
+              </button>
+            </div>
+            <ul className="grid grid-cols-1 md:grid-cols-3 gap-2">
+              {round.candidates.map((c) => (
+                <li key={c.key} className="border-2 border-light-gray rounded p-2 bg-cream">
+                  <div className="font-bold text-mn-blue text-sm">{c.label}</div>
+                  <div className="text-xs text-dark-gray/70">{c.description}</div>
+                  <div className="text-lg font-black text-accent-orange mt-1 tabular-nums">
+                    {c.votes} votes
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-xs text-dark-gray/70">
+              Start a voting round. Attendees will see a countdown and can cast one vote. Pick
+              candidates below or leave empty for a random 3.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {disabledImprovements.map((imp) => (
+                <button
+                  key={imp.key}
+                  onClick={() => toggleSelect(imp.key)}
+                  className={`text-xs font-bold px-3 py-1 rounded-full border-2 ${
+                    selected.has(imp.key)
+                      ? "bg-mn-blue text-white border-mn-blue"
+                      : "bg-white text-mn-blue border-mn-blue/40"
+                  }`}
+                >
+                  {imp.label}
+                </button>
+              ))}
+              {disabledImprovements.length === 0 && (
+                <span className="text-xs text-dark-gray/60">
+                  All improvements already applied.
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <label className="text-xs font-semibold text-dark-gray">
+                Duration:{" "}
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={durationMin}
+                  onChange={(e) => setDurationMin(Math.max(1, Number(e.target.value) || 5))}
+                  className="w-16 border-2 border-mn-blue/40 rounded px-2 py-1 ml-1"
+                />{" "}
+                min
+              </label>
+              <button
+                onClick={() => handleStartRound(false)}
+                disabled={selected.size < 2 || disabledImprovements.length < 2}
+                className="bg-mn-blue text-white font-bold text-sm px-4 py-2 rounded hover:brightness-110 disabled:opacity-40"
+              >
+                Start round ({selected.size} picked)
+              </button>
+              <button
+                onClick={() => handleStartRound(true)}
+                disabled={disabledImprovements.length < 2}
+                className="bg-accent-orange text-white font-bold text-sm px-4 py-2 rounded hover:brightness-110 disabled:opacity-40"
+              >
+                Auto-pick 3 & start
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
       <section className="mb-4 flex flex-wrap gap-2">
-        <button
-          onClick={handleApplyTop}
-          className="bg-mn-blue text-white font-bold text-sm px-4 py-2 rounded hover:brightness-110"
-        >
-          Apply top-voted improvement
-        </button>
         <button
           onClick={handleReset}
           className="bg-white border-2 border-red-500 text-red-600 font-bold text-sm px-4 py-2 rounded hover:bg-red-50"
         >
-          Reset all
+          Reset all improvements & votes
         </button>
-        <span className="ml-auto self-center text-xs font-semibold text-dark-gray/70">
-          {totalVotes} total votes cast
-        </span>
       </section>
 
       <div className="border-2 border-light-gray rounded-lg overflow-hidden">
@@ -192,4 +301,21 @@ function AdminGamePage() {
       </div>
     </div>
   );
+}
+
+function useCountdown(endsAt: string | null) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!endsAt) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [endsAt]);
+  if (!endsAt) return 0;
+  return Math.max(0, Math.floor((new Date(endsAt).getTime() - now) / 1000));
+}
+
+function fmtCountdown(s: number) {
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${String(r).padStart(2, "0")}`;
 }

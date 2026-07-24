@@ -26,7 +26,7 @@ export type StartGameOpts = {
   flags: GameFlags;
   mode: "before" | "after";
   onWin?: (result: WinResult) => void;
-  onLose?: () => void;
+  onLose?: (result: WinResult) => void;
 };
 
 type Ctx = KAPLAYCtx;

@@ -487,7 +487,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         enemiesPassed: 0,
         deaths: 0,
         distancePx: 0,
-        passedMonsters: new Set<number>(),
+        passedMonsters: new Set<unknown>(),
         visitedZones: new Set<number>([Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)))]),
         riding: null as null | { pos: { x: number; y: number }; platformSpeed: { x: number; y: number }; width: number; height: number },
       },

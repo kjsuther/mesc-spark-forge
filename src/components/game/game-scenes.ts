@@ -457,7 +457,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       livesHud.text = `♥ ${player.lives}`;
       const need = ["ID", "Income", "Household"].filter((d) => !player.docs.has(d));
       docsHud.text = active.documents_earlier || player.docs.size > 0
-        ? need.length ? `Docs needed: ${need.join(", ")}` : "Docs: complete ✓"
+        ? need.length ? `Application docs needed: ${need.join(", ")}` : "Application docs: complete ✓"
         : "";
     }
     updateHud();

@@ -1,70 +1,49 @@
-## Goal
+## Fixes
 
-Bring `Blazing the Trail to Coverage` up to a "polished 16-bit platformer" bar: fix the concrete bugs first (moving platforms, enemy/sprite alignment, mobile browser interference), then run a structured QA pass on every level and file a report. Keep current difficulty.
+### 1. Character floating above surfaces (sprite trim)
+The player and prop sprites have transparent padding below their visible feet, so `anchor("bot")` puts the sprite's frame bottom on the ground while the drawn feet hover a few pixels above. Fix per-sprite with an offset applied to `pos.y` (e.g., `GROUND_Y + FOOT_OFFSET`), tuned per sprite:
 
-Scope is the `/tool` game only — `src/components/game/game-scenes.ts`, `src/components/game/game-canvas.tsx`, and the `/tool` route wrapper. No new backend, no art regeneration, no audio system added (audio isn't in the game today — flagged as out-of-scope, see bottom).
+- Player: shift down ~8px so feet meet the ground/platform strip.
+- Ranger helper: same treatment.
+- Form-monster: shift down ~6px so the visible body sits on the ground.
+- Doc pickups, backpack, campfire, signpost, denied stamp: verify and offset as needed via screenshot check.
 
----
+Also apply the same offset when snapping to moving-platform tops (`player.pos.y = platform.pos.y + FOOT_OFFSET`) and to the ranger's follow logic. Center collision boxes on the visible pixels of each sprite after the offset.
 
-## 1. Physics + moving-platform fixes (highest priority)
+### 2. Villains not on the same vertical line
+Same root cause as #1 (sprite trim + wrong anchor snap). After the offset fix, monsters will sit on the same ground strip as the player. Also constrain their `pos.y` to `GROUND_Y + FOOT_OFFSET` every frame so they can't drift.
 
-Root cause of the "character slides / lags / floats off" on moving platforms: static Kaplay bodies that translate via `onUpdate` don't transfer velocity to riders, and the player's horizontal velocity is set from raw input each frame, wiping any carry.
+### 3. End-of-game screen always shows leaderboard + score submit
+Currently `<ScoreSubmit>` renders only when `winResult` is truthy (win only). Change so a game-over payload is produced on lose too:
 
-Changes in `game-scenes.ts`:
+- Extend `WinResult` (rename mental model to `GameResult`) with `won: boolean` and `farthestZone: number` (0-4).
+- `onLose` fires with a full `GameResult` (docs collected, farthest zone reached, elapsed time, lives=0, `won:false`).
+- In `/tool`, always render `<ScoreSubmit result={result}>` after either callback, and show the live `<Leaderboard>` immediately below (auto-refreshes every 5s already).
+- ScoreSubmit copy adapts: "You made it to Step X — score N" (loss) vs. "You covered the trail — score N" (win).
 
-- Give each moving platform a `platformSpeed` object (`{vx, vy}`) updated every frame from its sine motion (delta since last frame ÷ dt).
-- Track `player.riding` = the platform whose top the player is standing on (detect via `onCollide` with a small `"platform"` tag + `player.isGrounded()` + feet-Y within 2px of platform top).
-- Each frame, when `riding` is set: add `platform.platformSpeed.vx * dt` to player's x position AFTER input movement, and snap `player.pos.y` to `platform.pos.y - platform.height/2 - playerHalfHeight` so the player never separates or sinks. Clear `riding` when not grounded or when leaving the platform's x-range.
-- Cap horizontal input to a `MOVE_SPEED` constant applied via `player.move(...)` (not by rewriting velocity), so carry works additively.
-- Add a coyote-time window (~90ms) and a jump-buffer (~120ms) so jumps off platform edges feel responsive.
-- Fix landing snap: on `onGround`, zero any residual downward velocity to remove the 1-frame bounce.
-- Kill-plane: verify triggers on river gaps before the player can land on nothing; move to `GROUND_Y + 40` on river zone only.
+### 4. Scoring rewards collectibles + progress
+Update `computeScore` in `src/components/game/score-submit.tsx`:
 
-## 2. Sprite + enemy alignment audit
+```
+base   = won ? 5000 : 0
+docs   = docsCollected * 750
+progress = farthestZone * 1000       // 0..4000 for reaching each new biome
+lives  = livesRemaining * 500        // only meaningful on win
+speed  = won ? max(0, 4000 - floor(duration_ms / 100)) : 0
+score  = base + docs + progress + lives + speed
+```
 
-- Re-anchor every actor to `anchor("bot")` at its ground Y so sprite feet sit exactly on the visible ground strip: player, ranger/helper, doc pickups, campfire, backpack, form-monster enemies, boulders, signposts, gate, finish flag. Currently only player + ranger are `anchor("bot")`.
-- For each entity, add an explicit `area({ shape: new k.Rect(...) })` sized to the visible sprite (not the full frame), and offset so the collision box matches the pixels. This fixes the "enemy hitbox is off" and sprite-clipping reports.
-- Verify per-biome ground strip height matches `GROUND_Y` (currently 80px; ensure no biome overrides it).
+This makes every step of the journey worth points even on a loss — collecting a doc, reaching the town gate, reaching the mountain, etc. — which is what "further you make it gives more points" implies.
 
-## 3. Enemy behavior polish
+Track `farthestZone` in the scene: update it every frame from the current zone index and pass it into the callback.
 
-- Form-monster patrol: clamp to its spawn zone's x-range so it can't walk into a wall and jitter.
-- Add a 200ms invulnerability window on player after taking damage (prevents multi-hit death from one contact frame).
-- Boulders: ensure they despawn off-screen (memory) and don't spawn while player is at the entry ledge.
+## Files touched
+- `src/components/game/game-scenes.ts` — foot offsets, monster y-lock, farthestZone tracking, onLose payload
+- `src/components/game/score-submit.tsx` — new scoring formula, adaptive copy
+- `src/routes/tool.tsx` — render ScoreSubmit + Leaderboard on both win and lose
 
-## 4. Mobile browser interference + fullscreen
+## Verification
+Playwright screenshots at desktop and mobile of: forest start (feet on ground), river with player on a moving stone (feet on stone), town with form-monsters (feet on same line as player), and a forced game-over with the leaderboard visible and a computed score reflecting docs + progress.
 
-`game-canvas.tsx`:
-
-- Wrap the canvas + touch controls in a container that gets `touch-action: none`, `user-select: none`, `-webkit-user-select: none`, `-webkit-touch-callout: none`, `overscroll-behavior: contain`.
-- Add `onContextMenu={(e) => e.preventDefault()}` on canvas and touch buttons.
-- Add a "⛶ Fullscreen" button (desktop + mobile) that calls `containerRef.current.requestFullscreen()` (with `webkitRequestFullscreen` fallback for iOS Safari where supported). While fullscreen: canvas fills viewport preserving 16:9 with letterboxing (Kaplay already has `letterbox: true`), touch controls overlay the bottom of the canvas with `position: absolute` and safe-area insets (`env(safe-area-inset-bottom)`).
-- Prevent double-tap zoom by keeping `touch-action: none` on the game surface AND adding `<meta name="viewport" content="..., user-scalable=no">` scoped via the route's `head()` (already partly there — verify).
-- Pointer capture on each touch button so dragging off the button while held doesn't lose the input (already partly implemented — verify multi-touch: press-and-hold left + tap jump must both register).
-
-## 5. Camera + level bounds
-
-- Confirm `camPos` clamp accounts for fullscreen width changes (recompute `width()` each frame instead of caching).
-- Add a 1-tile invisible wall at `x=0` and `x=LEVEL_END` so the player can't walk off the left edge.
-
-## 6. QA pass + report
-
-After fixes, run Playwright at 1280×800 (desktop) and 402×800 (mobile-portrait) + 800×402 (mobile-landscape). For each biome capture: entry, mid-zone, exit. Additionally reproduce: death on river gap, gate-locked with 2 docs, mountain peak, clinic win, mobile reset button, fullscreen toggle.
-
-Deliver a `QA-REPORT.md` at project root with, per issue: symptom, root cause, fix, file/line, screenshot path, regression check result. Include a "known limitations" section for anything intentionally deferred.
-
----
-
-## Explicitly out of scope (call out to user)
-
-- **Audio / SFX / music** — the game currently has none; adding an audio system, sourcing SFX, and testing pause/resume behavior is a separate feature, not a QA fix. Flag in the report.
-- **Controller / gamepad support** — not currently implemented.
-- **Double jump** — not a current mechanic; the prompt lists it as "if applicable". Leaving single-jump as designed.
-- **Animation states beyond current idle/walk/jump** — no new sprite sheets; will polish transitions on what exists.
-- **New art or biomes.**
-
-## Technical notes
-
-- Files touched: `src/components/game/game-scenes.ts`, `src/components/game/game-canvas.tsx`, possibly `src/routes/tool.tsx` (viewport meta), new `QA-REPORT.md`.
-- No dependencies added, no schema changes, no new routes.
-- Verification: Playwright screenshots + a scripted playthrough that walks right, jumps a river platform, collects a doc, and reaches the gate — asserting no console errors and player.y stays within 1px of expected ground each landing frame.
+## Out of scope
+No new art or sprite sheets; the offsets fix the visible-feet problem without re-slicing sprites. No changes to voting, backend, or the improvement system.

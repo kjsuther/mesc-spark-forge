@@ -6,8 +6,21 @@ import type { WinResult } from "./game-scenes";
 
 const LS_KEY = "trailGame.name.v1";
 
+const STEP_LABELS = [
+  "Step 1 · Learn you may qualify",
+  "Step 2 · Start your application",
+  "Step 3 · Submit your documents",
+  "Step 4 · Wait for review",
+  "Step 5 · Enroll in coverage",
+];
+
 export function computeScore(r: WinResult): number {
-  return Math.max(0, 10000 - Math.floor(r.durationMs / 100)) + r.docs * 250 + r.lives * 500;
+  const base = r.won ? 5000 : 0;
+  const docs = r.docs * 750; // rewards every collectible
+  const progress = r.farthestZone * 1000; // rewards how far you got
+  const lives = r.lives * 500; // remaining lives (mostly wins)
+  const speed = r.won ? Math.max(0, 4000 - Math.floor(r.durationMs / 100)) : 0;
+  return base + docs + progress + lives + speed;
 }
 
 export function ScoreSubmit({
@@ -23,6 +36,7 @@ export function ScoreSubmit({
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const score = computeScore(result);
+  const stepLabel = STEP_LABELS[Math.min(STEP_LABELS.length - 1, Math.max(0, result.farthestZone))];
 
   useEffect(() => {
     try {
@@ -54,7 +68,7 @@ export function ScoreSubmit({
     const { error } = await supabase.from("game_scores").insert({
       display_name: display,
       score,
-      duration_ms: result.durationMs,
+      duration_ms: Math.max(1, result.durationMs),
       mode: result.mode,
     });
     setSubmitting(false);
@@ -86,18 +100,21 @@ export function ScoreSubmit({
     );
   }
 
+  const headline = result.won
+    ? `★ You covered the trail — score: ${score.toLocaleString()}`
+    : `You made it to ${stepLabel} — score: ${score.toLocaleString()}`;
+  const sub = result.won
+    ? "Enter your name to post to the live leaderboard."
+    : `Docs collected: ${result.docs}/3 · Enter your name to post to the leaderboard.`;
+
   return (
     <form
       onSubmit={submit}
       className="mt-4 rounded-lg border-2 border-accent-gold/70 bg-cream p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-end"
     >
       <div className="flex-1">
-        <p className="text-sm font-bold text-mn-blue">
-          ★ You covered the trail — score: {score.toLocaleString()}
-        </p>
-        <p className="text-xs text-dark-gray/70">
-          Enter your name to post to the live leaderboard.
-        </p>
+        <p className="text-sm font-bold text-mn-blue">{headline}</p>
+        <p className="text-xs text-dark-gray/70">{sub}</p>
       </div>
       <label className="flex flex-col text-[11px] font-bold uppercase tracking-widest text-mn-blue/80">
         First name

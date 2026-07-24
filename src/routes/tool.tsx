@@ -156,13 +156,18 @@ function ToolPage() {
             setGameEnded(true);
             setWinResult(r);
           }}
-          onLose={() => {
+          onLose={(r) => {
             setGameEnded(true);
-            setWinResult(null);
+            setWinResult(r);
           }}
         />
 
-        {winResult && <ScoreSubmit result={winResult} />}
+        {winResult && (
+          <ScoreSubmit
+            key={`${winResult.won}-${winResult.durationMs}`}
+            result={winResult}
+          />
+        )}
 
         <VotePanel highlight={gameEnded} />
 
@@ -184,7 +189,7 @@ function ClientGameCanvas(props: {
   flags: Record<ImprovementKey, boolean>;
   mode: "before" | "after";
   onWin?: (result: WinResult) => void;
-  onLose?: () => void;
+  onLose?: (result: WinResult) => void;
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);

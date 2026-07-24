@@ -17,6 +17,8 @@ export type WinResult = {
   docs: number;
   lives: number;
   mode: "before" | "after";
+  farthestZone: number; // 0..4
+  won: boolean;
 };
 
 export type StartGameOpts = {
@@ -24,7 +26,7 @@ export type StartGameOpts = {
   flags: GameFlags;
   mode: "before" | "after";
   onWin?: (result: WinResult) => void;
-  onLose?: () => void;
+  onLose?: (result: WinResult) => void;
 };
 
 type Ctx = KAPLAYCtx;
@@ -48,6 +50,13 @@ const JUMP_BUFFER_S = 0.12;
 const INVULN_S = 0.6;
 const PLAYER_W = 44;
 const PLAYER_H = 64;
+// Sprite bottom-padding compensation (transparent pixels below drawn feet).
+// Anchor("bot") puts the frame bottom on the ground; visible feet float above by this many pixels.
+const PLAYER_FOOT_PAD = 9;
+const RANGER_FOOT_PAD = 10;
+const MONSTER_FOOT_PAD = 30;
+const ENVELOPE_FOOT_PAD = 25;
+const DENIED_FOOT_PAD = 36;
 
 export async function startGame(opts: StartGameOpts): Promise<() => void> {
   const kaplay = (await import("kaplay")).default;
@@ -238,11 +247,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       [tx0 + 580, "envelope", "Household"],
     ];
     for (const [x, prop, key] of docs) {
+      const pad = prop === "envelope" ? ENVELOPE_FOOT_PAD : 0;
       k.add([
         k.sprite("props", { frame: PROP[prop], width: 40, height: 40 }),
-        k.pos(x, GROUND_Y - 4),
+        k.pos(x, GROUND_Y - 4 + pad),
         k.anchor("bot"),
-        k.area({ shape: new k.Rect(k.vec2(-16, -36), 32, 36) }),
+        // Hitbox stays over the visible pixels (top of the frame minus pad)
+        k.area({ shape: new k.Rect(k.vec2(-16, -36 - pad), 32, 36) }),
         k.z(3),
         "doc",
         { docKey: key },
@@ -255,16 +266,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const speed = active.plain_language ? 40 : 110;
       const m = k.add([
         k.sprite("props", { frame: PROP.formMonster, width: 48, height: 48 }),
-        k.pos(mx, GROUND_Y),
+        k.pos(mx, GROUND_Y + MONSTER_FOOT_PAD),
         k.anchor("bot"),
-        // Hitbox trimmed inward to match the visible body, sitting on ground
-        k.area({ shape: new k.Rect(k.vec2(-18, -42), 36, 40) }),
+        // Hitbox covers the visible body (upper 40px of the 48px frame) above the pad
+        k.area({ shape: new k.Rect(k.vec2(-18, -42 - MONSTER_FOOT_PAD), 36, 40) }),
         k.z(3),
         "monster",
         { dir: 1, home: mx, range: 80 },
       ]);
       m.onUpdate(() => {
         m.pos.x += m.dir * speed * k.dt();
+        // Lock vertical position so the monster can't drift off ground
+        m.pos.y = GROUND_Y + MONSTER_FOOT_PAD;
         if (m.pos.x > m.home + m.range) {
           m.pos.x = m.home + m.range;
           m.dir = -1;
@@ -292,7 +305,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ]);
     k.add([
       k.sprite("props", { frame: PROP.denied, width: 60, height: 60 }),
-      k.pos(gateX + 10, GROUND_Y - 100),
+      k.pos(gateX + 10, GROUND_Y - 100 + DENIED_FOOT_PAD),
       k.anchor("bot"),
       k.z(4),
       "gateStamp",
@@ -440,9 +453,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= Player =================
     const player = k.add([
       k.sprite("hero", { anim: "idle", width: PLAYER_W, height: PLAYER_H }),
-      k.pos(spawnX, GROUND_Y),
-      // With anchor("bot"), sprite spans x=[-22,22], y=[-64,0]. Center collision box on that.
-      k.area({ shape: new k.Rect(k.vec2(-12, -58), 24, 58) }),
+      k.pos(spawnX, GROUND_Y + PLAYER_FOOT_PAD),
+      // Collision box is shifted UP by PLAYER_FOOT_PAD so its bottom sits at (pos.y - PAD).
+      // The physics body then rests the box on the ground, which places pos.y at GROUND_Y+PAD
+      // and puts the sprite's visible feet flush with the ground line.
+      k.area({ shape: new k.Rect(k.vec2(-12, -58 - PLAYER_FOOT_PAD), 24, 58) }),
       k.body(),
       k.anchor("bot"),
       "player",
@@ -456,6 +471,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         invulnUntil: 0,
         lastGroundedAt: k.time(),
         jumpBufferedAt: -1,
+        farthestZone: Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W))),
         riding: null as null | { pos: { x: number; y: number }; platformSpeed: { x: number; y: number }; width: number; height: number },
       },
     ]);
@@ -478,7 +494,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     if (active.helper) {
       const ranger = k.add([
         k.sprite("props", { frame: PROP.ranger, width: 44, height: 60 }),
-        k.pos(spawnX + 60, GROUND_Y),
+        k.pos(spawnX + 60, GROUND_Y + RANGER_FOOT_PAD),
         k.anchor("bot"),
         k.z(4),
       ]);
@@ -493,8 +509,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const target = Math.min(player.pos.x + 90, LEVEL_END - 100);
         const dx = target - ranger.pos.x;
         ranger.pos.x += Math.sign(dx) * Math.min(Math.abs(dx), 3);
-        ranger.pos.y = GROUND_Y;
-        bubble.pos = k.vec2(ranger.pos.x, ranger.pos.y - 74);
+        ranger.pos.y = GROUND_Y + RANGER_FOOT_PAD;
+        bubble.pos = k.vec2(ranger.pos.x, ranger.pos.y - 74 - RANGER_FOOT_PAD);
       });
     }
 
@@ -569,7 +585,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         return;
       }
       const rx = active.save_progress ? player.checkpointX : 40;
-      player.pos = k.vec2(rx, GROUND_Y);
+      player.pos = k.vec2(rx, GROUND_Y + PLAYER_FOOT_PAD);
       player.vel = k.vec2(0, 0);
       player.riding = null;
       if (!active.documents_earlier && rx < BIOME_W * 2) {
@@ -578,16 +594,22 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       updateHud();
     }
 
-    player.onCollide("finish", () => {
-      if (player.won || player.dead) return;
-      if (player.docs.size < 3) return;
-      player.won = true;
-      opts.onWin?.({
+    function buildResult(won: boolean): WinResult {
+      return {
         durationMs: Math.round((k.time() - startTime) * 1000),
         docs: player.docs.size,
         lives: player.lives,
         mode: opts.mode,
-      });
+        farthestZone: player.farthestZone,
+        won,
+      };
+    }
+
+    player.onCollide("finish", () => {
+      if (player.won || player.dead) return;
+      if (player.docs.size < 3) return;
+      player.won = true;
+      opts.onWin?.(buildResult(true));
       showTitleCard(k, "STEP 5 · ENROLLED", "★ COVERED ★", [255, 220, 90], 2.4);
       showEnd(true);
     });
@@ -634,7 +656,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.fixed(),
         k.z(201),
       ]);
-      if (!win) opts.onLose?.();
+      if (!win) opts.onLose?.(buildResult(false));
     }
 
     // ================= Controls =================
@@ -681,8 +703,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       const now = k.time();
 
-      // Zone transition title cards
+      // Zone transition title cards + farthest-zone tracking
       const z = Math.min(ZONES.length - 1, Math.max(0, Math.floor(player.pos.x / BIOME_W)));
+      if (z > player.farthestZone) player.farthestZone = z;
       if (z !== currentZone) {
         currentZone = z;
         showTitleCard(
@@ -705,8 +728,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const platCenterX = player.riding.pos.x + halfW;
         const withinX = Math.abs(player.pos.x - platCenterX) < halfW + 12;
         const platTop = player.riding.pos.y;
-        const feetY = player.pos.y;
-        const nearTop = Math.abs(feetY - platTop) < 6;
+        const expectedFeetY = platTop + PLAYER_FOOT_PAD;
+        const nearTop = Math.abs(player.pos.y - expectedFeetY) < 8;
         if (!withinX || !nearTop || !player.isGrounded()) {
           player.riding = null;
         }
@@ -725,8 +748,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (player.riding) {
         const dt = k.dt();
         player.pos.x += player.riding.platformSpeed.x * dt;
-        // Snap feet to platform top so we don't drift up/down between frames
-        player.pos.y = player.riding.pos.y;
+        // Snap feet to platform top (accounting for sprite foot padding)
+        player.pos.y = player.riding.pos.y + PLAYER_FOOT_PAD;
       }
 
       if (dir !== 0) {

@@ -12,7 +12,7 @@ type Props = {
 type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
 
 type LaunchMode = "standard" | "fullscreen";
-type MenuScreen = "title" | "mode" | "scores";
+type MenuScreen = "title" | "scores";
 
 export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

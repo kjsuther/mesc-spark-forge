@@ -765,14 +765,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
 
       // Enemies passed (crossed without hit)
-      const monsters = k.get("monster") as unknown as Array<{ id: number; pos: { x: number } }>;
+      const monsters = k.get("monster") as unknown as Array<{ pos: { x: number } }>;
       for (const m of monsters) {
-        if (!player.passedMonsters.has(m.id) && player.pos.x > m.pos.x + 40) {
-          player.passedMonsters.add(m.id);
+        if (!player.passedMonsters.has(m) && player.pos.x > m.pos.x + 40) {
+          player.passedMonsters.add(m);
           player.enemiesPassed += 1;
           player.score += 100;
         }
       }
+
 
       // Landed-on-platform bonus (once per airborne -> platform touchdown)
       const groundedNow = player.isGrounded();

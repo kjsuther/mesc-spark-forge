@@ -112,11 +112,10 @@ function PosterView() {
           <header className="bg-accent-orange text-white px-4 py-2 flex items-center justify-between border-b-2 border-accent-gold/60">
             <div className="min-w-0">
               <div className="font-display uppercase tracking-widest text-sm leading-tight">
-                ★ Live Demo — Client Tool
-
+                ★ Live Demo — Trail to Coverage
               </div>
               <div className="text-[10px] uppercase tracking-widest text-cream/85 mt-0.5">
-                Current live version — your feedback is building this in real time
+                Vote below → improvements apply live to the trail
               </div>
             </div>
             <a

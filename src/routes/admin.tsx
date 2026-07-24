@@ -94,6 +94,8 @@ function AdminLayout() {
       ? "Versions"
       : pathname.startsWith("/admin/subscribers")
       ? "Launch Subscribers"
+      : pathname.startsWith("/admin/game")
+      ? "Demo Game"
       : pathname === "/admin" || pathname === "/admin/"
       ? "Feedback triage"
       : null;
@@ -128,10 +130,14 @@ function AdminLayout() {
               <Link to="/admin/subscribers" activeProps={navActive} inactiveProps={navInactive}>
                 Subscribers
               </Link>
+              <Link to="/admin/game" activeProps={navActive} inactiveProps={navInactive}>
+                Demo Game
+              </Link>
               <Link to="/admin/poster" activeProps={navActive} inactiveProps={navInactive}>
                 Poster View
               </Link>
             </div>
+
 
             <button
               onClick={handleLock}

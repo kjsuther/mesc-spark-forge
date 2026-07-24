@@ -152,11 +152,22 @@ function ToolPage() {
         <ClientGameCanvas
           flags={flags}
           mode={mode}
-          onWin={() => setGameEnded(true)}
-          onLose={() => setGameEnded(true)}
+          onWin={(r) => {
+            setGameEnded(true);
+            setWinResult(r);
+          }}
+          onLose={() => {
+            setGameEnded(true);
+            setWinResult(null);
+          }}
         />
 
+        {winResult && <ScoreSubmit result={winResult} />}
+
         <VotePanel highlight={gameEnded} />
+
+        <Leaderboard variant="panel" />
+
 
         <p className="mt-8 text-center text-sm text-dark-gray/70 italic max-w-2xl mx-auto">
           Every trail starts somewhere. Better trails are built by listening to the people who use

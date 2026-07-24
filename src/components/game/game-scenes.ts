@@ -241,7 +241,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // Locked coverage gate at end of town — need all 3 docs to pass
     const gateX = tx0 + BIOME_W - 60;
-    const gate = k.add([
+    k.add([
       k.rect(20, 100),
       k.pos(gateX, GROUND_Y - 100),
       k.color(180, 40, 40),
@@ -387,33 +387,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       addSpeech(k, 100, GROUND_Y - 78, "Bring: ID, Income, Household", [40, 60, 100]);
     }
 
-    // ================= Ranger helper =================
-    if (active.helper) {
-      const ranger = k.add([
-        k.sprite("props", { frame: PROP.ranger, width: 44, height: 60 }),
-        k.pos(spawnX + 60, GROUND_Y - 60),
-        k.z(4),
-      ]);
-      const bubble = k.add([
-        k.text("Follow me!", { size: 12, font: "sans-serif" }),
-        k.pos(0, 0),
-        k.color(30, 30, 30),
-        k.z(20),
-        k.anchor("center"),
-      ]);
-      ranger.onUpdate(() => {
-        const target = Math.min(player.pos.x + 90, LEVEL_END - 100);
-        const dx = target - ranger.pos.x;
-        ranger.pos.x += Math.sign(dx) * Math.min(Math.abs(dx), 3);
-        ranger.pos.y = GROUND_Y - 60;
-        bubble.pos = k.vec2(ranger.pos.x + 22, ranger.pos.y - 14);
-      });
-    }
+    // (ranger helper is added after the player is created, below)
 
-    // ================= Map overlay (translated_signs bonus mini-map) =================
-    if (active.translated_signs) {
-      // subtle translation banner already shown per sign above
-    }
+
 
     // ================= Player =================
     const player = k.add([

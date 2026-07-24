@@ -96,6 +96,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   } as const;
 
   k.scene("trail", (spawnX: number = 40, lives: number = 1) => {
+    const startTime = k.time();
     // ---- Backgrounds (one per biome, tile-scaled to biome width) ----
     ZONES.forEach((z, i) => {
       k.add([
@@ -103,39 +104,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.pos(i * BIOME_W, 0),
         k.z(-30),
       ]);
-      // biome label banner
-      k.add([
-        k.rect(BIOME_W, 28),
-        k.pos(i * BIOME_W, 0),
-        k.color(0, 0, 0),
-        k.opacity(0.45),
-        k.z(-2),
-      ]);
-      k.add([
-        k.text(`${i + 1}. ${z.label.toUpperCase()}`, { size: 14, font: "sans-serif" }),
-        k.pos(i * BIOME_W + 16, 6),
-        k.color(255, 255, 255),
-        k.z(-1),
-      ]);
     });
 
     // ---- Ground blocks per biome, with intentional gaps ----
-    // Zone 0 (forest): full ground
-    addGround(k, 0, BIOME_W, GROUND_Y);
+    addGround(k, 0, BIOME_W, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    addGround(k, BIOME_W, BIOME_W + 300, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
+    addGround(k, BIOME_W + 900, BIOME_W * 2, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
+    addGround(k, BIOME_W * 2, BIOME_W * 3, GROUND_Y, ZONES[2].ground, ZONES[2].soil);
+    addGround(k, BIOME_W * 3, BIOME_W * 3 + 200, GROUND_Y, ZONES[3].ground, ZONES[3].soil);
+    addGround(k, BIOME_W * 4 - 100, BIOME_W * 4, GROUND_Y, ZONES[3].ground, ZONES[3].soil);
+    addGround(k, BIOME_W * 4, LEVEL_END, GROUND_Y, ZONES[4].ground, ZONES[4].soil);
 
-    // Zone 1 (river): ground on both sides, wide gap in middle
-    addGround(k, BIOME_W, BIOME_W + 300, GROUND_Y);
-    addGround(k, BIOME_W + 900, BIOME_W * 2, GROUND_Y);
-
-    // Zone 2 (town): full ground
-    addGround(k, BIOME_W * 2, BIOME_W * 3, GROUND_Y);
-
-    // Zone 3 (mountain): ground on entry + summit gap
-    addGround(k, BIOME_W * 3, BIOME_W * 3 + 200, GROUND_Y);
-    addGround(k, BIOME_W * 4 - 100, BIOME_W * 4, GROUND_Y);
-
-    // Zone 4 (clinic): full ground
-    addGround(k, BIOME_W * 4, LEVEL_END, GROUND_Y);
 
     // Kill-plane for the river and any fall
     k.add([

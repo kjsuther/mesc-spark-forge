@@ -440,7 +440,11 @@ function LabeledTouch({
         onPointerDown={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          (e.currentTarget as HTMLButtonElement).setPointerCapture?.(e.pointerId);
+          try {
+            (e.currentTarget as HTMLButtonElement).setPointerCapture?.(e.pointerId);
+          } catch {
+            // Some mobile browsers and automated touch events don't expose an active pointer capture target.
+          }
           onDown();
         }}
         onPointerUp={(e) => {

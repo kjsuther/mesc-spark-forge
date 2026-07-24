@@ -9,6 +9,7 @@ import {
   type Feedback,
 } from "@/lib/queries";
 import { supabase } from "@/integrations/supabase/client";
+import { Leaderboard } from "@/components/game/leaderboard";
 
 export const Route = createFileRoute("/admin/poster")({
   loader: ({ context }) => {

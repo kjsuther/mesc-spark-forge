@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import type { GameFlags } from "./game-scenes";
+import type { GameFlags, WinResult } from "./game-scenes";
 
 type Props = {
   flags: GameFlags;
   mode: "before" | "after";
-  onWin?: () => void;
+  onWin?: (result: WinResult) => void;
   onLose?: () => void;
 };
 

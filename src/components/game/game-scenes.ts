@@ -32,11 +32,11 @@ type Ctx = KAPLAYCtx;
 // 5 biomes, each 1200px wide -> total level ~6000
 const BIOME_W = 1200;
 const ZONES = [
-  { key: "forest", label: "Finding the Trail", bg: "bg-forest" },
-  { key: "river", label: "Crossing the River", bg: "bg-river" },
-  { key: "town", label: "Applying at the Office", bg: "bg-town" },
-  { key: "mountain", label: "Application Mountain", bg: "bg-mountain" },
-  { key: "clinic", label: "Health Coverage", bg: "bg-clinic" },
+  { key: "forest", label: "Finding the Trail", bg: "bg-forest", ground: [80, 130, 60] as [number, number, number], soil: [70, 45, 25] as [number, number, number] },
+  { key: "river", label: "Crossing the River", bg: "bg-river", ground: [180, 160, 110] as [number, number, number], soil: [120, 90, 50] as [number, number, number] },
+  { key: "town", label: "Applying at the Office", bg: "bg-town", ground: [140, 140, 150] as [number, number, number], soil: [80, 80, 90] as [number, number, number] },
+  { key: "mountain", label: "Application Mountain", bg: "bg-mountain", ground: [130, 120, 110] as [number, number, number], soil: [70, 60, 55] as [number, number, number] },
+  { key: "clinic", label: "Health Coverage", bg: "bg-clinic", ground: [220, 220, 225] as [number, number, number], soil: [140, 145, 155] as [number, number, number] },
 ] as const;
 
 const GROUND_Y = 470;

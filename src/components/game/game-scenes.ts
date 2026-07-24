@@ -812,6 +812,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (w?.__gameInput?.right) dir += 1;
       dir = Math.sign(dir);
       player.move(dir * MOVE_SPEED, 0);
+      if (dir > 0) player.score += 1; // per-frame forward-motion bonus
+
 
       // Moving-platform carry: apply platform horizontal velocity while riding
       if (player.riding) {

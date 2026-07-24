@@ -8,7 +8,7 @@ type Props = {
   onLose?: () => void;
 };
 
-type TouchInput = { left: boolean; right: boolean; jumpReq: boolean };
+type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
 
 export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -23,7 +23,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   useEffect(() => {
     // Global input state read by the kaplay scene
     const w = window as unknown as { __gameInput?: TouchInput };
-    w.__gameInput = { left: false, right: false, jumpReq: false };
+    w.__gameInput = { left: false, right: false, jumpReq: false, resetReq: false };
 
     let cancelled = false;
     let destroy: (() => void) | null = null;
@@ -59,6 +59,10 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   function jump() {
     const w = window as unknown as { __gameInput?: TouchInput };
     if (w.__gameInput) w.__gameInput.jumpReq = true;
+  }
+  function reset() {
+    const w = window as unknown as { __gameInput?: TouchInput };
+    if (w.__gameInput) w.__gameInput.resetReq = true;
   }
 
   return (
@@ -100,9 +104,14 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
             ▶
           </TouchButton>
         </div>
-        <TouchButton aria="Jump" onDown={jump} big>
-          JUMP
-        </TouchButton>
+        <div className="flex items-center gap-3">
+          <TouchButton aria="Restart" onDown={reset}>
+            ⟳
+          </TouchButton>
+          <TouchButton aria="Jump" onDown={jump} big>
+            JUMP
+          </TouchButton>
+        </div>
       </div>
       <p className="mt-2 text-xs text-dark-gray/60 text-center hidden md:block">
         ← → to move · Space / ↑ to jump · R to reset

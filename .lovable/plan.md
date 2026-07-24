@@ -1,68 +1,54 @@
-
 ## Goals
 
-1. Do a full UAT pass on the game and fix visible bugs (character floating, running animation).
-2. Make stage titles feel like a real video game (big banner card in the middle/top on entry, then fade).
-3. Blend stages together with a quick transition (fade + subtitle card) instead of a hard cut.
-4. Add a live High Score leaderboard (first name + last initial), auto-refreshing every 5s, shown on `/tool` and `/admin/poster`.
-5. Keep current difficulty exactly as-is.
+1. Let mobile players restart the game (no keyboard = no "R").
+2. Make stage title cards clearly represent the Medicaid application journey.
+3. Full UAT pass on physics + playability (keep difficulty).
 
-## UAT + gameplay fixes (`src/components/game/game-scenes.ts`)
+---
 
-- Character floating: player is added with `anchor("bot")` but positioned at `GROUND_Y - 64` (top-anchor math), so feet land ~64px above ground. Change spawn `y` to `GROUND_Y` so the bottom sits on the ground, and adjust the ranger helper the same way.
-- Ground visibility: today `addGround` is invisible collision. Add a thin visible ground strip per biome (dirt/grass color tuned per zone: forest green, river banks, town cobble, mountain rock, clinic tile) so it reads as "true ground" instead of the character standing on nothing. Purely visual — collision shapes and gaps stay identical, so difficulty is unchanged.
-- Running animation: `walk` currently plays frames 1→4 (which crosses into the jump row). Constrain to actual walk frames (1→3 or 1→2 depending on sheet layout) and only play `walk` when grounded AND moving; play `jump` while airborne; play `idle` when standing still. Flip sprite via `flipX` based on facing so he faces the direction he moves.
-- General QA: verify each zone is reachable, gate unlock still works, boulders/monsters/water still kill, HUD updates, mobile buttons still fire jump/left/right. Fix any issues found (no difficulty tuning).
+## 1. Mobile restart
 
-## Cinematic stage titles + transitions
+- Add a `resetReq` boolean to the `window.__gameInput` bridge shared between the canvas wrapper and the Kaplay scene.
+- Add a small "⟳ RESET" button to the mobile touch controls (next to left/right/JUMP in `game-canvas.tsx`) that flips `resetReq = true`.
+- In `game-scenes.ts`, in the `onUpdate` loop, read `resetReq` and call `k.go("trail", 40, 1)` when true, then clear the flag. Same behavior as pressing "R".
+- On the game-over overlay (win or lose), add a large touch-friendly "TAP TO PLAY AGAIN" hint and make the whole overlay respond to a click/tap by triggering the same reset (via `k.onClick` on the fullscreen overlay rect, or by exposing the reset through the same `resetReq` flag so tapping the button works too). Desktop copy stays "Press R to try again".
 
-- Remove the small always-on biome banner text baked into the world at the top of each biome.
-- Track "current zone" from `player.pos.x`. When the player crosses into a new zone:
-  - Play a short screen-space transition: a full-screen dark overlay fades in to ~60% opacity over ~250ms, a big centered title card renders (`"STAGE 2"` small + `"CROSSING THE RIVER"` large, SNES-style — bold, drop-shadow, letter-spaced), holds ~1.2s, then fades out over ~350ms.
-  - Overlay uses `k.fixed()` + high `z` so it sits over the camera. Player input is soft-paused (movement suppressed) during the ~1.8s card so it reads as a scene transition. This is short enough not to affect completion difficulty.
-- Also show the same card once on game start ("STAGE 1 — FINDING THE TRAIL") and a "COVERED!" victory card on win.
+## 2. Stage names tied to Medicaid journey
 
-## Live High Score leaderboard
+Update the `ZONES` array so each biome carries two labels: a `phase` (Medicaid step) and a `label` (game-flavored name). The title card uses the phase as the small line and the game name as the big line.
 
-### Data model (new migration)
-- New table `public.game_scores`:
-  - `id uuid pk default gen_random_uuid()`
-  - `display_name text not null` (already-formatted "First L.")
-  - `score int not null` (see scoring below)
-  - `duration_ms int not null`
-  - `mode text not null` ('before' | 'after')
-  - `created_at timestamptz not null default now()`
-- RLS: enable. Policies: `SELECT` to anon+authenticated; `INSERT` to anon+authenticated with `check` that `display_name` length 1–40, `score >= 0`, `duration_ms > 0`, `mode in ('before','after')`. No UPDATE/DELETE.
-- GRANTs: `SELECT, INSERT` to anon and authenticated; `ALL` to service_role.
+- Stage 1 — "STEP 1 · LEARN YOU MAY QUALIFY" · "FINDING THE TRAIL"
+- Stage 2 — "STEP 2 · START YOUR APPLICATION" · "CROSSING THE RIVER"
+- Stage 3 — "STEP 3 · SUBMIT YOUR DOCUMENTS" · "AT THE COUNTY OFFICE"
+- Stage 4 — "STEP 4 · WAIT FOR REVIEW" · "APPLICATION MOUNTAIN"
+- Stage 5 — "STEP 5 · ENROLL IN COVERAGE" · "HEALTH COVERAGE"
 
-### Scoring (simple, deterministic)
-- On win: `score = max(0, 10000 - floor(duration_ms/100)) + docs_collected*250 + lives_left*500`. On loss: no submission.
+Also update the gate/finish/HUD copy where it references generic wording so it reads as Medicaid-flavored subtext (e.g., docs HUD: "Docs needed for your application: ID, Income, Household"; gate: "COUNTY OFFICE — DOCS REQUIRED"; win: "★ ENROLLED IN COVERAGE ★"). The `<h1>` and body copy on `/tool` stay as-is.
 
-### Submission flow (game → tool page)
-- `startGame` gets an `onWin(result)` that reports `{ durationMs, docs, lives, mode }`.
-- After a win, `tool.tsx` shows a small inline form: "Enter your first name and last initial" (two short inputs, e.g. "Jane" + "D"), a Submit button that inserts into `game_scores` via the browser Supabase client (anon INSERT policy). Persist the entered name in `localStorage` so repeat plays skip re-typing.
+## 3. Full UAT — physics and playability
 
-### Leaderboard component (`src/components/game/leaderboard.tsx`)
-- Query top 10 by `score desc, created_at asc` using `@tanstack/react-query` with `refetchInterval: 5000` (fulfills "updated automatically every 5 seconds").
-- Compact card list: rank, display name, score, mode chip, relative time.
-- Two visual variants via props: `variant="panel"` (used on `/tool`) and `variant="poster"` (bigger type, higher contrast, for `/admin/poster`).
+Pass through the level with the current settings and fix anything that's off, while preserving the "punishingly hard" difficulty:
 
-### Placement
-- `/tool` (`src/routes/tool.tsx`): add leaderboard panel next to (or under) the vote panel.
-- `/admin/poster` (`src/routes/admin.poster.tsx`): add a prominent "LIVE HIGH SCORES" section using the poster variant.
+- **Anchor / feet alignment.** Player uses `anchor("bot")` at `y=GROUND_Y` and the ground rect starts at `y=GROUND_Y` — geometry is correct. Verify visually with a Playwright screenshot on the first frame and again mid-jump; adjust the area shape offset if the hitbox is not centered on the sprite feet.
+- **Ranger helper.** Currently drawn without an anchor, `pos.y = GROUND_Y - 60` with `height=60`. Switch to `anchor("bot")` at `GROUND_Y` for consistency with the player so it can never look floating regardless of sprite trim.
+- **Signposts / docs / campfire / backpack.** All use `GROUND_Y - height`; keep as-is but re-check via screenshot per biome.
+- **Bridge deck.** Physics rect top sits at `GROUND_Y - 8`; player will stand 8px above the surrounding ground, which reads correctly. Verify in screenshot; if it looks awkward, lower to `GROUND_Y - 2`.
+- **Moving river platforms.** With gravity 1800 and jump 680, max jump height ≈ 128px and airtime ≈ 0.75s → horizontal reach ≈ 180px. Current gaps (~140px) and vertical deltas (≤60px) are within reach. Confirm platforms don't drift outside jump range at the sine extremes; clamp `amp` if needed.
+- **Mountain sparse ledges.** Vertical deltas 70/60/60/40 and horizontal 140 — reachable. Confirm boulders can't pin the player at the entry ledge (spawn boulder x offsets already start at `mx0 + 300`, past first ledge).
+- **Kill-plane / water.** Currently at `GROUND_Y + 90` with height 60. Since ground blocks are 80 tall from `GROUND_Y`, the kill-plane sits inside the ground on non-gap tiles — harmless there because you can't reach it, but confirm on the river gap that falling triggers the water reset before landing on nothing.
+- **Gate unlock.** Confirm collecting all 3 docs destroys the gate & stamp, and that respawning in Town without `documents_earlier` correctly clears docs (already implemented; verify by dying after collecting 2).
+- **Camera bounds.** Uses `Math.max(width/2, Math.min(x, LEVEL_END - width/2))` — good. Verify on the final clinic that the finish is fully visible.
+- **HUD legibility on mobile.** With `letterbox: true` the canvas scales; verify HUD text (size 14) is readable at 402px width. Bump to size 16 if needed.
+- **Touch responsiveness.** Confirm holding left/right + tapping JUMP works during a single gesture (multi-touch). If not, split the buttons into separate pointer-capture zones (already done — each button has its own pointer handlers).
 
-## Files touched
-
-- `src/components/game/game-scenes.ts` — ground visuals, player anchor fix, walk/idle/jump animation + flip, stage transition overlay, `onWin` payload.
-- `src/components/game/game-canvas.tsx` — pass through win payload to `onWin`.
-- `src/components/game/leaderboard.tsx` — new.
-- `src/components/game/score-submit.tsx` — new (name form + insert).
-- `src/routes/tool.tsx` — wire win payload → submit form → leaderboard panel.
-- `src/routes/admin.poster.tsx` — add leaderboard poster section.
-- New migration for `game_scores` (table + RLS + grants).
+Verification: run Playwright against `http://localhost:8080/tool` at both desktop (1280×800) and mobile (402×800) viewports; screenshot start-of-level, mid-river, town gate with 0 docs, mountain peak, and clinic. Then simulate a death and tap the new mobile reset button to confirm the level restarts.
 
 ## Out of scope
 
-- No difficulty changes.
-- No new art generation (reuse existing sheets; new ground is a colored rect strip per biome).
-- No realtime channel — 5s polling is what was requested and is cheaper for a conference room of phones.
+- No changes to voting rounds, leaderboard, admin panel, or sprite art.
+- No difficulty tuning beyond fixing physics bugs.
+
+## Technical notes
+
+- Files touched: `src/components/game/game-canvas.tsx` (add reset button + `resetReq`), `src/components/game/game-scenes.ts` (consume `resetReq`, rename zones with `phase`, update title card + end-screen copy, ranger anchor tweak, any physics tweaks the UAT surfaces).
+- No new dependencies, no schema changes.

@@ -32,11 +32,11 @@ type Ctx = KAPLAYCtx;
 // 5 biomes, each 1200px wide -> total level ~6000
 const BIOME_W = 1200;
 const ZONES = [
-  { key: "forest", label: "Finding the Trail", bg: "bg-forest", ground: [80, 130, 60] as [number, number, number], soil: [70, 45, 25] as [number, number, number] },
-  { key: "river", label: "Crossing the River", bg: "bg-river", ground: [180, 160, 110] as [number, number, number], soil: [120, 90, 50] as [number, number, number] },
-  { key: "town", label: "Applying at the Office", bg: "bg-town", ground: [140, 140, 150] as [number, number, number], soil: [80, 80, 90] as [number, number, number] },
-  { key: "mountain", label: "Application Mountain", bg: "bg-mountain", ground: [130, 120, 110] as [number, number, number], soil: [70, 60, 55] as [number, number, number] },
-  { key: "clinic", label: "Health Coverage", bg: "bg-clinic", ground: [220, 220, 225] as [number, number, number], soil: [140, 145, 155] as [number, number, number] },
+  { key: "forest", label: "Finding the Trail", phase: "Step 1 · Learn you may qualify", bg: "bg-forest", ground: [80, 130, 60] as [number, number, number], soil: [70, 45, 25] as [number, number, number] },
+  { key: "river", label: "Crossing the River", phase: "Step 2 · Start your application", bg: "bg-river", ground: [180, 160, 110] as [number, number, number], soil: [120, 90, 50] as [number, number, number] },
+  { key: "town", label: "At the County Office", phase: "Step 3 · Submit your documents", bg: "bg-town", ground: [140, 140, 150] as [number, number, number], soil: [80, 80, 90] as [number, number, number] },
+  { key: "mountain", label: "Application Mountain", phase: "Step 4 · Wait for review", bg: "bg-mountain", ground: [130, 120, 110] as [number, number, number], soil: [70, 60, 55] as [number, number, number] },
+  { key: "clinic", label: "Health Coverage", phase: "Step 5 · Enroll in coverage", bg: "bg-clinic", ground: [220, 220, 225] as [number, number, number], soil: [140, 145, 155] as [number, number, number] },
 ] as const;
 
 const GROUND_Y = 470;
@@ -242,6 +242,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(4),
       "gateStamp",
     ]);
+    addSpeech(k, gateX + 10, GROUND_Y - 180, "COUNTY OFFICE\nDocs required", [140, 40, 40]);
 
     // ================= ZONE 4: Mountain — sparse platforms =================
     const mx0 = BIOME_W * 3;
@@ -402,7 +403,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     if (active.helper) {
       const ranger = k.add([
         k.sprite("props", { frame: PROP.ranger, width: 44, height: 60 }),
-        k.pos(spawnX + 60, GROUND_Y - 60),
+        k.pos(spawnX + 60, GROUND_Y),
+        k.anchor("bot"),
         k.z(4),
       ]);
       const bubble = k.add([
@@ -416,8 +418,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const target = Math.min(player.pos.x + 90, LEVEL_END - 100);
         const dx = target - ranger.pos.x;
         ranger.pos.x += Math.sign(dx) * Math.min(Math.abs(dx), 3);
-        ranger.pos.y = GROUND_Y - 60;
-        bubble.pos = k.vec2(ranger.pos.x + 22, ranger.pos.y - 14);
+        ranger.pos.y = GROUND_Y;
+        bubble.pos = k.vec2(ranger.pos.x, ranger.pos.y - 74);
       });
     }
 
@@ -455,7 +457,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       livesHud.text = `♥ ${player.lives}`;
       const need = ["ID", "Income", "Household"].filter((d) => !player.docs.has(d));
       docsHud.text = active.documents_earlier || player.docs.size > 0
-        ? need.length ? `Docs needed: ${need.join(", ")}` : "Docs: complete ✓"
+        ? need.length ? `Application docs needed: ${need.join(", ")}` : "Application docs: complete ✓"
         : "";
     }
     updateHud();
@@ -515,22 +517,26 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         lives: player.lives,
         mode: opts.mode,
       });
-      showTitleCard(k, "VICTORY!", "★ COVERED ★", [255, 220, 90], 2.4);
+      showTitleCard(k, "STEP 5 · ENROLLED", "★ COVERED ★", [255, 220, 90], 2.4);
       showEnd(true);
     });
 
     function showEnd(win: boolean, reason?: string) {
-      k.add([
+      const overlay = k.add([
         k.rect(k.width(), k.height()),
         k.pos(0, 0),
         k.color(0, 0, 0),
         k.opacity(0.7),
+        k.area(),
         k.fixed(),
         k.z(200),
       ]);
+      overlay.onClick(() => {
+        k.go("trail", 40, 1);
+      });
       k.add([
-        k.text(win ? "★ COVERED! ★" : "TRAIL BLOCKED", { size: 40, font: "sans-serif" }),
-        k.pos(k.width() / 2, k.height() / 2 - 60),
+        k.text(win ? "★ ENROLLED IN COVERAGE ★" : "APPLICATION BLOCKED", { size: 34, font: "sans-serif" }),
+        k.pos(k.width() / 2, k.height() / 2 - 70),
         k.anchor("center"),
         k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 120, 120)),
         k.fixed(),
@@ -539,8 +545,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.add([
         k.text(
           win
-            ? "You found your path to coverage."
-            : `${reason ?? "The barriers were too many."}\nVote on an improvement to make the trail easier.`,
+            ? "You navigated every step and enrolled in Medicaid coverage."
+            : `${reason ?? "The barriers were too many."}\nVote on a UX improvement to make the next attempt easier.`,
           { size: 16, font: "sans-serif", width: 720, align: "center" },
         ),
         k.pos(k.width() / 2, k.height() / 2),
@@ -550,7 +556,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.z(201),
       ]);
       k.add([
-        k.text("Press R to try again", { size: 13, font: "sans-serif" }),
+        k.text("Tap screen or press R to try again", { size: 14, font: "sans-serif" }),
         k.pos(k.width() / 2, k.height() / 2 + 90),
         k.anchor("center"),
         k.color(220, 220, 220),
@@ -566,7 +572,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const jumpKeys = ["space", "up", "w"];
 
     // touch-control bridge (set on window by canvas wrapper)
-    type TouchInput = { left: boolean; right: boolean; jumpReq: boolean };
+    type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
     const w = typeof window !== "undefined" ? (window as unknown as { __gameInput?: TouchInput }) : undefined;
 
     // Zone tracking + cinematic transitions
@@ -574,13 +580,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Opening title card
     showTitleCard(
       k,
-      `STAGE ${currentZone + 1}`,
+      ZONES[currentZone].phase.toUpperCase(),
       ZONES[currentZone].label.toUpperCase(),
       [255, 220, 90],
       1.8,
     );
 
     k.onUpdate(() => {
+      // Reset from mobile / any external trigger
+      if (w?.__gameInput?.resetReq) {
+        w.__gameInput.resetReq = false;
+        k.go("trail", 40, 1);
+        return;
+      }
       if (player.dead || player.won) {
         return;
       }
@@ -590,7 +602,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         currentZone = z;
         showTitleCard(
           k,
-          `STAGE ${z + 1}`,
+          ZONES[z].phase.toUpperCase(),
           ZONES[z].label.toUpperCase(),
           [255, 220, 90],
           1.4,

@@ -628,25 +628,121 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   };
 }
 
-function addGround(k: Ctx, x1: number, x2: number, y: number) {
+function addGround(
+  k: Ctx,
+  x1: number,
+  x2: number,
+  y: number,
+  topColor: [number, number, number] = [80, 130, 60],
+  soilColor: [number, number, number] = [70, 45, 25],
+) {
+  // Solid soil block (visible) that also acts as physics floor
   k.add([
     k.rect(x2 - x1, 80),
     k.pos(x1, y),
-    k.color(60, 40, 20),
-    k.opacity(0.001), // invisible physics — background shows through
+    k.color(...soilColor),
     k.area(),
     k.body({ isStatic: true }),
+    k.z(-3),
+  ]);
+  // Top surface strip for a clear "ground line"
+  k.add([
+    k.rect(x2 - x1, 8),
+    k.pos(x1, y),
+    k.color(...topColor),
     k.z(-2),
   ]);
-  // Grass top strip for visual grounding
+  // Highlight line at the very top for pixel-art definition
   k.add([
-    k.rect(x2 - x1, 6),
+    k.rect(x2 - x1, 2),
     k.pos(x1, y),
-    k.color(80, 130, 60),
-    k.opacity(0.55),
+    k.color(
+      Math.min(255, topColor[0] + 40),
+      Math.min(255, topColor[1] + 40),
+      Math.min(255, topColor[2] + 40),
+    ),
     k.z(-1),
   ]);
 }
+
+function showTitleCard(
+  k: Ctx,
+  small: string,
+  big: string,
+  rgb: [number, number, number] = [255, 255, 255],
+  holdSec: number = 1.6,
+) {
+  const W = k.width();
+  const H = k.height();
+  const overlay = k.add([
+    k.rect(W, H),
+    k.pos(0, 0),
+    k.color(0, 0, 0),
+    k.opacity(0),
+    k.fixed(),
+    k.z(150),
+  ]);
+  const smallTxt = k.add([
+    k.text(small, { size: 16, font: "sans-serif" }),
+    k.pos(W / 2, H / 2 - 44),
+    k.anchor("center"),
+    k.color(220, 220, 220),
+    k.opacity(0),
+    k.fixed(),
+    k.z(151),
+  ]);
+  const bigShadow = k.add([
+    k.text(big, { size: 44, font: "sans-serif" }),
+    k.pos(W / 2 + 3, H / 2 + 3),
+    k.anchor("center"),
+    k.color(0, 0, 0),
+    k.opacity(0),
+    k.fixed(),
+    k.z(151),
+  ]);
+  const bigTxt = k.add([
+    k.text(big, { size: 44, font: "sans-serif" }),
+    k.pos(W / 2, H / 2),
+    k.anchor("center"),
+    k.color(...rgb),
+    k.opacity(0),
+    k.fixed(),
+    k.z(152),
+  ]);
+
+  const fadeIn = 0.25;
+  const fadeOut = 0.4;
+  const total = fadeIn + holdSec + fadeOut;
+  const t0 = k.time();
+  const upd = k.onUpdate(() => {
+    const t = k.time() - t0;
+    let a = 0;
+    let overlayA = 0;
+    if (t < fadeIn) {
+      a = t / fadeIn;
+      overlayA = a * 0.55;
+    } else if (t < fadeIn + holdSec) {
+      a = 1;
+      overlayA = 0.55;
+    } else if (t < total) {
+      a = 1 - (t - fadeIn - holdSec) / fadeOut;
+      overlayA = a * 0.55;
+    } else {
+      overlay.destroy();
+      smallTxt.destroy();
+      bigTxt.destroy();
+      bigShadow.destroy();
+      upd.cancel();
+      return;
+    }
+    overlay.opacity = overlayA;
+    smallTxt.opacity = a;
+    bigTxt.opacity = a;
+    bigShadow.opacity = a * 0.6;
+  });
+  return total;
+}
+
 
 function addSpeech(
   k: Ctx,

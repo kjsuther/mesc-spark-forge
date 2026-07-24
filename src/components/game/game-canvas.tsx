@@ -23,7 +23,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   useEffect(() => {
     // Global input state read by the kaplay scene
     const w = window as unknown as { __gameInput?: TouchInput };
-    w.__gameInput = { left: false, right: false, jumpReq: false };
+    w.__gameInput = { left: false, right: false, jumpReq: false, resetReq: false };
 
     let cancelled = false;
     let destroy: (() => void) | null = null;

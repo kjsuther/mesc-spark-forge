@@ -522,17 +522,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     function showEnd(win: boolean, reason?: string) {
-      k.add([
+      const overlay = k.add([
         k.rect(k.width(), k.height()),
         k.pos(0, 0),
         k.color(0, 0, 0),
         k.opacity(0.7),
+        k.area(),
         k.fixed(),
         k.z(200),
       ]);
+      overlay.onClick(() => {
+        k.go("trail", 40, 1);
+      });
       k.add([
-        k.text(win ? "★ COVERED! ★" : "TRAIL BLOCKED", { size: 40, font: "sans-serif" }),
-        k.pos(k.width() / 2, k.height() / 2 - 60),
+        k.text(win ? "★ ENROLLED IN COVERAGE ★" : "APPLICATION BLOCKED", { size: 34, font: "sans-serif" }),
+        k.pos(k.width() / 2, k.height() / 2 - 70),
         k.anchor("center"),
         k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 120, 120)),
         k.fixed(),
@@ -541,8 +545,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.add([
         k.text(
           win
-            ? "You found your path to coverage."
-            : `${reason ?? "The barriers were too many."}\nVote on an improvement to make the trail easier.`,
+            ? "You navigated every step and enrolled in Medicaid coverage."
+            : `${reason ?? "The barriers were too many."}\nVote on a UX improvement to make the next attempt easier.`,
           { size: 16, font: "sans-serif", width: 720, align: "center" },
         ),
         k.pos(k.width() / 2, k.height() / 2),
@@ -552,7 +556,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.z(201),
       ]);
       k.add([
-        k.text("Press R to try again", { size: 13, font: "sans-serif" }),
+        k.text("Tap screen or press R to try again", { size: 14, font: "sans-serif" }),
         k.pos(k.width() / 2, k.height() / 2 + 90),
         k.anchor("center"),
         k.color(220, 220, 220),

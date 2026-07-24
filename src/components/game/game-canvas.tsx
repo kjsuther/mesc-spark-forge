@@ -8,7 +8,7 @@ type Props = {
   onLose?: () => void;
 };
 
-type TouchInput = { left: boolean; right: boolean; jumpReq: boolean };
+type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
 
 export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

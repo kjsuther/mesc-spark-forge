@@ -402,7 +402,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     if (active.helper) {
       const ranger = k.add([
         k.sprite("props", { frame: PROP.ranger, width: 44, height: 60 }),
-        k.pos(spawnX + 60, GROUND_Y - 60),
+        k.pos(spawnX + 60, GROUND_Y),
+        k.anchor("bot"),
         k.z(4),
       ]);
       const bubble = k.add([
@@ -416,8 +417,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const target = Math.min(player.pos.x + 90, LEVEL_END - 100);
         const dx = target - ranger.pos.x;
         ranger.pos.x += Math.sign(dx) * Math.min(Math.abs(dx), 3);
-        ranger.pos.y = GROUND_Y - 60;
-        bubble.pos = k.vec2(ranger.pos.x + 22, ranger.pos.y - 14);
+        ranger.pos.y = GROUND_Y;
+        bubble.pos = k.vec2(ranger.pos.x, ranger.pos.y - 74);
       });
     }
 

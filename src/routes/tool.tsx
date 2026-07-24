@@ -7,6 +7,9 @@ import { NowBuildingBanner } from "@/components/now-building-banner";
 import { SectionHeading } from "@/components/trail/section-heading";
 import { GameCanvas } from "@/components/game/game-canvas";
 import { VotePanel } from "@/components/game/vote-panel";
+import { Leaderboard } from "@/components/game/leaderboard";
+import { ScoreSubmit } from "@/components/game/score-submit";
+import type { WinResult } from "@/components/game/game-scenes";
 import { improvementsQuery, gameSettingsQuery, activeRoundQuery } from "@/lib/game.queries";
 import { nowBuildingQuery, versionsQuery } from "@/lib/queries";
 import { IMPROVEMENT_KEYS, type ImprovementKey } from "@/lib/game.functions";
@@ -48,6 +51,7 @@ function ToolPage() {
   const qc = useQueryClient();
   const [localMode, setLocalMode] = useState<"before" | "after" | null>(null);
   const [gameEnded, setGameEnded] = useState(false);
+  const [winResult, setWinResult] = useState<WinResult | null>(null);
 
   const current = versions.find((v) => v.is_current) ?? versions[versions.length - 1];
 
@@ -148,11 +152,22 @@ function ToolPage() {
         <ClientGameCanvas
           flags={flags}
           mode={mode}
-          onWin={() => setGameEnded(true)}
-          onLose={() => setGameEnded(true)}
+          onWin={(r) => {
+            setGameEnded(true);
+            setWinResult(r);
+          }}
+          onLose={() => {
+            setGameEnded(true);
+            setWinResult(null);
+          }}
         />
 
+        {winResult && <ScoreSubmit result={winResult} />}
+
         <VotePanel highlight={gameEnded} />
+
+        <Leaderboard variant="panel" />
+
 
         <p className="mt-8 text-center text-sm text-dark-gray/70 italic max-w-2xl mx-auto">
           Every trail starts somewhere. Better trails are built by listening to the people who use
@@ -168,7 +183,7 @@ function ToolPage() {
 function ClientGameCanvas(props: {
   flags: Record<ImprovementKey, boolean>;
   mode: "before" | "after";
-  onWin?: () => void;
+  onWin?: (result: WinResult) => void;
   onLose?: () => void;
 }) {
   const [mounted, setMounted] = useState(false);

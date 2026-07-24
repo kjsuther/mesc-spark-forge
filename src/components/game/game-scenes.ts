@@ -12,11 +12,18 @@ import bgClinicUrl from "@/assets/game/bg-clinic.png";
 
 export type GameFlags = Record<ImprovementKey, boolean>;
 
+export type WinResult = {
+  durationMs: number;
+  docs: number;
+  lives: number;
+  mode: "before" | "after";
+};
+
 export type StartGameOpts = {
   canvas: HTMLCanvasElement;
   flags: GameFlags;
   mode: "before" | "after";
-  onWin?: () => void;
+  onWin?: (result: WinResult) => void;
   onLose?: () => void;
 };
 
@@ -25,11 +32,11 @@ type Ctx = KAPLAYCtx;
 // 5 biomes, each 1200px wide -> total level ~6000
 const BIOME_W = 1200;
 const ZONES = [
-  { key: "forest", label: "Finding the Trail", bg: "bg-forest" },
-  { key: "river", label: "Crossing the River", bg: "bg-river" },
-  { key: "town", label: "Applying at the Office", bg: "bg-town" },
-  { key: "mountain", label: "Application Mountain", bg: "bg-mountain" },
-  { key: "clinic", label: "Health Coverage", bg: "bg-clinic" },
+  { key: "forest", label: "Finding the Trail", bg: "bg-forest", ground: [80, 130, 60] as [number, number, number], soil: [70, 45, 25] as [number, number, number] },
+  { key: "river", label: "Crossing the River", bg: "bg-river", ground: [180, 160, 110] as [number, number, number], soil: [120, 90, 50] as [number, number, number] },
+  { key: "town", label: "Applying at the Office", bg: "bg-town", ground: [140, 140, 150] as [number, number, number], soil: [80, 80, 90] as [number, number, number] },
+  { key: "mountain", label: "Application Mountain", bg: "bg-mountain", ground: [130, 120, 110] as [number, number, number], soil: [70, 60, 55] as [number, number, number] },
+  { key: "clinic", label: "Health Coverage", bg: "bg-clinic", ground: [220, 220, 225] as [number, number, number], soil: [140, 145, 155] as [number, number, number] },
 ] as const;
 
 const GROUND_Y = 470;
@@ -89,6 +96,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   } as const;
 
   k.scene("trail", (spawnX: number = 40, lives: number = 1) => {
+    const startTime = k.time();
     // ---- Backgrounds (one per biome, tile-scaled to biome width) ----
     ZONES.forEach((z, i) => {
       k.add([
@@ -96,39 +104,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.pos(i * BIOME_W, 0),
         k.z(-30),
       ]);
-      // biome label banner
-      k.add([
-        k.rect(BIOME_W, 28),
-        k.pos(i * BIOME_W, 0),
-        k.color(0, 0, 0),
-        k.opacity(0.45),
-        k.z(-2),
-      ]);
-      k.add([
-        k.text(`${i + 1}. ${z.label.toUpperCase()}`, { size: 14, font: "sans-serif" }),
-        k.pos(i * BIOME_W + 16, 6),
-        k.color(255, 255, 255),
-        k.z(-1),
-      ]);
     });
 
     // ---- Ground blocks per biome, with intentional gaps ----
-    // Zone 0 (forest): full ground
-    addGround(k, 0, BIOME_W, GROUND_Y);
+    addGround(k, 0, BIOME_W, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    addGround(k, BIOME_W, BIOME_W + 300, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
+    addGround(k, BIOME_W + 900, BIOME_W * 2, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
+    addGround(k, BIOME_W * 2, BIOME_W * 3, GROUND_Y, ZONES[2].ground, ZONES[2].soil);
+    addGround(k, BIOME_W * 3, BIOME_W * 3 + 200, GROUND_Y, ZONES[3].ground, ZONES[3].soil);
+    addGround(k, BIOME_W * 4 - 100, BIOME_W * 4, GROUND_Y, ZONES[3].ground, ZONES[3].soil);
+    addGround(k, BIOME_W * 4, LEVEL_END, GROUND_Y, ZONES[4].ground, ZONES[4].soil);
 
-    // Zone 1 (river): ground on both sides, wide gap in middle
-    addGround(k, BIOME_W, BIOME_W + 300, GROUND_Y);
-    addGround(k, BIOME_W + 900, BIOME_W * 2, GROUND_Y);
-
-    // Zone 2 (town): full ground
-    addGround(k, BIOME_W * 2, BIOME_W * 3, GROUND_Y);
-
-    // Zone 3 (mountain): ground on entry + summit gap
-    addGround(k, BIOME_W * 3, BIOME_W * 3 + 200, GROUND_Y);
-    addGround(k, BIOME_W * 4 - 100, BIOME_W * 4, GROUND_Y);
-
-    // Zone 4 (clinic): full ground
-    addGround(k, BIOME_W * 4, LEVEL_END, GROUND_Y);
 
     // Kill-plane for the river and any fall
     k.add([
@@ -394,8 +380,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= Player =================
     const player = k.add([
       k.sprite("hero", { anim: "idle", width: 44, height: 64 }),
-      k.pos(spawnX, GROUND_Y - 64),
-      k.area({ shape: new k.Rect(k.vec2(10, 6), 24, 58) }),
+      k.pos(spawnX, GROUND_Y),
+      k.area({ shape: new k.Rect(k.vec2(10, -58), 24, 58) }),
       k.body(),
       k.anchor("bot"),
       "player",
@@ -407,9 +393,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         dead: false,
         lives: (active.phone_support ? 2 : 1) + (lives - 1),
         facing: 1 as 1 | -1,
+        transitioning: false,
       },
     ]);
-    player.pos.y = GROUND_Y - 64;
+
 
     // ================= Ranger helper (needs player ref) =================
     if (active.helper) {
@@ -508,7 +495,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       // respawn
       const rx = active.save_progress ? player.checkpointX : 40;
-      player.pos = k.vec2(rx, GROUND_Y - 64);
+      player.pos = k.vec2(rx, GROUND_Y);
       player.vel = k.vec2(0, 0);
       if (!active.documents_earlier && rx < BIOME_W * 2) {
         player.docs.clear();
@@ -519,11 +506,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     player.onCollide("finish", () => {
       if (player.won || player.dead) return;
       if (player.docs.size < 3) {
-        // bumped into clinic without docs — treat like a wall (no win)
         return;
       }
       player.won = true;
-      opts.onWin?.();
+      opts.onWin?.({
+        durationMs: Math.round((k.time() - startTime) * 1000),
+        docs: player.docs.size,
+        lives: player.lives,
+        mode: opts.mode,
+      });
+      showTitleCard(k, "VICTORY!", "★ COVERED ★", [255, 220, 90], 2.4);
       showEnd(true);
     });
 
@@ -577,11 +569,34 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     type TouchInput = { left: boolean; right: boolean; jumpReq: boolean };
     const w = typeof window !== "undefined" ? (window as unknown as { __gameInput?: TouchInput }) : undefined;
 
+    // Zone tracking + cinematic transitions
+    let currentZone = Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)));
+    // Opening title card
+    showTitleCard(
+      k,
+      `STAGE ${currentZone + 1}`,
+      ZONES[currentZone].label.toUpperCase(),
+      [255, 220, 90],
+      1.8,
+    );
+
     k.onUpdate(() => {
       if (player.dead || player.won) {
-        // stop animation
         return;
       }
+      // Check for zone crossings and play title cards
+      const z = Math.min(ZONES.length - 1, Math.max(0, Math.floor(player.pos.x / BIOME_W)));
+      if (z !== currentZone) {
+        currentZone = z;
+        showTitleCard(
+          k,
+          `STAGE ${z + 1}`,
+          ZONES[z].label.toUpperCase(),
+          [255, 220, 90],
+          1.4,
+        );
+      }
+
       let dir = 0;
       for (const key of leftKeys) if (k.isKeyDown(key as never)) dir -= 1;
       for (const key of rightKeys) if (k.isKeyDown(key as never)) dir += 1;
@@ -636,25 +651,121 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   };
 }
 
-function addGround(k: Ctx, x1: number, x2: number, y: number) {
+function addGround(
+  k: Ctx,
+  x1: number,
+  x2: number,
+  y: number,
+  topColor: [number, number, number] = [80, 130, 60],
+  soilColor: [number, number, number] = [70, 45, 25],
+) {
+  // Solid soil block (visible) that also acts as physics floor
   k.add([
     k.rect(x2 - x1, 80),
     k.pos(x1, y),
-    k.color(60, 40, 20),
-    k.opacity(0.001), // invisible physics — background shows through
+    k.color(...soilColor),
     k.area(),
     k.body({ isStatic: true }),
+    k.z(-3),
+  ]);
+  // Top surface strip for a clear "ground line"
+  k.add([
+    k.rect(x2 - x1, 8),
+    k.pos(x1, y),
+    k.color(...topColor),
     k.z(-2),
   ]);
-  // Grass top strip for visual grounding
+  // Highlight line at the very top for pixel-art definition
   k.add([
-    k.rect(x2 - x1, 6),
+    k.rect(x2 - x1, 2),
     k.pos(x1, y),
-    k.color(80, 130, 60),
-    k.opacity(0.55),
+    k.color(
+      Math.min(255, topColor[0] + 40),
+      Math.min(255, topColor[1] + 40),
+      Math.min(255, topColor[2] + 40),
+    ),
     k.z(-1),
   ]);
 }
+
+function showTitleCard(
+  k: Ctx,
+  small: string,
+  big: string,
+  rgb: [number, number, number] = [255, 255, 255],
+  holdSec: number = 1.6,
+) {
+  const W = k.width();
+  const H = k.height();
+  const overlay = k.add([
+    k.rect(W, H),
+    k.pos(0, 0),
+    k.color(0, 0, 0),
+    k.opacity(0),
+    k.fixed(),
+    k.z(150),
+  ]);
+  const smallTxt = k.add([
+    k.text(small, { size: 16, font: "sans-serif" }),
+    k.pos(W / 2, H / 2 - 44),
+    k.anchor("center"),
+    k.color(220, 220, 220),
+    k.opacity(0),
+    k.fixed(),
+    k.z(151),
+  ]);
+  const bigShadow = k.add([
+    k.text(big, { size: 44, font: "sans-serif" }),
+    k.pos(W / 2 + 3, H / 2 + 3),
+    k.anchor("center"),
+    k.color(0, 0, 0),
+    k.opacity(0),
+    k.fixed(),
+    k.z(151),
+  ]);
+  const bigTxt = k.add([
+    k.text(big, { size: 44, font: "sans-serif" }),
+    k.pos(W / 2, H / 2),
+    k.anchor("center"),
+    k.color(...rgb),
+    k.opacity(0),
+    k.fixed(),
+    k.z(152),
+  ]);
+
+  const fadeIn = 0.25;
+  const fadeOut = 0.4;
+  const total = fadeIn + holdSec + fadeOut;
+  const t0 = k.time();
+  const upd = k.onUpdate(() => {
+    const t = k.time() - t0;
+    let a = 0;
+    let overlayA = 0;
+    if (t < fadeIn) {
+      a = t / fadeIn;
+      overlayA = a * 0.55;
+    } else if (t < fadeIn + holdSec) {
+      a = 1;
+      overlayA = 0.55;
+    } else if (t < total) {
+      a = 1 - (t - fadeIn - holdSec) / fadeOut;
+      overlayA = a * 0.55;
+    } else {
+      overlay.destroy();
+      smallTxt.destroy();
+      bigTxt.destroy();
+      bigShadow.destroy();
+      upd.cancel();
+      return;
+    }
+    overlay.opacity = overlayA;
+    smallTxt.opacity = a;
+    bigTxt.opacity = a;
+    bigShadow.opacity = a * 0.6;
+  });
+  return total;
+}
+
 
 function addSpeech(
   k: Ctx,

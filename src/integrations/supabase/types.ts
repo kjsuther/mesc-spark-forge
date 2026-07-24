@@ -208,6 +208,33 @@ export type Database = {
           },
         ]
       }
+      game_scores: {
+        Row: {
+          created_at: string
+          display_name: string
+          duration_ms: number
+          id: string
+          mode: string
+          score: number
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          duration_ms: number
+          id?: string
+          mode: string
+          score: number
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          duration_ms?: number
+          id?: string
+          mode?: string
+          score?: number
+        }
+        Relationships: []
+      }
       game_settings: {
         Row: {
           before_after: string

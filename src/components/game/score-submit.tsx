@@ -15,13 +15,11 @@ const STEP_LABELS = [
 ];
 
 export function computeScore(r: WinResult): number {
-  const base = r.won ? 5000 : 0;
-  const docs = r.docs * 750; // rewards every collectible
-  const progress = r.farthestZone * 1000; // rewards how far you got
-  const lives = r.lives * 500; // remaining lives (mostly wins)
-  const speed = r.won ? Math.max(0, 4000 - Math.floor(r.durationMs / 100)) : 0;
-  return base + docs + progress + lives + speed;
+  // Score is now accumulated per-step during play (distance, jumps, enemies passed,
+  // docs, zones, deaths) inside the game scene, plus win-only bonuses at end.
+  return r.score;
 }
+
 
 export function ScoreSubmit({
   result,

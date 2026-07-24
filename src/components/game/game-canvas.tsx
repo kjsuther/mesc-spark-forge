@@ -258,43 +258,44 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
           <div className="absolute inset-0 z-30 grid place-items-center bg-mn-blue p-4 text-cream">
             {menuScreen === "title" && (
               <div className="w-full max-w-lg text-center">
-                <div className="mb-6 border-4 border-accent-gold bg-mn-blue px-4 py-6 shadow-[0_0_0_4px_var(--color-accent-orange)]">
-                  <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-accent-gold sm:text-xs">
-                    Minnesota Health Coverage Quest
-                  </p>
-                  <h2 className="font-display text-3xl uppercase leading-tight text-cream sm:text-5xl">
-                    Blazing the Trail to Coverage
-                  </h2>
-                  <p className="mt-3 text-xs font-black uppercase tracking-widest text-accent-gold sm:text-sm">
-                    Press start to begin the Medicaid journey
-                  </p>
-                </div>
-                <div className="mx-auto flex max-w-xs flex-col gap-3">
-                  <MenuButton onClick={() => setMenuScreen("mode")}>Start Game</MenuButton>
-                  <MenuButton onClick={() => setMenuScreen("scores")}>View High Scores</MenuButton>
-                </div>
-              </div>
-            )}
-
-            {menuScreen === "mode" && (
-              <div className="w-full max-w-md text-center">
-                <p className="mb-2 text-xs font-black uppercase tracking-widest text-accent-gold">
-                  Select Play Mode
-                </p>
-                <h3 className="mb-5 text-2xl font-black uppercase tracking-widest text-cream">
-                  Start Game
-                </h3>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <MenuButton onClick={() => pickMode("standard")}>Standard</MenuButton>
-                  <MenuButton onClick={() => pickMode("fullscreen")}>Fullscreen</MenuButton>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setMenuScreen("title")}
-                  className="mt-5 text-xs font-black uppercase tracking-widest text-cream/70 underline decoration-accent-gold underline-offset-4"
+                {/* SNES-style title card: pixel border, blinking press start */}
+                <div
+                  className="relative mx-auto mb-6 border-[6px] border-cream bg-mn-blue px-5 py-8"
+                  style={{
+                    imageRendering: "pixelated",
+                    boxShadow:
+                      "0 0 0 6px var(--color-mn-blue), 0 0 0 12px var(--color-accent-gold), 0 0 0 18px var(--color-mn-blue), 0 0 0 22px var(--color-accent-orange)",
+                    fontFamily: '"Press Start 2P", ui-monospace, monospace',
+                  }}
                 >
-                  Back
-                </button>
+                  <p className="mb-3 text-[8px] leading-relaxed tracking-widest text-accent-gold sm:text-[10px]">
+                    ★ MINNESOTA HEALTH COVERAGE QUEST ★
+                  </p>
+                  <h2
+                    className="text-[18px] leading-[1.4] text-cream sm:text-[28px]"
+                    style={{
+                      textShadow:
+                        "3px 3px 0 var(--color-accent-orange), 6px 6px 0 rgba(0,0,0,0.4)",
+                    }}
+                  >
+                    BLAZING
+                    <br />
+                    THE TRAIL
+                    <br />
+                    TO COVERAGE
+                  </h2>
+                  <p className="mt-5 animate-pulse text-[8px] tracking-widest text-cream sm:text-[10px]">
+                    - PRESS START -
+                  </p>
+                </div>
+                <div
+                  className="mx-auto flex max-w-xs flex-col gap-3"
+                  style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
+                >
+                  <MenuButton onClick={() => pickMode("standard")}>▶ Start Game</MenuButton>
+                  <MenuButton onClick={() => pickMode("fullscreen")}>⛶ Fullscreen</MenuButton>
+                  <MenuButton onClick={() => setMenuScreen("scores")}>★ High Scores</MenuButton>
+                </div>
               </div>
             )}
 
@@ -313,7 +314,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
                 </div>
                 <div className="mx-auto flex w-full max-w-sm gap-3">
                   <MenuButton onClick={() => setMenuScreen("title")}>Back</MenuButton>
-                  <MenuButton onClick={() => setMenuScreen("mode")}>Start</MenuButton>
+                  <MenuButton onClick={() => pickMode("standard")}>Start</MenuButton>
                 </div>
               </div>
             )}

@@ -12,11 +12,18 @@ import bgClinicUrl from "@/assets/game/bg-clinic.png";
 
 export type GameFlags = Record<ImprovementKey, boolean>;
 
+export type WinResult = {
+  durationMs: number;
+  docs: number;
+  lives: number;
+  mode: "before" | "after";
+};
+
 export type StartGameOpts = {
   canvas: HTMLCanvasElement;
   flags: GameFlags;
   mode: "before" | "after";
-  onWin?: () => void;
+  onWin?: (result: WinResult) => void;
   onLose?: () => void;
 };
 

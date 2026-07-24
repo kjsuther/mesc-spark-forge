@@ -266,16 +266,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const speed = active.plain_language ? 40 : 110;
       const m = k.add([
         k.sprite("props", { frame: PROP.formMonster, width: 48, height: 48 }),
-        k.pos(mx, GROUND_Y),
+        k.pos(mx, GROUND_Y + MONSTER_FOOT_PAD),
         k.anchor("bot"),
-        // Hitbox trimmed inward to match the visible body, sitting on ground
-        k.area({ shape: new k.Rect(k.vec2(-18, -42), 36, 40) }),
+        // Hitbox covers the visible body (upper 40px of the 48px frame) above the pad
+        k.area({ shape: new k.Rect(k.vec2(-18, -42 - MONSTER_FOOT_PAD), 36, 40) }),
         k.z(3),
         "monster",
         { dir: 1, home: mx, range: 80 },
       ]);
       m.onUpdate(() => {
         m.pos.x += m.dir * speed * k.dt();
+        // Lock vertical position so the monster can't drift off ground
+        m.pos.y = GROUND_Y + MONSTER_FOOT_PAD;
         if (m.pos.x > m.home + m.range) {
           m.pos.x = m.home + m.range;
           m.dir = -1;

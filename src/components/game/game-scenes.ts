@@ -50,6 +50,13 @@ const JUMP_BUFFER_S = 0.12;
 const INVULN_S = 0.6;
 const PLAYER_W = 44;
 const PLAYER_H = 64;
+// Sprite bottom-padding compensation (transparent pixels below drawn feet).
+// Anchor("bot") puts the frame bottom on the ground; visible feet float above by this many pixels.
+const PLAYER_FOOT_PAD = 9;
+const RANGER_FOOT_PAD = 10;
+const MONSTER_FOOT_PAD = 30;
+const ENVELOPE_FOOT_PAD = 25;
+const DENIED_FOOT_PAD = 36;
 
 export async function startGame(opts: StartGameOpts): Promise<() => void> {
   const kaplay = (await import("kaplay")).default;

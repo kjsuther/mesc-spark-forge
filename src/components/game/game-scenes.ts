@@ -743,6 +743,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (z > player.farthestZone) player.farthestZone = z;
       if (z !== currentZone) {
         currentZone = z;
+        if (!player.visitedZones.has(z)) {
+          player.visitedZones.add(z);
+          player.score += 1000;
+        }
         showTitleCard(
           k,
           ZONES[z].phase.toUpperCase(),
@@ -752,10 +756,39 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         );
       }
 
+      // Per-frame distance + rightmost tracking (+2 per new pixel, +1 per frame moving forward)
+      if (player.pos.x > player.rightmostX) {
+        const gained = player.pos.x - player.rightmostX;
+        player.rightmostX = player.pos.x;
+        player.distancePx += gained;
+        player.score += gained * 2;
+      }
+
+      // Enemies passed (crossed without hit)
+      const monsters = k.get("monster") as unknown as Array<{ id: number; pos: { x: number } }>;
+      for (const m of monsters) {
+        if (!player.passedMonsters.has(m.id) && player.pos.x > m.pos.x + 40) {
+          player.passedMonsters.add(m.id);
+          player.enemiesPassed += 1;
+          player.score += 100;
+        }
+      }
+
+      // Landed-on-platform bonus (once per airborne -> platform touchdown)
+      const groundedNow = player.isGrounded();
+      if (groundedNow && !player.wasGrounded) {
+        if (player.riding) {
+          player.jumpsLanded += 1;
+          player.score += 250;
+        }
+      }
+      player.wasGrounded = groundedNow;
+
       // Ground tracking for coyote time
-      if (player.isGrounded()) {
+      if (groundedNow) {
         player.lastGroundedAt = now;
       }
+
 
       // Verify player is still on the tracked platform; drop ride otherwise.
       if (player.riding) {

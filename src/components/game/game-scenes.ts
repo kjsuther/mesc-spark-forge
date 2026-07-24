@@ -305,7 +305,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ]);
     k.add([
       k.sprite("props", { frame: PROP.denied, width: 60, height: 60 }),
-      k.pos(gateX + 10, GROUND_Y - 100),
+      k.pos(gateX + 10, GROUND_Y - 100 + DENIED_FOOT_PAD),
       k.anchor("bot"),
       k.z(4),
       "gateStamp",

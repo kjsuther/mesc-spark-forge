@@ -17,6 +17,8 @@ export type WinResult = {
   docs: number;
   lives: number;
   mode: "before" | "after";
+  farthestZone: number; // 0..4
+  won: boolean;
 };
 
 export type StartGameOpts = {

@@ -63,3 +63,73 @@ export const gameSettingsQuery = queryOptions({
     return { before_after: (data?.before_after as "before" | "after") ?? "before" };
   },
 });
+
+export type ActiveRound = {
+  id: string;
+  endsAt: string;
+  candidates: {
+    key: string;
+    label: string;
+    description: string;
+    votes: number;
+  }[];
+} | null;
+
+export const activeRoundQuery = queryOptions({
+  queryKey: ["game_round", "active"],
+  queryFn: async (): Promise<ActiveRound> => {
+    const { data: round } = await supabase
+      .from("game_vote_rounds")
+      .select("id, ends_at, status")
+      .eq("status", "active")
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!round) return null;
+
+    const [{ data: cands }, { data: votes }, { data: imp }] = await Promise.all([
+      supabase
+        .from("game_round_candidates")
+        .select("improvement_key")
+        .eq("round_id", round.id),
+      supabase
+        .from("game_improvement_votes")
+        .select("improvement_key")
+        .eq("round_id", round.id),
+      supabase.from("game_improvements").select("key, label, description"),
+    ]);
+    const impMap = new Map((imp ?? []).map((i) => [i.key, i]));
+    const tally = new Map<string, number>();
+    for (const v of votes ?? []) tally.set(v.improvement_key, (tally.get(v.improvement_key) ?? 0) + 1);
+    return {
+      id: round.id,
+      endsAt: round.ends_at,
+      candidates: (cands ?? []).map((c) => {
+        const meta = impMap.get(c.improvement_key);
+        return {
+          key: c.improvement_key,
+          label: meta?.label ?? c.improvement_key,
+          description: meta?.description ?? "",
+          votes: tally.get(c.improvement_key) ?? 0,
+        };
+      }),
+    };
+  },
+});
+
+export function myRoundVoteQuery(voterId: string, roundId: string | null) {
+  return queryOptions({
+    queryKey: ["game_round", "my-vote", roundId, voterId],
+    queryFn: async (): Promise<string | null> => {
+      if (!voterId || !roundId) return null;
+      const { data } = await supabase
+        .from("game_improvement_votes")
+        .select("improvement_key")
+        .eq("round_id", roundId)
+        .eq("voter_fingerprint", voterId)
+        .maybeSingle();
+      return data?.improvement_key ?? null;
+    },
+    enabled: !!voterId && !!roundId,
+  });
+}

@@ -2,6 +2,13 @@
 // module (which touches window at import time) never reaches the server bundle.
 import type { KAPLAYCtx } from "kaplay";
 import type { ImprovementKey } from "@/lib/game.functions";
+import charSheetUrl from "@/assets/game/character-sheet.png";
+import propsSheetUrl from "@/assets/game/props-sheet.png";
+import bgForestUrl from "@/assets/game/bg-forest.png";
+import bgRiverUrl from "@/assets/game/bg-river.png";
+import bgTownUrl from "@/assets/game/bg-town.png";
+import bgMountainUrl from "@/assets/game/bg-mountain.png";
+import bgClinicUrl from "@/assets/game/bg-clinic.png";
 
 export type GameFlags = Record<ImprovementKey, boolean>;
 
@@ -10,39 +17,33 @@ export type StartGameOpts = {
   flags: GameFlags;
   mode: "before" | "after";
   onWin?: () => void;
+  onLose?: () => void;
 };
 
 type Ctx = KAPLAYCtx;
 
-const COLORS = {
-  sky: [235, 240, 220] as [number, number, number],
-  ground: [70, 90, 55] as [number, number, number],
-  dirt: [110, 80, 55] as [number, number, number],
-  water: [50, 110, 165] as [number, number, number],
-  mountain: [90, 100, 115] as [number, number, number],
-  snow: [230, 235, 240] as [number, number, number],
-  trail: [180, 68, 43] as [number, number, number],
-  sign: [200, 160, 80] as [number, number, number],
-  wood: [130, 90, 55] as [number, number, number],
-  player: [230, 60, 60] as [number, number, number],
-  playerSkin: [255, 210, 170] as [number, number, number],
-  pack: [70, 130, 90] as [number, number, number],
-  doc: [250, 245, 220] as [number, number, number],
-  goal: [255, 255, 255] as [number, number, number],
-  goalCross: [220, 40, 60] as [number, number, number],
-  ranger: [80, 60, 120] as [number, number, number],
-  fire: [255, 140, 40] as [number, number, number],
-} as const;
+// 5 biomes, each 1200px wide -> total level ~6000
+const BIOME_W = 1200;
+const ZONES = [
+  { key: "forest", label: "Finding the Trail", bg: "bg-forest" },
+  { key: "river", label: "Crossing the River", bg: "bg-river" },
+  { key: "town", label: "Applying at the Office", bg: "bg-town" },
+  { key: "mountain", label: "Application Mountain", bg: "bg-mountain" },
+  { key: "clinic", label: "Health Coverage", bg: "bg-clinic" },
+] as const;
+
+const GROUND_Y = 470;
+const LEVEL_END = ZONES.length * BIOME_W;
 
 export async function startGame(opts: StartGameOpts): Promise<() => void> {
   const kaplay = (await import("kaplay")).default;
-  const active = opts.mode === "after" ? opts.flags : ({} as GameFlags);
+  const active: Partial<GameFlags> = opts.mode === "after" ? opts.flags : {};
 
   const k: Ctx = kaplay({
     canvas: opts.canvas,
     width: 960,
     height: 540,
-    background: COLORS.sky,
+    background: [20, 20, 30],
     letterbox: true,
     global: false,
     debug: false,
@@ -51,392 +52,349 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     touchToMouse: true,
   });
 
-  const GROUND_Y = 460;
-  const LEVEL_END = 4400;
+  k.setGravity(1800);
 
-  k.setGravity(1600);
+  // ---- Load sprites ----
+  // Character: 3 cols x 2 rows (idle, walk1, walk2 / walk3, walk4, jump)
+  k.loadSprite("hero", charSheetUrl, {
+    sliceX: 3,
+    sliceY: 2,
+    anims: {
+      idle: 0,
+      walk: { from: 1, to: 4, loop: true, speed: 10 },
+      jump: 5,
+    },
+  });
+  // Props: 4 cols x 3 rows
+  k.loadSprite("props", propsSheetUrl, { sliceX: 4, sliceY: 3 });
+  k.loadSprite("bg-forest", bgForestUrl);
+  k.loadSprite("bg-river", bgRiverUrl);
+  k.loadSprite("bg-town", bgTownUrl);
+  k.loadSprite("bg-mountain", bgMountainUrl);
+  k.loadSprite("bg-clinic", bgClinicUrl);
 
-  // ---------- Scene builder ----------
-  k.scene("trail", (spawnX: number = 40) => {
-    // Sky gradient bands
+  const PROP = {
+    signpost: 0,
+    ranger: 1,
+    map: 2,
+    campfire: 3,
+    backpack: 4,
+    bridge: 5,
+    id: 6,
+    paystub: 7,
+    envelope: 8,
+    boulder: 9,
+    formMonster: 10,
+    denied: 11,
+  } as const;
+
+  k.scene("trail", (spawnX: number = 40, lives: number = 1) => {
+    // ---- Backgrounds (one per biome, tile-scaled to biome width) ----
+    ZONES.forEach((z, i) => {
+      k.add([
+        k.sprite(z.bg, { width: BIOME_W, height: 540 }),
+        k.pos(i * BIOME_W, 0),
+        k.z(-30),
+      ]);
+      // biome label banner
+      k.add([
+        k.rect(BIOME_W, 28),
+        k.pos(i * BIOME_W, 0),
+        k.color(0, 0, 0),
+        k.opacity(0.45),
+        k.z(-2),
+      ]);
+      k.add([
+        k.text(`${i + 1}. ${z.label.toUpperCase()}`, { size: 14, font: "sans-serif" }),
+        k.pos(i * BIOME_W + 16, 6),
+        k.color(255, 255, 255),
+        k.z(-1),
+      ]);
+    });
+
+    // ---- Ground blocks per biome, with intentional gaps ----
+    // Zone 0 (forest): full ground
+    addGround(k, 0, BIOME_W, GROUND_Y);
+
+    // Zone 1 (river): ground on both sides, wide gap in middle
+    addGround(k, BIOME_W, BIOME_W + 300, GROUND_Y);
+    addGround(k, BIOME_W + 900, BIOME_W * 2, GROUND_Y);
+
+    // Zone 2 (town): full ground
+    addGround(k, BIOME_W * 2, BIOME_W * 3, GROUND_Y);
+
+    // Zone 3 (mountain): ground on entry + summit gap
+    addGround(k, BIOME_W * 3, BIOME_W * 3 + 200, GROUND_Y);
+    addGround(k, BIOME_W * 4 - 100, BIOME_W * 4, GROUND_Y);
+
+    // Zone 4 (clinic): full ground
+    addGround(k, BIOME_W * 4, LEVEL_END, GROUND_Y);
+
+    // Kill-plane for the river and any fall
     k.add([
-      k.rect(LEVEL_END + 400, 260),
-      k.pos(0, 0),
-      k.color(200, 220, 235),
-      k.fixed(),
-      k.z(-30),
-    ]);
-
-    // Distant mountains
-    for (let i = 0; i < 10; i++) {
-      const mx = i * 500 + 100;
-      k.add([
-        k.polygon([
-          k.vec2(0, 0),
-          k.vec2(220, -180),
-          k.vec2(440, 0),
-        ]),
-        k.pos(mx, 340),
-        k.color(140, 155, 165),
-        k.opacity(0.55),
-        k.z(-20),
-      ]);
-    }
-
-    // Pine trees decoration
-    for (let i = 0; i < 40; i++) {
-      const tx = 200 + i * 110 + (i % 3) * 30;
-      if (tx > 1400 && tx < 2500) continue; // clear zone for river+docs
-      if (tx > 3000 && tx < 3900) continue; // clear zone for mountain
-      const th = 60 + (i % 3) * 20;
-      k.add([
-        k.polygon([k.vec2(-20, 0), k.vec2(20, 0), k.vec2(0, -th)]),
-        k.pos(tx, GROUND_Y),
-        k.color(50, 90, 60),
-        k.z(-10),
-      ]);
-      k.add([
-        k.rect(6, 10),
-        k.pos(tx - 3, GROUND_Y - 5),
-        k.color(80, 55, 30),
-        k.z(-10),
-      ]);
-    }
-
-    // ---------- Ground segments ----------
-    // Segment 1: spawn to river
-    addGround(k, 0, 1500, GROUND_Y);
-    // Gap for river 1500-1900
-    // Segment 2: after river to mountain base
-    addGround(k, 1900, 3000, GROUND_Y);
-    // Mountain slope area: 3000-3800 (built with stepped platforms)
-    // Segment 3: summit plateau + finish 3800-LEVEL_END
-    addGround(k, 3800, LEVEL_END, GROUND_Y);
-
-    // ---------- Zone 1: Finding the Trail (signs) ----------
-    addZoneLabel(k, 100, "Finding the Trail");
-    addSign(k, 250, active.clearer_directions ? "Start\n\u2192 This way" : "?");
-    addSign(k, 550, active.clearer_directions ? "River ahead\nJump on logs" : "??");
-    addSign(k, 950, active.clearer_directions ? "Docs zone\nCollect 3" : "?");
-    addSign(k, 1300, active.clearer_directions ? "River\ncrossing" : "??");
-
-    // ---------- Zone 2: Crossing the River ----------
-    addZoneLabel(k, 1500, "Crossing the River");
-    // Water
-    k.add([
-      k.rect(400, 80),
-      k.pos(1500, GROUND_Y),
-      k.color(COLORS.water),
-      k.z(-5),
-    ]);
-    // Water ripples
-    for (let i = 0; i < 8; i++) {
-      k.add([
-        k.rect(20, 3),
-        k.pos(1520 + i * 45, GROUND_Y + 15),
-        k.color(180, 210, 235),
-        k.opacity(0.7),
-        k.z(-4),
-      ]);
-    }
-
-    if (active.bridge) {
-      // Continuous bridge
-      k.add([
-        k.rect(400, 12),
-        k.pos(1500, GROUND_Y - 30),
-        k.color(COLORS.wood),
-        k.area(),
-        k.body({ isStatic: true }),
-        k.outline(2, k.rgb(80, 55, 30)),
-      ]);
-      // Bridge planks
-      for (let i = 0; i < 10; i++) {
-        k.add([
-          k.rect(4, 12),
-          k.pos(1500 + i * 40 + 20, GROUND_Y - 30),
-          k.color(80, 55, 30),
-          k.z(1),
-        ]);
-      }
-      // Bridge rope rails
-      k.add([
-        k.rect(400, 3),
-        k.pos(1500, GROUND_Y - 60),
-        k.color(120, 90, 60),
-      ]);
-      addLabel(k, 1600, GROUND_Y - 90, "\u2605 Clear instructions", [200, 140, 40]);
-    } else {
-      // Two tricky floating logs
-      k.add([
-        k.rect(80, 14),
-        k.pos(1600, GROUND_Y - 60),
-        k.color(COLORS.wood),
-        k.area(),
-        k.body({ isStatic: true }),
-        k.outline(2, k.rgb(80, 55, 30)),
-      ]);
-      k.add([
-        k.rect(80, 14),
-        k.pos(1780, GROUND_Y - 90),
-        k.color(COLORS.wood),
-        k.area(),
-        k.body({ isStatic: true }),
-        k.outline(2, k.rgb(80, 55, 30)),
-      ]);
-    }
-
-    // Water kills (respawn)
-    k.add([
-      k.rect(400, 40),
-      k.pos(1500, GROUND_Y + 80),
+      k.rect(LEVEL_END, 60),
+      k.pos(0, GROUND_Y + 90),
       k.area(),
       k.opacity(0),
       "water",
     ]);
 
-    // ---------- Save point (campfire) ----------
-    let checkpointX = spawnX > 2000 ? spawnX : 40;
-    if (active.save_progress) {
-      // Campfire logs
-      k.add([
-        k.rect(30, 6),
-        k.pos(1980, GROUND_Y - 6),
-        k.color(80, 55, 30),
-      ]);
-      // Fire
-      k.add([
-        k.polygon([k.vec2(0, 0), k.vec2(-8, -18), k.vec2(0, -12), k.vec2(8, -20), k.vec2(6, -6)]),
-        k.pos(1995, GROUND_Y - 6),
-        k.color(COLORS.fire),
-      ]);
-      k.add([
-        k.circle(24),
-        k.pos(1995, GROUND_Y - 14),
-        k.color(255, 200, 80),
-        k.opacity(0.25),
-      ]);
-      addLabel(k, 1950, GROUND_Y - 70, "\u2605 Checkpoint", [200, 100, 40]);
-      // Checkpoint trigger
-      k.add([
-        k.rect(30, 60),
-        k.pos(1980, GROUND_Y - 60),
-        k.area(),
-        k.opacity(0),
-        "checkpoint",
-      ]);
+    // ================= ZONE 1: Forest — finding the trail =================
+    // Confusing signs unless clearer_directions is on
+    const signs: [number, string, string][] = [
+      [180, "?", "Coverage \u2192"],
+      [420, "??", "River ahead\nBring docs"],
+      [700, "?", "Town office \u2192"],
+      [960, "??", "Watch for gaps"],
+    ];
+    for (const [x, bad, good] of signs) {
+      k.add([k.sprite("props", { frame: PROP.signpost, width: 56, height: 56 }), k.pos(x, GROUND_Y - 56), k.z(2)]);
+      const label = active.clearer_directions ? good : (active.translated_signs ? `${bad}\n(??)` : bad);
+      addSpeech(k, x + 28, GROUND_Y - 78, label, active.clearer_directions ? [40, 100, 40] : [140, 40, 40]);
     }
 
-    // ---------- Zone 3: Gathering docs ----------
-    addZoneLabel(k, 2100, "Gathering What You Need");
-    const docLabels = ["ID", "\u0024\u0024", "HH"];
-    for (let i = 0; i < 3; i++) {
-      const dx = 2200 + i * 200;
-      const dy = GROUND_Y - 80 - (i % 2) * 40;
+    // ================= ZONE 2: River — impossible without bridge/helper =================
+    // Water is 600px wide (BIOME_W + 300 -> BIOME_W + 900)
+    const rx0 = BIOME_W + 300;
+    const rx1 = BIOME_W + 900;
+
+    if (active.bridge) {
+      // Wide solid bridge
       k.add([
-        k.rect(24, 30),
-        k.pos(dx, dy),
-        k.color(COLORS.doc),
-        k.outline(2, k.rgb(80, 60, 30)),
+        k.rect(rx1 - rx0, 14),
+        k.pos(rx0, GROUND_Y - 8),
+        k.color(140, 90, 50),
+        k.outline(2, k.rgb(80, 50, 20)),
         k.area(),
-        k.z(2),
-        "doc",
-        { docKey: docLabels[i] },
+        k.body({ isStatic: true }),
       ]);
-      k.add([
-        k.text(docLabels[i], { size: 12, font: "sans-serif" }),
-        k.pos(dx + 12, dy + 15),
-        k.anchor("center"),
-        k.color(60, 40, 20),
-        k.z(3),
-        { docKey: docLabels[i] },
-        "docLabel",
-      ]);
-    }
-
-    // ---------- Zone 4: Application Mountain ----------
-    addZoneLabel(k, 3000, "Application Mountain");
-    // Mountain silhouette
-    k.add([
-      k.polygon([
-        k.vec2(0, 0),
-        k.vec2(400, -260),
-        k.vec2(800, 0),
-      ]),
-      k.pos(3000, GROUND_Y),
-      k.color(COLORS.mountain),
-      k.z(-8),
-    ]);
-    // Snow cap
-    k.add([
-      k.polygon([
-        k.vec2(-40, 0),
-        k.vec2(0, -60),
-        k.vec2(40, 0),
-      ]),
-      k.pos(3400, GROUND_Y - 260),
-      k.color(COLORS.snow),
-      k.z(-7),
-    ]);
-
-    if (active.clearer_directions) {
-      // Gentle stepped path with markers
-      const steps = 8;
-      for (let i = 0; i < steps; i++) {
-        const px = 3050 + i * 90;
-        const py = GROUND_Y - 30 - i * 28;
+      // Bridge deck decoration (repeat prop)
+      for (let i = 0; i < 6; i++) {
         k.add([
-          k.rect(80, 12),
-          k.pos(px, py),
-          k.color(COLORS.dirt),
-          k.area(),
-          k.body({ isStatic: true }),
-          k.outline(2, k.rgb(70, 50, 30)),
-        ]);
-        // Marker post
-        k.add([
-          k.rect(3, 20),
-          k.pos(px + 40, py - 20),
-          k.color(COLORS.trail),
-        ]);
-        k.add([
-          k.polygon([k.vec2(0, 0), k.vec2(14, -6), k.vec2(0, -12)]),
-          k.pos(px + 43, py - 14),
-          k.color(COLORS.trail),
+          k.sprite("props", { frame: PROP.bridge, width: 100, height: 40 }),
+          k.pos(rx0 + i * 100, GROUND_Y - 40),
+          k.z(1),
         ]);
       }
-      // Downslope steps
-      for (let i = 0; i < 4; i++) {
-        const px = 3050 + steps * 90 + i * 90;
-        const py = GROUND_Y - 30 - (steps - i - 1) * 28;
-        k.add([
-          k.rect(80, 12),
-          k.pos(px, py),
-          k.color(COLORS.dirt),
+      addSpeech(k, (rx0 + rx1) / 2, GROUND_Y - 90, "★ Clear instructions", [30, 100, 60]);
+    } else {
+      // A handful of TINY moving stone platforms — brutal to time
+      const platforms = [
+        { x: rx0 + 60, y: GROUND_Y - 40, amp: 30, spd: 2.2 },
+        { x: rx0 + 200, y: GROUND_Y - 80, amp: 50, spd: 1.6 },
+        { x: rx0 + 340, y: GROUND_Y - 40, amp: 40, spd: 2.5 },
+        { x: rx0 + 480, y: GROUND_Y - 90, amp: 60, spd: 1.9 },
+      ];
+      for (const p of platforms) {
+        const plat = k.add([
+          k.rect(36, 10),
+          k.pos(p.x, p.y),
+          k.color(120, 130, 140),
+          k.outline(2, k.rgb(60, 70, 80)),
           k.area(),
           k.body({ isStatic: true }),
-          k.outline(2, k.rgb(70, 50, 30)),
+          { basY: p.y, amp: p.amp, spd: p.spd, phase: Math.random() * Math.PI * 2 },
+        ]);
+        plat.onUpdate(() => {
+          plat.pos.y = plat.basY + Math.sin(k.time() * plat.spd + plat.phase) * plat.amp;
+        });
+      }
+    }
+
+    // ================= ZONE 3: Town — required docs + form-monsters =================
+    const tx0 = BIOME_W * 2;
+    // 3 documents to collect
+    const docs: [number, keyof typeof PROP, string][] = [
+      [tx0 + 180, "id", "ID"],
+      [tx0 + 380, "paystub", "Income"],
+      [tx0 + 580, "envelope", "Household"],
+    ];
+    for (const [x, prop, key] of docs) {
+      k.add([
+        k.sprite("props", { frame: PROP[prop], width: 40, height: 40 }),
+        k.pos(x, GROUND_Y - 40),
+        k.area(),
+        k.z(3),
+        "doc",
+        { docKey: key },
+      ]);
+    }
+
+    // Form-monster enemies (patrol) — touching without plain_language loses a life
+    const monsterSpots = [tx0 + 300, tx0 + 500, tx0 + 750];
+    for (const mx of monsterSpots) {
+      const speed = active.plain_language ? 40 : 110;
+      const m = k.add([
+        k.sprite("props", { frame: PROP.formMonster, width: 48, height: 48 }),
+        k.pos(mx, GROUND_Y - 48),
+        k.area({ shape: new k.Rect(k.vec2(6, 6), 36, 40) }),
+        k.z(3),
+        "monster",
+        { dir: 1, home: mx, range: 80 },
+      ]);
+      m.onUpdate(() => {
+        m.pos.x += m.dir * speed * k.dt();
+        if (m.pos.x > m.home + m.range) m.dir = -1;
+        if (m.pos.x < m.home - m.range) m.dir = 1;
+      });
+    }
+
+    // Locked coverage gate at end of town — need all 3 docs to pass
+    const gateX = tx0 + BIOME_W - 60;
+    const gate = k.add([
+      k.rect(20, 100),
+      k.pos(gateX, GROUND_Y - 100),
+      k.color(180, 40, 40),
+      k.outline(2, k.rgb(90, 20, 20)),
+      k.area(),
+      k.body({ isStatic: true }),
+      "gate",
+    ]);
+    k.add([
+      k.sprite("props", { frame: PROP.denied, width: 60, height: 60 }),
+      k.pos(gateX - 20, GROUND_Y - 160),
+      k.z(4),
+      "gateStamp",
+    ]);
+
+    // ================= ZONE 4: Mountain — sparse platforms =================
+    const mx0 = BIOME_W * 3;
+    if (active.clearer_directions) {
+      const steps = 10;
+      for (let i = 0; i < steps; i++) {
+        const px = mx0 + 220 + i * 80;
+        const py = GROUND_Y - 40 - i * 32;
+        k.add([
+          k.rect(70, 12),
+          k.pos(px, py),
+          k.color(120, 100, 90),
+          k.area(),
+          k.body({ isStatic: true }),
+          k.outline(2, k.rgb(60, 50, 40)),
+        ]);
+        // trail marker
+        k.add([
+          k.rect(3, 18),
+          k.pos(px + 35, py - 18),
+          k.color(220, 90, 40),
+          k.z(2),
+        ]);
+      }
+      // downslope
+      for (let i = 0; i < 4; i++) {
+        const px = mx0 + 220 + 10 * 80 + i * 80;
+        const py = GROUND_Y - 40 - (10 - i - 1) * 32;
+        k.add([
+          k.rect(70, 12),
+          k.pos(px, py),
+          k.color(120, 100, 90),
+          k.area(),
+          k.body({ isStatic: true }),
+          k.outline(2, k.rgb(60, 50, 40)),
         ]);
       }
     } else {
-      // Sparse, hard-to-time platforms
+      // Sparse hidden ledges — very hard to see, tricky to hit
       const spots: [number, number][] = [
-        [3100, GROUND_Y - 70],
-        [3220, GROUND_Y - 130],
-        [3340, GROUND_Y - 180],
-        [3460, GROUND_Y - 220],
-        [3580, GROUND_Y - 180],
-        [3700, GROUND_Y - 120],
-        [3800, GROUND_Y - 60],
+        [mx0 + 260, GROUND_Y - 90],
+        [mx0 + 400, GROUND_Y - 160],
+        [mx0 + 540, GROUND_Y - 220],
+        [mx0 + 680, GROUND_Y - 260],
+        [mx0 + 820, GROUND_Y - 220],
+        [mx0 + 960, GROUND_Y - 160],
+        [mx0 + 1080, GROUND_Y - 90],
       ];
       for (const [px, py] of spots) {
         k.add([
-          k.rect(60, 10),
+          k.rect(46, 8),
           k.pos(px, py),
-          k.color(COLORS.mountain),
+          k.color(70, 65, 80),
           k.area(),
           k.body({ isStatic: true }),
-          k.outline(2, k.rgb(60, 70, 80)),
+          k.opacity(0.65),
         ]);
+      }
+      // Falling boulders
+      for (let i = 0; i < 3; i++) {
+        const bx = mx0 + 300 + i * 240;
+        const b = k.add([
+          k.sprite("props", { frame: PROP.boulder, width: 40, height: 40 }),
+          k.pos(bx, -40 - i * 200),
+          k.area({ shape: new k.Rect(k.vec2(4, 4), 32, 32) }),
+          k.z(4),
+          "boulder",
+          { spd: 260 + i * 40, home: bx },
+        ]);
+        b.onUpdate(() => {
+          b.pos.y += b.spd * k.dt();
+          if (b.pos.y > 700) b.pos = k.vec2(b.home, -100);
+        });
       }
     }
 
-    // ---------- Zone 5: Health Coverage (finish) ----------
-    addZoneLabel(k, 4000, "Health Coverage");
-    // Flag pole
+    // ================= ZONE 5: Clinic — finish =================
+    const cx = BIOME_W * 4 + 700;
     k.add([
-      k.rect(4, 120),
-      k.pos(4200, GROUND_Y - 120),
-      k.color(120, 90, 60),
-    ]);
-    // Hospital cross flag
-    k.add([
-      k.rect(60, 50),
-      k.pos(4204, GROUND_Y - 120),
-      k.color(COLORS.goal),
-      k.outline(2, k.rgb(80, 80, 80)),
+      k.rect(80, 140),
+      k.pos(cx, GROUND_Y - 140),
+      k.color(255, 255, 255),
+      k.outline(3, k.rgb(60, 60, 60)),
+      k.z(2),
     ]);
     k.add([
-      k.rect(30, 10),
-      k.pos(4219, GROUND_Y - 100),
-      k.color(COLORS.goalCross),
+      k.rect(60, 12),
+      k.pos(cx + 10, GROUND_Y - 90),
+      k.color(220, 40, 60),
+      k.z(3),
     ]);
     k.add([
-      k.rect(10, 30),
-      k.pos(4229, GROUND_Y - 110),
-      k.color(COLORS.goalCross),
+      k.rect(12, 60),
+      k.pos(cx + 34, GROUND_Y - 114),
+      k.color(220, 40, 60),
+      k.z(3),
     ]);
-    // Finish trigger
     k.add([
-      k.rect(70, 120),
-      k.pos(4200, GROUND_Y - 120),
+      k.rect(90, 140),
+      k.pos(cx - 5, GROUND_Y - 140),
       k.area(),
       k.opacity(0),
       "finish",
     ]);
 
-    // ---------- Player ----------
-    const player = k.add([
-      k.rect(16, 24),
-      k.pos(spawnX, GROUND_Y - 60),
-      k.color(COLORS.player),
-      k.area(),
-      k.body(),
-      k.outline(2, k.rgb(120, 30, 30)),
-      k.anchor("bot"),
-      "player",
-      {
-        docs: new Set<string>(),
-        checkpointX,
-        speed: 220,
-        won: false,
-      },
-    ]);
+    // ================= Save-point campfire (if enabled) =================
+    let checkpointX = spawnX > 1000 ? spawnX : 40;
+    if (active.save_progress) {
+      const fx = BIOME_W * 2 + 40; // start of town
+      k.add([
+        k.sprite("props", { frame: PROP.campfire, width: 48, height: 48 }),
+        k.pos(fx, GROUND_Y - 48),
+        k.area(),
+        k.z(3),
+        "checkpoint",
+        { atX: fx },
+      ]);
+      addSpeech(k, fx + 24, GROUND_Y - 78, "★ Save point", [200, 100, 40]);
+    }
 
-    // Player head (child sprite)
-    const head = k.add([
-      k.circle(6),
-      k.pos(0, 0),
-      k.color(COLORS.playerSkin),
-      k.outline(2, k.rgb(160, 100, 60)),
-      k.z(10),
-    ]);
-    // Backpack
-    const pack = k.add([
-      k.rect(8, 10),
-      k.pos(0, 0),
-      k.color(COLORS.pack),
-      k.z(9),
-    ]);
-    player.onUpdate(() => {
-      head.pos = k.vec2(player.pos.x, player.pos.y - 28);
-      pack.pos = k.vec2(player.pos.x - 10, player.pos.y - 20);
-    });
-
-    // ---------- Ranger helper (if enabled) ----------
-    if (active.helper) {
-      const ranger = k.add([
-        k.rect(14, 22),
-        k.pos(spawnX + 60, GROUND_Y - 22),
-        k.color(COLORS.ranger),
-        k.outline(2, k.rgb(40, 30, 70)),
-        k.anchor("bot"),
+    // ================= Documents-earlier helper HUD =================
+    // Also: pre-fills a doc backpack visualization
+    if (active.documents_earlier) {
+      k.add([
+        k.sprite("props", { frame: PROP.backpack, width: 40, height: 40 }),
+        k.pos(80, GROUND_Y - 44),
         k.z(4),
       ]);
-      const rangerHead = k.add([
-        k.circle(6),
-        k.pos(0, 0),
-        k.color(COLORS.playerSkin),
-        k.outline(2, k.rgb(160, 100, 60)),
-        k.z(11),
+      addSpeech(k, 100, GROUND_Y - 78, "Bring: ID, Income, Household", [40, 60, 100]);
+    }
+
+    // ================= Ranger helper =================
+    if (active.helper) {
+      const ranger = k.add([
+        k.sprite("props", { frame: PROP.ranger, width: 44, height: 60 }),
+        k.pos(spawnX + 60, GROUND_Y - 60),
+        k.z(4),
       ]);
-      const hat = k.add([
-        k.rect(14, 4),
-        k.pos(0, 0),
-        k.color(120, 90, 40),
-        k.z(12),
-      ]);
-      const speech = k.add([
+      const bubble = k.add([
         k.text("Follow me!", { size: 12, font: "sans-serif" }),
         k.pos(0, 0),
         k.color(30, 30, 30),
@@ -444,166 +402,207 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.anchor("center"),
       ]);
       ranger.onUpdate(() => {
-        // Stay ~140px ahead of player, on ground
-        const target = Math.min(player.pos.x + 140, LEVEL_END - 100);
+        const target = Math.min(player.pos.x + 90, LEVEL_END - 100);
         const dx = target - ranger.pos.x;
         ranger.pos.x += Math.sign(dx) * Math.min(Math.abs(dx), 3);
-        ranger.pos.y = GROUND_Y;
-        rangerHead.pos = k.vec2(ranger.pos.x, ranger.pos.y - 26);
-        hat.pos = k.vec2(ranger.pos.x - 7, ranger.pos.y - 30);
-        speech.pos = k.vec2(ranger.pos.x, ranger.pos.y - 50);
+        ranger.pos.y = GROUND_Y - 60;
+        bubble.pos = k.vec2(ranger.pos.x + 22, ranger.pos.y - 14);
       });
     }
 
-    // ---------- HUD ----------
+    // ================= Map overlay (translated_signs bonus mini-map) =================
+    if (active.translated_signs) {
+      // subtle translation banner already shown per sign above
+    }
+
+    // ================= Player =================
+    const player = k.add([
+      k.sprite("hero", { anim: "idle", width: 44, height: 64 }),
+      k.pos(spawnX, GROUND_Y - 64),
+      k.area({ shape: new k.Rect(k.vec2(10, 6), 24, 58) }),
+      k.body(),
+      k.anchor("bot"),
+      "player",
+      {
+        docs: new Set<string>(),
+        checkpointX,
+        speed: 240,
+        won: false,
+        dead: false,
+        lives: (active.phone_support ? 2 : 1) + (lives - 1),
+        facing: 1 as 1 | -1,
+      },
+    ]);
+    player.pos.y = GROUND_Y - 64;
+
+    // ================= HUD =================
     const modeLabel = k.add([
       k.text(opts.mode === "after" ? "AFTER FEEDBACK" : "BEFORE FEEDBACK", {
         size: 14,
         font: "sans-serif",
       }),
-      k.pos(12, 12),
-      k.color(opts.mode === "after" ? k.rgb(30, 120, 60) : k.rgb(180, 40, 40)),
-      k.fixed(),
-      k.z(100),
-    ]);
-
-    const hint = k.add([
-      k.text("\u2190 \u2192 move    \u2191 / Space jump    R reset", {
-        size: 12,
-        font: "sans-serif",
-      }),
-      k.pos(12, 32),
-      k.color(60, 60, 60),
+      k.pos(12, 34),
+      k.color(opts.mode === "after" ? k.rgb(30, 160, 60) : k.rgb(220, 60, 60)),
       k.fixed(),
       k.z(100),
     ]);
     void modeLabel;
-    void hint;
 
-    let docsHudActive = active.documents_earlier;
-    const docsHud = k.add([
+    const livesHud = k.add([
       k.text("", { size: 14, font: "sans-serif" }),
-      k.pos(k.width() - 12, 12),
-      k.anchor("topright"),
-      k.color(30, 30, 30),
+      k.pos(12, 54),
+      k.color(255, 255, 255),
       k.fixed(),
       k.z(100),
     ]);
-    function updateDocsHud() {
-      const need = ["ID", "\u0024\u0024", "HH"].filter((d) => !player.docs.has(d));
-      if (docsHudActive || player.docs.size > 0) {
-        docsHud.text = need.length
-          ? `Docs needed: ${need.join(" ")}`
-          : "Docs: complete";
-      } else {
-        docsHud.text = "";
-      }
+    const docsHud = k.add([
+      k.text("", { size: 14, font: "sans-serif" }),
+      k.pos(k.width() - 12, 34),
+      k.anchor("topright"),
+      k.color(255, 255, 255),
+      k.fixed(),
+      k.z(100),
+    ]);
+    function updateHud() {
+      livesHud.text = `♥ ${player.lives}`;
+      const need = ["ID", "Income", "Household"].filter((d) => !player.docs.has(d));
+      docsHud.text = active.documents_earlier || player.docs.size > 0
+        ? need.length ? `Docs needed: ${need.join(", ")}` : "Docs: complete ✓"
+        : "";
     }
-    updateDocsHud();
+    updateHud();
 
-    // ---------- Collectibles ----------
-    player.onCollide("doc", (d: unknown) => {
-      const doc = d as { docKey: string; destroy: () => void };
+    // ================= Collisions =================
+    player.onCollide("doc", (d) => {
+      const doc = d as unknown as { docKey: string; destroy: () => void };
       player.docs.add(doc.docKey);
-      const key = doc.docKey;
       doc.destroy();
-      k.get("docLabel").forEach((label) => {
-        const l = label as unknown as { docKey: string; destroy: () => void };
-        if (l.docKey === key) l.destroy();
-      });
-      docsHudActive = true;
-      updateDocsHud();
+      updateHud();
     });
 
-    // Water = respawn
-    player.onCollide("water", () => {
-      const respawn = active.save_progress ? player.checkpointX : 40;
-      player.pos = k.vec2(respawn, GROUND_Y - 60);
-      player.vel = k.vec2(0, 0);
-      if (!active.documents_earlier) {
-        player.docs.clear();
-        docsHudActive = false;
-        updateDocsHud();
+    player.onCollide("checkpoint", (c) => {
+      const ch = c as unknown as { atX: number };
+      player.checkpointX = ch.atX;
+    });
+
+    player.onCollide("gate", () => {
+      if (player.docs.size >= 3) {
+        // unlock: destroy gate + stamp
+        k.get("gate").forEach((g) => (g as { destroy: () => void }).destroy());
+        k.get("gateStamp").forEach((g) => (g as { destroy: () => void }).destroy());
       }
     });
 
-    player.onCollide("checkpoint", () => {
-      player.checkpointX = 2000;
-    });
+    player.onCollide("monster", () => loseLife("A form-monster stopped you."));
+    player.onCollide("boulder", () => loseLife("A falling boulder hit you."));
+    player.onCollide("water", () => loseLife("Fell in the river."));
 
-    // Finish
+    function loseLife(reason: string) {
+      if (player.dead || player.won) return;
+      player.lives -= 1;
+      if (player.lives <= 0) {
+        player.dead = true;
+        showEnd(false, reason);
+        return;
+      }
+      // respawn
+      const rx = active.save_progress ? player.checkpointX : 40;
+      player.pos = k.vec2(rx, GROUND_Y - 64);
+      player.vel = k.vec2(0, 0);
+      if (!active.documents_earlier && rx < BIOME_W * 2) {
+        player.docs.clear();
+      }
+      updateHud();
+    }
+
     player.onCollide("finish", () => {
-      if (player.won) return;
+      if (player.won || player.dead) return;
+      if (player.docs.size < 3) {
+        // bumped into clinic without docs — treat like a wall (no win)
+        return;
+      }
       player.won = true;
       opts.onWin?.();
-      const overlay = k.add([
+      showEnd(true);
+    });
+
+    function showEnd(win: boolean, reason?: string) {
+      k.add([
         k.rect(k.width(), k.height()),
         k.pos(0, 0),
         k.color(0, 0, 0),
-        k.opacity(0.65),
+        k.opacity(0.7),
         k.fixed(),
         k.z(200),
       ]);
-      const title = k.add([
-        k.text("\u2605 COVERED! \u2605", { size: 42, font: "sans-serif" }),
+      k.add([
+        k.text(win ? "★ COVERED! ★" : "TRAIL BLOCKED", { size: 40, font: "sans-serif" }),
         k.pos(k.width() / 2, k.height() / 2 - 60),
         k.anchor("center"),
-        k.color(255, 220, 90),
+        k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 120, 120)),
         k.fixed(),
         k.z(201),
       ]);
-      const msg = k.add([
-        k.text("You successfully found your path to coverage.", {
-          size: 18,
-          font: "sans-serif",
-          width: 720,
-          align: "center",
-        }),
-        k.pos(k.width() / 2, k.height() / 2 - 10),
+      k.add([
+        k.text(
+          win
+            ? "You found your path to coverage."
+            : `${reason ?? "The barriers were too many."}\nVote on an improvement to make the trail easier.`,
+          { size: 16, font: "sans-serif", width: 720, align: "center" },
+        ),
+        k.pos(k.width() / 2, k.height() / 2),
         k.anchor("center"),
         k.color(240, 240, 240),
         k.fixed(),
         k.z(201),
       ]);
-      const after = k.add([
-        k.text(
-          opts.mode === "after"
-            ? "Every trail starts somewhere.\nBetter trails are built by listening to the people who use them."
-            : "Now imagine this trail with the improvements we vote on.",
-          { size: 14, font: "sans-serif", width: 700, align: "center" },
-        ),
-        k.pos(k.width() / 2, k.height() / 2 + 60),
+      k.add([
+        k.text("Press R to try again", { size: 13, font: "sans-serif" }),
+        k.pos(k.width() / 2, k.height() / 2 + 90),
         k.anchor("center"),
         k.color(220, 220, 220),
         k.fixed(),
         k.z(201),
       ]);
-      const restart = k.add([
-        k.text("Press R to play again", { size: 14, font: "sans-serif" }),
-        k.pos(k.width() / 2, k.height() / 2 + 130),
-        k.anchor("center"),
-        k.color(255, 255, 255),
-        k.fixed(),
-        k.z(201),
-      ]);
-      void overlay;
-      void title;
-      void msg;
-      void after;
-      void restart;
-    });
+      if (!win) opts.onLose?.();
+    }
 
-    // ---------- Controls ----------
+    // ================= Controls =================
     const leftKeys = ["left", "a"];
     const rightKeys = ["right", "d"];
     const jumpKeys = ["space", "up", "w"];
 
+    // touch-control bridge (set on window by canvas wrapper)
+    type TouchInput = { left: boolean; right: boolean; jumpReq: boolean };
+    const w = typeof window !== "undefined" ? (window as unknown as { __gameInput?: TouchInput }) : undefined;
+
     k.onUpdate(() => {
-      if (player.won) return;
+      if (player.dead || player.won) {
+        // stop animation
+        return;
+      }
       let dir = 0;
       for (const key of leftKeys) if (k.isKeyDown(key as never)) dir -= 1;
       for (const key of rightKeys) if (k.isKeyDown(key as never)) dir += 1;
+      if (w?.__gameInput?.left) dir -= 1;
+      if (w?.__gameInput?.right) dir += 1;
+      dir = Math.sign(dir);
       player.move(dir * player.speed, 0);
+      if (dir !== 0) {
+        player.facing = dir as 1 | -1;
+        player.flipX = dir < 0;
+        if (player.isGrounded() && player.getCurAnim()?.name !== "walk") player.play("walk");
+      } else if (player.isGrounded() && player.getCurAnim()?.name !== "idle") {
+        player.play("idle");
+      }
+      if (!player.isGrounded() && player.getCurAnim()?.name !== "jump") player.play("jump");
+
+      // Touch jump edge
+      if (w?.__gameInput?.jumpReq) {
+        if (player.isGrounded()) player.jump(680);
+        w.__gameInput.jumpReq = false;
+      }
+
       // Camera follow
       const camX = Math.max(k.width() / 2, Math.min(player.pos.x, LEVEL_END - k.width() / 2));
       k.setCamPos(camX, k.height() / 2);
@@ -611,26 +610,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     for (const key of jumpKeys) {
       k.onKeyPress(key as never, () => {
-        if (player.won) return;
-        if (player.isGrounded()) player.jump(560);
+        if (player.dead || player.won) return;
+        if (player.isGrounded()) player.jump(680);
       });
     }
 
     k.onKeyPress("r", () => {
-      k.go("trail", 40);
+      k.go("trail", 40, 1);
     });
 
-    // Fall out of world
     player.onUpdate(() => {
-      if (player.pos.y > 700) {
-        const respawn = active.save_progress ? player.checkpointX : 40;
-        player.pos = k.vec2(respawn, GROUND_Y - 60);
-        player.vel = k.vec2(0, 0);
-      }
+      if (player.pos.y > 720) loseLife("Fell off the trail.");
     });
   });
 
-  k.go("trail", 40);
+  k.go("trail", 40, 1);
 
   return () => {
     try {
@@ -645,50 +639,23 @@ function addGround(k: Ctx, x1: number, x2: number, y: number) {
   k.add([
     k.rect(x2 - x1, 80),
     k.pos(x1, y),
-    k.color(...[80, 60, 40] as [number, number, number]),
+    k.color(60, 40, 20),
+    k.opacity(0.001), // invisible physics — background shows through
     k.area(),
     k.body({ isStatic: true }),
     k.z(-2),
   ]);
-  // Grass top
+  // Grass top strip for visual grounding
   k.add([
-    k.rect(x2 - x1, 8),
+    k.rect(x2 - x1, 6),
     k.pos(x1, y),
-    k.color(...[90, 140, 70] as [number, number, number]),
+    k.color(80, 130, 60),
+    k.opacity(0.55),
     k.z(-1),
   ]);
 }
 
-function addSign(k: Ctx, x: number, text: string) {
-  const y = 460 - 60;
-  // Post
-  k.add([k.rect(4, 40), k.pos(x + 28, y + 20), k.color(120, 90, 60)]);
-  // Board
-  k.add([
-    k.rect(60, 40),
-    k.pos(x, y - 10),
-    k.color(200, 160, 80),
-    k.outline(2, k.rgb(120, 90, 40)),
-  ]);
-  k.add([
-    k.text(text, { size: 10, font: "sans-serif", align: "center", width: 56 }),
-    k.pos(x + 30, y + 10),
-    k.anchor("center"),
-    k.color(60, 40, 20),
-  ]);
-}
-
-function addZoneLabel(k: Ctx, x: number, label: string) {
-  k.add([
-    k.text(label.toUpperCase(), { size: 14, font: "sans-serif" }),
-    k.pos(x, 100),
-    k.color(30, 60, 100),
-    k.opacity(0.75),
-    k.z(-1),
-  ]);
-}
-
-function addLabel(
+function addSpeech(
   k: Ctx,
   x: number,
   y: number,
@@ -696,8 +663,10 @@ function addLabel(
   rgb: [number, number, number],
 ) {
   k.add([
-    k.text(text, { size: 12, font: "sans-serif" }),
+    k.text(text, { size: 11, font: "sans-serif", align: "center" }),
     k.pos(x, y),
+    k.anchor("center"),
     k.color(...rgb),
+    k.z(5),
   ]);
 }

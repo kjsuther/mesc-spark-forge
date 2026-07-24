@@ -411,6 +411,31 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ]);
     player.pos.y = GROUND_Y - 64;
 
+    // ================= Ranger helper (needs player ref) =================
+    if (active.helper) {
+      const ranger = k.add([
+        k.sprite("props", { frame: PROP.ranger, width: 44, height: 60 }),
+        k.pos(spawnX + 60, GROUND_Y - 60),
+        k.z(4),
+      ]);
+      const bubble = k.add([
+        k.text("Follow me!", { size: 12, font: "sans-serif" }),
+        k.pos(0, 0),
+        k.color(30, 30, 30),
+        k.z(20),
+        k.anchor("center"),
+      ]);
+      ranger.onUpdate(() => {
+        const target = Math.min(player.pos.x + 90, LEVEL_END - 100);
+        const dx = target - ranger.pos.x;
+        ranger.pos.x += Math.sign(dx) * Math.min(Math.abs(dx), 3);
+        ranger.pos.y = GROUND_Y - 60;
+        bubble.pos = k.vec2(ranger.pos.x + 22, ranger.pos.y - 14);
+      });
+    }
+
+
+
     // ================= HUD =================
     const modeLabel = k.add([
       k.text(opts.mode === "after" ? "AFTER FEEDBACK" : "BEFORE FEEDBACK", {

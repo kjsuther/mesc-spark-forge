@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Leaderboard } from "./leaderboard";
 import type { GameFlags, WinResult } from "./game-scenes";
 
 type Props = {
@@ -11,6 +12,7 @@ type Props = {
 type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
 
 type LaunchMode = "standard" | "fullscreen";
+type MenuScreen = "title" | "mode" | "scores";
 
 export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -19,6 +21,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fauxFullscreen, setFauxFullscreen] = useState(false);
   const [launchMode, setLaunchMode] = useState<LaunchMode | null>(null);
+  const [menuScreen, setMenuScreen] = useState<MenuScreen>("title");
   const [showHint, setShowHint] = useState(true);
   const key = `${mode}|${Object.entries(flags)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -180,8 +183,9 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
         inset: fauxFullscreen ? 0 : undefined,
         width: fauxFullscreen ? "100vw" : "100vw",
         height: fauxFullscreen ? "100dvh" : "100vh",
-        background: "#000",
+        background: "var(--color-mn-blue)",
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         touchAction: "none",
@@ -201,15 +205,36 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
 
   return (
     <div ref={containerRef} className="relative w-full" style={containerStyle}>
+      {launchMode && overlayFs && (
+        <button
+          type="button"
+          aria-label="Exit fullscreen"
+          onPointerDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleFullscreen();
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+          className="absolute right-2 top-2 z-40 rounded bg-mn-blue/80 px-3 py-1.5 text-xs font-black uppercase tracking-widest text-cream shadow-lg touch-none"
+          style={{ touchAction: "none" }}
+        >
+          ✕ Exit
+        </button>
+      )}
+
       <div
         className={
           overlayFs
-            ? "relative bg-black overflow-hidden"
-            : "relative w-full bg-black rounded-lg overflow-hidden ring-2 ring-mn-blue/60 shadow-lg"
+            ? "relative overflow-hidden bg-mn-blue"
+            : "relative w-full overflow-hidden rounded-lg bg-mn-blue ring-2 ring-mn-blue/60 shadow-lg"
         }
         style={
           overlayFs
-            ? { width: "min(100vw, calc(100dvh * 16 / 9))", aspectRatio: "16 / 9" }
+            ? {
+                width: "min(100vw, calc((100dvh - 96px) * 16 / 9))",
+                maxHeight: "calc(100dvh - 96px)",
+                aspectRatio: "16 / 9",
+              }
             : undefined
         }
       >
@@ -228,42 +253,75 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
           aria-label="Blazing the Trail to Coverage game"
         />
 
-        {/* Pre-game launch modal — asks Standard vs Fullscreen */}
+        {/* SNES-style title / launch / high-score screen */}
         {!launchMode && !error && (
-          <div className="absolute inset-0 z-30 bg-black/85 text-white grid place-items-center p-6">
-            <div className="max-w-md w-full text-center">
-              <p className="text-xs uppercase tracking-widest text-accent-gold mb-2">
-                Blazing the Trail to Coverage
-              </p>
-              <h3 className="text-2xl font-black mb-4">How do you want to play?</h3>
-              <p className="text-sm opacity-80 mb-6">
-                Fullscreen is recommended on mobile so buttons don't crowd the trail.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3">
+          <div className="absolute inset-0 z-30 grid place-items-center bg-mn-blue p-4 text-cream">
+            {menuScreen === "title" && (
+              <div className="w-full max-w-lg text-center">
+                <div className="mb-6 border-4 border-accent-gold bg-mn-blue px-4 py-6 shadow-[0_0_0_4px_var(--color-accent-orange)]">
+                  <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-accent-gold sm:text-xs">
+                    Minnesota Health Coverage Quest
+                  </p>
+                  <h2 className="font-display text-3xl uppercase leading-tight text-cream sm:text-5xl">
+                    Blazing the Trail to Coverage
+                  </h2>
+                  <p className="mt-3 text-xs font-black uppercase tracking-widest text-accent-gold sm:text-sm">
+                    Press start to begin the Medicaid journey
+                  </p>
+                </div>
+                <div className="mx-auto flex max-w-xs flex-col gap-3">
+                  <MenuButton onClick={() => setMenuScreen("mode")}>Start Game</MenuButton>
+                  <MenuButton onClick={() => setMenuScreen("scores")}>View High Scores</MenuButton>
+                </div>
+              </div>
+            )}
+
+            {menuScreen === "mode" && (
+              <div className="w-full max-w-md text-center">
+                <p className="mb-2 text-xs font-black uppercase tracking-widest text-accent-gold">
+                  Select Play Mode
+                </p>
+                <h3 className="mb-5 text-2xl font-black uppercase tracking-widest text-cream">
+                  Start Game
+                </h3>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <MenuButton onClick={() => pickMode("standard")}>Standard</MenuButton>
+                  <MenuButton onClick={() => pickMode("fullscreen")}>Fullscreen</MenuButton>
+                </div>
                 <button
                   type="button"
-                  onClick={() => pickMode("standard")}
-                  className="flex-1 bg-white text-black font-black uppercase tracking-widest text-sm rounded px-4 py-3"
+                  onClick={() => setMenuScreen("title")}
+                  className="mt-5 text-xs font-black uppercase tracking-widest text-cream/70 underline decoration-accent-gold underline-offset-4"
                 >
-                  Standard
-                </button>
-                <button
-                  type="button"
-                  onClick={() => pickMode("fullscreen")}
-                  className="flex-1 bg-accent-orange text-white font-black uppercase tracking-widest text-sm rounded px-4 py-3"
-                >
-                  ⛶ Fullscreen
+                  Back
                 </button>
               </div>
-              <p className="text-[11px] opacity-60 mt-4">
-                You can switch anytime with the ⛶ button in the top-right corner.
-              </p>
-            </div>
+            )}
+
+            {menuScreen === "scores" && (
+              <div className="grid h-full w-full max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] gap-3">
+                <header className="text-center">
+                  <p className="text-xs font-black uppercase tracking-widest text-accent-gold">
+                    Live Scoreboard
+                  </p>
+                  <h3 className="font-display text-2xl uppercase text-cream sm:text-4xl">
+                    High Scores
+                  </h3>
+                </header>
+                <div className="min-h-0 overflow-auto rounded border-2 border-accent-gold bg-mn-blue/80">
+                  <Leaderboard variant="poster" />
+                </div>
+                <div className="mx-auto flex w-full max-w-sm gap-3">
+                  <MenuButton onClick={() => setMenuScreen("title")}>Back</MenuButton>
+                  <MenuButton onClick={() => setMenuScreen("mode")}>Start</MenuButton>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* Fullscreen toggle overlay button (only while game is running) */}
-        {launchMode && (
+        {launchMode && !overlayFs && (
           <button
             type="button"
             aria-label={overlayFs ? "Exit fullscreen" : "Enter fullscreen"}
@@ -273,32 +331,15 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
               toggleFullscreen();
             }}
             onContextMenu={(e) => e.preventDefault()}
-            className="absolute top-2 right-2 z-20 bg-black/60 text-white text-xs font-bold rounded px-2 py-1 hover:bg-black/80 touch-none"
+            className="absolute right-2 top-2 z-20 rounded bg-mn-blue/75 px-2 py-1 text-xs font-bold text-cream hover:bg-mn-blue touch-none"
             style={{ touchAction: "none" }}
           >
             {overlayFs ? "✕ Exit" : "⛶ Full"}
           </button>
         )}
 
-        {/* Touch controls in fullscreen overlay */}
-        {launchMode && overlayFs && (
-          <div
-            className="absolute inset-x-0 bottom-0 flex items-end justify-between p-4 pointer-events-none"
-            style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)" }}
-          >
-            <div className="flex gap-3 pointer-events-auto">
-              <LabeledTouch label="Left" aria="Move left" onDown={() => setBtn("left", true)} onUp={() => setBtn("left", false)}>◀</LabeledTouch>
-              <LabeledTouch label="Right" aria="Move right" onDown={() => setBtn("right", true)} onUp={() => setBtn("right", false)}>▶</LabeledTouch>
-            </div>
-            <div className="flex items-end gap-3 pointer-events-auto">
-              <LabeledTouch label="Restart" aria="Restart" onDown={reset}>⟳</LabeledTouch>
-              <LabeledTouch label="Jump" aria="Jump" onDown={jump} big>JUMP</LabeledTouch>
-            </div>
-          </div>
-        )}
-
         {error && (
-          <div className="absolute inset-0 grid place-items-center bg-black/80 text-white p-6 text-center">
+          <div className="absolute inset-0 grid place-items-center bg-mn-blue/90 p-6 text-center text-cream">
             <div>
               <p className="font-bold mb-2">Game failed to load</p>
               <p className="text-sm opacity-80">{error}</p>
@@ -306,6 +347,23 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
           </div>
         )}
       </div>
+
+      {/* Fullscreen controls live outside the canvas so they never cover the trail. */}
+      {launchMode && overlayFs && (
+        <div
+          className="grid w-full max-w-[720px] grid-cols-[minmax(0,1fr)_auto] items-end gap-2 px-3 pt-2 select-none"
+          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
+        >
+          <div className="flex min-w-0 gap-2">
+            <LabeledTouch compact label="Left" aria="Move left" onDown={() => setBtn("left", true)} onUp={() => setBtn("left", false)}>◀</LabeledTouch>
+            <LabeledTouch compact label="Right" aria="Move right" onDown={() => setBtn("right", true)} onUp={() => setBtn("right", false)}>▶</LabeledTouch>
+          </div>
+          <div className="flex items-end gap-2">
+            <LabeledTouch compact label="Restart" aria="Restart" onDown={reset}>⟳</LabeledTouch>
+            <LabeledTouch compact label="Jump" aria="Jump" onDown={jump} big>JUMP</LabeledTouch>
+          </div>
+        </div>
+      )}
 
       {/* Inline touch controls (non-fullscreen mobile) */}
       {launchMode && !overlayFs && (
@@ -315,14 +373,14 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
               Hold ◀ ▶ to move · JUMP to hop · ⟳ to restart
             </p>
           )}
-          <div className="mt-3 flex items-end justify-between gap-4 md:hidden select-none">
-            <div className="flex gap-3">
-              <LabeledTouch label="Left" aria="Move left" onDown={() => setBtn("left", true)} onUp={() => setBtn("left", false)}>◀</LabeledTouch>
-              <LabeledTouch label="Right" aria="Move right" onDown={() => setBtn("right", true)} onUp={() => setBtn("right", false)}>▶</LabeledTouch>
+          <div className="mt-3 flex items-end justify-between gap-2 md:hidden select-none">
+            <div className="flex gap-2">
+              <LabeledTouch compact label="Left" aria="Move left" onDown={() => setBtn("left", true)} onUp={() => setBtn("left", false)}>◀</LabeledTouch>
+              <LabeledTouch compact label="Right" aria="Move right" onDown={() => setBtn("right", true)} onUp={() => setBtn("right", false)}>▶</LabeledTouch>
             </div>
-            <div className="flex items-end gap-3">
-              <LabeledTouch label="Restart" aria="Restart" onDown={reset}>⟳</LabeledTouch>
-              <LabeledTouch label="Jump" aria="Jump" onDown={jump} big>JUMP</LabeledTouch>
+            <div className="flex items-end gap-2">
+              <LabeledTouch compact label="Restart" aria="Restart" onDown={reset}>⟳</LabeledTouch>
+              <LabeledTouch compact label="Jump" aria="Jump" onDown={jump} big>JUMP</LabeledTouch>
             </div>
           </div>
         </>
@@ -337,12 +395,25 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   );
 }
 
+function MenuButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex-1 border-2 border-accent-gold bg-accent-orange px-4 py-3 text-sm font-black uppercase tracking-widest text-cream shadow-[4px_4px_0_var(--color-accent-gold)] active:translate-x-1 active:translate-y-1 active:shadow-none"
+    >
+      {children}
+    </button>
+  );
+}
+
 function LabeledTouch({
   children,
   onDown,
   onUp,
   aria,
   big,
+  compact,
   label,
 }: {
   children: React.ReactNode;
@@ -350,8 +421,17 @@ function LabeledTouch({
   onUp?: () => void;
   aria: string;
   big?: boolean;
+  compact?: boolean;
   label: string;
 }) {
+  const sizeClass = compact
+    ? big
+      ? "h-14 w-16 text-sm"
+      : "h-12 w-12 text-xl"
+    : big
+      ? "h-20 w-20 text-base sm:h-24 sm:w-24 sm:text-lg"
+      : "h-14 w-14 text-xl sm:h-16 sm:w-16 sm:text-2xl";
+
   return (
     <div className="flex flex-col items-center gap-1">
       <button
@@ -371,14 +451,12 @@ function LabeledTouch({
         onPointerLeave={() => onUp?.()}
         onPointerCancel={() => onUp?.()}
         onContextMenu={(e) => e.preventDefault()}
-        className={`bg-mn-blue text-white font-black rounded-full active:brightness-125 shadow-lg touch-none select-none ${
-          big ? "w-24 h-24 text-lg" : "w-16 h-16 text-2xl"
-        }`}
+        className={`rounded-full bg-mn-blue font-black text-cream shadow-lg active:brightness-125 touch-none select-none ${sizeClass}`}
         style={{ touchAction: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
       >
         {children}
       </button>
-      <span className="text-[10px] font-black uppercase tracking-widest text-white drop-shadow bg-black/50 rounded px-1.5 py-0.5">
+      <span className="rounded bg-mn-blue/70 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-cream drop-shadow sm:text-[10px]">
         {label}
       </span>
     </div>

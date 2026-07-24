@@ -19,7 +19,13 @@ export type WinResult = {
   mode: "before" | "after";
   farthestZone: number; // 0..4
   won: boolean;
+  score: number;
+  distancePx: number;
+  jumpsLanded: number;
+  enemiesPassed: number;
+  deaths: number;
 };
+
 
 export type StartGameOpts = {
   canvas: HTMLCanvasElement;

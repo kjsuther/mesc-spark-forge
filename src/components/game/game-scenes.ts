@@ -748,8 +748,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (player.riding) {
         const dt = k.dt();
         player.pos.x += player.riding.platformSpeed.x * dt;
-        // Snap feet to platform top so we don't drift up/down between frames
-        player.pos.y = player.riding.pos.y;
+        // Snap feet to platform top (accounting for sprite foot padding)
+        player.pos.y = player.riding.pos.y + PLAYER_FOOT_PAD;
       }
 
       if (dir !== 0) {

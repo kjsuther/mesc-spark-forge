@@ -188,6 +188,11 @@ function PosterView() {
             </ul>
           </section>
 
+          {/* Live leaderboard */}
+          <section className="rounded-xl overflow-hidden border-2 border-accent-gold/70 bg-mn-blue/60 flex flex-col min-h-0 flex-1">
+            <Leaderboard variant="poster" />
+          </section>
+
           {/* In queue */}
           <section className="rounded-xl overflow-hidden border-2 border-accent-orange/70 bg-dark-gray/60 flex flex-col min-h-0 flex-1">
             <header className="bg-accent-orange text-white px-4 py-2 flex items-center justify-between border-b-2 border-accent-gold/60">
@@ -226,9 +231,6 @@ function PosterView() {
                 </li>
               ))}
             </ul>
-            <footer className="text-center text-[10px] font-bold uppercase tracking-widest text-cream/60 py-2 border-t border-white/10">
-              — More ideas welcome →
-            </footer>
           </section>
         </aside>
       </div>

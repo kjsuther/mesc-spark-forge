@@ -479,9 +479,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         lastGroundedAt: k.time(),
         jumpBufferedAt: -1,
         farthestZone: Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W))),
+        rightmostX: spawnX,
+        wasGrounded: true,
+        wasOnPlatform: false,
+        score: 0,
+        jumpsLanded: 0,
+        enemiesPassed: 0,
+        deaths: 0,
+        distancePx: 0,
+        passedMonsters: new Set<number>(),
+        visitedZones: new Set<number>([Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)))]),
         riding: null as null | { pos: { x: number; y: number }; platformSpeed: { x: number; y: number }; width: number; height: number },
       },
     ]);
+
 
     // Track platform ride: when player lands on a platform, remember it
     player.onCollide("platform", (p, col) => {

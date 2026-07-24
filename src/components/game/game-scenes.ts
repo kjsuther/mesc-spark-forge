@@ -656,7 +656,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.fixed(),
         k.z(201),
       ]);
-      if (!win) opts.onLose?.();
+      if (!win) opts.onLose?.(buildResult(false));
     }
 
     // ================= Controls =================

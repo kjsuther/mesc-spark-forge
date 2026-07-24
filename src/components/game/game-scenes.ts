@@ -728,8 +728,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const platCenterX = player.riding.pos.x + halfW;
         const withinX = Math.abs(player.pos.x - platCenterX) < halfW + 12;
         const platTop = player.riding.pos.y;
-        const feetY = player.pos.y;
-        const nearTop = Math.abs(feetY - platTop) < 6;
+        const expectedFeetY = platTop + PLAYER_FOOT_PAD;
+        const nearTop = Math.abs(player.pos.y - expectedFeetY) < 8;
         if (!withinX || !nearTop || !player.isGrounded()) {
           player.riding = null;
         }

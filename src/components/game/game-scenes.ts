@@ -585,7 +585,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         return;
       }
       const rx = active.save_progress ? player.checkpointX : 40;
-      player.pos = k.vec2(rx, GROUND_Y);
+      player.pos = k.vec2(rx, GROUND_Y + PLAYER_FOOT_PAD);
       player.vel = k.vec2(0, 0);
       player.riding = null;
       if (!active.documents_earlier && rx < BIOME_W * 2) {
@@ -594,16 +594,22 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       updateHud();
     }
 
-    player.onCollide("finish", () => {
-      if (player.won || player.dead) return;
-      if (player.docs.size < 3) return;
-      player.won = true;
-      opts.onWin?.({
+    function buildResult(won: boolean): WinResult {
+      return {
         durationMs: Math.round((k.time() - startTime) * 1000),
         docs: player.docs.size,
         lives: player.lives,
         mode: opts.mode,
-      });
+        farthestZone: player.farthestZone,
+        won,
+      };
+    }
+
+    player.onCollide("finish", () => {
+      if (player.won || player.dead) return;
+      if (player.docs.size < 3) return;
+      player.won = true;
+      opts.onWin?.(buildResult(true));
       showTitleCard(k, "STEP 5 · ENROLLED", "★ COVERED ★", [255, 220, 90], 2.4);
       showEnd(true);
     });

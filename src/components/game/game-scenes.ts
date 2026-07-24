@@ -242,6 +242,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(4),
       "gateStamp",
     ]);
+    addSpeech(k, gateX + 10, GROUND_Y - 180, "COUNTY OFFICE\nDocs required", [140, 40, 40]);
 
     // ================= ZONE 4: Mountain — sparse platforms =================
     const mx0 = BIOME_W * 3;

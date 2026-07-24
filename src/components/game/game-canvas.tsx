@@ -60,6 +60,10 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
     const w = window as unknown as { __gameInput?: TouchInput };
     if (w.__gameInput) w.__gameInput.jumpReq = true;
   }
+  function reset() {
+    const w = window as unknown as { __gameInput?: TouchInput };
+    if (w.__gameInput) w.__gameInput.resetReq = true;
+  }
 
   return (
     <div ref={containerRef} className="relative w-full">

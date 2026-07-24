@@ -51,6 +51,7 @@ function ToolPage() {
   const qc = useQueryClient();
   const [localMode, setLocalMode] = useState<"before" | "after" | null>(null);
   const [gameEnded, setGameEnded] = useState(false);
+  const [winResult, setWinResult] = useState<WinResult | null>(null);
 
   const current = versions.find((v) => v.is_current) ?? versions[versions.length - 1];
 

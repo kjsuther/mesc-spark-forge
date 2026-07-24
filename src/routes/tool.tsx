@@ -183,7 +183,7 @@ function ToolPage() {
 function ClientGameCanvas(props: {
   flags: Record<ImprovementKey, boolean>;
   mode: "before" | "after";
-  onWin?: () => void;
+  onWin?: (result: WinResult) => void;
   onLose?: () => void;
 }) {
   const [mounted, setMounted] = useState(false);

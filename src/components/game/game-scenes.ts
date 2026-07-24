@@ -572,7 +572,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const jumpKeys = ["space", "up", "w"];
 
     // touch-control bridge (set on window by canvas wrapper)
-    type TouchInput = { left: boolean; right: boolean; jumpReq: boolean };
+    type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
     const w = typeof window !== "undefined" ? (window as unknown as { __gameInput?: TouchInput }) : undefined;
 
     // Zone tracking + cinematic transitions
@@ -580,13 +580,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Opening title card
     showTitleCard(
       k,
-      `STAGE ${currentZone + 1}`,
+      ZONES[currentZone].phase.toUpperCase(),
       ZONES[currentZone].label.toUpperCase(),
       [255, 220, 90],
       1.8,
     );
 
     k.onUpdate(() => {
+      // Reset from mobile / any external trigger
+      if (w?.__gameInput?.resetReq) {
+        w.__gameInput.resetReq = false;
+        k.go("trail", 40, 1);
+        return;
+      }
       if (player.dead || player.won) {
         return;
       }
@@ -596,7 +602,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         currentZone = z;
         showTitleCard(
           k,
-          `STAGE ${z + 1}`,
+          ZONES[z].phase.toUpperCase(),
           ZONES[z].label.toUpperCase(),
           [255, 220, 90],
           1.4,

@@ -517,7 +517,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         lives: player.lives,
         mode: opts.mode,
       });
-      showTitleCard(k, "VICTORY!", "★ COVERED ★", [255, 220, 90], 2.4);
+      showTitleCard(k, "STEP 5 · ENROLLED", "★ COVERED ★", [255, 220, 90], 2.4);
       showEnd(true);
     });
 

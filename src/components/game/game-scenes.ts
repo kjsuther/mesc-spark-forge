@@ -380,8 +380,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= Player =================
     const player = k.add([
       k.sprite("hero", { anim: "idle", width: 44, height: 64 }),
-      k.pos(spawnX, GROUND_Y - 64),
-      k.area({ shape: new k.Rect(k.vec2(10, 6), 24, 58) }),
+      k.pos(spawnX, GROUND_Y),
+      k.area({ shape: new k.Rect(k.vec2(10, -58), 24, 58) }),
       k.body(),
       k.anchor("bot"),
       "player",
@@ -393,9 +393,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         dead: false,
         lives: (active.phone_support ? 2 : 1) + (lives - 1),
         facing: 1 as 1 | -1,
+        transitioning: false,
       },
     ]);
-    player.pos.y = GROUND_Y - 64;
+
 
     // ================= Ranger helper (needs player ref) =================
     if (active.helper) {

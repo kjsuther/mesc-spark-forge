@@ -104,9 +104,14 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
             ▶
           </TouchButton>
         </div>
-        <TouchButton aria="Jump" onDown={jump} big>
-          JUMP
-        </TouchButton>
+        <div className="flex items-center gap-3">
+          <TouchButton aria="Restart" onDown={reset}>
+            ⟳
+          </TouchButton>
+          <TouchButton aria="Jump" onDown={jump} big>
+            JUMP
+          </TouchButton>
+        </div>
       </div>
       <p className="mt-2 text-xs text-dark-gray/60 text-center hidden md:block">
         ← → to move · Space / ↑ to jump · R to reset

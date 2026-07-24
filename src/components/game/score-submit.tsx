@@ -101,9 +101,8 @@ export function ScoreSubmit({
   const headline = result.won
     ? `★ You covered the trail — score: ${score.toLocaleString()}`
     : `You made it to ${stepLabel} — score: ${score.toLocaleString()}`;
-  const sub = result.won
-    ? "Enter your name to post to the live leaderboard."
-    : `Docs collected: ${result.docs}/3 · Enter your name to post to the leaderboard.`;
+  const sub = `Distance ${result.distancePx.toLocaleString()}px · Docs ${result.docs}/3 · Zones ${result.farthestZone + 1}/5 · Jumps ${result.jumpsLanded} · Enemies passed ${result.enemiesPassed}${result.deaths ? ` · Deaths ${result.deaths}` : ""}`;
+
 
   return (
     <form

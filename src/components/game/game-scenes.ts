@@ -703,8 +703,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       const now = k.time();
 
-      // Zone transition title cards
+      // Zone transition title cards + farthest-zone tracking
       const z = Math.min(ZONES.length - 1, Math.max(0, Math.floor(player.pos.x / BIOME_W)));
+      if (z > player.farthestZone) player.farthestZone = z;
       if (z !== currentZone) {
         currentZone = z;
         showTitleCard(

@@ -92,6 +92,80 @@ export type Database = {
         }
         Relationships: []
       }
+      game_improvement_votes: {
+        Row: {
+          created_at: string
+          id: string
+          improvement_key: string
+          voter_fingerprint: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          improvement_key: string
+          voter_fingerprint: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          improvement_key?: string
+          voter_fingerprint?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_improvement_votes_improvement_key_fkey"
+            columns: ["improvement_key"]
+            isOneToOne: false
+            referencedRelation: "game_improvements"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      game_improvements: {
+        Row: {
+          description: string
+          enabled: boolean
+          key: string
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          description: string
+          enabled?: boolean
+          key: string
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          description?: string
+          enabled?: boolean
+          key?: string
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      game_settings: {
+        Row: {
+          before_after: string
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          before_after?: string
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          before_after?: string
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       versions: {
         Row: {
           id: string

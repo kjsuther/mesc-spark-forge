@@ -1,30 +1,38 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useSuspenseQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { SiteChrome } from "@/components/site-chrome";
 import { SiteFooter } from "@/components/site-footer";
 import { NowBuildingBanner } from "@/components/now-building-banner";
 import { SectionHeading } from "@/components/trail/section-heading";
-import { MountainScape } from "@/components/trail/mountain-scape";
-import { ACTIONS } from "@/data/actions";
+import { GameCanvas } from "@/components/game/game-canvas";
+import { VotePanel } from "@/components/game/vote-panel";
+import { improvementsQuery, gameSettingsQuery } from "@/lib/game.queries";
 import { nowBuildingQuery, versionsQuery } from "@/lib/queries";
+import { IMPROVEMENT_KEYS, type ImprovementKey } from "@/lib/game.functions";
 import { supabase } from "@/integrations/supabase/client";
-
 
 export const Route = createFileRoute("/tool")({
   head: () => ({
     meta: [
-      { title: "The tool — [Your State] DHS Client Action Navigator" },
+      { title: "Blazing the Trail to Coverage — MN DHS Demo" },
       {
         name: "description",
         content:
-          "Pick what you're trying to do — apply, renew, or update — and get a plain-language roadmap and checklist for [Your State] Medical Assistance.",
+          "A tiny retro side-scroller about applying for health coverage. Barriers represent real UX problems — the audience votes on improvements and the trail visibly changes.",
       },
-      { property: "og:title", content: "The tool — [Your State] DHS Client Action Navigator" },
-      { property: "og:description", content: "Pick your action and see what's next, in plain language." },
+      { property: "og:title", content: "Blazing the Trail to Coverage" },
+      {
+        property: "og:description",
+        content:
+          "Vote on UX improvements and watch the trail to health coverage get easier in real time.",
+      },
+      { name: "robots", content: "noindex" },
     ],
   }),
   loader: ({ context }) => {
+    context.queryClient.ensureQueryData(improvementsQuery);
+    context.queryClient.ensureQueryData(gameSettingsQuery);
     context.queryClient.ensureQueryData(nowBuildingQuery);
     context.queryClient.ensureQueryData(versionsQuery);
   },
@@ -32,20 +40,30 @@ export const Route = createFileRoute("/tool")({
 });
 
 function ToolPage() {
+  const { data: improvements } = useSuspenseQuery(improvementsQuery);
   const { data: nowBuilding } = useSuspenseQuery(nowBuildingQuery);
   const { data: versions } = useSuspenseQuery(versionsQuery);
+  const { data: settings } = useQuery(gameSettingsQuery);
   const qc = useQueryClient();
+  const [localMode, setLocalMode] = useState<"before" | "after" | null>(null);
 
   const current = versions.find((v) => v.is_current) ?? versions[versions.length - 1];
 
   useEffect(() => {
     const channel = supabase
-      .channel("tool-now-building")
+      .channel("tool-game-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "game_improvements" },
+        () => qc.invalidateQueries({ queryKey: ["game_improvements"] }),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "game_settings" },
+        () => qc.invalidateQueries({ queryKey: ["game_settings"] }),
+      )
       .on("postgres_changes", { event: "*", schema: "public", table: "feedback" }, () =>
         qc.invalidateQueries({ queryKey: ["now_building"] }),
-      )
-      .on("postgres_changes", { event: "*", schema: "public", table: "versions" }, () =>
-        qc.invalidateQueries({ queryKey: ["versions"] }),
       )
       .subscribe();
     return () => {
@@ -53,57 +71,95 @@ function ToolPage() {
     };
   }, [qc]);
 
+  const mode: "before" | "after" = localMode ?? settings?.before_after ?? "before";
+
+  const flags = useMemo(() => {
+    const base = Object.fromEntries(
+      IMPROVEMENT_KEYS.map((k) => [k, false]),
+    ) as Record<ImprovementKey, boolean>;
+    for (const imp of improvements) base[imp.key] = imp.enabled;
+    return base;
+  }, [improvements]);
+
+  const enabledCount = improvements.filter((i) => i.enabled).length;
+
   return (
     <div className="min-h-screen flex flex-col bg-white text-dark-gray font-sans">
       <SiteChrome />
 
-      <main id="main-content" className="max-w-6xl w-full mx-auto py-12 px-6 flex-1">
+      <main id="main-content" className="max-w-6xl w-full mx-auto py-10 px-4 sm:px-6 flex-1">
         <NowBuildingBanner items={nowBuilding} currentSemver={current?.semver} variant="tool" />
 
-
-
-        <header className="mb-10">
-          <SectionHeading as="h1">What are you trying to do today?</SectionHeading>
-          <p className="text-lg md:text-xl text-dark-gray/80 max-w-2xl mt-4">
-            Pick an option below to get a personalized roadmap and checklist — in plain language.
+        <header className="mb-6">
+          <SectionHeading as="h1">Blazing the Trail to Coverage</SectionHeading>
+          <p className="text-lg text-dark-gray/80 max-w-2xl mt-3">
+            A short 16-bit trail from <b>"I need health coverage"</b> to <b>Covered!</b> —
+            complete with real barriers people hit when applying. The audience votes on UX
+            improvements below and the trail visibly changes.
           </p>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {ACTIONS.filter((a) => a.slug === "report-a-change" || a.slug === "check-documents").map((action) => {
-            return (
-              <Link
-                key={action.slug}
-                to="/actions/$slug"
-                params={{ slug: action.slug }}
-                className="relative p-6 bg-cream/40 border-2 border-mn-blue/40 rounded-xl hover:border-accent-orange hover:bg-white transition-all text-left group focus:outline-none focus:border-mn-blue shadow-[0_1px_0_0_rgba(31,51,72,0.1)]"
-              >
-                <span aria-hidden="true" className="absolute -top-2 -left-2 h-4 w-4 grid place-items-center rounded-full bg-cream text-accent-orange text-[10px] font-black ring-1 ring-mn-blue/40">★</span>
-                <span aria-hidden="true" className="absolute -top-2 -right-2 h-4 w-4 grid place-items-center rounded-full bg-cream text-accent-orange text-[10px] font-black ring-1 ring-mn-blue/40">★</span>
-                <div
-                  className={`w-12 h-12 ${action.iconBg} ${action.iconFg} rounded-lg mb-4 grid place-items-center group-hover:scale-110 transition-transform text-2xl font-bold ring-2 ring-accent-gold/40`}
-                >
-                  {action.iconChar}
-                </div>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-mn-green mb-1">
-                  ★ {action.category}
-                </div>
-                <h3 className="font-display uppercase tracking-wide text-mn-blue text-xl leading-tight">
-                  {action.title}
-                </h3>
-                <p className="text-sm text-dark-gray/70 mt-2 leading-snug">{action.subtitle}</p>
-              </Link>
-            );
-          })}
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div
+            role="tablist"
+            aria-label="Before / After feedback"
+            className="inline-flex bg-cream border-2 border-mn-blue/40 rounded-full p-1"
+          >
+            <button
+              role="tab"
+              aria-selected={mode === "before"}
+              onClick={() => setLocalMode("before")}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-wide transition-colors ${
+                mode === "before" ? "bg-accent-orange text-white" : "text-mn-blue"
+              }`}
+            >
+              Before feedback
+            </button>
+            <button
+              role="tab"
+              aria-selected={mode === "after"}
+              onClick={() => setLocalMode("after")}
+              className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-wide transition-colors ${
+                mode === "after" ? "bg-mn-green text-white" : "text-mn-blue"
+              }`}
+            >
+              After feedback
+            </button>
+          </div>
+          <span className="text-xs font-semibold text-dark-gray/70">
+            {mode === "after"
+              ? `${enabledCount} of ${IMPROVEMENT_KEYS.length} improvements applied`
+              : "Raw experience — no improvements applied"}
+          </span>
         </div>
 
-        <div className="mt-16 opacity-70">
-          <MountainScape variant="band" />
-        </div>
+        <ClientGameCanvas flags={flags} mode={mode} />
+
+        <VotePanel />
+
+        <p className="mt-8 text-center text-sm text-dark-gray/70 italic max-w-2xl mx-auto">
+          Every trail starts somewhere. Better trails are built by listening to the people who use
+          them.
+        </p>
       </main>
-
 
       <SiteFooter />
     </div>
   );
+}
+
+function ClientGameCanvas(props: { flags: Record<ImprovementKey, boolean>; mode: "before" | "after" }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) {
+    return (
+      <div
+        className="w-full bg-black rounded-lg ring-2 ring-mn-blue/60 grid place-items-center text-white"
+        style={{ aspectRatio: "16 / 9" }}
+      >
+        Loading game…
+      </div>
+    );
+  }
+  return <GameCanvas {...props} />;
 }

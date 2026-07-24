@@ -56,7 +56,7 @@ export function SiteHeader() {
           className="bg-accent-orange text-white px-4 py-2 rounded font-semibold hover:brightness-105 transition ml-2 min-h-11 inline-flex items-center ring-1 ring-accent-gold/60"
           activeProps={{ className: "brightness-110 ring-2 ring-accent-gold" }}
         >
-          Demo Client Tool
+          Demo Game
         </Link>
         <Link
           to="/feedback"
@@ -72,7 +72,7 @@ export function SiteHeader() {
           to="/tool"
           className="inline-flex bg-accent-orange text-white px-3 py-2 rounded font-semibold text-xs sm:text-sm hover:brightness-105 transition min-h-11 items-center ring-1 ring-accent-gold/60"
         >
-          Demo Tool
+          Demo Game
         </Link>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger
@@ -115,7 +115,7 @@ export function SiteHeader() {
                 onClick={() => setOpen(false)}
                 className="block text-center bg-accent-orange text-white px-4 py-3 rounded-lg font-bold hover:brightness-105 transition min-h-11 ring-1 ring-accent-gold/60"
               >
-                Demo Client Tool
+                Demo Game
               </Link>
               <Link
                 to="/feedback"

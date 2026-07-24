@@ -453,9 +453,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= Player =================
     const player = k.add([
       k.sprite("hero", { anim: "idle", width: PLAYER_W, height: PLAYER_H }),
-      k.pos(spawnX, GROUND_Y),
-      // With anchor("bot"), sprite spans x=[-22,22], y=[-64,0]. Center collision box on that.
-      k.area({ shape: new k.Rect(k.vec2(-12, -58), 24, 58) }),
+      k.pos(spawnX, GROUND_Y + PLAYER_FOOT_PAD),
+      // Collision box is shifted UP by PLAYER_FOOT_PAD so its bottom sits at (pos.y - PAD).
+      // The physics body then rests the box on the ground, which places pos.y at GROUND_Y+PAD
+      // and puts the sprite's visible feet flush with the ground line.
+      k.area({ shape: new k.Rect(k.vec2(-12, -58 - PLAYER_FOOT_PAD), 24, 58) }),
       k.body(),
       k.anchor("bot"),
       "player",
@@ -469,6 +471,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         invulnUntil: 0,
         lastGroundedAt: k.time(),
         jumpBufferedAt: -1,
+        farthestZone: Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W))),
         riding: null as null | { pos: { x: number; y: number }; platformSpeed: { x: number; y: number }; width: number; height: number },
       },
     ]);

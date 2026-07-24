@@ -495,7 +495,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       // respawn
       const rx = active.save_progress ? player.checkpointX : 40;
-      player.pos = k.vec2(rx, GROUND_Y - 64);
+      player.pos = k.vec2(rx, GROUND_Y);
       player.vel = k.vec2(0, 0);
       if (!active.documents_earlier && rx < BIOME_W * 2) {
         player.docs.clear();
@@ -506,11 +506,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     player.onCollide("finish", () => {
       if (player.won || player.dead) return;
       if (player.docs.size < 3) {
-        // bumped into clinic without docs — treat like a wall (no win)
         return;
       }
       player.won = true;
-      opts.onWin?.();
+      opts.onWin?.({
+        durationMs: Math.round((k.time() - startTime) * 1000),
+        docs: player.docs.size,
+        lives: player.lives,
+        mode: opts.mode,
+      });
+      showTitleCard(k, "VICTORY!", "★ COVERED ★", [255, 220, 90], 2.4);
       showEnd(true);
     });
 

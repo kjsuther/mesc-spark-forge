@@ -572,6 +572,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     player.onCollide("doc", (d) => {
       const doc = d as unknown as { docKey: string; destroy: () => void };
       player.docs.add(doc.docKey);
+      player.score += 750;
       doc.destroy();
       updateHud();
     });
@@ -597,6 +598,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (k.time() < player.invulnUntil) return;
       player.invulnUntil = k.time() + INVULN_S;
       player.lives -= 1;
+      player.deaths += 1;
+      player.score = Math.max(0, player.score - 500);
       if (player.lives <= 0) {
         player.dead = true;
         showEnd(false, reason);
@@ -613,15 +616,29 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     function buildResult(won: boolean): WinResult {
+      const durationMs = Math.round((k.time() - startTime) * 1000);
+      let finalScore = player.score;
+      if (won) {
+        finalScore += 2000;
+        finalScore += player.lives * 500;
+        finalScore += Math.max(0, 4000 - Math.floor(durationMs / 100));
+      }
       return {
-        durationMs: Math.round((k.time() - startTime) * 1000),
+        durationMs,
         docs: player.docs.size,
         lives: player.lives,
         mode: opts.mode,
         farthestZone: player.farthestZone,
         won,
+        score: Math.max(0, Math.round(finalScore)),
+        distancePx: Math.round(player.distancePx),
+        jumpsLanded: player.jumpsLanded,
+        enemiesPassed: player.enemiesPassed,
+        deaths: player.deaths,
       };
     }
+
+
 
     player.onCollide("finish", () => {
       if (player.won || player.dead) return;

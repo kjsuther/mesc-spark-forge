@@ -30,6 +30,8 @@ export const Route = createFileRoute("/tool")({
         content:
           "Vote on UX improvements and watch the trail to health coverage get easier in real time.",
       },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
       { name: "robots", content: "noindex" },
     ],
   }),

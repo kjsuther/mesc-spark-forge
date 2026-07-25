@@ -1434,16 +1434,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= ZONE 5: Waiting Mountain — 10-second countdown =================
     const mx0 = BIOME_W * 5;
     // Falling calendar pages — days peeling off the calendar while you wait.
-    // Dense, fast rain: 14 pages, higher fall speed, tighter respawn cadence.
-    const CAL_COUNT = 14;
+    // Very dense rain: 20 pages, faster fall, horizontal drift so straight-line
+    // dodging fails. Getting hit also resets the countdown (see loseLife).
+    const CAL_COUNT = 20;
     for (let i = 0; i < CAL_COUNT; i++) {
       const initialX = mx0 + 80 + Math.random() * (BIOME_W - 160);
       const b = spawnAirborne(k, "calendar-page", sizes, {
         x: initialX, y: -80 - Math.random() * 300, z: LAYERS.ACTOR,
         tag: "boulder",
         props: {
-          spd: 300 + Math.random() * 180,
+          spd: 380 + Math.random() * 240,
           spin: (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 60),
+          driftAmp: 20 + Math.random() * 40,
+          driftSpd: 1.2 + Math.random() * 1.6,
+          driftPhase: Math.random() * Math.PI * 2,
+          baseX: initialX,
           zoneL: mx0 + 60,
           zoneR: mx0 + BIOME_W - 60,
         },
@@ -1451,16 +1456,22 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       b.use(k.rotate(0));
       b.onUpdate(() => {
         b.pos.y += b.spd * k.dt();
+        b.pos.x = b.baseX + Math.sin(k.time() * b.driftSpd + b.driftPhase) * b.driftAmp;
         b.angle = (b.angle ?? 0) + b.spin * k.dt();
         if (b.pos.y > 700) {
-          // Re-roll X anywhere in the zone; respawn close above so cadence stays tight.
-          b.pos = k.vec2(b.zoneL + Math.random() * (b.zoneR - b.zoneL), -80 - Math.random() * 120);
-          b.spd = 300 + Math.random() * 180;
+          const nx = b.zoneL + Math.random() * (b.zoneR - b.zoneL);
+          b.baseX = nx;
+          b.pos = k.vec2(nx, -80 - Math.random() * 100);
+          b.spd = 380 + Math.random() * 240;
           b.spin = (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 60);
+          b.driftAmp = 20 + Math.random() * 40;
+          b.driftSpd = 1.2 + Math.random() * 1.6;
+          b.driftPhase = Math.random() * Math.PI * 2;
           b.angle = 0;
         }
       });
     }
+
     addSpeech(k, mx0 + 500, 90, "Awaiting a decision…", [50, 40, 80]);
     zoneObjectives[5] = {
       hudLabel: () => {

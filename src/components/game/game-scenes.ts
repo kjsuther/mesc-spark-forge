@@ -367,7 +367,7 @@ function spawnAirborne(
   ];
   if (opts.tag) comps.push(opts.tag);
   if (opts.props) comps.push(opts.props);
-  return k.add(comps as never);
+  return k.add(comps as never) as AnyObj;
 }
 
 function spawnDecor(

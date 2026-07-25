@@ -1225,9 +1225,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // "COVERED" celebration sign at right edge
     addSpeech(k, LEVEL_END - 100, GROUND_Y - 200, "★ COVERED! ★", [220, 30, 60]);
     zoneObjectives[7] = {
-      hudLabel: () => zoneState.firePoleDone ? "COVERED!" : "REACH THE ID CARD",
+      hudLabel: () =>
+        zoneState.firePoleDone
+          ? "COVERED!"
+          : zoneState.idCardCollected
+            ? "SLIDE DOWN →"
+            : "ID CARD ☐",
       met: () => zoneState.firePoleDone,
     };
+
 
     // Save-point campfire near town start (existing improvement).
     const checkpointX = spawnX > 1000 ? spawnX : 40;

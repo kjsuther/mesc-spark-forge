@@ -446,16 +446,35 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
 }
 
 function MenuButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  const firedRef = useRef(false);
+  const fire = (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (firedRef.current) return;
+    firedRef.current = true;
+    // Reset shortly so re-mounts / re-renders don't lock the button.
+    setTimeout(() => {
+      firedRef.current = false;
+    }, 400);
+    onClick();
+  };
   return (
     <button
       type="button"
-      onClick={onClick}
-      className="flex-1 border-2 border-accent-gold bg-accent-orange px-4 py-3 text-sm font-black uppercase tracking-widest text-cream shadow-[4px_4px_0_var(--color-accent-gold)] active:translate-x-1 active:translate-y-1 active:shadow-none"
+      // Use pointerup so touch and mouse both fire immediately; iOS Safari
+      // sometimes drops synthetic click events under containers with
+      // touch-action:none / user-select:none.
+      onPointerUp={fire}
+      onClick={fire}
+      onContextMenu={(e) => e.preventDefault()}
+      className="flex-1 touch-none select-none border-2 border-accent-gold bg-accent-orange px-4 py-3 text-sm font-black uppercase tracking-widest text-cream shadow-[4px_4px_0_var(--color-accent-gold)] active:translate-x-1 active:translate-y-1 active:shadow-none"
+      style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
     >
       {children}
     </button>
   );
 }
+
 
 function LabeledTouch({
   children,

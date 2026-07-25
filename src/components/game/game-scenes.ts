@@ -2059,7 +2059,24 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       } else if (p.opacity !== 1) {
         p.opacity = 1;
       }
+      // Belt-and-suspenders: hard-clamp player X so no jump/collision-resolution
+      // edge case can smuggle them past a locked door. Uses the door object's
+      // world X (dx) minus half the player hitbox width as an upper bound while
+      // in the same or preceding zone. Applied only for the nearest locked door
+      // ahead of the player to avoid interfering with movement in later zones.
+      const HITBOX_HALF = 12;
+      for (let i = 0; i < doors.length; i++) {
+        const d = doors[i];
+        if (!d || d.unlocked) continue;
+        const dx = (i + 1) * BIOME_W - 60;
+        if (player.pos.x + HITBOX_HALF > dx - 4 && player.pos.x < dx + 40) {
+          player.pos.x = dx - 4 - HITBOX_HALF;
+          if (p.vel && p.vel.x > 0) p.vel.x = 0;
+          break;
+        }
+      }
     });
+
     k.onUpdate(() => {
       if (!player.dead) updateHud();
     });

@@ -549,14 +549,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       addSpeech(k, (rx0 + rx1) / 2, GROUND_Y - 90, "★ Clear instructions", [30, 100, 60]);
     } else {
       const platforms = [
-        { x: rx0 + 60, y: GROUND_Y - 40, amp: 30, spd: 2.2 },
-        { x: rx0 + 200, y: GROUND_Y - 80, amp: 50, spd: 1.6 },
-        { x: rx0 + 340, y: GROUND_Y - 40, amp: 40, spd: 2.5 },
-        { x: rx0 + 480, y: GROUND_Y - 90, amp: 60, spd: 1.9 },
+        { x: rx0 + 40,  y: GROUND_Y - 34, amp: 12, spd: 1.4 },
+        { x: rx0 + 160, y: GROUND_Y - 58, amp: 18, spd: 1.2 },
+        { x: rx0 + 280, y: GROUND_Y - 44, amp: 14, spd: 1.6 },
+        { x: rx0 + 400, y: GROUND_Y - 34, amp: 12, spd: 1.4 },
       ];
       for (const p of platforms) {
         const plat = k.add([
-          k.rect(48, 12),
+          k.rect(72, 14),
           k.pos(p.x, p.y),
           k.color(120, 130, 140),
           k.outline(2, k.rgb(60, 70, 80)),

@@ -1,52 +1,36 @@
-## Root cause of the stuck cutscene
+## Goal
+Make the game actually start and play well on mobile, matching the desktop experience.
 
-The pole spawns at `topLandingX + 130` but the top landing platform is 160 px wide (`topLandingX .. topLandingX+160`) and is a **solid `body({ isStatic: true })`**. When the cutscene snaps the player to `poleTop + 6` (above the landing) and the slide loop starts pushing `pos.y` toward `GROUND_Y`, the player's body collides with the landing platform and gets shoved back to the platform top on every frame. Result: hero stands on the landing forever, HUD says "FINISHING…", no slide, no fireworks, no WIN.
+## Suspected root causes (from code audit)
 
-## Fixes in `src/components/game/game-scenes.ts`
+1. **Start button doesn't respond reliably on touch.** `MenuButton` uses `onClick` inside a container with `touchAction: "none"` and `userSelect: "none"`. On iOS Safari this combo occasionally swallows synthetic click events after a pointerdown that hits the "none" region — the button appears dead. Switch the launch buttons to `onPointerUp` (with `preventDefault`) so a tap always fires.
+2. **Fullscreen launch path loses the user gesture on iOS.** `pickMode('fullscreen')` `await`s `requestNativeFullscreen()` before `setLaunchMode`. iOS drops the gesture across the await, native fullscreen rejects, faux-fullscreen kicks in but the whole flow can hang if `requestFullscreen` throws synchronously on a `<div>` (unsupported on iOS Safari). Detect unsupported up front and go straight to faux-fullscreen; never block `setLaunchMode` on the fullscreen promise.
+3. **Asset memory pressure crashes low-end mobile.** 8 backgrounds at 1920×640 plus sprite sheets total ~16 MB on disk and ~40+ MB decoded in GPU memory. Combined with `pixelDensity: 2` (1920×1080 backing buffer), iOS Safari can silently kill the WebGL context. Shrink backgrounds to 1280×426 (still crisp at logical 240px tall zones) and drop `PIXEL_DENSITY` to 1 on devices with `devicePixelRatio ≥ 2` — pixel-art rendering with `imageRendering: pixelated` looks identical.
+4. **No loading feedback.** If the dynamic import or asset load stalls, the user sees the title screen frozen with no spinner and assumes it's broken. Show a "Loading…" state between "Start" tap and first frame.
+5. **Inline non-fullscreen mobile layout is cramped at 402px.** Canvas ends up ~226px tall with touch buttons below. Auto-switch mobile devices into faux-fullscreen on Start so the game gets full viewport by default; keep an explicit "Windowed" option for tablets/desktop.
 
-### 1. Zone 8 — actually slide down the pole (functional fix)
+## Changes
 
-- Move the pole past the landing: `poleX = topLandingX + 190` (landing is 160 wide starting at `topLandingX`, so this places the pole ~30 px past the right edge). Adjust the ID card sign / arrow x accordingly so "GRAB THE ID →" still points at the card.
-- Also, during `firePoleAttached`, temporarily flip the top landing platform to non-solid (`landing.unuse("body")` once at attach time) so any residual collision with a bot-anchored hitbox can't block descent. This is defense-in-depth.
-- Keep the existing safety-net: once `pos.y >= GROUND_Y`, set `firePoleDone`, advance cutscene to `walk-to-office`, then run `tryWin()` (already wired).
+**`src/components/game/game-canvas.tsx`**
+- Replace `MenuButton` `onClick` with `onPointerUp` + `preventDefault`; add `touch-none` class and matching pointer handlers so the first tap always registers.
+- Detect mobile (`matchMedia('(pointer: coarse)')`); on Start, force `fauxFullscreen = true` immediately and set `launchMode` synchronously — do not await `requestFullscreen` on mobile.
+- Guard `requestNativeFullscreen` when `el.requestFullscreen` / `webkitRequestFullscreen` are missing (iPhone Safari) and short-circuit to faux.
+- Add a loading overlay ("LOADING…" pixel text) between `launchMode` set and the moment `startGame` resolves, so users see feedback even on slow networks.
+- Tighten fullscreen control layout so the bottom control strip reserves a safe area and never overlaps the canvas at short landscape heights (already partially done; verify at 360×640 landscape).
 
-### 2. Zone 8 — nicer slide visuals
+**`src/components/game/game-scenes.ts`**
+- Drop `PIXEL_DENSITY` from `2` to `1`. With `LOGICAL_W/H = 960×540` and `imageRendering: pixelated`, this halves GPU memory and roughly 2× improves fill-rate on mobile with no visible quality loss for pixel art.
+- Add a try/catch around the initial `loadAllSprites` call that logs individual asset failures via the existing `ASSET_REPORT` so a single bad texture no longer aborts the whole game silently.
 
-- Regenerate `src/assets/game/hero-slide-sheet.png` (transparent bg, 2 frames) tuned for the current hero look: frame 0 = both arms up gripping pole, feet together; frame 1 = same pose with a subtle body twist / motion-blur streaks to sell downward motion. No pole baked into the sprite.
-- Add a lightweight "swoosh" trail effect during the slide: a few semi-transparent vertical streaks spawned each 80 ms behind the hero, fading out over 300 ms. Purely decorative, no collision.
+**Asset resize (build-time, one-off)**
+- Re-export the 8 zone backgrounds at 1280×426 (they are currently 1920×640 for a 960×540 game — 2× oversampled). Use `ffmpeg`/`sharp` at 75% JPEG-like PNG quality. Keeps crispness at logical scale, cuts ~10 MB of decoded texture memory.
 
-### 3. Zone 3 (River of Paperwork) — restore background thought bubbles
+## Verification
 
-Inside the Zone 3 (`rx0 = BIOME_W * 2`) block, call `spawnThoughtBubble(k, x, y, text)` for 4–5 bubbles floating over the river at `BG_NEAR` depth, e.g. "Which form?", "Do I qualify?", "Where do I start?", "Is this online?", "How long?". No gameplay effect.
-
-### 4. Zone 6 (Waiting Mountain) — falling calendar dates instead of boulders
-
-- Generate a new sprite `src/assets/game/calendar-page.png` (single frame, ~40×48, SNES-style tear-off calendar page showing a date). Load through `safeLoadSheet` alongside existing sheets and register `DISPLAY_H["calendar-page"] = 40`.
-- Replace the 3 `boulder` spawns in the Zone 5 (index 5, "Waiting Mountain") block with `calendar-page` entities that fall the same way. Keep the `"boulder"` tag on the entity so existing collide handler / fail message ("A tough eligibility question…") still fires — or rename the tag to `"calendar"` and add a new collide handler + fail message ("Another day on the waiting list…"). Prefer the rename for clarity; update `FailCause`, `failMessage`, and `player.onCollide` accordingly.
-- Add a light rotation tween on each falling page for polish.
-
-### 5. Zone 5 (Answering the Call / Respond to Requests) — paper airplanes flying across the background
-
-- Generate `src/assets/game/paper-airplane.png` (single frame, ~48×24, folded-paper airplane, transparent bg). Load + register display size.
-- In the Zone 4 (index 4, `relayBase = BIOME_W * 4`) block, spawn 3–4 airplane entities at `BG_NEAR` layer that drift horizontally (varying speeds, sine-wave Y bob), looping when they exit the zone bounds. No collision, no `"monster"`/`"boulder"` tag — decorative only.
-
-### 6. Text legibility pass across all zones
-
-Audit every text spawned via `addSpeech`, `addSignPlaque`, `spawnThoughtBubble`, and the HUD:
-- Ensure each label uses `pixelHudText`-style rendering: pixel font + a 1 px black drop shadow OR a dark plaque background behind the text.
-- Any labels currently drawn as plain `k.text(...)` without a plaque/shadow (e.g. `addSpeech` bodies, thought bubbles, "★ COVERED! ★", "Awaiting a decision…", "Answer every request!", HUD hint text) get upgraded to include a 1 px black shadow layer and, where they sit over busy backgrounds, a semi-opaque dark rounded rect behind them (matching the Zone 1 sign plaque style).
-- Bump the Zone 5 big countdown contrast if needed (already has a backdrop; verify).
+- Playwright: iPhone 14 emulation, load `/tool`, tap Start, confirm canvas renders first frame within 5s, tap ◀/▶/JUMP, confirm player moves.
+- Playwright: iPad emulation landscape, same flow in faux-fullscreen.
+- Desktop Chrome regression: Start, Fullscreen, keyboard controls all still work.
+- Manual: check `window.performance.memory` before/after on mobile; expect ≥50% JS heap reduction from the pixelDensity + background resize.
 
 ## Out of scope
-
-- No changes to physics, scoring, controls, or zones 1/2/4/7 gameplay.
-- No changes to backend / voting / admin.
-
-## Verify
-
-Playwright at 1280×1800 desktop and 844×390 mobile-landscape:
-1. Force-advance to Zone 8, grab the Medical ID, confirm the hero walks to the pole, **slides all the way to the ground**, walks to the medical office, fireworks fire, WIN overlay + `ScoreSubmit` appear.
-2. Walk through Zone 3 and confirm thought bubbles float in the background.
-3. Enter Zone 6 and confirm calendar pages (not boulders) fall from the sky and still damage the player.
-4. Enter Zone 5 and confirm paper airplanes drift across the background without colliding.
-5. Screenshot every zone; confirm all in-world text has readable contrast on desktop and mobile.
+- No gameplay balance changes, no new sprites, no zone logic edits.

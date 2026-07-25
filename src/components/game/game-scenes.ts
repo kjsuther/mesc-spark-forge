@@ -2155,18 +2155,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function spawnPlanBoss() {
       if (zoneState.bossSpawned) return;
       zoneState.bossSpawned = true;
-      const bx = BIOME_W * 6 + 560;
+      const bx = BIOME_W * 6 + 1050;
       const bh = DISPLAY_H["boss-idle"];
       const bw = displaySize("boss-idle", sizes).w;
       const boss = spawnGrounded(k, "boss-idle", sizes, {
         x: bx, z: LAYERS.ACTOR, tag: "boss",
-        props: { dir: 1, home: bx, range: 110, hits: 0, hurtUntil: 0, dead: false },
+        props: { dir: 1, home: bx, range: 90, hits: 0, hurtUntil: 0, dead: false },
         hitboxScale: { x: -bw / 2, w: bw, h: bh },
       });
-      // Hearts HUD above the boss
+      // Hearts HUD above the boss (2 hits to defeat).
       const hearts = k.add([
-        k.text("♥♥♥", { size: 16, font: "sans-serif" }),
-        k.pos(bx, GROUND_Y - bh - 24),
+        k.text("♥♥", { size: 16, font: "sans-serif" }),
+        k.pos(bx, GROUND_Y - bh - 40),
         k.anchor("center"), k.color(230, 60, 80), k.z(LAYERS.HUD - 1),
       ]) as AnyObj;
       boss.onUpdate(() => {

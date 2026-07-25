@@ -2862,21 +2862,36 @@ function addSpeech(
   x: number,
   y: number,
   text: string,
-  rgb: [number, number, number],
+  _rgb: [number, number, number],
 ) {
+  // High-contrast world label: dark plaque behind gold text with 1-px shadow.
+  // (rgb argument ignored — standardized on gold-on-navy for legibility.)
+  const size = 12;
+  const charW = size * 0.62;
+  const w = Math.max(56, Math.ceil(text.length * charW) + 16);
+  const h = size + 12;
   k.add([
-    k.text(text, { size: 11, font: "sans-serif", align: "center" }),
-    k.pos(x + 1, y + 1),
+    k.rect(w, h, { radius: 3 }),
+    k.pos(x, y),
     k.anchor("center"),
-    k.color(0, 0, 0),
+    k.color(20, 25, 45),
+    k.outline(2, k.rgb(255, 220, 90)),
+    k.opacity(0.92),
     k.z(LAYERS.EFFECT),
   ]);
   k.add([
-    k.text(text, { size: 11, font: "sans-serif", align: "center" }),
+    k.text(text, { size, font: "sans-serif", align: "center" }),
+    k.pos(x + 1, y + 1),
+    k.anchor("center"),
+    k.color(0, 0, 0),
+    k.z(LAYERS.EFFECT + 1),
+  ]);
+  k.add([
+    k.text(text, { size, font: "sans-serif", align: "center" }),
     k.pos(x, y),
     k.anchor("center"),
-    k.color(...rgb),
-    k.z(LAYERS.EFFECT + 1),
+    k.color(255, 220, 90),
+    k.z(LAYERS.EFFECT + 2),
   ]);
 }
 

@@ -1,55 +1,59 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
-import {
-  feedbackListQuery,
-  votesListQuery,
-  nowBuildingQuery,
-  versionsQuery,
-  type Feedback,
-} from "@/lib/queries";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Leaderboard } from "@/components/game/leaderboard";
+import { activeRoundQuery, improvementsQuery } from "@/lib/game.queries";
 
 export const Route = createFileRoute("/admin/poster")({
+  head: () => ({
+    meta: [
+      { title: "Poster View — Blazing the Trail" },
+      { name: "robots", content: "noindex,nofollow" },
+    ],
+  }),
   loader: ({ context }) => {
-    context.queryClient.ensureQueryData(feedbackListQuery);
-    context.queryClient.ensureQueryData(votesListQuery);
-    context.queryClient.ensureQueryData(nowBuildingQuery);
-    context.queryClient.ensureQueryData(versionsQuery);
+    context.queryClient.ensureQueryData(activeRoundQuery);
+    context.queryClient.ensureQueryData(improvementsQuery);
   },
   component: PosterView,
 });
 
-const BUCKET_WEIGHT = { must: 3, should: 2, could: 1 } as const;
+function fmtCountdown(s: number) {
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${String(r).padStart(2, "0")}`;
+}
+
+function useCountdown(endsAt: string | null | undefined) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!endsAt) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [endsAt]);
+  if (!endsAt) return 0;
+  return Math.max(0, Math.floor((new Date(endsAt).getTime() - now) / 1000));
+}
 
 function PosterView() {
-  const { data: feedback } = useSuspenseQuery(feedbackListQuery);
-  const { data: votes } = useSuspenseQuery(votesListQuery);
-  const { data: nowBuilding } = useSuspenseQuery(nowBuildingQuery);
-  const { data: versions } = useSuspenseQuery(versionsQuery);
   const qc = useQueryClient();
-
-  // 5-second refresh
-  useEffect(() => {
-    const id = setInterval(() => {
-      qc.invalidateQueries({ queryKey: ["feedback"] });
-      qc.invalidateQueries({ queryKey: ["votes"] });
-      qc.invalidateQueries({ queryKey: ["now_building"] });
-      qc.invalidateQueries({ queryKey: ["versions"] });
-    }, 5000);
-    return () => clearInterval(id);
-  }, [qc]);
+  const { data: round } = useQuery(activeRoundQuery);
+  const { data: improvements = [] } = useQuery(improvementsQuery);
 
   useEffect(() => {
     const channel = supabase
-      .channel("admin-poster")
-      .on("postgres_changes", { event: "*", schema: "public", table: "feedback" }, () => {
-        qc.invalidateQueries({ queryKey: ["feedback"] });
-        qc.invalidateQueries({ queryKey: ["now_building"] });
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "votes" }, () =>
-        qc.invalidateQueries({ queryKey: ["votes"] }),
+      .channel("admin-poster-game")
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_vote_rounds" }, () =>
+        qc.invalidateQueries({ queryKey: ["game_round"] }),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "game_improvement_votes" },
+        () => qc.invalidateQueries({ queryKey: ["game_round"] }),
+      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_improvements" }, () =>
+        qc.invalidateQueries({ queryKey: ["game_improvements"] }),
       )
       .subscribe();
     return () => {
@@ -57,193 +61,131 @@ function PosterView() {
     };
   }, [qc]);
 
-  const weighted = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const v of votes) {
-      m.set(v.feedback_id, (m.get(v.feedback_id) ?? 0) + (BUCKET_WEIGHT[v.bucket] ?? 1));
-    }
-    return m;
-  }, [votes]);
-
-  const activeIds = useMemo(() => new Set(nowBuilding.map((n) => n.id)), [nowBuilding]);
-
-  const queue = useMemo(() => {
-    return [...feedback]
-      .filter((f: Feedback) => (f.status === "planned" || f.status === "new") && !activeIds.has(f.id))
-      .sort((a, b) => (weighted.get(b.id) ?? 0) - (weighted.get(a.id) ?? 0))
-      .slice(0, 5);
-  }, [feedback, weighted, activeIds]);
-
-  const buildingItems = useMemo(() => {
-    return nowBuilding.map((nb) => {
-      const full = feedback.find((f) => f.id === nb.id);
-      return {
-        id: nb.id,
-        wish: nb.wish,
-        weighted: weighted.get(nb.id) ?? 0,
-        role: full?.role ?? null,
-        state: full?.state ?? null,
-      };
-    });
-  }, [nowBuilding, feedback, weighted]);
-
-  const shipped = feedback.filter((f) => f.status === "shipped").length;
-  const totalIdeas = feedback.length;
-  const totalVotes = votes.length;
-  const current = versions.find((v) => v.is_current) ?? versions[versions.length - 1];
+  const secondsLeft = useCountdown(round?.endsAt ?? null);
+  const totalVotes = useMemo(
+    () => (round?.candidates ?? []).reduce((n, c) => n + c.votes, 0),
+    [round],
+  );
+  const rankedCandidates = useMemo(() => {
+    return [...(round?.candidates ?? [])].sort((a, b) => b.votes - a.votes);
+  }, [round]);
+  const appliedList = useMemo(() => improvements.filter((i) => i.enabled), [improvements]);
 
   return (
-    <div className="fixed inset-0 bg-mn-blue text-white flex flex-col">
-      {/* Top bar with back-link */}
-      <div className="flex items-center justify-between px-6 py-2 bg-dark-gray text-cream border-b-2 border-accent-orange/60">
-        <span className="font-display uppercase tracking-widest text-sm">
-          ★ Blazing Better Trails · Live Poster Board ★
-        </span>
-        <a
-          href="/admin"
-          className="text-[11px] font-bold uppercase tracking-widest bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded"
-        >
-          ← Exit poster view
-        </a>
-      </div>
+    <div className="min-h-screen bg-mn-blue text-cream flex flex-col">
+      <header className="px-6 py-3 border-b-2 border-accent-orange/70 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-widest text-accent-gold">
+            ★ MESC 2026 · Live Poster ★
+          </div>
+          <h1 className="font-display uppercase tracking-widest text-xl md:text-2xl">
+            Blazing the Trail to Coverage
+          </h1>
+        </div>
+        <div className="text-right text-xs uppercase tracking-widest">
+          <div className="text-cream/60">Upgrades applied</div>
+          <div className="text-accent-gold font-black text-lg tabular-nums">
+            {appliedList.length}
+          </div>
+        </div>
+      </header>
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] gap-3 p-3 min-h-0">
-        {/* LEFT: live tool */}
-        <section className="rounded-xl overflow-hidden border-2 border-accent-orange/70 bg-cream flex flex-col min-h-0">
-          <header className="bg-accent-orange text-white px-4 py-2 flex items-center justify-between border-b-2 border-accent-gold/60">
-            <div className="min-w-0">
-              <div className="font-display uppercase tracking-widest text-sm leading-tight">
-                ★ Live Demo — Trail to Coverage
-              </div>
-              <div className="text-[10px] uppercase tracking-widest text-cream/85 mt-0.5">
-                Vote below → improvements apply live to the trail
-              </div>
-            </div>
-            <a
-              href="/tool"
-              target="_blank"
-              rel="noopener"
-              className="text-[10px] font-bold uppercase tracking-widest bg-white/15 hover:bg-white/25 px-2 py-1 rounded shrink-0"
-            >
-              Open ↗
-            </a>
-          </header>
-
-          <iframe
-            src="/tool?embed=1"
-            title="Live Demo Client Tool"
-            className="w-full flex-1 bg-white"
-          />
-
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(320px,3fr)] gap-3 p-3 min-h-0">
+        {/* Live game */}
+        <section className="rounded-lg overflow-hidden bg-black ring-2 ring-accent-gold/60 flex flex-col min-h-0">
+          <div className="bg-accent-orange text-white px-4 py-2 font-display uppercase tracking-widest text-sm">
+            ★ Live gameplay
+          </div>
+          <div className="flex-1 min-h-0">
+            <iframe
+              src="/tool?embed=1"
+              title="Live game"
+              className="w-full h-full block bg-black"
+              allow="autoplay; fullscreen"
+            />
+          </div>
         </section>
 
-        {/* RIGHT: status board */}
-        <aside className="flex flex-col gap-3 min-h-0">
-          {/* Now building */}
-          <section className="rounded-xl overflow-hidden border-2 border-accent-gold/60 bg-mn-blue/40 flex flex-col min-h-0 flex-1">
-            <header className="bg-mn-green text-white px-4 py-2 border-b-2 border-accent-gold/60">
-              <span className="font-display uppercase tracking-widest text-sm">
-                ★ What we&apos;re building now
-              </span>
-            </header>
-
-            <div className="grid grid-cols-3 gap-2 p-3 border-b border-white/10 text-center">
-              <Stat label="Shipped" value={shipped} accent="text-accent-gold" />
-              <Stat label="Ideas" value={totalIdeas} accent="text-cream" />
-              <Stat label="Votes" value={totalVotes} accent="text-accent-teal" />
-            </div>
-
-            <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-cream/70 flex justify-between">
-              <span>● Live · in progress</span>
-              <span>{current ? `v${current.semver}` : "—"}</span>
-            </div>
-
-            <ul className="flex-1 overflow-auto px-3 pb-3 space-y-2">
-              {buildingItems.length === 0 && (
-                <li className="text-cream/60 italic text-sm text-center py-8">
-                  Nothing in progress right now.
-                </li>
-              )}
-              {buildingItems.map((item, idx) => (
-                <li
-                  key={item.id}
-                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 flex items-start gap-2"
-                >
-                  <span className="text-[10px] font-black bg-accent-gold text-mn-blue rounded px-1.5 py-0.5 tabular-nums shrink-0 mt-0.5">
-                    #{idx + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-cream leading-snug line-clamp-3">
-                      {item.wish}
-                    </p>
-                    <p className="text-[10px] uppercase tracking-widest text-cream/60 mt-1">
-                      {[item.role, item.state].filter(Boolean).join(" · ") || "—"}
-                    </p>
-                  </div>
-                  <span className="text-[10px] font-bold text-mn-green bg-white/90 rounded px-1.5 py-0.5 shrink-0 uppercase">
-                    Building
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          {/* Live leaderboard */}
-          <section className="rounded-xl overflow-hidden border-2 border-accent-gold/70 bg-mn-blue/60 flex flex-col min-h-0 flex-1">
+        {/* Sidebar: leaderboard + votes */}
+        <aside className="grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3 min-h-0">
+          <div className="rounded-lg bg-mn-blue/40 ring-2 ring-accent-gold/50 overflow-hidden min-h-0">
             <Leaderboard variant="poster" />
-          </section>
+          </div>
 
-          {/* In queue */}
-          <section className="rounded-xl overflow-hidden border-2 border-accent-orange/70 bg-dark-gray/60 flex flex-col min-h-0 flex-1">
-            <header className="bg-accent-orange text-white px-4 py-2 flex items-center justify-between border-b-2 border-accent-gold/60">
+          <div className="rounded-lg bg-mn-blue/40 ring-2 ring-accent-gold/50 overflow-hidden flex flex-col min-h-0">
+            <header className="bg-accent-orange text-white px-4 py-2 border-b-2 border-accent-gold/60 flex items-center justify-between gap-2">
               <span className="font-display uppercase tracking-widest text-sm">
-                ★ In queue
+                ★ Next upgrade · Live vote
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-widest bg-white/15 rounded px-2 py-0.5">
-                {queue.length} ideas
-              </span>
-            </header>
-            <ul className="flex-1 overflow-auto p-3 space-y-2">
-              {queue.length === 0 && (
-                <li className="text-cream/60 italic text-sm text-center py-8">
-                  Queue empty — add ideas from Feedback triage.
-                </li>
+              {round && secondsLeft > 0 ? (
+                <span className="text-[11px] font-black bg-white/15 rounded px-2 py-0.5 tabular-nums">
+                  {fmtCountdown(secondsLeft)}
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold uppercase tracking-widest text-cream/70">
+                  Idle
+                </span>
               )}
-              {queue.map((item, idx) => (
-                <li
-                  key={item.id}
-                  className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 flex items-center gap-2"
-                >
-                  <span className="text-[11px] font-black bg-accent-gold text-mn-blue rounded w-6 h-6 grid place-items-center tabular-nums shrink-0">
-                    {idx + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm text-cream leading-snug line-clamp-2 font-semibold">
-                      {item.wish}
-                    </p>
-                    <p className="text-[10px] uppercase tracking-widest text-cream/60 mt-0.5">
-                      {item.status === "planned" ? "Planned" : "New"}
+            </header>
+            <div className="flex-1 overflow-auto p-2 min-h-0">
+              {round && rankedCandidates.length > 0 ? (
+                <ol className="space-y-1.5">
+                  {rankedCandidates.map((c, i) => {
+                    const pct = totalVotes ? Math.round((c.votes / totalVotes) * 100) : 0;
+                    return (
+                      <li
+                        key={c.key}
+                        className="relative bg-white/5 border border-white/10 rounded overflow-hidden"
+                      >
+                        <div
+                          className={`absolute inset-y-0 left-0 transition-[width] duration-500 ${
+                            i === 0 ? "bg-accent-gold/25" : "bg-white/10"
+                          }`}
+                          style={{ width: `${pct}%` }}
+                          aria-hidden="true"
+                        />
+                        <div className="relative flex items-center gap-2 px-2 py-1.5">
+                          <span
+                            className={`w-6 h-6 grid place-items-center rounded text-[11px] font-black shrink-0 ${
+                              i === 0
+                                ? "bg-accent-gold text-mn-blue"
+                                : i < 3
+                                  ? "bg-accent-orange text-white"
+                                  : "bg-white/15 text-cream"
+                            }`}
+                          >
+                            {i + 1}
+                          </span>
+                          <span className="flex-1 min-w-0 truncate font-bold text-cream text-sm">
+                            {c.label}
+                          </span>
+                          <span className="text-accent-gold font-black tabular-nums shrink-0 text-sm">
+                            {c.votes}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              ) : (
+                <div className="h-full grid place-items-center text-center text-cream/70 text-sm p-6">
+                  <div>
+                    <div className="font-display uppercase tracking-widest text-accent-gold text-xs mb-2">
+                      No round active
+                    </div>
+                    <p className="text-xs">
+                      Start a 10-minute vote from the Game & Voting admin page. The five candidate
+                      upgrades and live tallies will appear here.
                     </p>
                   </div>
-                  <span className="text-lg font-black text-cream tabular-nums shrink-0">
-                    {weighted.get(item.id) ?? 0}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
+                </div>
+              )}
+            </div>
+            <footer className="text-center text-[9px] font-bold uppercase tracking-widest text-cream/60 py-1.5 border-t border-white/10">
+              Auto-refresh · realtime
+            </footer>
+          </div>
         </aside>
-      </div>
-    </div>
-  );
-}
-
-function Stat({ label, value, accent }: { label: string; value: number; accent: string }) {
-  return (
-    <div>
-      <div className={`text-2xl font-black tabular-nums ${accent}`}>{value}</div>
-      <div className="text-[9px] font-bold uppercase tracking-widest text-cream/70">
-        {label}
       </div>
     </div>
   );

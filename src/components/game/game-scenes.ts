@@ -623,6 +623,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadSheet(k, { url: docIdUrl,            cols: 1, rows: 1, frames: docIdFrames,       label: "doc-id.png" }),
     safeLoadSheet(k, { url: docPaystubUrl,       cols: 1, rows: 1, frames: docPaystubFrames,  label: "doc-paystub.png" }),
     safeLoadSheet(k, { url: docEnvelopeUrl,      cols: 1, rows: 1, frames: docEnvelopeFrames, label: "doc-envelope.png" }),
+    safeLoadSheet(k, { url: formMonsterV2Url,    cols: 1, rows: 1, frames: formMonsterFrames, label: "form-monster-v2.png" }),
   ]);
 
   // Register horizontally-mirrored copies of the hero walk/idle/jump frames

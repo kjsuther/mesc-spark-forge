@@ -1218,17 +1218,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // ================= ZONE 5: Waiting Mountain — 30-second countdown =================
     const mx0 = BIOME_W * 5;
-    // Boulder hazards
+    // Falling calendar pages — days peeling off the calendar while you wait
+    // for a decision. Same collision behavior as boulders; keeps the tag so
+    // the shared "boulder" collide handler + failure message still fire.
     for (let i = 0; i < 3; i++) {
       const bx = mx0 + 300 + i * 300;
-      const b = spawnAirborne(k, "boulder", sizes, {
+      const b = spawnAirborne(k, "calendar-page", sizes, {
         x: bx, y: -80 - i * 180, z: LAYERS.ACTOR,
         tag: "boulder",
-        props: { spd: 180 + i * 20, home: bx },
+        props: { spd: 180 + i * 20, home: bx, spin: (i % 2 === 0 ? 1 : -1) * (30 + i * 10) },
       });
+      b.use(k.rotate(0));
       b.onUpdate(() => {
         b.pos.y += b.spd * k.dt();
-        if (b.pos.y > 700) b.pos = k.vec2(b.home, -180);
+        b.angle = (b.angle ?? 0) + b.spin * k.dt();
+        if (b.pos.y > 700) { b.pos = k.vec2(b.home, -180); b.angle = 0; }
       });
     }
     addSpeech(k, mx0 + 500, 90, "Awaiting a decision…", [50, 40, 80]);

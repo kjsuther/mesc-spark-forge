@@ -43,6 +43,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
     let cancelled = false;
     let destroy: (() => void) | null = null;
     setError(null);
+    setLoading(true);
 
     (async () => {
       try {
@@ -51,9 +52,13 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
         const { startGame } = await import("./game-scenes");
         if (cancelled) return;
         destroy = await startGame({ canvas, flags, mode, onWin, onLose });
+        if (!cancelled) setLoading(false);
       } catch (err) {
         console.error("[game] failed to start", err);
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to start game");
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to start game");
+          setLoading(false);
+        }
       }
     })();
 

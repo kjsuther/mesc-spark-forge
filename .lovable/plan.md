@@ -1,69 +1,43 @@
-# Full QA Audit & Fix Plan — "Blazing the Trail to Coverage"
+# Polish pass — walk cycle, pole slide, label legibility
 
-Goal: run a real, evidence-based QA pass (code + runtime) across every system, then land fixes in prioritized waves with regression re-tests between them. No assumptions — every claim backed by a code read or a Playwright observation.
+## 1. Left-facing walk animation
 
-## Phase 1 — Instrumented exploration (read-only)
+Today the hero uses a single right-facing sheet and `player.flipX = dir < 0` for leftward motion. That works mechanically but the frames were drawn with directional lighting/hair-fringe, so mirroring reads oddly.
 
-1. **Code inventory.** Re-read the full engine and its neighbors so nothing is inferred:
-   - `src/components/game/game-scenes.ts` (all ~2330 lines)
-   - `src/components/game/game-canvas.tsx`
-   - `src/components/game/leaderboard.tsx`, `score-submit.tsx`
-   - `src/routes/tool.tsx`, `src/routes/admin.game.tsx`, `src/routes/admin.poster.tsx`
-   - Asset pointers under `src/assets/game/*`
-2. **Static defect sweep.** Grep for known risk patterns: `onCollide`, `add([`, `anchor(`, `z(LAYERS`, `GROUND_Y`, `BIOME_W`, `spawnGrounded`, `spawnAirborne`, `spawnDoor`, `zoneObjectives`, `zoneState`, `startFireworks`, every `showHint`, all `door` / `id-card` / `fire-pole` / `pole-base` tags. Log any dangling tags, unhandled collisions, or unreachable branches.
-3. **Asset ledger.** Enumerate every `.asset.json` under `src/assets/game/`, cross-check each is loaded via `safeLoadSheet` / `safeLoadBackground` and referenced by at least one zone. Flag orphans and missing frames.
+- Generate a dedicated left-facing sheet `hero-walk-left-sheet.png` (4 frames + idle) via `imagegen`, matching the current sprite's palette, silhouette, and 66-px display height.
+- Load it through `safeLoadSheet` alongside the existing sheet, registering `hero-idle-left`, `hero-walk-left-0..3`.
+- In `setSprite` / `setAnim`, pick the sheet based on `player.facing` and drop `flipX` for the hero (keeps art authored, no mirror artifacts). Enemies keep their existing flipX behavior.
 
-## Phase 2 — Runtime UAT via Playwright
+## 2. Slow the walk cycle
 
-Two viewports, headless Chromium, screenshots at every checkpoint into `/tmp/browser/qa/`:
-- Desktop 1280×1800
-- Mobile 390×844 landscape 844×390
+Legs currently advance every 9 px (`STRIDE_PX = 9`), which reads as a sprint at current `MOVE_SPEED`.
 
-For each zone (1→8), scripted playthrough exercises:
+- Raise `STRIDE_PX` to ~18 (roughly half speed) so a full 4-frame cycle spans a longer real distance.
+- Keep it distance-based (not timer-based) so the animation still tracks true velocity — no floaty legs.
 
-| System | Checks |
-|---|---|
-| Player | idle, run cycle (leg tracking), jump arc, coyote/buffer window, landing snap, i-frames blink, sprite flip, foot-on-grass alignment |
-| Physics | gravity constant, terminal fall, platform inheritance, no floating/sinking, no clipping through door barrier (jump-over test at 560 px) |
-| Collision | player↔ground, ↔platform, ↔enemy, ↔collectible, ↔door (locked & unlocked), ↔id-card, ↔fire-pole (gated & un-gated), ↔pole-base |
-| Objectives | Zone 1 method touch, Zone 2 user+pass, Zone 3 far-bank gate, Zone 4 3 docs, Zone 5 all mailboxes, Zone 6 30 s timer under boulders, Zone 7 plan pick → key, Zone 8 ID card → slide → fireworks |
-| Camera | follow, no exposed void at biome seams, integer snap, no jitter at high speed |
-| Rendering | background scale/aspect per biome, no seams at BIOME_W boundaries, layer order (BG < GROUND < PROP < ACTOR < HUD < EFFECT), no z-fighting, no sub-pixel shimmer |
-| HUD | live SCORE accumulation, 3 application-card lives, objective label per zone, hint fade, debug overlay (`D` / `?debug=assets`) |
-| Mobile | touch buttons don't overlap gameplay in fullscreen, restart button, tap-to-restart overlays, no gesture hijack |
-| Post-game | ScoreSubmit appears on both win & loss, leaderboard auto-refresh 5 s, name persistence |
-| Perf | FPS sample per zone, GC pauses, asset load count, no runtime `safeLoad` fallbacks |
+## 3. Fire-pole slide animation
 
-Each defect logged with: Severity · Category · Description · Expected · Actual · Root cause · File+line · Fix · Regression risk · Retest.
+Right now attaching to the pole just freezes X and drops Y with the idle sprite still on screen.
 
-## Phase 3 — Fix waves (priority-ordered, re-test between waves)
+- Generate `hero-slide-sheet.png` (2 frames: arms overhead gripping pole, alternating leg positions) via `imagegen`, same 66-px height.
+- Load via `safeLoadSheet` as `hero-slide-0`, `hero-slide-1`.
+- Extend the anim state machine with a `"slide"` state. When `zoneState.firePoleAttached` is true, force `setAnim("slide")` and alternate frames every ~120 ms.
+- Add a small downward motion-blur / spark particle at the player's feet during the slide for readability.
+- On `pole-base` (or the y-safety-net), swap back to `hero-idle` before the fireworks trigger so the win pose isn't the slide frame.
 
-**Wave A — Critical (blockers to completion):** any zone that can't be finished, any crash, any door skipped, any objective that auto-satisfies, any missing collide handler, any sprite that renders as magenta fallback.
+## 4. Legible pixel labels everywhere
 
-**Wave B — High (progression / correctness):** wrong HUD state, wrong life/score math, respawn to wrong zone, i-frame gaps, camera exposing void, background seam gaps, sprite hitbox mismatch >4 px.
+`addSignPlaque`, `addSpeech`, thought bubbles, HUD, and hint text all render with kaplay's default `sans-serif` and no dark stroke. Against bright biomes (mountain snow, river, market) they wash out.
 
-**Wave C — Medium (feel & polish):** animation phase glitches, jitter, hint timing, control latency, mobile control ergonomics in fullscreen, leaderboard refresh edge cases.
-
-**Wave D — Low (art direction):** palette drift, decor spacing, speech-bubble contrast, missing parallax layers.
-
-After each wave: re-run the full zone-by-zone Playwright script and diff screenshots against the previous pass to catch regressions in movement, rendering, physics, animation, UI, and post-game flow.
-
-## Phase 4 — Final QA report (delivered in chat)
-
-- Executive summary (completion %, defect counts by severity, pass rate)
-- Gameplay / Technical / Art-direction scores
-- Requirement compliance table (every previously-stated requirement → PASS / PARTIAL / FAIL + evidence)
-- Ordered bug list (Critical → Low), each in the defect-report format above
-- Prioritized remediation list of anything not fixed this pass, with regression-risk notes
-- Explicit "cannot test" callouts for anything blocked by missing tooling (e.g. audio isn't implemented — will be marked N/A rather than PASS)
+- Add a shared `pixelLabel(k, text, opts)` helper that:
+  - Uses `size: 12` minimum (bump 10/11 callsites to 12).
+  - Emits a 1-px black text-outline by rendering the same string 4× at ±1 offsets in black behind the fg draw (Kaplay text doesn't ship outlines).
+  - Uses high-contrast fg colors (`rgb(255,255,255)` for dark plaques, `rgb(20,20,20)` for cream plaques) chosen from the plaque bg.
+- Retrofit `addSignPlaque` (badge + label), `addSpeech`, `spawnThoughtBubble`, the HUD `SCORE/OBJECTIVE/HINT` texts, and title-card `k.text` calls to use it.
+- Bump plaque background opacity/outline width from 2→3 px so text has a guaranteed backdrop across every biome.
 
 ## Technical notes
 
-- All exploration and Playwright runs stay under `/tmp/browser/qa/`; no repo writes during Phase 1–2.
-- Fixes edit `src/components/game/game-scenes.ts` primarily; UI-only fixes stay in `game-canvas.tsx`. Asset regenerations use `imagegen` only when a real asset defect is confirmed (not speculatively).
-- Any DB schema touch (unlikely) goes through a migration with GRANTs + RLS.
-- Kaplay init constants (`LOGICAL_W/H`, `PIXEL_DENSITY`) are treated as invariants — no changes without an explicit rendering defect tied to them.
-
-## Scope confirmation
-
-This is a large pass — expect several build-mode turns: one for Phase 1+2 (audit + report of findings), then one turn per fix wave with re-test. If you'd rather I fix as I go in a single long turn instead of pausing for a mid-audit report, say "fix as you go" when approving.
+- Files touched: `src/components/game/game-scenes.ts` only for logic + label helper wiring. New assets: `src/assets/game/hero-walk-left-sheet.png.asset.json`, `src/assets/game/hero-slide-sheet.png.asset.json`.
+- No schema / route / server changes.
+- Verify with Playwright at 1280×1800 desktop and 844×390 mobile-landscape: walk left in Zone 1, slide the pole in Zone 8, and screenshot Zone 1 signs + Zone 5 mailbox hints for label contrast.

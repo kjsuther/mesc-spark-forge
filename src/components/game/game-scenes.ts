@@ -544,7 +544,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
   ];
   const idFrames: FrameSpec[] = [{ name: "medical-id", frame: 0 }];
 
-  const [heroSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes] = await Promise.all([
+  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes] = await Promise.all([
     safeLoadSheet(k, {
       url: charSheetUrl,
       cols: 3,
@@ -552,6 +552,14 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
       frames: heroFrames,
       groups: [heroFrames.map((f) => f.name)],
       label: "character-sheet.png",
+    }),
+    safeLoadSheet(k, {
+      url: heroSlideSheetUrl,
+      cols: 2,
+      rows: 1,
+      frames: slideFrames,
+      groups: [slideFrames.map((f) => f.name)],
+      label: "hero-slide-sheet.png",
     }),
     safeLoadSheet(k, { url: propsSheetUrl,  cols: 4, rows: 3, frames: propFrames,  label: "props-sheet.png" }),
     safeLoadSheet(k, { url: propsSheet2Url, cols: 3, rows: 2, frames: propFrames2, label: "props-sheet-2.png" }),
@@ -561,6 +569,13 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadSheet(k, { url: planCardsSheetUrl,   cols: 3, rows: 1, frames: planFrames, label: "plan-cards-sheet.png" }),
     safeLoadSheet(k, { url: medicalIdUrl,        cols: 1, rows: 1, frames: idFrames,   label: "medical-id.png" }),
   ]);
+
+  // Register horizontally-mirrored copies of the hero walk/idle/jump frames
+  // so the character has a true set of left-facing sprites (rather than
+  // relying on render-time flipX, which can subtly misalign the hitbox
+  // against decorative asymmetric details).
+  const leftSizes = await registerLeftMirrors(k, heroFrames.map((f) => f.name), heroSizes);
+
 
   // Backgrounds don't need trimming but still get load-status tracking + a
   // magenta fallback so a missing PNG doesn't crash the scene.

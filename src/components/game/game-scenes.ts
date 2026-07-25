@@ -2069,6 +2069,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     function tryJump() {
       if (player.dead || player.won) return;
+      if (zoneState.cutscene) return;
       const now = k.time();
       const canCoyote = now - player.lastGroundedAt < COYOTE_S;
       if (player.isGrounded() || player.riding || canCoyote) {

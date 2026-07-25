@@ -2371,12 +2371,20 @@ function addSignPlaque(
     k.outline(2, k.rgb(20, 25, 40)),
     k.z(LAYERS.EFFECT),
   ]);
+  const badgeTextY = cy - totalH / 2 + badgeH / 2 + 1;
   k.add([
     k.text(badge, { size: 10, font: "sans-serif" }),
-    k.pos(x, cy - totalH / 2 + badgeH / 2 + 1),
+    k.pos(x + 1, badgeTextY + 1),
+    k.anchor("center"),
+    k.color(0, 0, 0),
+    k.z(LAYERS.EFFECT + 1),
+  ]);
+  k.add([
+    k.text(badge, { size: 10, font: "sans-serif" }),
+    k.pos(x, badgeTextY),
     k.anchor("center"),
     k.color(255, 235, 150),
-    k.z(LAYERS.EFFECT + 1),
+    k.z(LAYERS.EFFECT + 2),
   ]);
   // Label plaque (bottom)
   k.add([
@@ -2387,12 +2395,20 @@ function addSignPlaque(
     k.outline(2, k.rgb(80, 55, 25)),
     k.z(LAYERS.EFFECT),
   ]);
+  const labelTextY = cy + totalH / 2 - labelH / 2 + 1;
   k.add([
     k.text(label, { size: 11, font: "sans-serif" }),
-    k.pos(x, cy + totalH / 2 - labelH / 2 + 1),
+    k.pos(x + 1, labelTextY + 1),
     k.anchor("center"),
-    k.color(50, 30, 15),
+    k.color(255, 240, 220),
     k.z(LAYERS.EFFECT + 1),
+  ]);
+  k.add([
+    k.text(label, { size: 11, font: "sans-serif" }),
+    k.pos(x, labelTextY),
+    k.anchor("center"),
+    k.color(30, 20, 10),
+    k.z(LAYERS.EFFECT + 2),
   ]);
 }
 
@@ -2405,10 +2421,17 @@ function addSpeech(
 ) {
   k.add([
     k.text(text, { size: 11, font: "sans-serif", align: "center" }),
+    k.pos(x + 1, y + 1),
+    k.anchor("center"),
+    k.color(0, 0, 0),
+    k.z(LAYERS.EFFECT),
+  ]);
+  k.add([
+    k.text(text, { size: 11, font: "sans-serif", align: "center" }),
     k.pos(x, y),
     k.anchor("center"),
     k.color(...rgb),
-    k.z(LAYERS.EFFECT),
+    k.z(LAYERS.EFFECT + 1),
   ]);
 }
 

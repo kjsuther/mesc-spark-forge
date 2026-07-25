@@ -586,7 +586,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
   ];
   const lockFrames: FrameSpec[] = [{ name: "door-lock", frame: 0 }];
 
-  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, lockSizes] = await Promise.all([
+  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, lockSizes, docIdSizes, docPaystubSizes, docEnvelopeSizes] = await Promise.all([
     safeLoadSheet(k, {
       url: charSheetUrl,
       cols: 3,
@@ -618,6 +618,9 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
       groups: [gremlinFrames.map((f) => f.name)], label: "envelope-gremlin-sheet.png" }),
     safeLoadSheet(k, { url: bossSheetUrl,        cols: 3, rows: 1, frames: bossFrames, label: "boss-sheet.png" }),
     safeLoadSheet(k, { url: doorLockUrl,         cols: 1, rows: 1, frames: lockFrames, label: "door-lock.png" }),
+    safeLoadSheet(k, { url: docIdUrl,            cols: 1, rows: 1, frames: docIdFrames,       label: "doc-id.png" }),
+    safeLoadSheet(k, { url: docPaystubUrl,       cols: 1, rows: 1, frames: docPaystubFrames,  label: "doc-paystub.png" }),
+    safeLoadSheet(k, { url: docEnvelopeUrl,      cols: 1, rows: 1, frames: docEnvelopeFrames, label: "doc-envelope.png" }),
   ]);
 
   // Register horizontally-mirrored copies of the hero walk/idle/jump frames

@@ -1452,6 +1452,112 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
     updateHud();
 
+    // ================= Asset debug overlay =================
+    // Toggle with the "D" key or by loading the page with ?debug=assets.
+    // Shows every asset the current zone depends on, its sheet coordinates,
+    // trimmed bounding box, unified sprite size, and load status.
+    const debugQuery =
+      typeof window !== "undefined" &&
+      /(?:^|[?&])debug=assets(?:&|$)/.test(window.location.search);
+    let debugVisible = debugQuery;
+    const debugPanel = k.add([
+      k.rect(360, 260, { radius: 4 }),
+      k.pos(k.width() - 8, 8),
+      k.anchor("topright"),
+      k.color(0, 0, 0),
+      k.opacity(0.78),
+      k.fixed(),
+      k.z(LAYERS.HUD + 5),
+    ]) as AnyObj;
+    const debugTitle = k.add([
+      k.text("ASSETS · press D", { size: 11, font: "sans-serif" }),
+      k.pos(k.width() - 16, 14),
+      k.anchor("topright"),
+      k.color(255, 220, 90),
+      k.fixed(),
+      k.z(LAYERS.HUD + 6),
+    ]) as AnyObj;
+    const debugSummary = k.add([
+      k.text("", { size: 10, font: "sans-serif", width: 344 }),
+      k.pos(k.width() - 16, 30),
+      k.anchor("topright"),
+      k.color(200, 220, 255),
+      k.fixed(),
+      k.z(LAYERS.HUD + 6),
+    ]) as AnyObj;
+    const debugBody = k.add([
+      k.text("", { size: 9, font: "sans-serif", width: 344, lineSpacing: 1 }),
+      k.pos(k.width() - 16, 60),
+      k.anchor("topright"),
+      k.color(240, 240, 240),
+      k.fixed(),
+      k.z(LAYERS.HUD + 6),
+    ]) as AnyObj;
+    function statusGlyph(s: AssetStatus): string {
+      return s === "loaded" ? "OK" : s === "fallback" ? "FB" : "!!";
+    }
+    function renderDebugOverlay() {
+      const show = debugVisible;
+      debugPanel.opacity = show ? 0.78 : 0;
+      debugTitle.opacity = show ? 1 : 0;
+      debugSummary.opacity = show ? 1 : 0;
+      debugBody.opacity = show ? 1 : 0;
+      if (!show) return;
+      const entries = Object.values(ASSET_REPORT.entries);
+      const failed = entries.filter((e) => e.status !== "loaded");
+      const failedSprite = failed.filter((e) => e.kind === "sprite").length;
+      const failedBg = failed.filter((e) => e.kind === "background").length;
+      const z = player.farthestZone;
+      debugSummary.text =
+        `Zone ${z + 1}/${ZONES.length} · ${ZONES[z].key}\n` +
+        `Sheets loaded: ${Object.values(ASSET_REPORT.sheets).filter((s) => s.status === "loaded").length}/${Object.keys(ASSET_REPORT.sheets).length}   ` +
+        `Missing sprites: ${failedSprite}   Missing bgs: ${failedBg}`;
+      const names = ZONE_ASSETS[z] ?? [];
+      const lines: string[] = [];
+      for (const n of names) {
+        const e = ASSET_REPORT.entries[n];
+        if (!e) { lines.push(`??  ${n.padEnd(16)}  (not registered)`); continue; }
+        if (e.kind === "background") {
+          lines.push(`${statusGlyph(e.status)}  ${n.padEnd(16)}  bg  ${e.sheetLabel ?? ""}`);
+        } else {
+          const r = e.sheetRect;
+          const bb = e.trimBBox;
+          const u = e.unified;
+          const coords = r ? `f${e.frame} @${r.fx},${r.fy} ${r.fw}x${r.fh}` : `f${e.frame ?? "?"}`;
+          const trim = bb ? `trim ${bb.w}x${bb.h}` : `trim -`;
+          const uni = u ? `disp ${u.w}x${u.h}` : `disp -`;
+          lines.push(`${statusGlyph(e.status)}  ${n.padEnd(16)}  ${coords}  ${trim}  ${uni}`);
+        }
+      }
+      // Always append any failed asset from other zones so problems are visible
+      // regardless of where the player currently is.
+      const globalFails = failed.filter((e) => !names.includes(e.name));
+      if (globalFails.length) {
+        lines.push("");
+        lines.push(`— failed elsewhere (${globalFails.length}) —`);
+        for (const e of globalFails.slice(0, 6)) {
+          lines.push(`${statusGlyph(e.status)}  ${e.name.padEnd(16)}  ${e.error?.slice(0, 40) ?? ""}`);
+        }
+      }
+      debugBody.text = lines.join("\n");
+    }
+    // Auto-size panel roughly to content height.
+    k.onUpdate(() => {
+      if (!debugVisible) { debugPanel.height = 26; return; }
+      const lineCount = ((debugBody as AnyObj).text ?? "").split("\n").length;
+      debugPanel.height = Math.min(520, 60 + lineCount * 12 + 8);
+      renderDebugOverlay();
+    });
+    for (const key of ["d", "D"]) {
+      k.onKeyPress(key as never, () => {
+        debugVisible = !debugVisible;
+        renderDebugOverlay();
+      });
+    }
+    renderDebugOverlay();
+
+
+
     // ================= Collisions =================
     player.onCollide("method", () => {
       if (zoneState.methodTouched) return;

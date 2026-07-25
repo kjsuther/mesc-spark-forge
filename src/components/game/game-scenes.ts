@@ -1268,6 +1268,31 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.fixed(),
       k.z(LAYERS.HUD),
     ]);
+    // Per-zone objective badge, top-right under the "AFTER FEEDBACK" chip.
+    const objectiveHud = k.add([
+      k.text("", { size: 14, font: "sans-serif" }),
+      k.pos(k.width() - 12, 34),
+      k.anchor("topright"),
+      k.color(255, 220, 90),
+      k.fixed(),
+      k.z(LAYERS.HUD),
+    ]);
+    // Hint bubble that pops up when player bumps a locked door.
+    let hintUntil = 0;
+    const hintHud = k.add([
+      k.text("", { size: 14, font: "sans-serif", width: 460, align: "center" }),
+      k.pos(k.width() / 2, k.height() - 60),
+      k.anchor("center"),
+      k.color(255, 255, 255),
+      k.opacity(0),
+      k.fixed(),
+      k.z(LAYERS.HUD + 1),
+    ]);
+    function showHint(msg: string) {
+      hintHud.text = msg;
+      hintHud.opacity = 1;
+      hintUntil = k.time() + 1.8;
+    }
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
       appIcons.forEach((g, i) => {
@@ -1282,30 +1307,120 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       docsHud.text = active.documents_earlier || player.docs.size > 0
         ? need.length ? `Application docs needed: ${need.join(", ")}` : "Application docs: complete ✓"
         : "";
+      const z = player.farthestZone;
+      const obj = zoneObjectives[z];
+      objectiveHud.text = obj ? obj.hudLabel() : "";
     }
     updateHud();
 
     // ================= Collisions =================
+    player.onCollide("method", () => {
+      if (zoneState.methodTouched) return;
+      zoneState.methodTouched = true;
+      player.score += 400;
+    });
+
+    player.onCollide("credential", (c) => {
+      const cr = c as unknown as { credKind: "user" | "pass"; destroy: () => void };
+      if (cr.credKind === "user") zoneState.userGot = true;
+      else zoneState.passGot = true;
+      player.score += 600;
+      cr.destroy();
+    });
+
     player.onCollide("doc", (d) => {
       const doc = d as unknown as { docKey: string; destroy: () => void };
+      if (!player.docs.has(doc.docKey)) zoneState.docsInZone += 1;
       player.docs.add(doc.docKey);
       player.score += 750;
       doc.destroy();
-      updateHud();
     });
 
     player.onCollide("reply", (r) => {
       const item = r as unknown as { bonus: number; destroy: () => void };
       player.score += item.bonus ?? 300;
+      zoneState.repliesGot += 1;
       item.destroy();
-      updateHud();
     });
 
+    // Old free-plan collectible (unused now — kept for compatibility).
     player.onCollide("plan", (p) => {
       const item = p as unknown as { bonus: number; destroy: () => void };
       player.score += item.bonus ?? 500;
       item.destroy();
-      updateHud();
+    });
+
+    // New: plan pedestal pick. First selection spawns the gold key.
+    player.onCollide("plan-pick", (p) => {
+      if (zoneState.planPicked) return;
+      const item = p as unknown as { planLabel: string; bonus: number; destroy: () => void; pos: { x: number; y: number } };
+      zoneState.planPicked = true;
+      player.score += item.bonus ?? 800;
+      const kx = item.pos.x;
+      const ky = item.pos.y - 40;
+      // Remove the other unpicked pedestal cards
+      k.get("plan-pick").forEach((o) => (o as { destroy: () => void }).destroy());
+      // Spawn floating gold key that homes toward the player
+      const kw = displaySize("gold-key", sizes).w;
+      const kh = DISPLAY_H["gold-key"];
+      const keyItem = k.add([
+        k.sprite("gold-key", { width: kw, height: kh }),
+        k.pos(kx, ky),
+        k.anchor("center"),
+        k.area({ shape: new k.Rect(k.vec2(-kw / 2, -kh / 2), kw, kh) }),
+        k.z(LAYERS.EFFECT),
+        "gold-key",
+      ]);
+      keyItem.onUpdate(() => {
+        const dx = player.pos.x - keyItem.pos.x;
+        const dy = (player.pos.y - kh) - keyItem.pos.y;
+        keyItem.pos.x += dx * 2 * k.dt();
+        keyItem.pos.y += dy * 2 * k.dt();
+      });
+      showHint(`Picked ${item.planLabel} — grab the key!`);
+    });
+
+    player.onCollide("gold-key", (kk) => {
+      if (zoneState.hasKey) return;
+      zoneState.hasKey = true;
+      player.score += 500;
+      (kk as unknown as { destroy: () => void }).destroy();
+      showHint("You got the key! Head to the door.");
+    });
+
+    // Fire pole attach — locks the player to the pole and starts a slide down.
+    player.onCollide("fire-pole", (fp) => {
+      if (zoneState.firePoleAttached || zoneState.firePoleDone) return;
+      const pole = fp as unknown as { poleX: number; poleTop: number; poleBaseY: number };
+      zoneState.firePoleAttached = true;
+      player.pos.x = pole.poleX;
+      player.vel = k.vec2(0, 0);
+      showHint("Sliding down…");
+    });
+
+    player.onCollide("pole-base", () => {
+      if (zoneState.firePoleDone || player.won) return;
+      if (!zoneState.firePoleAttached) return;
+      zoneState.firePoleDone = true;
+      // Fireworks
+      startFireworks(k, player.pos.x + 100, GROUND_Y - 240);
+    });
+
+    // Door collision — unlocked door lets player pass; locked door bumps them back
+    // and shows a zone-specific hint.
+    player.onCollide("door", (d) => {
+      const door = d as unknown as { zoneIdx: number; unlocked: boolean };
+      if (door.unlocked) return;
+      const hints: Record<number, string> = {
+        0: "Touch an application-method signpost to unlock this door.",
+        1: "You need a USERNAME and PASSWORD to log in.",
+        2: "Cross the river of paperwork to reach the door.",
+        3: `Collect 3 verification documents (${zoneState.docsInZone}/3).`,
+        4: `Answer every request for info (${zoneState.repliesGot}/${zoneState.repliesNeeded}).`,
+        5: "Wait for your decision — the door will unlock in time.",
+        6: "Choose a health plan and grab the key.",
+      };
+      showHint(hints[door.zoneIdx] ?? "The door is locked.");
     });
 
     player.onCollide("checkpoint", (c) => {
@@ -1313,15 +1428,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.checkpointX = ch.atX;
     });
 
-    player.onCollide("gate", () => {
-      if (player.docs.size >= 3) {
-        k.get("gate").forEach((g) => (g as { destroy: () => void }).destroy());
-      }
-    });
-
     player.onCollide("monster", () => loseLife("monster"));
     player.onCollide("boulder", () => loseLife("boulder"));
     player.onCollide("water", () => loseLife("water"));
+
 
     function loseLife(cause: FailCause) {
       if (player.dead || player.won) return;

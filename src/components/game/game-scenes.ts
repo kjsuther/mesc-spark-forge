@@ -2536,7 +2536,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             zoneState.cutscenePhase = "slide";
             const landing = zoneState.topLandingRef;
             if (landing) {
-              try { landing.unuse("body"); landing.unuse("area"); } catch { /* ignore */ }
+              try { landing.destroy(); } catch { /* ignore */ }
+              zoneState.topLandingRef = null;
             }
             dir = 0;
           }

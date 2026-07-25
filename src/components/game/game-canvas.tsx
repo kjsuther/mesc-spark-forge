@@ -19,6 +19,24 @@ const isCoarsePointer = () =>
   typeof window.matchMedia === "function" &&
   window.matchMedia("(pointer: coarse)").matches;
 
+function useOrientation() {
+  const [portrait, setPortrait] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerHeight > window.innerWidth;
+  });
+  useEffect(() => {
+    const update = () => setPortrait(window.innerHeight > window.innerWidth);
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+    };
+  }, []);
+  return { portrait };
+}
+
 export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -29,6 +47,8 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const [menuScreen, setMenuScreen] = useState<MenuScreen>("title");
   const [showHint, setShowHint] = useState(true);
   const [loading, setLoading] = useState(false);
+  const { portrait } = useOrientation();
+  const [isTouch] = useState(() => isCoarsePointer());
   const key = `${mode}|${Object.entries(flags)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}:${v ? 1 : 0}`)
@@ -242,8 +262,49 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
         overscrollBehavior: "contain",
       };
 
+  const showRotatePrompt = !!launchMode && isTouch && portrait;
+
   return (
     <div ref={containerRef} className="relative w-full" style={containerStyle}>
+      {/* Rotate-to-landscape overlay for touch devices held in portrait.
+          At 393x852 the 16:9 canvas would be only ~220px tall, which makes
+          text unreadable and touch controls crowd the game. Force landscape. */}
+      {showRotatePrompt && (
+        <div
+          className="fixed inset-0 z-[10000] grid place-items-center bg-mn-blue p-6 text-center text-cream"
+          style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
+        >
+          <div className="max-w-xs">
+            <div
+              className="mx-auto mb-6 flex h-24 w-16 items-center justify-center rounded-lg border-4 border-cream text-3xl"
+              style={{ animation: "rotate-hint 2s ease-in-out infinite" }}
+            >
+              ↻
+            </div>
+            <p className="mb-2 text-[10px] tracking-widest text-accent-gold">
+              ROTATE YOUR DEVICE
+            </p>
+            <p className="text-[8px] leading-relaxed tracking-wider text-cream/90">
+              Turn your phone sideways to play. The trail needs a wide screen.
+            </p>
+            <button
+              type="button"
+              onPointerUp={(e) => {
+                e.preventDefault();
+                setLaunchMode(null);
+                setFauxFullscreen(false);
+                setMenuScreen("title");
+              }}
+              className="mt-6 rounded border-2 border-accent-gold bg-accent-orange px-4 py-2 text-[10px] font-black uppercase tracking-widest text-cream"
+              style={{ touchAction: "manipulation" }}
+            >
+              ✕ Exit
+            </button>
+          </div>
+          <style>{`@keyframes rotate-hint { 0%,45% { transform: rotate(0deg); } 55%,100% { transform: rotate(-90deg); } }`}</style>
+        </div>
+      )}
+
       {launchMode && overlayFs && (
         <button
           type="button"

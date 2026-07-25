@@ -40,9 +40,10 @@ function AdminGamePage() {
   const reset = useServerFn(resetImprovements);
   const startRound = useServerFn(startVoteRound);
   const endRound = useServerFn(endAndApplyRound);
+  const wipeScores = useServerFn(resetLeaderboard);
 
   const [selected, setSelected] = useState<Set<ImprovementKey>>(new Set());
-  const [durationMin, setDurationMin] = useState(5);
+  const [durationMin, setDurationMin] = useState(10);
 
   useEffect(() => {
     const ch = supabase
@@ -94,7 +95,7 @@ function AdminGamePage() {
     try {
       const keys = auto ? undefined : Array.from(selected);
       const res = await startRound({
-        data: { candidateKeys: keys, durationSec: durationMin * 60, count: 3 },
+        data: { candidateKeys: keys, durationSec: durationMin * 60, count: 5 },
       });
       toast.success(`Round started (${durationMin} min)`);
       setSelected(new Set());
@@ -107,6 +108,15 @@ function AdminGamePage() {
     const res = await endRound();
     if (res.winner) toast.success(`Applied winner: ${res.winner.key} (${res.winner.votes} votes)`);
     else toast.info("No winner to apply");
+  }
+  async function handleResetScores() {
+    if (!confirm("Wipe the entire High Scores leaderboard? This cannot be undone.")) return;
+    try {
+      await wipeScores();
+      toast.success("High scores cleared.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to reset high scores");
+    }
   }
 
   function toggleSelect(k: ImprovementKey) {

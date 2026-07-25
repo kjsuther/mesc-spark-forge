@@ -28,6 +28,11 @@ import bgRelayUrl from "@/assets/game/bg-relay.png";
 import bgMountainUrl from "@/assets/game/bg-mountain.png";
 import bgMarketUrl from "@/assets/game/bg-market.png";
 import bgClinicUrl from "@/assets/game/bg-clinic.png";
+import doorSheetUrl from "@/assets/game/door-sheet.png";
+import credentialsSheetUrl from "@/assets/game/credentials-sheet.png";
+import goldKeyUrl from "@/assets/game/gold-key.png";
+import planCardsSheetUrl from "@/assets/game/plan-cards-sheet.png";
+import medicalIdUrl from "@/assets/game/medical-id.png";
 
 export type GameFlags = Record<ImprovementKey, boolean>;
 

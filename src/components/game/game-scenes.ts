@@ -1209,12 +1209,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         setAnim("jump");
       } else if (dir !== 0) {
         setAnim("walk");
-        // advance walk frame ~10fps
-        player.animTick += k.dt();
-        if (player.animTick > 0.1) {
-          player.animTick = 0;
-          player.walkFrame = (player.walkFrame + 1) % 4;
-          setSprite(`hero-walk-${player.walkFrame}`);
+        // Distance-based 6-frame ping-pong cycle: never slides, animation
+        // speed always tracks actual movement across the ground.
+        const CYCLE = [0, 1, 2, 3, 2, 1];
+        const STRIDE_PX = 12;
+        const idx = Math.floor(Math.abs(player.rightmostX + player.pos.x) / STRIDE_PX) % CYCLE.length;
+        const target = CYCLE[idx];
+        if (player.walkFrame !== target) {
+          player.walkFrame = target;
+          setSprite(`hero-walk-${target}`);
         }
       } else {
         setAnim("idle");

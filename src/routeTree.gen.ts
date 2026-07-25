@@ -10,9 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ToolRouteImport } from './routes/tool'
-import { Route as FeedbackRouteImport } from './routes/feedback'
 import { Route as ChangelogRouteImport } from './routes/changelog'
-import { Route as BacklogRouteImport } from './routes/backlog'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
@@ -20,7 +18,6 @@ import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as VersionSemverRouteImport } from './routes/version.$semver'
 import { Route as AdminVersionsRouteImport } from './routes/admin.versions'
 import { Route as AdminUnlockRouteImport } from './routes/admin.unlock'
-import { Route as AdminSubscribersRouteImport } from './routes/admin.subscribers'
 import { Route as AdminPosterRouteImport } from './routes/admin.poster'
 import { Route as AdminNowBuildingRouteImport } from './routes/admin.now-building'
 import { Route as AdminLockRouteImport } from './routes/admin.lock'
@@ -34,19 +31,9 @@ const ToolRoute = ToolRouteImport.update({
   path: '/tool',
   getParentRoute: () => rootRouteImport,
 } as any)
-const FeedbackRoute = FeedbackRouteImport.update({
-  id: '/feedback',
-  path: '/feedback',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ChangelogRoute = ChangelogRouteImport.update({
   id: '/changelog',
   path: '/changelog',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BacklogRoute = BacklogRouteImport.update({
-  id: '/backlog',
-  path: '/backlog',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -82,11 +69,6 @@ const AdminVersionsRoute = AdminVersionsRouteImport.update({
 const AdminUnlockRoute = AdminUnlockRouteImport.update({
   id: '/unlock',
   path: '/unlock',
-  getParentRoute: () => AdminRoute,
-} as any)
-const AdminSubscribersRoute = AdminSubscribersRouteImport.update({
-  id: '/subscribers',
-  path: '/subscribers',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminPosterRoute = AdminPosterRouteImport.update({
@@ -131,16 +113,13 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
-  '/backlog': typeof BacklogRoute
   '/changelog': typeof ChangelogRoute
-  '/feedback': typeof FeedbackRoute
   '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
-  '/admin/subscribers': typeof AdminSubscribersRoute
   '/admin/unlock': typeof AdminUnlockRoute
   '/admin/versions': typeof AdminVersionsRoute
   '/version/$semver': typeof VersionSemverRoute
@@ -151,16 +130,13 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/backlog': typeof BacklogRoute
   '/changelog': typeof ChangelogRoute
-  '/feedback': typeof FeedbackRoute
   '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
-  '/admin/subscribers': typeof AdminSubscribersRoute
   '/admin/unlock': typeof AdminUnlockRoute
   '/admin/versions': typeof AdminVersionsRoute
   '/version/$semver': typeof VersionSemverRoute
@@ -173,16 +149,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
-  '/backlog': typeof BacklogRoute
   '/changelog': typeof ChangelogRoute
-  '/feedback': typeof FeedbackRoute
   '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
-  '/admin/subscribers': typeof AdminSubscribersRoute
   '/admin/unlock': typeof AdminUnlockRoute
   '/admin/versions': typeof AdminVersionsRoute
   '/version/$semver': typeof VersionSemverRoute
@@ -196,16 +169,13 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
-    | '/backlog'
     | '/changelog'
-    | '/feedback'
     | '/tool'
     | '/actions/$slug'
     | '/admin/game'
     | '/admin/lock'
     | '/admin/now-building'
     | '/admin/poster'
-    | '/admin/subscribers'
     | '/admin/unlock'
     | '/admin/versions'
     | '/version/$semver'
@@ -216,16 +186,13 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
-    | '/backlog'
     | '/changelog'
-    | '/feedback'
     | '/tool'
     | '/actions/$slug'
     | '/admin/game'
     | '/admin/lock'
     | '/admin/now-building'
     | '/admin/poster'
-    | '/admin/subscribers'
     | '/admin/unlock'
     | '/admin/versions'
     | '/version/$semver'
@@ -237,16 +204,13 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
-    | '/backlog'
     | '/changelog'
-    | '/feedback'
     | '/tool'
     | '/actions/$slug'
     | '/admin/game'
     | '/admin/lock'
     | '/admin/now-building'
     | '/admin/poster'
-    | '/admin/subscribers'
     | '/admin/unlock'
     | '/admin/versions'
     | '/version/$semver'
@@ -259,9 +223,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   AdminRoute: typeof AdminRouteWithChildren
-  BacklogRoute: typeof BacklogRoute
   ChangelogRoute: typeof ChangelogRoute
-  FeedbackRoute: typeof FeedbackRoute
   ToolRoute: typeof ToolRoute
   ActionsSlugRoute: typeof ActionsSlugRoute
   VersionSemverRoute: typeof VersionSemverRoute
@@ -278,25 +240,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ToolRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/feedback': {
-      id: '/feedback'
-      path: '/feedback'
-      fullPath: '/feedback'
-      preLoaderRoute: typeof FeedbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/changelog': {
       id: '/changelog'
       path: '/changelog'
       fullPath: '/changelog'
       preLoaderRoute: typeof ChangelogRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/backlog': {
-      id: '/backlog'
-      path: '/backlog'
-      fullPath: '/backlog'
-      preLoaderRoute: typeof BacklogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -346,13 +294,6 @@ declare module '@tanstack/react-router' {
       path: '/unlock'
       fullPath: '/admin/unlock'
       preLoaderRoute: typeof AdminUnlockRouteImport
-      parentRoute: typeof AdminRoute
-    }
-    '/admin/subscribers': {
-      id: '/admin/subscribers'
-      path: '/subscribers'
-      fullPath: '/admin/subscribers'
-      preLoaderRoute: typeof AdminSubscribersRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/poster': {
@@ -412,7 +353,6 @@ interface AdminRouteChildren {
   AdminLockRoute: typeof AdminLockRoute
   AdminNowBuildingRoute: typeof AdminNowBuildingRoute
   AdminPosterRoute: typeof AdminPosterRoute
-  AdminSubscribersRoute: typeof AdminSubscribersRoute
   AdminUnlockRoute: typeof AdminUnlockRoute
   AdminVersionsRoute: typeof AdminVersionsRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -423,7 +363,6 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLockRoute: AdminLockRoute,
   AdminNowBuildingRoute: AdminNowBuildingRoute,
   AdminPosterRoute: AdminPosterRoute,
-  AdminSubscribersRoute: AdminSubscribersRoute,
   AdminUnlockRoute: AdminUnlockRoute,
   AdminVersionsRoute: AdminVersionsRoute,
   AdminIndexRoute: AdminIndexRoute,
@@ -435,9 +374,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   AdminRoute: AdminRouteWithChildren,
-  BacklogRoute: BacklogRoute,
   ChangelogRoute: ChangelogRoute,
-  FeedbackRoute: FeedbackRoute,
   ToolRoute: ToolRoute,
   ActionsSlugRoute: ActionsSlugRoute,
   VersionSemverRoute: VersionSemverRoute,

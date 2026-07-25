@@ -13,6 +13,7 @@ import {
   setImprovementEnabled,
   setBeforeAfter,
   resetImprovements,
+  resetLeaderboard,
   startVoteRound,
   endAndApplyRound,
   IMPROVEMENT_KEYS,
@@ -39,9 +40,10 @@ function AdminGamePage() {
   const reset = useServerFn(resetImprovements);
   const startRound = useServerFn(startVoteRound);
   const endRound = useServerFn(endAndApplyRound);
+  const wipeScores = useServerFn(resetLeaderboard);
 
   const [selected, setSelected] = useState<Set<ImprovementKey>>(new Set());
-  const [durationMin, setDurationMin] = useState(5);
+  const [durationMin, setDurationMin] = useState(10);
 
   useEffect(() => {
     const ch = supabase
@@ -93,7 +95,7 @@ function AdminGamePage() {
     try {
       const keys = auto ? undefined : Array.from(selected);
       const res = await startRound({
-        data: { candidateKeys: keys, durationSec: durationMin * 60, count: 3 },
+        data: { candidateKeys: keys, durationSec: durationMin * 60, count: 5 },
       });
       toast.success(`Round started (${durationMin} min)`);
       setSelected(new Set());
@@ -106,6 +108,15 @@ function AdminGamePage() {
     const res = await endRound();
     if (res.winner) toast.success(`Applied winner: ${res.winner.key} (${res.winner.votes} votes)`);
     else toast.info("No winner to apply");
+  }
+  async function handleResetScores() {
+    if (!confirm("Wipe the entire High Scores leaderboard? This cannot be undone.")) return;
+    try {
+      await wipeScores();
+      toast.success("High scores cleared.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to reset high scores");
+    }
   }
 
   function toggleSelect(k: ImprovementKey) {
@@ -191,7 +202,7 @@ function AdminGamePage() {
           <div className="space-y-3">
             <p className="text-xs text-dark-gray/70">
               Start a voting round. Attendees will see a countdown and can cast one vote. Pick
-              candidates below or leave empty for a random 3.
+              candidates below or leave empty to auto-pick 5.
             </p>
             <div className="flex flex-wrap gap-2">
               {disabledImprovements.map((imp) => (
@@ -238,7 +249,7 @@ function AdminGamePage() {
                 disabled={disabledImprovements.length < 2}
                 className="bg-accent-orange text-white font-bold text-sm px-4 py-2 rounded hover:brightness-110 disabled:opacity-40"
               >
-                Auto-pick 3 & start
+                Auto-pick 5 & start
               </button>
             </div>
           </div>
@@ -251,6 +262,12 @@ function AdminGamePage() {
           className="bg-white border-2 border-red-500 text-red-600 font-bold text-sm px-4 py-2 rounded hover:bg-red-50"
         >
           Reset all improvements & votes
+        </button>
+        <button
+          onClick={handleResetScores}
+          className="bg-white border-2 border-red-500 text-red-600 font-bold text-sm px-4 py-2 rounded hover:bg-red-50"
+        >
+          Reset High Scores leaderboard
         </button>
       </section>
 

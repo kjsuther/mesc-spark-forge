@@ -5,10 +5,12 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/s
 import mescLogo from "@/assets/mesc-2026-logo.png.asset.json";
 import mnDhsLogo from "@/assets/mn-dhs-logo-new.png.asset.json";
 
-
-const NAV_LINKS: ReadonlyArray<{ to: "/" | "/backlog" | "/changelog" | "/about"; label: string; exact?: boolean }> = [
+const NAV_LINKS: ReadonlyArray<{
+  to: "/" | "/changelog" | "/about";
+  label: string;
+  exact?: boolean;
+}> = [
   { to: "/", label: "Home", exact: true },
-  { to: "/backlog", label: "Backlog" },
   { to: "/changelog", label: "Version History" },
   { to: "/about", label: "About" },
 ];
@@ -56,13 +58,7 @@ export function SiteHeader() {
           className="bg-accent-orange text-white px-4 py-2 rounded font-semibold hover:brightness-105 transition ml-2 min-h-11 inline-flex items-center ring-1 ring-accent-gold/60"
           activeProps={{ className: "brightness-110 ring-2 ring-accent-gold" }}
         >
-          Demo Game
-        </Link>
-        <Link
-          to="/feedback"
-          className="bg-mn-green text-white px-4 py-2 rounded font-semibold hover:brightness-105 transition min-h-11 inline-flex items-center"
-        >
-          Share Feedback
+          Play the Game
         </Link>
       </div>
 
@@ -72,7 +68,7 @@ export function SiteHeader() {
           to="/tool"
           className="inline-flex bg-accent-orange text-white px-3 py-2 rounded font-semibold text-xs sm:text-sm hover:brightness-105 transition min-h-11 items-center ring-1 ring-accent-gold/60"
         >
-          Demo Game
+          Play the Game
         </Link>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger
@@ -81,7 +77,10 @@ export function SiteHeader() {
           >
             <Menu className="h-6 w-6" aria-hidden="true" />
           </SheetTrigger>
-          <SheetContent side="right" className="bg-mn-blue text-white border-none w-[80vw] max-w-sm flex flex-col p-0">
+          <SheetContent
+            side="right"
+            className="bg-mn-blue text-white border-none w-[80vw] max-w-sm flex flex-col p-0"
+          >
             <SheetTitle className="sr-only">Site navigation</SheetTitle>
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
               <span className="font-bold uppercase tracking-widest text-xs">Menu</span>
@@ -115,14 +114,7 @@ export function SiteHeader() {
                 onClick={() => setOpen(false)}
                 className="block text-center bg-accent-orange text-white px-4 py-3 rounded-lg font-bold hover:brightness-105 transition min-h-11 ring-1 ring-accent-gold/60"
               >
-                Demo Game
-              </Link>
-              <Link
-                to="/feedback"
-                onClick={() => setOpen(false)}
-                className="block text-center bg-mn-green text-white px-4 py-3 rounded-lg font-bold hover:brightness-105 transition min-h-11"
-              >
-                Share Feedback
+                Play the Game
               </Link>
             </div>
           </SheetContent>

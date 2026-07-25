@@ -1,55 +1,44 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useSuspenseQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
 import { SiteChrome } from "@/components/site-chrome";
 import { SiteFooter } from "@/components/site-footer";
-import { NowBuildingBanner } from "@/components/now-building-banner";
 import { MountainScape } from "@/components/trail/mountain-scape";
-
 import { SectionHeading } from "@/components/trail/section-heading";
-import { nowBuildingQuery, versionsQuery } from "@/lib/queries";
-import { supabase } from "@/integrations/supabase/client";
-
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "MESC 2026 Poster Session Demo" },
+      { title: "Blazing the Trail to Coverage — MESC 2026 Demo" },
       {
         name: "description",
         content:
-          "A guided 4-step walkthrough for MESC 2026 attendees: try the tool, share feedback, vote on the backlog, and watch it ship live.",
+          "Play a 16-bit retro platformer about applying for Medicaid, vote on the next upgrade, and watch the trail get easier when the timer hits 0:00.",
       },
-      { property: "og:title", content: "MESC 2026 Poster Session Demo" },
-      { property: "og:description", content: "A guided 4-step walkthrough for MESC 2026 attendees: try the tool, share feedback, vote on the backlog, and watch it ship live." },
+      { property: "og:title", content: "Blazing the Trail to Coverage — MESC 2026 Demo" },
+      {
+        property: "og:description",
+        content:
+          "Play the game, vote on the upgrade you want next, wait for the 10-minute timer, then replay with the winning upgrade live in the game.",
+      },
     ],
   }),
-  loader: ({ context }) => {
-    context.queryClient.ensureQueryData(nowBuildingQuery);
-    context.queryClient.ensureQueryData(versionsQuery);
-  },
   component: WelcomePage,
 });
-
-type StepTheme = {
-  ring: string;      // number circle bg
-  border: string;    // card border
-  bg: string;        // card background tint
-  hoverBorder: string;
-  cta: string;       // CTA button bg
-};
 
 type Step = {
   num: number;
   title: string;
   body: string;
   cta: string;
-  to: "/tool" | "/feedback" | "/backlog" | "/changelog";
-  optional?: boolean;
-  theme: StepTheme;
+  theme: {
+    ring: string;
+    border: string;
+    bg: string;
+    hoverBorder: string;
+    cta: string;
+  };
 };
 
-const THEMES: Record<string, StepTheme> = {
+const THEMES = {
   green: {
     ring: "bg-mn-green",
     border: "border-mn-green/40",
@@ -78,72 +67,46 @@ const THEMES: Record<string, StepTheme> = {
     hoverBorder: "hover:border-accent-orange",
     cta: "bg-accent-orange hover:brightness-105",
   },
-};
+} as const;
 
 const STEPS: Step[] = [
   {
     num: 1,
-    title: "Review the current version of the tool",
-    body: "See what's live right now. Try picking an action and walking through the roadmap the way an applicant would.",
-    cta: "Open the tool",
-    to: "/tool",
+    title: "Play the game and see how far you get",
+    body: "Jump in and try to reach the end of the trail. The first run is intentionally hard — most players won't finish. That's the point.",
+    cta: "Play the game",
     theme: THEMES.green,
   },
   {
     num: 2,
-    title: "Add any feedback",
-    body: "Spotted something confusing or missing? Tell us what you'd change. Takes about 30 seconds.",
-    cta: "Share feedback",
-    to: "/feedback",
-    optional: true,
+    title: "Vote on the upgrade you want next",
+    body: "After playing, pick one of five upgrades that would help you finish the journey. One vote per attendee, per round.",
+    cta: "Cast your vote",
     theme: THEMES.gold,
   },
   {
     num: 3,
-    title: "Review the backlog and vote",
-    body: "Vote Must Have, Should Have, or Nice to Have on ideas already submitted. You have 5 votes total — stack them all on one item to push it higher, or spread them across up to 5 different items.",
-    cta: "Open the backlog",
-    to: "/backlog",
+    title: "Wait for the timer to reach 0:00",
+    body: "Each voting round runs for 10 minutes. Watch the poster board or the game page to see the votes stack up live.",
+    cta: "Watch the round",
     theme: THEMES.teal,
   },
   {
     num: 4,
-    title: "Check back for real-time updates",
-    body: "Top-voted ideas get built live during the session. Rewind through past versions to see how the tool evolved.",
-    cta: "See Version History",
-    to: "/changelog",
+    title: "Play again with the new upgrade active",
+    body: "When the timer ends, the top-voted upgrade turns on for everyone. Replay the game and see if the trail is a little easier.",
+    cta: "Play the next round",
     theme: THEMES.orange,
   },
 ];
 
 function WelcomePage() {
-  const { data: nowBuilding } = useSuspenseQuery(nowBuildingQuery);
-  const { data: versions } = useSuspenseQuery(versionsQuery);
-  const qc = useQueryClient();
-  const current = versions.find((v) => v.is_current) ?? versions[versions.length - 1];
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("welcome")
-      .on("postgres_changes", { event: "*", schema: "public", table: "feedback" }, () =>
-        qc.invalidateQueries({ queryKey: ["now_building"] }),
-      )
-      .on("postgres_changes", { event: "*", schema: "public", table: "versions" }, () =>
-        qc.invalidateQueries({ queryKey: ["versions"] }),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [qc]);
-
   return (
     <div className="min-h-screen flex flex-col bg-white text-dark-gray font-sans">
       <SiteChrome />
 
       <main id="main-content" className="flex-1">
         <section className="relative overflow-hidden bg-mn-blue text-white px-5 sm:px-6 lg:px-8 pt-10 sm:pt-16 pb-20 sm:pb-28">
-          {/* Decorative mountains behind hero content */}
           <div className="absolute inset-x-0 bottom-0 pointer-events-none">
             <MountainScape variant="hero" />
           </div>
@@ -153,32 +116,31 @@ function WelcomePage() {
             </p>
             <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl uppercase tracking-wide max-w-4xl leading-[1.05] drop-shadow-[0_2px_0_rgba(0,0,0,0.25)]">
               <span aria-hidden="true" className="text-accent-orange mr-2 sm:mr-3">★</span>
-              Blazing Better Trails
+              Blazing the Trail to Coverage
               <span aria-hidden="true" className="text-accent-orange ml-2 sm:ml-3">★</span>
             </h1>
             <p className="text-cream/90 text-base sm:text-lg md:text-xl mt-5 sm:mt-6 max-w-2xl">
-              Help us build a Medicaid Client Assister tool, LIVE, right now.
+              A 16-bit retro platformer about applying for Medicaid — where the audience votes on
+              the next upgrade and the trail visibly gets easier.
             </p>
 
-            <div className="mt-6 inline-flex items-center gap-2 bg-accent-gold/95 text-mn-blue px-3 py-1.5 rounded-full text-[11px] sm:text-xs font-black uppercase tracking-widest ring-1 ring-cream/40">
-              <span aria-hidden="true">●</span>
-              Proof of Concept · MVP
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                to="/tool"
+                className="inline-flex items-center gap-2 bg-accent-orange text-white font-bold py-3 px-6 rounded-xl hover:brightness-105 transition ring-1 ring-accent-gold/70"
+              >
+                ▶ Play the game
+              </Link>
             </div>
-            <p className="text-cream/90 text-sm sm:text-base mt-4 max-w-2xl leading-relaxed">
-              What you're reviewing is a <strong>proof-of-concept client self-service tool</strong> in a
-              <strong> Minimum Viable Product</strong> state — intentionally basic. During this poster session,
-              your feedback and votes set the priority, and the top-ranked ideas get built into the tool
-              <strong> live, in real time</strong>.
-            </p>
           </div>
         </section>
 
         <section className="max-w-6xl w-full mx-auto py-12 sm:py-16 px-5 sm:px-6">
-          <SectionHeading>How to participate</SectionHeading>
+          <SectionHeading>How it works</SectionHeading>
           <p className="text-dark-gray/80 mt-3 max-w-2xl text-sm sm:text-base leading-relaxed">
-            Follow the four steps below. The tool starts intentionally simple — every idea you leave gets voted on by other attendees, and the top-voted changes get shipped into the tool during this session.
+            Every attendee plays the same game, votes on the same five upgrades, and watches the
+            trail change together. Four steps, one big feedback loop.
           </p>
-
 
           <ol className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6">
             {STEPS.map((step) => (
@@ -186,26 +148,26 @@ function WelcomePage() {
                 key={step.num}
                 className={`relative rounded-2xl border-2 ${step.theme.border} ${step.theme.bg} p-6 flex flex-col ${step.theme.hoverBorder} hover:shadow-[0_2px_0_0_rgba(180,67,43,0.35)] transition-all`}
               >
-                <span aria-hidden="true" className="absolute -top-2 -left-2 h-4 w-4 grid place-items-center rounded-full bg-cream text-accent-orange text-[10px] font-black ring-1 ring-mn-blue/40">★</span>
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-2 -left-2 h-4 w-4 grid place-items-center rounded-full bg-cream text-accent-orange text-[10px] font-black ring-1 ring-mn-blue/40"
+                >
+                  ★
+                </span>
                 <div className="flex items-start gap-4 mb-4">
-                  <span className={`flex-shrink-0 w-12 h-12 rounded-full ${step.theme.ring} text-cream grid place-items-center font-black text-xl ring-2 ring-accent-gold/70`}>
+                  <span
+                    className={`flex-shrink-0 w-12 h-12 rounded-full ${step.theme.ring} text-cream grid place-items-center font-black text-xl ring-2 ring-accent-gold/70`}
+                  >
                     {step.num}
                   </span>
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-bold text-mn-blue text-lg leading-tight">{step.title}</h3>
-                      {step.optional && (
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-mn-blue/70 bg-accent-gold/40 px-2 py-0.5 rounded">
-                          Optional
-                        </span>
-                      )}
-                    </div>
+                    <h3 className="font-bold text-mn-blue text-lg leading-tight">{step.title}</h3>
                     <p className="text-sm text-dark-gray/80 mt-2 leading-relaxed">{step.body}</p>
                   </div>
                 </div>
                 <div className="mt-auto pt-2">
                   <Link
-                    to={step.to}
+                    to="/tool"
                     className={`inline-flex items-center gap-2 ${step.theme.cta} text-white font-bold py-3 px-5 rounded-xl transition`}
                   >
                     {step.cta} →
@@ -215,7 +177,6 @@ function WelcomePage() {
             ))}
           </ol>
         </section>
-
       </main>
 
       <SiteFooter />

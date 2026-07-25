@@ -1442,6 +1442,56 @@ function showTitleCard(
   return total;
 }
 
+/** High-contrast wooden trail-sign plaque used for Zone 1 apply methods.
+ *  Draws a solid cream card with a dark outline, an icon badge on top, and
+ *  the sign label in dark brown so it stays readable over the foggy forest. */
+function addSignPlaque(
+  k: Ctx,
+  x: number,
+  topY: number,
+  label: string,
+  badge: string,
+) {
+  const w = Math.max(96, label.length * 6 + 20);
+  const badgeH = 16;
+  const labelH = 18;
+  const gap = 2;
+  const totalH = badgeH + gap + labelH;
+  const cy = topY - totalH / 2;
+  // Badge (top)
+  k.add([
+    k.rect(w, badgeH, { radius: 3 }),
+    k.pos(x, cy - totalH / 2 + badgeH / 2),
+    k.anchor("center"),
+    k.color(40, 55, 90),
+    k.outline(2, k.rgb(20, 25, 40)),
+    k.z(LAYERS.EFFECT),
+  ]);
+  k.add([
+    k.text(badge, { size: 10, font: "sans-serif" }),
+    k.pos(x, cy - totalH / 2 + badgeH / 2 + 1),
+    k.anchor("center"),
+    k.color(255, 235, 150),
+    k.z(LAYERS.EFFECT + 1),
+  ]);
+  // Label plaque (bottom)
+  k.add([
+    k.rect(w, labelH, { radius: 3 }),
+    k.pos(x, cy + totalH / 2 - labelH / 2),
+    k.anchor("center"),
+    k.color(250, 240, 210),
+    k.outline(2, k.rgb(80, 55, 25)),
+    k.z(LAYERS.EFFECT),
+  ]);
+  k.add([
+    k.text(label, { size: 11, font: "sans-serif" }),
+    k.pos(x, cy + totalH / 2 - labelH / 2 + 1),
+    k.anchor("center"),
+    k.color(50, 30, 15),
+    k.z(LAYERS.EFFECT + 1),
+  ]);
+}
+
 function addSpeech(
   k: Ctx,
   x: number,

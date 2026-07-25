@@ -212,9 +212,69 @@ type SheetSpec = {
   /** Group names in one group render at a shared (maxW, maxH) so animation
    *  frames stay horizontally locked and feet stay flush. */
   groups?: string[][];
+  /** Human-readable label used by the debug overlay. */
+  label?: string;
 };
 type SpriteSize = { w: number; h: number };
 type SpriteSizes = Record<string, SpriteSize>;
+
+// ============================ Asset debug report ============================
+
+type AssetStatus = "loaded" | "fallback" | "failed";
+type AssetEntry = {
+  name: string;
+  kind: "sprite" | "background";
+  sheetLabel?: string;
+  sheetUrl?: string;
+  cols?: number;
+  rows?: number;
+  frame?: number;
+  sheetRect?: { fx: number; fy: number; fw: number; fh: number };
+  trimBBox?: { x: number; y: number; w: number; h: number };
+  unified?: { w: number; h: number };
+  status: AssetStatus;
+  error?: string;
+};
+type AssetReport = {
+  entries: Record<string, AssetEntry>;
+  sheets: Record<string, { url: string; cols: number; rows: number; status: AssetStatus; error?: string; label: string }>;
+  zoneAssets: Record<number, string[]>;
+  ready: boolean;
+};
+const ASSET_REPORT: AssetReport = { entries: {}, sheets: {}, zoneAssets: {}, ready: false };
+
+// Per-zone asset presence — kept in sync with spawn logic in the trail scene.
+// Used by the debug overlay to show which assets each zone depends on.
+const ZONE_ASSETS: Record<number, string[]> = {
+  0: ["bg-forest", "signpost", "door-closed", "door-open"],
+  1: ["bg-signup", "username", "password", "laptop", "door-closed", "door-open"],
+  2: ["bg-river", "bridge", "boulder", "door-closed", "door-open"],
+  3: ["bg-town", "id", "paystub", "envelope", "form-monster", "door-closed", "door-open"],
+  4: ["bg-relay", "mailbox", "phone", "door-closed", "door-open"],
+  5: ["bg-mountain", "boulder", "denied", "door-closed", "door-open"],
+  6: ["bg-market", "plan-blue", "plan-green", "plan-orange", "gold-key", "plan-card", "insurance-card", "door-closed", "door-open"],
+  7: ["bg-clinic", "medical-id", "door-closed", "door-open", "ranger", "campfire", "backpack", "map"],
+};
+for (let i = 0; i < ZONES.length; i++) ASSET_REPORT.zoneAssets[i] = ZONE_ASSETS[i] ?? [];
+
+/** 16×16 magenta/black checker as a data URL. Used as a fallback sprite when
+ *  an asset fails to load so the game can keep running and the debug overlay
+ *  can flag the broken asset visually. */
+function makeFallbackDataUrl(): string {
+  if (typeof document === "undefined") return "";
+  const c = document.createElement("canvas");
+  c.width = 16;
+  c.height = 16;
+  const g = c.getContext("2d");
+  if (!g) return "";
+  g.fillStyle = "#ff00ff";
+  g.fillRect(0, 0, 16, 16);
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, 8, 8);
+  g.fillRect(8, 8, 8, 8);
+  return c.toDataURL("image/png");
+}
+
 
 // Loose GameObj shape used by spawn helpers. Kaplay attaches all component
 // fields at runtime; typing them as `any` here keeps the rendering pipeline

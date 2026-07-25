@@ -36,6 +36,10 @@ import planCardsSheetUrl from "@/assets/game/plan-cards-sheet.png";
 import medicalIdUrl from "@/assets/game/medical-id.png";
 import calendarPageUrl from "@/assets/game/calendar-page.png";
 import paperAirplaneUrl from "@/assets/game/paper-airplane.png";
+import brickBlockSheetUrl from "@/assets/game/brick-block-sheet.png";
+import envelopeGremlinSheetUrl from "@/assets/game/envelope-gremlin-sheet.png";
+import bossSheetUrl from "@/assets/game/boss-sheet.png";
+import doorLockUrl from "@/assets/game/door-lock.png";
 
 export type GameFlags = Record<ImprovementKey, boolean>;
 
@@ -236,6 +240,14 @@ const DISPLAY_H: Record<string, number> = {
   "medical-id": 46,
   "calendar-page": 46,
   "paper-airplane": 26,
+  "brick-idle": 38,
+  "brick-hit": 38,
+  "envelope-gremlin-0": 42,
+  "envelope-gremlin-1": 42,
+  "boss-idle": 96,
+  "boss-hurt": 96,
+  "boss-defeat": 54,
+  "door-lock": 26,
 };
 
 // ============================ Sprite trim pipeline ============================
@@ -553,8 +565,22 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
   const idFrames: FrameSpec[] = [{ name: "medical-id", frame: 0 }];
   const calendarFrames: FrameSpec[] = [{ name: "calendar-page", frame: 0 }];
   const airplaneFrames: FrameSpec[] = [{ name: "paper-airplane", frame: 0 }];
+  const brickFrames: FrameSpec[] = [
+    { name: "brick-idle", frame: 0 },
+    { name: "brick-hit", frame: 1 },
+  ];
+  const gremlinFrames: FrameSpec[] = [
+    { name: "envelope-gremlin-0", frame: 0 },
+    { name: "envelope-gremlin-1", frame: 1 },
+  ];
+  const bossFrames: FrameSpec[] = [
+    { name: "boss-idle", frame: 0 },
+    { name: "boss-hurt", frame: 1 },
+    { name: "boss-defeat", frame: 2 },
+  ];
+  const lockFrames: FrameSpec[] = [{ name: "door-lock", frame: 0 }];
 
-  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes] = await Promise.all([
+  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, lockSizes] = await Promise.all([
     safeLoadSheet(k, {
       url: charSheetUrl,
       cols: 3,
@@ -580,6 +606,12 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadSheet(k, { url: medicalIdUrl,        cols: 1, rows: 1, frames: idFrames,   label: "medical-id.png" }),
     safeLoadSheet(k, { url: calendarPageUrl,     cols: 1, rows: 1, frames: calendarFrames, label: "calendar-page.png" }),
     safeLoadSheet(k, { url: paperAirplaneUrl,    cols: 1, rows: 1, frames: airplaneFrames, label: "paper-airplane.png" }),
+    safeLoadSheet(k, { url: brickBlockSheetUrl,  cols: 2, rows: 1, frames: brickFrames,
+      groups: [brickFrames.map((f) => f.name)], label: "brick-block-sheet.png" }),
+    safeLoadSheet(k, { url: envelopeGremlinSheetUrl, cols: 2, rows: 1, frames: gremlinFrames,
+      groups: [gremlinFrames.map((f) => f.name)], label: "envelope-gremlin-sheet.png" }),
+    safeLoadSheet(k, { url: bossSheetUrl,        cols: 3, rows: 1, frames: bossFrames, label: "boss-sheet.png" }),
+    safeLoadSheet(k, { url: doorLockUrl,         cols: 1, rows: 1, frames: lockFrames, label: "door-lock.png" }),
   ]);
 
   // Register horizontally-mirrored copies of the hero walk/idle/jump frames
@@ -607,7 +639,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     (window as unknown as { __gameAssetReport?: AssetReport }).__gameAssetReport = ASSET_REPORT;
   }
 
-  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes };
+  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes, ...brickSizes, ...gremlinSizes, ...bossSizes, ...lockSizes };
 }
 
 /** Load already-registered sprites' backing images from the sheets by pulling
@@ -824,10 +856,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     // ---- Ground ----
-    const Z0_GAP_X0 = 640;
-    const Z0_GAP_X1 = 686;
-    addGround(k, 0, Z0_GAP_X0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
-    addGround(k, Z0_GAP_X1, BIOME_W, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    // Zone 0: 3 small jump gaps carved BETWEEN the four brick positions
+    // (bricks live at x = 220, 460, 720, 980) so a gap never blocks reaching a brick.
+    const Z0_GAP_A0 = 320, Z0_GAP_A1 = 360;
+    const Z0_GAP_B0 = 600, Z0_GAP_B1 = 646;
+    const Z0_GAP_C0 = 860, Z0_GAP_C1 = 900;
+    addGround(k, 0,          Z0_GAP_A0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    addGround(k, Z0_GAP_A1,  Z0_GAP_B0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    addGround(k, Z0_GAP_B1,  Z0_GAP_C0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    addGround(k, Z0_GAP_C1,  BIOME_W,   GROUND_Y, ZONES[0].ground, ZONES[0].soil);
 
     const Z1_GAP_X0 = BIOME_W + 720;
     const Z1_GAP_X1 = BIOME_W + 780;
@@ -844,7 +881,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     addGround(k, BIOME_W * 4, BIOME_W * 5, GROUND_Y, ZONES[4].ground, ZONES[4].soil);
     addGround(k, BIOME_W * 5, BIOME_W * 6, GROUND_Y, ZONES[5].ground, ZONES[5].soil);
     addGround(k, BIOME_W * 6, BIOME_W * 7, GROUND_Y, ZONES[6].ground, ZONES[6].soil);
-    addGround(k, BIOME_W * 7, LEVEL_END, GROUND_Y, ZONES[7].ground, ZONES[7].soil);
+    // Zone 7 has a lethal gap under the staircase — miss a step, lose a life.
+    const Z7_GAP0 = BIOME_W * 7 + 240;
+    const Z7_GAP1 = BIOME_W * 7 + 240 + 140 * 6;
+    addGround(k, BIOME_W * 7, Z7_GAP0, GROUND_Y, ZONES[7].ground, ZONES[7].soil);
+    addGround(k, Z7_GAP1, LEVEL_END, GROUND_Y, ZONES[7].ground, ZONES[7].soil);
+    // Kill plane inside the gap.
+    k.add([
+      k.rect(Z7_GAP1 - Z7_GAP0, 40),
+      k.pos(Z7_GAP0, GROUND_Y + 40),
+      k.area(), k.opacity(0), "water",
+    ]);
 
     // Invisible level walls
     k.add([
@@ -889,6 +936,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       cutscenePoleX: 0,
       cutscenePoleTop: 0,
       topLandingRef: null as null | AnyObj,
+      bossHits: 0,
+      bossDefeated: false,
+      bossSpawned: false,
     };
 
 
@@ -922,7 +972,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.body({ isStatic: true }),
         k.z(LAYERS.PROP),
       ]);
-
+      // Padlock badge on the closed door (visually communicates "locked").
+      const lockW = displaySize("door-lock", sizes).w;
+      const lockH = DISPLAY_H["door-lock"];
+      const lockBadge = k.add([
+        k.sprite("door-lock", { width: lockW, height: lockH }),
+        k.pos(dx, GROUND_Y - DISPLAY_H["door-closed"] / 2),
+        k.anchor("center"),
+        k.z(LAYERS.PROP + 3),
+        { ownerZone: zoneIdx },
+      ]) as AnyObj;
+      lockBadge.onUpdate(() => {
+        const d = doors[zoneIdx];
+        if (d && d.unlocked) lockBadge.destroy();
+      });
 
       return { obj: doorObj, barrier: bar, unlocked: false, playedAnim: false };
     }
@@ -965,25 +1028,40 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Spawn doors for zones 0..6 (zone 7 = finale, uses fire pole instead).
     for (let i = 0; i < 7; i++) doors[i] = spawnDoor(i);
 
-    // ================= ZONE 0: Finding the Trail — pick an apply method =================
+    // ================= ZONE 0: Finding the Trail — smash a brick to pick your apply method =================
+    // Bricks float at head height. Player jumps UP into one (upward velocity)
+    // to smash it — the "method" icon pops out, drops to the ground, and the
+    // door unlocks the moment the player touches the icon.
     const applyMethods: { x: number; icon: string; label: string }[] = [
       { x: 220, icon: "MAIL",      label: "Apply by Mail" },
       { x: 460, icon: "PHONE",     label: "Apply by Phone" },
       { x: 720, icon: "IN PERSON", label: "Apply In Person" },
       { x: 980, icon: "ONLINE",    label: "Apply Online" },
     ];
+    const BRICK_Y = GROUND_Y - 150;
+    const bw = displaySize("brick-idle", sizes).w;
+    const bh = DISPLAY_H["brick-idle"];
     for (const m of applyMethods) {
-      const post = spawnGrounded(k, "signpost", sizes, {
-        x: m.x,
-        z: LAYERS.PROP,
-        tag: "method",
-        hitboxScale: { x: -DISPLAY_H["signpost"] / 2, w: DISPLAY_H["signpost"], h: DISPLAY_H["signpost"] + 16 },
+      const brick = k.add([
+        k.sprite("brick-idle", { width: bw, height: bh }),
+        k.pos(px(m.x), px(BRICK_Y)),
+        k.anchor("center"),
+        k.area({ shape: new k.Rect(k.vec2(-bw / 2, -bh / 2), bw, bh) }),
+        k.z(LAYERS.PROP),
+        "brick",
+        { methodLabel: m.label, methodIcon: m.icon, hit: false, basY: BRICK_Y, bumpT: 0 },
+      ]) as AnyObj;
+      brick.onUpdate(() => {
+        // Bump animation when hit
+        if (brick.bumpT > 0) {
+          brick.bumpT = Math.max(0, brick.bumpT - k.dt() * 4);
+          brick.pos.y = brick.basY - Math.sin((1 - brick.bumpT) * Math.PI) * 10;
+        }
       });
-      void post;
-      const topY = GROUND_Y - DISPLAY_H["signpost"] - 6;
-      addSignPlaque(k, m.x, topY, m.label, m.icon);
+      // Floating label above the brick so player knows what each represents.
+      addSignPlaque(k, m.x, BRICK_Y - 42, m.label, m.icon);
     }
-    addSignPlaque(k, 1080, GROUND_Y - DISPLAY_H["signpost"] - 30, "Reach the door →", "!");
+    addSignPlaque(k, 1080, GROUND_Y - 180, "Smash a brick →", "!");
     zoneObjectives[0] = {
       hudLabel: () => `METHOD ${zoneState.methodTouched ? "✓" : "☐"}`,
       met: () => zoneState.methodTouched,
@@ -1048,6 +1126,31 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (m.pos.x < m.home - m.range) { m.pos.x = m.home - m.range; m.dir = 1; }
       });
     }
+    // Two more padlocks LEFT of the Z1 gap, overlapping ranges, moving in
+    // opposite directions so they cross paths and force the player to time
+    // their jump. Zone 1 = "create an account" — extra login guards.
+    {
+      const ph = DISPLAY_H["padlock"];
+      const pw = displaySize("padlock", sizes).w;
+      const spots: Array<{ x: number; dir: 1 | -1; speed: number; range: number }> = [
+        { x: sx0 + 470, dir:  1, speed: 55, range: 90 },
+        { x: sx0 + 510, dir: -1, speed: 55, range: 90 },
+      ];
+      for (const s of spots) {
+        const m = spawnGrounded(k, "padlock", sizes, {
+          x: s.x, z: LAYERS.ACTOR, tag: "monster",
+          props: { dir: s.dir, home: s.x, range: s.range },
+          hitboxScale: { x: -pw / 2, w: pw, h: ph },
+        });
+        m.onUpdate(() => {
+          m.pos.x += m.dir * s.speed * k.dt();
+          m.pos.y = GROUND_Y;
+          if (m.pos.x > m.home + m.range) { m.pos.x = m.home + m.range; m.dir = -1; }
+          if (m.pos.x < m.home - m.range) { m.pos.x = m.home - m.range; m.dir = 1; }
+        });
+      }
+    }
+
     zoneObjectives[1] = {
       hudLabel: () => `USER ${zoneState.userGot ? "✓" : "☐"}  PASS ${zoneState.passGot ? "✓" : "☐"}`,
       met: () => zoneState.userGot && zoneState.passGot,
@@ -1072,20 +1175,34 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         spawnDecor(k, "bridge", sizes, { x: rx0 + i * 100 + 50, groundY: GROUND_Y - 6 + bridgeH, z: LAYERS.PLATFORM - 1 });
       }
     } else {
+      // Each platform represents an application section. Label baked into the
+      // platform surface so the player literally steps on "About You", "Household",
+      // "Income", "Signature" to cross the river.
       const platforms = [
-        { x: rx0 + 40,  y: GROUND_Y - 34, amp: 12, spd: 1.4 },
-        { x: rx0 + 160, y: GROUND_Y - 58, amp: 18, spd: 1.2 },
-        { x: rx0 + 280, y: GROUND_Y - 44, amp: 14, spd: 1.6 },
-        { x: rx0 + 400, y: GROUND_Y - 34, amp: 12, spd: 1.4 },
+        { x: rx0 + 40,  y: GROUND_Y - 34, amp: 12, spd: 1.4, label: "ABOUT YOU" },
+        { x: rx0 + 160, y: GROUND_Y - 58, amp: 18, spd: 1.2, label: "HOUSEHOLD" },
+        { x: rx0 + 280, y: GROUND_Y - 44, amp: 14, spd: 1.6, label: "INCOME" },
+        { x: rx0 + 400, y: GROUND_Y - 34, amp: 12, spd: 1.4, label: "SIGNATURE" },
       ];
       for (const p of platforms) {
         const plat = k.add([
-          k.rect(72, 14), k.pos(p.x, p.y),
-          k.color(120, 130, 140), k.outline(2, k.rgb(60, 70, 80)),
+          k.rect(96, 16), k.pos(p.x, p.y),
+          k.color(240, 230, 200), k.outline(2, k.rgb(60, 45, 25)),
           k.area(), k.body({ isStatic: true }),
           k.z(LAYERS.PLATFORM), "platform",
-          { basY: p.y, amp: p.amp, spd: p.spd, phase: Math.random() * Math.PI * 2, platformSpeed: k.vec2(0, 0), lastPos: k.vec2(p.x, p.y) },
+          { basY: p.y, amp: p.amp, spd: p.spd, phase: Math.random() * Math.PI * 2, platformSpeed: k.vec2(0, 0), lastPos: k.vec2(p.x, p.y), width: 96, height: 16 },
         ]);
+        // Text label on top of the platform. Uses a shadow pair for legibility.
+        const shadow = k.add([
+          k.text(p.label, { size: 9, font: "sans-serif" }),
+          k.pos(p.x + 48 + 1, p.y + 3 + 1),
+          k.anchor("center"), k.color(0, 0, 0), k.z(LAYERS.PLATFORM + 1),
+        ]) as AnyObj;
+        const label = k.add([
+          k.text(p.label, { size: 9, font: "sans-serif" }),
+          k.pos(p.x + 48, p.y + 3),
+          k.anchor("center"), k.color(40, 30, 20), k.z(LAYERS.PLATFORM + 2),
+        ]) as AnyObj;
         plat.onUpdate(() => {
           const newY = plat.basY + Math.sin(k.time() * plat.spd + plat.phase) * plat.amp;
           const dt = k.dt();
@@ -1096,6 +1213,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           plat.lastPos.x = plat.pos.x;
           plat.lastPos.y = newY;
           plat.pos.y = newY;
+          shadow.pos.y = newY + 3 + 1;
+          label.pos.y = newY + 3;
         });
       }
     }
@@ -1169,13 +1288,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
     {
+      // Envelope-Gremlin replaces the generic form-monster in the "answer
+      // every letter" zone — themed to the notices flying back and forth.
       const mx = relayBase + 520;
-      const mh = DISPLAY_H["form-monster"];
-      const mw = displaySize("form-monster", sizes).w;
-      const speed = 40;
-      const m = spawnGrounded(k, "form-monster", sizes, {
+      const mh = DISPLAY_H["envelope-gremlin-0"];
+      const mw = displaySize("envelope-gremlin-0", sizes).w;
+      const speed = 45;
+      const m = spawnGrounded(k, "envelope-gremlin-0", sizes, {
         x: mx, z: LAYERS.ACTOR, tag: "monster",
-        props: { dir: 1, home: mx, range: 70 },
+        props: { dir: 1, home: mx, range: 80, animT: 0, frame: 0 },
         hitboxScale: { x: -mw / 2, w: mw, h: mh },
       });
       m.onUpdate(() => {
@@ -1183,6 +1304,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         m.pos.y = GROUND_Y;
         if (m.pos.x > m.home + m.range) { m.pos.x = m.home + m.range; m.dir = -1; m.flipX = true; }
         if (m.pos.x < m.home - m.range) { m.pos.x = m.home - m.range; m.dir = 1; m.flipX = false; }
+        m.animT += k.dt();
+        const nf = Math.floor(m.animT * 4) % 2;
+        if (nf !== m.frame) {
+          m.frame = nf;
+          m.use(k.sprite(`envelope-gremlin-${nf}`, { width: mw, height: mh }));
+        }
       });
     }
     addSpeech(k, relayBase + 100, GROUND_Y - DISPLAY_H["mailbox"] - 40, "Answer every request!", [40, 80, 130]);
@@ -1226,18 +1353,34 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Falling calendar pages — days peeling off the calendar while you wait
     // for a decision. Same collision behavior as boulders; keeps the tag so
     // the shared "boulder" collide handler + failure message still fire.
-    for (let i = 0; i < 3; i++) {
-      const bx = mx0 + 300 + i * 300;
+    // Falling calendar pages — days peeling off the calendar while you wait.
+    // Six pages, respawn X randomly re-rolled across the WHOLE zone width each
+    // time so the pattern never repeats, and each with its own fall speed and
+    // delay so they don't drop in lockstep.
+    const CAL_COUNT = 6;
+    for (let i = 0; i < CAL_COUNT; i++) {
+      const initialX = mx0 + 80 + Math.random() * (BIOME_W - 160);
       const b = spawnAirborne(k, "calendar-page", sizes, {
-        x: bx, y: -80 - i * 180, z: LAYERS.ACTOR,
+        x: initialX, y: -80 - Math.random() * 400, z: LAYERS.ACTOR,
         tag: "boulder",
-        props: { spd: 180 + i * 20, home: bx, spin: (i % 2 === 0 ? 1 : -1) * (30 + i * 10) },
+        props: {
+          spd: 140 + Math.random() * 100,
+          spin: (Math.random() < 0.5 ? -1 : 1) * (20 + Math.random() * 40),
+          zoneL: mx0 + 60,
+          zoneR: mx0 + BIOME_W - 60,
+        },
       });
       b.use(k.rotate(0));
       b.onUpdate(() => {
         b.pos.y += b.spd * k.dt();
         b.angle = (b.angle ?? 0) + b.spin * k.dt();
-        if (b.pos.y > 700) { b.pos = k.vec2(b.home, -180); b.angle = 0; }
+        if (b.pos.y > 700) {
+          // Re-roll X anywhere in the zone on each cycle.
+          b.pos = k.vec2(b.zoneL + Math.random() * (b.zoneR - b.zoneL), -180 - Math.random() * 200);
+          b.spd = 140 + Math.random() * 100;
+          b.spin = (Math.random() < 0.5 ? -1 : 1) * (20 + Math.random() * 40);
+          b.angle = 0;
+        }
       });
     }
     addSpeech(k, mx0 + 500, 90, "Awaiting a decision…", [50, 40, 80]);
@@ -1254,14 +1397,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= ZONE 6: Choosing Your Path — pick a plan, get a key =================
     const kx0 = BIOME_W * 6;
     const planDefs: Array<{ x: number; sprite: string; label: string }> = [
-      { x: kx0 + 260, sprite: "plan-blue",   label: "Medical Assistance" },
-      { x: kx0 + 560, sprite: "plan-green",  label: "MinnesotaCare" },
-      { x: kx0 + 860, sprite: "plan-orange", label: "Private Plan" },
+      { x: kx0 + 260, sprite: "plan-blue",   label: "Blue Cross / Blue Shield" },
+      { x: kx0 + 560, sprite: "plan-green",  label: "HealthPartners" },
+      { x: kx0 + 860, sprite: "plan-orange", label: "Medica" },
     ];
     for (const p of planDefs) {
       const dh = DISPLAY_H[p.sprite];
       const dw = displaySize(p.sprite, sizes).w;
-      // Small pedestal
       k.add([
         k.rect(dw + 12, 10),
         k.pos(p.x, GROUND_Y),
@@ -1284,31 +1426,43 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
     addSpeech(k, kx0 + 560, GROUND_Y - 220, "Pick ONE plan", [30, 60, 120]);
     zoneObjectives[6] = {
-      hudLabel: () => zoneState.hasKey ? "KEY ✓" : (zoneState.planPicked ? "GRAB KEY →" : "PLAN ☐"),
+      hudLabel: () =>
+        zoneState.hasKey
+          ? "KEY ✓"
+          : zoneState.bossDefeated
+            ? "GRAB KEY →"
+            : zoneState.planPicked
+              ? `BOSS ${zoneState.bossHits}/3`
+              : "PLAN ☐",
       met: () => zoneState.hasKey,
     };
 
     // ================= ZONE 7: Coverage Begins — stairs, ID card, fire pole =================
     const cx0 = BIOME_W * 7;
-    // Staircase platforms rising
+    // Staircase platforms rising, wider spacing so jumps between steps are
+    // committed (bottomless kill plane below the whole staircase). Steps sit
+    // over a lethal gap in the ground so a missed jump costs a life.
     const stairY0 = GROUND_Y;
     const stepCount = 6;
+    const STEP_GAP_X = 140;   // was 90; now requires a real jump
+    const STEP_START_X = cx0 + 260;
+    // (Lethal gap water plane is created with the ground split for Zone 7.)
     for (let i = 0; i < stepCount; i++) {
-      const sxi = cx0 + 280 + i * 90;
-      const syi = stairY0 - 40 - i * 40;
+      const sxi = STEP_START_X + i * STEP_GAP_X;
+      const syi = stairY0 - 60 - i * 45;
       k.add([
-        k.rect(84, 14), k.pos(sxi, syi),
+        k.rect(72, 14), k.pos(sxi, syi),
         k.color(200, 195, 210),
         k.outline(2, k.rgb(90, 90, 110)),
         k.area(), k.body({ isStatic: true }),
         k.z(LAYERS.PLATFORM), "platform",
-        { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(sxi, syi) },
+        { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(sxi, syi), width: 72, height: 14 },
       ]);
     }
     // Top landing + medical ID card. Landing width kept short so it ends
     // BEFORE the fire pole — otherwise the solid platform blocks the slide.
-    const topLandingX = cx0 + 280 + stepCount * 90 + 20;
-    const topLandingY = stairY0 - 40 - stepCount * 40;
+    const topLandingX = STEP_START_X + stepCount * STEP_GAP_X + 20;
+    const topLandingY = stairY0 - 60 - stepCount * 45;
     const topLanding = k.add([
       k.rect(120, 14), k.pos(topLandingX, topLandingY),
       k.color(200, 195, 210), k.outline(2, k.rgb(90, 90, 110)),
@@ -1840,10 +1994,59 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
 
     // ================= Collisions =================
-    player.onCollide("method", () => {
+    // Brick head-bump: only counts when player is moving UP (jumping into it).
+    player.onCollide("brick", (b) => {
+      const brick = b as unknown as {
+        hit: boolean; bumpT: number; methodLabel: string; methodIcon: string;
+        pos: { x: number; y: number }; use: (c: unknown) => void; basY: number;
+      };
+      if (brick.hit) return;
+      // Only trigger on an upward hit (head bump), not walking into the side.
+      if ((player.vel?.y ?? 0) >= -50) return;
+      brick.hit = true;
+      brick.bumpT = 1;
+      brick.use(k.sprite("brick-hit", { width: bw, height: bh }));
+      // Cancel remaining upward velocity so it feels like a solid bonk.
+      player.vel.y = Math.max(0, player.vel.y);
+      // Pop the method icon out of the brick — falls to the ground and can be
+      // collected by walking into it.
+      const iw = 28, ih = 28;
+      const icon = k.add([
+        k.rect(iw, ih),
+        k.pos(brick.pos.x, brick.pos.y - 18),
+        k.anchor("center"),
+        k.color(255, 210, 60), k.outline(2, k.rgb(90, 60, 10)),
+        k.area({ shape: new k.Rect(k.vec2(-iw / 2, -ih / 2), iw, ih) }),
+        k.z(LAYERS.PROP + 1),
+        "method",
+        { methodLabel: brick.methodLabel, vy: -180, landed: false },
+      ]) as AnyObj;
+      const iconText = k.add([
+        k.text(brick.methodIcon, { size: 7, font: "sans-serif" }),
+        k.pos(brick.pos.x, brick.pos.y - 18),
+        k.anchor("center"), k.color(30, 20, 10), k.z(LAYERS.PROP + 2),
+      ]) as AnyObj;
+      icon.onUpdate(() => {
+        if (!icon.landed) {
+          icon.vy += 500 * k.dt();
+          icon.pos.y += icon.vy * k.dt();
+          if (icon.pos.y >= GROUND_Y - ih / 2) {
+            icon.pos.y = GROUND_Y - ih / 2;
+            icon.landed = true;
+            icon.vy = 0;
+          }
+        }
+        iconText.pos.x = icon.pos.x;
+        iconText.pos.y = icon.pos.y;
+      });
+    });
+    player.onCollide("method", (m) => {
       if (zoneState.methodTouched) return;
       zoneState.methodTouched = true;
       player.score += 400;
+      const item = m as unknown as { methodLabel?: string; destroy: () => void };
+      showHint(`${item.methodLabel ?? "Method"} chosen — door unlocked!`);
+      item.destroy();
     });
 
     player.onCollide("credential", (c) => {
@@ -1899,25 +2102,81 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     player.onCollide("plan-pick", (p) => {
       if (zoneState.planPicked) return;
       const item = p as unknown as { planLabel: string; bonus: number; destroy: () => void; pos: { x: number; y: number } };
-      // Capture position BEFORE mutating state or destroying anything.
-      const kx = item.pos.x;
-      const ky = item.pos.y - 40;
       const label = item.planLabel;
       zoneState.planPicked = true;
       player.score += item.bonus ?? 800;
-      // Spawn the key immediately from the captured coords.
-      spawnGoldKey(kx, ky);
-      // Then remove every plan pedestal (including the collided one).
+      // Remove every plan pedestal (including the collided one).
       k.get("plan-pick").forEach((o) => (o as { destroy: () => void }).destroy());
-      showHint(`Picked ${label} — grab the key!`);
-      // Defensive fallback: if for any reason the key entity is gone
-      // 250 ms later, respawn from the captured pedestal position so the
-      // objective can never soft-lock regardless of plan choice.
-      k.wait(0.25, () => {
-        if (zoneState.hasKey) return;
-        if (k.get("gold-key").length === 0) spawnGoldKey(kx, ky);
-      });
+      // Spawn the paperwork-ogre boss — must be stomped 3x before the key drops.
+      spawnPlanBoss();
+      showHint(`Picked ${label} — a claims-denial boss appeared! Stomp it 3×.`);
     });
+
+    // ----- Zone 6 boss: stomp 3x for the key -----
+    function spawnPlanBoss() {
+      if (zoneState.bossSpawned) return;
+      zoneState.bossSpawned = true;
+      const bx = BIOME_W * 6 + 560;
+      const bh = DISPLAY_H["boss-idle"];
+      const bw = displaySize("boss-idle", sizes).w;
+      const boss = spawnGrounded(k, "boss-idle", sizes, {
+        x: bx, z: LAYERS.ACTOR, tag: "boss",
+        props: { dir: 1, home: bx, range: 110, hits: 0, hurtUntil: 0, dead: false },
+        hitboxScale: { x: -bw / 2, w: bw, h: bh },
+      });
+      // Hearts HUD above the boss
+      const hearts = k.add([
+        k.text("♥♥♥", { size: 16, font: "sans-serif" }),
+        k.pos(bx, GROUND_Y - bh - 24),
+        k.anchor("center"), k.color(230, 60, 80), k.z(LAYERS.HUD - 1),
+      ]) as AnyObj;
+      boss.onUpdate(() => {
+        if (boss.dead) return;
+        const speed = 55;
+        boss.pos.x += boss.dir * speed * k.dt();
+        boss.pos.y = GROUND_Y;
+        if (boss.pos.x > boss.home + boss.range) { boss.pos.x = boss.home + boss.range; boss.dir = -1; boss.flipX = true; }
+        if (boss.pos.x < boss.home - boss.range) { boss.pos.x = boss.home - boss.range; boss.dir = 1; boss.flipX = false; }
+        hearts.pos.x = boss.pos.x;
+        // Swap to hurt frame briefly after each stomp.
+        const wantHurt = k.time() < boss.hurtUntil;
+        boss.use(k.sprite(wantHurt ? "boss-hurt" : "boss-idle", { width: bw, height: bh }));
+      });
+      player.onCollide("boss", () => {
+        if (boss.dead) return;
+        if (k.time() < player.invulnUntil) return;
+        // Stomp = falling AND player feet are above the boss's middle.
+        const falling = (player.vel?.y ?? 0) > 40;
+        const aboveBoss = player.pos.y < boss.pos.y - bh * 0.4;
+        if (falling && aboveBoss) {
+          boss.hits += 1;
+          boss.hurtUntil = k.time() + 0.35;
+          zoneState.bossHits = boss.hits;
+          player.vel.y = -JUMP_VEL * 0.7; // bounce
+          player.score += 300;
+          hearts.text = "♥".repeat(Math.max(0, 3 - boss.hits));
+          if (boss.hits >= 3) {
+            boss.dead = true;
+            zoneState.bossDefeated = true;
+            boss.use(k.sprite("boss-defeat", { width: bw, height: DISPLAY_H["boss-defeat"] }));
+            hearts.destroy();
+            // Fade + destroy, then drop the key at the boss's spot.
+            const kx = boss.pos.x;
+            const ky = GROUND_Y - 40;
+            k.wait(0.6, () => {
+              boss.destroy();
+              spawnGoldKey(kx, ky);
+              showHint("Boss defeated! Grab the key.");
+            });
+          } else {
+            showHint(`Boss hit! ${3 - boss.hits} to go.`);
+          }
+        } else {
+          player.invulnUntil = k.time() + INVULN_S;
+          loseLife("monster");
+        }
+      });
+    }
 
 
     player.onCollide("gold-key", (kk) => {

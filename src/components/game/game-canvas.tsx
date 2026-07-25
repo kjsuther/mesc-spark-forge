@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Leaderboard } from "./leaderboard";
+import { GameMusic } from "@/lib/game-music";
 import type { GameFlags, WinResult } from "./game-scenes";
 
 type Props = {
@@ -12,7 +13,7 @@ type Props = {
 type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
 
 type LaunchMode = "standard" | "fullscreen";
-type MenuScreen = "title" | "scores";
+type MenuScreen = "title" | "explainer" | "trailmap" | "scores";
 
 const isCoarsePointer = () =>
   typeof window !== "undefined" &&
@@ -49,6 +50,12 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const [loading, setLoading] = useState(false);
   const { portrait } = useOrientation();
   const [isTouch] = useState(() => isCoarsePointer());
+  const music = useMemo(() => new GameMusic(), []);
+  const [musicOn, setMusicOn] = useState(false);
+  useEffect(() => () => { music.stop(); }, [music]);
+  const toggleMusic = useCallback(() => {
+    setMusicOn(music.toggle());
+  }, [music]);
   const key = `${mode}|${Object.entries(flags)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}:${v ? 1 : 0}`)
@@ -399,11 +406,46 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
                   className="mx-auto flex max-w-xs flex-col gap-3"
                   style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
                 >
-                  <MenuButton onClick={() => pickMode("standard")}>▶ Start Game</MenuButton>
-                  <MenuButton onClick={() => pickMode("fullscreen")}>⛶ Fullscreen</MenuButton>
+                  <MenuButton onClick={() => setMenuScreen("explainer")}>▶ Start Game</MenuButton>
                   <MenuButton onClick={() => setMenuScreen("scores")}>★ High Scores</MenuButton>
                 </div>
               </div>
+            )}
+
+            {menuScreen === "explainer" && (
+              <div className="w-full max-w-2xl text-center" style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}>
+                <div
+                  className="mx-auto mb-5 border-[6px] border-cream bg-mn-blue px-5 py-6 text-left"
+                  style={{
+                    imageRendering: "pixelated",
+                    boxShadow:
+                      "0 0 0 6px var(--color-mn-blue), 0 0 0 12px var(--color-accent-gold), 0 0 0 18px var(--color-mn-blue)",
+                  }}
+                >
+                  <p className="mb-3 text-center text-[9px] tracking-widest text-accent-gold sm:text-[11px]">
+                    ★ THE JOURNEY ★
+                  </p>
+                  <p className="text-[9px] leading-[1.9] text-cream sm:text-[11px]">
+                    Applying for health coverage is a LONG road. Without the
+                    right tools it can feel impossible &mdash; forms pile up,
+                    letters get lost, deadlines slip, and many people GIVE UP
+                    before the finish line.
+                  </p>
+                  <p className="mt-4 text-[9px] leading-[1.9] text-cream sm:text-[11px]">
+                    Go as far as you can down the trail. When your run ends,
+                    VOTE on a tool that could help along the way. The winning
+                    tool gets added to the trail after the timer.
+                  </p>
+                </div>
+                <div className="mx-auto flex max-w-xs flex-col gap-3">
+                  <MenuButton onClick={() => setMenuScreen("trailmap")}>▶ Continue</MenuButton>
+                  <MenuButton onClick={() => setMenuScreen("title")}>Back</MenuButton>
+                </div>
+              </div>
+            )}
+
+            {menuScreen === "trailmap" && (
+              <TrailMap onContinue={() => pickMode("standard")} onBack={() => setMenuScreen("explainer")} />
             )}
 
             {menuScreen === "scores" && (
@@ -421,11 +463,24 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
                 </div>
                 <div className="mx-auto flex w-full max-w-sm gap-3">
                   <MenuButton onClick={() => setMenuScreen("title")}>Back</MenuButton>
-                  <MenuButton onClick={() => pickMode("standard")}>Start</MenuButton>
+                  <MenuButton onClick={() => setMenuScreen("explainer")}>Start</MenuButton>
                 </div>
               </div>
             )}
           </div>
+        )}
+
+        {/* Music toggle (visible whenever a game is running) */}
+        {launchMode && (
+          <button
+            type="button"
+            onClick={toggleMusic}
+            aria-label={musicOn ? "Mute music" : "Play music"}
+            className="absolute top-2 right-14 z-40 h-9 w-9 rounded-md border-2 border-cream bg-mn-blue/80 text-cream text-lg font-black backdrop-blur-sm"
+            style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
+          >
+            {musicOn ? "🔊" : "🔇"}
+          </button>
         )}
 
         {/* Loading overlay between Start tap and first frame */}
@@ -652,4 +707,78 @@ function PadButton({
     </button>
   );
 }
+
+// SNES-style top-down trail map. Draws 8 zone nodes connected by animated
+// dashed segments that "reveal" left-to-right, then invites the player to
+// start the run.
+function TrailMap({ onContinue, onBack }: { onContinue: () => void; onBack: () => void }) {
+  const nodes = [
+    { label: "1. Find the Trail", color: "#8FCB6B" },
+    { label: "2. Create Account", color: "#F2C14E" },
+    { label: "3. River of Paperwork", color: "#6FB1D8" },
+    { label: "4. Gather Documents", color: "#D68B4E" },
+    { label: "5. Answer the Mail", color: "#B078D4" },
+    { label: "6. Await a Decision", color: "#9AA0B4" },
+    { label: "7. Choose a Plan", color: "#E15A5A" },
+    { label: "8. Coverage Begins!", color: "#F5C243" },
+  ];
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((v) => (v + 1) % 200), 60);
+    return () => clearInterval(t);
+  }, []);
+  // Reveal one segment every ~250ms.
+  const revealed = Math.min(nodes.length, Math.floor(tick / 4) + 1);
+  return (
+    <div className="w-full max-w-3xl text-center" style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}>
+      <p className="mb-4 text-[10px] tracking-widest text-accent-gold sm:text-[12px]">★ THE TRAIL AHEAD ★</p>
+      <div
+        className="relative mx-auto mb-5 aspect-[2/1] w-full overflow-hidden border-[6px] border-cream bg-[#3a5a34]"
+        style={{
+          imageRendering: "pixelated",
+          boxShadow:
+            "0 0 0 6px var(--color-mn-blue), 0 0 0 12px var(--color-accent-gold)",
+          backgroundImage:
+            "repeating-linear-gradient(0deg,#3a5a34 0 12px,#456b3a 12px 24px), radial-gradient(circle at 20% 30%, #6f9455 0 30px, transparent 31px), radial-gradient(circle at 70% 80%, #6f9455 0 40px, transparent 41px)",
+        }}
+      >
+        <svg viewBox="0 0 800 400" className="absolute inset-0 h-full w-full">
+          {nodes.map((n, i) => {
+            const x = 50 + (i * 700) / (nodes.length - 1);
+            const y = 200 + Math.sin(i * 1.3) * 90;
+            const next = nodes[i + 1];
+            const nx = next ? 50 + ((i + 1) * 700) / (nodes.length - 1) : x;
+            const ny = next ? 200 + Math.sin((i + 1) * 1.3) * 90 : y;
+            const segShown = i < revealed - 1;
+            return (
+              <g key={i}>
+                {next && (
+                  <line
+                    x1={x} y1={y} x2={nx} y2={ny}
+                    stroke={segShown ? "#F5E8C7" : "rgba(245,232,199,0.25)"}
+                    strokeWidth={6}
+                    strokeDasharray="10 8"
+                    strokeLinecap="round"
+                  />
+                )}
+                <circle cx={x} cy={y} r={14} fill={n.color} stroke="#2a2a2a" strokeWidth={3} />
+                <text x={x} y={y + 30} textAnchor="middle" fontSize={10} fill="#F5E8C7" style={{ fontFamily: '"Press Start 2P", monospace' }}>
+                  {i + 1}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+        <div className="pointer-events-none absolute bottom-1 left-2 right-2 text-[7px] leading-relaxed text-cream sm:text-[9px]">
+          {nodes[Math.max(0, revealed - 1)].label}
+        </div>
+      </div>
+      <div className="mx-auto flex max-w-xs flex-col gap-3">
+        <MenuButton onClick={onContinue}>▶ Begin Journey</MenuButton>
+        <MenuButton onClick={onBack}>Back</MenuButton>
+      </div>
+    </div>
+  );
+}
+
 

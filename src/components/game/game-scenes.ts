@@ -523,11 +523,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     for (const m of applyMethods) {
       spawnDecor(k, "signpost", sizes, { x: m.x, z: LAYERS.PROP });
       const topY = GROUND_Y - DISPLAY_H["signpost"] - 6;
-      addSpeech(k, m.x, topY, m.label, [25, 45, 90]);
-      addSpeech(k, m.x, topY - 16, `[ ${m.icon} ]`, m.tint);
+      addSignPlaque(k, m.x, topY, m.label, m.icon);
     }
     // Kicker sign after the four options
-    addSpeech(k, 1120, GROUND_Y - DISPLAY_H["signpost"] - 30, "Pick a path →", [40, 100, 40]);
+    addSignPlaque(k, 1120, GROUND_Y - DISPLAY_H["signpost"] - 30, "Pick a path", "→");
 
     // ================= ZONE 2: River =================
     const rx0 = RIVER_GAP_X0;

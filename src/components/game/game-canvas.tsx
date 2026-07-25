@@ -242,9 +242,18 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
           ref={canvasRef}
           onPointerDown={focusCanvas}
           onContextMenu={(e) => e.preventDefault()}
-          className="w-full h-full block touch-none select-none"
+          className="block w-full h-full touch-none select-none"
           style={{
+            // Hard 16:9 lock so the canvas box always matches the game's
+            // logical aspect ratio. Combined with the fixed pixelDensity in
+            // game-scenes.ts, this means CSS-pixel size or DPR changes can
+            // never squeeze or stretch a sprite.
             aspectRatio: "16 / 9",
+            width: "100%",
+            height: "100%",
+            maxWidth: "100%",
+            maxHeight: "100%",
+            objectFit: "contain",
             imageRendering: "pixelated",
             touchAction: "none",
             display: "block",
@@ -252,6 +261,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
           tabIndex={0}
           aria-label="Blazing the Trail to Coverage game"
         />
+
 
         {/* SNES-style title / launch / high-score screen */}
         {!launchMode && !error && (

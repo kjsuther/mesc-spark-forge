@@ -62,7 +62,26 @@ type Ctx = KAPLAYCtx;
 
 // ============================ Constants ============================
 
+// -------- Viewport scaling contract --------
+// The game renders into a FIXED logical resolution. Kaplay's letterbox mode
+// scales that buffer to whatever CSS box the canvas has while preserving the
+// 16:9 aspect ratio, so world coordinates never depend on the device's
+// physical pixels. `PIXEL_DENSITY` is intentionally a constant (not
+// `window.devicePixelRatio`) so the backing buffer stays the same size across
+// DPR changes (rotation, browser zoom, external monitor). Combined with the
+// integer `px()` snap used by every spawn/camera call, sprites and
+// backgrounds cannot clip, misalign, or shift when the screen resizes.
+const LOGICAL_W = 960;
+const LOGICAL_H = 540;
+const PIXEL_DENSITY = 2;
+/** Snap any world coordinate or computed sprite dimension to an integer.
+ *  Using `floor` (not `round`) is deterministic across renders: a value of
+ *  N.4999 and N.5001 both collapse to N, so a sub-pixel jitter can never
+ *  toggle a sprite between two adjacent integer positions. */
+const px = (n: number): number => Math.floor(n);
+
 const BIOME_W = 1200;
+
 const ZONES = [
   { key: "forest",   label: "Finding the Trail",         phase: "Step 1 · Learn you may qualify",           bg: "bg-forest",   ground: [80, 130, 60] as [number, number, number],  soil: [70, 45, 25] as [number, number, number] },
   { key: "signup",   label: "Setting Up Camp",           phase: "Step 2 · Create your account",             bg: "bg-signup",   ground: [95, 115, 70] as [number, number, number],  soil: [60, 45, 30] as [number, number, number] },
@@ -559,9 +578,10 @@ function displaySize(name: string, sizes: SpriteSizes): { w: number; h: number }
   const s = sizes[name];
   if (!s) throw new Error(`unknown sprite ${name}`);
   const h = DISPLAY_H[name] ?? s.h;
-  const w = Math.round(s.w * (h / s.h));
-  return { w, h };
+  const w = px(s.w * (h / s.h));
+  return { w, h: px(h) };
 }
+
 
 type SpawnGrounded = {
   x: number;
@@ -584,7 +604,7 @@ function spawnGrounded(
   const gy = opts.groundY ?? GROUND_Y;
   const comps: unknown[] = [
     k.sprite(name, { width: w, height: h }),
-    k.pos(Math.round(opts.x), Math.round(gy)),
+    k.pos(px(opts.x), px(gy)),
     k.anchor("bot"),
     k.z(opts.z ?? LAYERS.ACTOR),
   ];
@@ -620,7 +640,7 @@ function spawnAirborne(
   const r = opts.hitboxRadius ?? Math.min(w, h) / 2;
   const comps: unknown[] = [
     k.sprite(name, { width: w, height: h }),
-    k.pos(Math.round(opts.x), Math.round(opts.y)),
+    k.pos(px(opts.x), px(opts.y)),
     k.anchor("center"),
     k.z(opts.z ?? LAYERS.PROP),
     k.area({ shape: new k.Rect(k.vec2(-r, -r), r * 2, r * 2) }),
@@ -640,7 +660,7 @@ function spawnDecor(
   const gy = opts.groundY ?? GROUND_Y;
   return k.add([
     k.sprite(name, { width: w, height: h }),
-    k.pos(Math.round(opts.x), Math.round(gy)),
+    k.pos(px(opts.x), px(gy)),
     k.anchor("bot"),
     k.z(opts.z ?? LAYERS.PROP),
   ]);
@@ -654,16 +674,23 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   const k: Ctx = kaplay({
     canvas: opts.canvas,
-    width: 960,
-    height: 540,
+    // Fixed logical resolution. Kaplay's letterbox mode scales this buffer to
+    // whatever CSS box the canvas has while preserving 16:9, so gameplay
+    // coordinates never depend on the physical viewport.
+    width: LOGICAL_W,
+    height: LOGICAL_H,
     background: [20, 20, 30],
     letterbox: true,
     global: false,
     debug: false,
-    pixelDensity: Math.min(2, typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1),
+    // CONSTANT pixel density — not derived from devicePixelRatio. This is the
+    // whole reason sprites stay aligned across DPR changes (rotation, zoom,
+    // external displays). The browser handles all CSS-pixel scaling uniformly.
+    pixelDensity: PIXEL_DENSITY,
     crisp: true,
     touchToMouse: true,
   });
+
 
   k.setGravity(1800);
 
@@ -1941,9 +1968,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       player.prevFeetY = player.pos.y;
 
-      // Camera follow with integer pixel snap
-      const camX = Math.max(k.width() / 2, Math.min(player.pos.x, LEVEL_END - k.width() / 2));
-      k.setCamPos(Math.round(camX), Math.round(k.height() / 2));
+      // Camera follow with integer pixel snap (uses LOGICAL_* so it never
+      // drifts when the CSS box or DPR changes).
+      const camX = Math.max(LOGICAL_W / 2, Math.min(player.pos.x, LEVEL_END - LOGICAL_W / 2));
+      k.setCamPos(px(camX), px(LOGICAL_H / 2));
+
     });
 
     for (const key of jumpKeys) k.onKeyPress(key as never, () => tryJump());
@@ -1988,9 +2017,10 @@ function addGround(
   soilColor: [number, number, number] = [70, 45, 25],
 ) {
   if (x2 <= x1) return;
-  const w = Math.round(x2 - x1);
-  const x = Math.round(x1);
-  const yy = Math.round(y);
+  const w = px(x2 - x1);
+  const x = px(x1);
+  const yy = px(y);
+
   // Solid physics soil rect starts at the feet line (y) and runs downward.
   k.add([
     k.rect(w, 80),

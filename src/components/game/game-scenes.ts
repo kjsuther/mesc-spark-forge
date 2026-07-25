@@ -1273,9 +1273,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= ZONE 3: Gathering Documents — 3 verifications =================
     const tx0 = BIOME_W * 3;
     const docs: [number, "id" | "paystub" | "envelope", string][] = [
-      [tx0 + 180, "id", "ID"],
-      [tx0 + 380, "paystub", "Income"],
-      [tx0 + 580, "envelope", "Household"],
+      [tx0 + 220, "id", "ID"],
+      [tx0 + 520, "paystub", "Income"],
+      [tx0 + 900, "envelope", "Household"],
     ];
     for (const [x, prop, key] of docs) {
       const dh = DISPLAY_H[prop];
@@ -1285,14 +1285,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         hitboxScale: { x: -dh / 2, w: dh, h: dh },
       });
     }
-    const monsterSpots = [tx0 + 280, tx0 + 780];
-    for (const mx of monsterSpots) {
-      const speed = active.plain_language ? 24 : 50;
+    addSpeech(k, tx0 + 120, GROUND_Y - 80, "GATHER 3 DOCS", [40, 60, 120]);
+    {
+      const mx = tx0 + 720;
+      const speed = active.plain_language ? 24 : 40;
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
       const m = spawnGrounded(k, "form-monster", sizes, {
         x: mx, z: LAYERS.ACTOR, tag: "monster",
-        props: { dir: 1, home: mx, range: 70 },
+        props: { dir: 1, home: mx, range: 90 },
         hitboxScale: { x: -mw / 2, w: mw, h: mh },
       });
       m.onUpdate(() => {

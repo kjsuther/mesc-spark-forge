@@ -1514,7 +1514,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     // Fire pole — placed PAST the top landing so nothing blocks the slide.
-    const poleX = topLandingX + 190;
+    // Must stay inside LEVEL_END or the camera clamp hides it and the finale never fires.
+    const poleX = topLandingX + 120;
+    if (poleX > LEVEL_END - 40) {
+      // Loud dev-time warning if this ever regresses.
+      console.warn("[game] Zone 8 fire pole placed past LEVEL_END", { poleX, LEVEL_END });
+    }
     const poleTop = topLandingY - 40;
     const poleBaseY = GROUND_Y - 4;
     k.add([

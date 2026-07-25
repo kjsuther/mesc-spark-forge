@@ -154,7 +154,7 @@ function WelcomePage() {
             {STEPS.map((step) => (
               <li
                 key={step.num}
-                className={`relative rounded-2xl border-2 ${step.theme.border} ${step.theme.bg} p-6 flex flex-col ${step.theme.hoverBorder} hover:shadow-[0_2px_0_0_rgba(180,67,43,0.35)] transition-all`}
+                className={`relative rounded-2xl border-2 ${step.theme.border} ${step.theme.bg} p-6 flex flex-col`}
               >
                 <span
                   aria-hidden="true"
@@ -162,7 +162,7 @@ function WelcomePage() {
                 >
                   ★
                 </span>
-                <div className="flex items-start gap-4 mb-4">
+                <div className="flex items-start gap-4">
                   <span
                     className={`flex-shrink-0 w-12 h-12 rounded-full ${step.theme.ring} text-cream grid place-items-center font-black text-xl ring-2 ring-accent-gold/70`}
                   >
@@ -173,16 +173,9 @@ function WelcomePage() {
                     <p className="text-sm text-dark-gray/80 mt-2 leading-relaxed">{step.body}</p>
                   </div>
                 </div>
-                <div className="mt-auto pt-2">
-                  <Link
-                    to="/tool"
-                    className={`inline-flex items-center gap-2 ${step.theme.cta} text-white font-bold py-3 px-5 rounded-xl transition`}
-                  >
-                    {step.cta} →
-                  </Link>
-                </div>
               </li>
             ))}
+
           </ol>
         </section>
       </main>

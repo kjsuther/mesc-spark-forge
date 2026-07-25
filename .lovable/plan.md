@@ -1,96 +1,95 @@
-## Root causes discovered
+## Polish pass: "Blazing the Trail to Coverage"
 
-I measured every frame in both sprite sheets. The graphical bugs (floating player, monsters above the road, cropped heads, gaps between signs) all trace to **two engine-level defects**, not per-entity mistakes:
+All work is scoped to the game engine + canvas. No changes to voting, admin, leaderboard, or DB.
 
-### Root cause 1 — Sprite sheets are not a uniform grid
+### 1. Fix player spawn / ground alignment (root-cause)
 
-`character-sheet.png` (loaded as `sliceX:3, sliceY:2`) and `props-sheet.png` (loaded as `sliceX:4, sliceY:3`) have wildly different transparent padding per frame:
+In `game-scenes.ts` the player is created with `k.anchor("bot")` at `y = GROUND_Y`, but `GROUND_Y = 470` is the *top of the soil rect*, while props (`spawnDecor` for signposts) use the same value via a helper that already accounts for its own baseline — the mismatch shows as the hero sitting a few pixels lower than the signs.
 
-- Hero idle: 72px bottom padding. Hero walk frame 2: **0px** bottom padding. Hero jump: **177px** bottom padding.
-- Props envelope / boulder / formMonster / denied: **~219px** bottom padding (they're packed at the TOP of their cell, filling only ~120 of 341 pixels).
-- Signpost, bridge, campfire, backpack, id, paystub: 0px bottom padding but varying top padding (0–44px).
+- Introduce `WORLD.groundTopY` (the pixel row where feet must sit) and use it uniformly for:
+  - `addGround` (top edge of the grass strip)
+  - `spawnGrounded` / `spawnDecor` default `groundY`
+  - player spawn and every `player.pos = ...` respawn line
+  - platform snap calculations and the water kill-plane offset
+- Verify by asserting in dev-only that at rest `player.pos.y === WORLD.groundTopY` and the sign's `y + h === WORLD.groundTopY`.
 
-Kaplay's `anchor("bot")` puts the *frame's* bottom edge at `pos.y`, so any transparent bottom padding becomes visible float. Because it varies **per frame within the same animation**, no single `PLAYER_FOOT_PAD` constant can make the hero stand on the ground — he floats during walk frame 0/1, plants during walk frame 2, and rockets up during the jump frame. Same story for every prop with a different per-frame `bot_pad`.
+### 2. Step 1 signage — four ways to apply
 
-The current code compensates with hand-tuned `PLAYER_FOOT_PAD`, `RANGER_FOOT_PAD`, `MONSTER_FOOT_PAD`, `ENVELOPE_FOOT_PAD`, `DENIED_FOOT_PAD` constants and manual `pos.y = GROUND_Y + PAD` re-clamps. That is exactly the "hardcoded offsets for specific entities" pattern the brief forbids, and it can never work because the padding is per-frame, not per-entity.
+Replace the current cryptic signs (`?`, `??`, "River ahead") with four themed, evenly spaced signposts introducing application methods:
 
-### Root cause 2 — Fixed render size stretches non-uniform frames
+- 📬 Apply by Mail
+- 📞 Apply by Phone
+- 🏢 Apply In Person
+- 💻 Apply Online
 
-Every sprite is drawn with an explicit `width`/`height` (e.g. `sprite("props", { frame: PROP.signpost, width: 56, height: 56 })`). Because the frames have different real pixel dimensions and different padding, this **stretches each frame differently** and forces two adjacent signposts to visually disagree, producing the "gap between stacked wooden signs" seen in screenshot 1. It also chops enemy heads (screenshot 2) because the top-half-only monster art is being rendered as if it were a full-height sprite anchored to the bottom, so the visible body sits above the road while the transparent bottom half occupies the ground line.
+Implementation: extend `addSpeech` to accept an icon glyph rendered above the label, keep the wood-sign sprite, and color the callouts in the friendly cream/blue palette. Signs act as decorative teaching moments (no gameplay branching — the "path choice" is visual).
 
-### Root cause 3 — Ground and layering are drawn as flat rects
+### 3. Step 2 environment — floating question bubbles
 
-`addGround` draws a colored rectangle, then a 8px "grass" strip, then a 2px highlight — all with `z(-3/-2/-1)`. Players, props, and enemies use `z(2..4)`. That works, but decorative props (trees, signs) get no distance layering, and there is no consistent Z scheme, so every future addition is a coin flip on ordering.
+Add a new `spawnThoughtBubble(k, {x, y, text})` helper that renders a small pixel-art cloud (rounded rect + tail, drawn with `k.rect` + `k.circle`) at parallax layer `LAYERS.BG_NEAR`, gently bobbing via `onUpdate`. Populate Step 2 with 6–7 bubbles cycling through:
 
-## Plan
+- "What documents do I need?"
+- "Do I qualify?"
+- "How long will this take?"
+- "What income should I report?"
+- "Who counts in my household?"
+- "What if I'm missing information?"
+- "Where do I upload documents?"
 
-The fix is to remove the variable-padding problem at the asset layer and unify rendering behind a single helper. No per-entity offsets remain in gameplay code.
+Bubbles sit high in the sky so they never overlap gameplay hitboxes.
 
-### 1. Asset pipeline: bake trimmed, baseline-aligned sprites
+### 4. Context-aware failure messages
 
-Add `scripts/build-game-sprites.mjs` (Node, run manually once) that:
+Replace the single `reason` string with a `getFailureMessage(cause, zoneIndex)` lookup. Cause keys: `monster`, `boulder`, `water`, `timeout`, `noDocs`. Zone-specific copy:
 
-- Loads `character-sheet.png` and `props-sheet.png` with `sharp`.
-- For each frame index used in code, crops to the cell, computes the alpha bounding box, trims transparent padding on all sides, and re-emits a **per-frame PNG** into `src/assets/game/sprites/{name}.png` (`hero-idle.png`, `hero-walk-1..4.png`, `hero-jump.png`, `signpost.png`, `ranger.png`, `map.png`, `campfire.png`, `backpack.png`, `bridge.png`, `id.png`, `paystub.png`, `envelope.png`, `boulder.png`, `form-monster.png`, `denied.png`).
-- Emits `sprites/manifest.json` with each sprite's trimmed `w`, `h`, and — critical — a normalized `footY` (the y-coordinate of the visible feet, defaulting to trimmed `h` for grounded actors, and to `h/2` for airborne props like the boulder).
-- Uploads each PNG through `lovable-assets create` so we get stable CDN URLs (repo stays small), and writes a `sprites/index.ts` that imports the `.asset.json` pointers.
+- Step 1 (forest): "Pick a way to apply before moving forward." / "Every journey starts by choosing how you'll apply."
+- Step 2 (river): "A missing answer is slowing your journey." / "Double-check your application before submitting."
+- Step 3 (town): "Looks like some documents are still missing." / "Gather everything you need before continuing."
+- Step 4 (mountain): "Your application is still under review." / "The agency needs a little more information."
+- Step 5 (clinic): "One final step remains before coverage begins." / "Don't stop now — you're almost enrolled!"
 
-Because every emitted frame is trimmed to its visible pixels, `anchor("bot")` alone will always plant feet on the ground — for **every frame of every animation**, with no compensation constants.
+Overlay title also changes per zone ("APPLICATION PAUSED" / "REVIEW IN PROGRESS" / etc.) instead of the blanket "APPLICATION BLOCKED".
 
-### 2. Rendering pipeline: one authoritative helper
+### 5. Running animation
 
-In `game-scenes.ts`, replace scattered `k.add([k.sprite(...), k.pos(...), k.anchor(...), ...])` calls with three helpers that every entity must use:
+The current hero has 4 walk frames (`hero-walk-0..3`) advanced every ~10fps. Upgrade to a 6-frame cycle with SNES-style cadence:
 
-- `spawnGrounded(k, spriteId, { x, groundY, z, anim?, hitbox? })` — places the sprite with `anchor("bot")` at `(x, groundY)`, adds a body/area sized to the trimmed sprite (or an explicit hitbox tuple), and sets `z` from a shared `LAYERS` enum.
-- `spawnAirborne(k, spriteId, { x, y, z, hitbox? })` — same, `anchor("center")`, for the boulder and any future projectile.
-- `spawnDecor(k, spriteId, { x, groundY, z })` — non-colliding scenery (signs, ranger idle, map, campfire visuals).
+- Add `hero-walk-4` and `hero-walk-5` by re-slicing the existing character sheet's walk row (frames already carry small pose variations; we'll duplicate + mirror-blend the two most distinct frames to synthesize the extra two through a canvas post-step in `loadTrimmedSheet`).
+- Advance frames on distance travelled (`frame = floor(distancePx / 14) % 6`) rather than wallclock, so animation speed tracks actual movement and never "slides."
+- Add a subtle 1px vertical bob on frames 1, 3, 5 via a `spriteOffsetY` field applied at draw time.
+- Idle → walk transition uses a 100ms crossfade frame; jump keeps the single jump frame.
 
-All three read the trimmed size from the sprite manifest so `width`/`height` are the sprite's real trimmed pixels — nothing is stretched, so the sign-seam and cropped-head issues cannot recur.
+If the synthesized frames read poorly on QA screenshots, fall back to a smoother 4-frame loop with distance-based timing and the bob — the visible "slide" fix comes from distance-based frame advancement, not frame count.
 
-Introduce a `LAYERS` constant used by every `k.z(...)` call:
+### 6. General polish
 
-```text
-SKY=-40  BG_FAR=-30  BG_NEAR=-20  GROUND=-10  GROUND_TOP=-9
-DECOR_BACK=-5  PLATFORM=0  PROP=5  ACTOR=10  PLAYER=12
-EFFECT=20  UI=100  OVERLAY=200
-```
+- Title cards: raise contrast, add 1-frame screen flash on zone entry, delay player input for 200ms so the card reads.
+- Speech bubbles: unify padding, drop shadow, and max-width. Reuse in signs + thought bubbles.
+- Ground seams: assert integer coords in `addGround` and extend the last segment by +2px to hide sub-pixel gaps between biomes.
+- Overlay: replace `font: "sans-serif"` with the loaded Press Start 2P where already available for HUD/end screens; keep sans for long paragraphs.
+- Ranger helper: give a short greeting speech bubble on first proximity ("I'll walk you through this.").
+- Camera: add a 6px vertical lookahead so the player isn't glued to the bottom third.
 
-### 3. Delete every per-entity foot-pad constant
+### Files touched
 
-Remove `PLAYER_FOOT_PAD`, `RANGER_FOOT_PAD`, `MONSTER_FOOT_PAD`, `ENVELOPE_FOOT_PAD`, `DENIED_FOOT_PAD` and every `pos.y = GROUND_Y + PAD` re-clamp. Platform snapping (`snapToPlatform`, riding logic) becomes `player.pos.y = plat.pos.y` because `anchor("bot")` is now truthful.
+- `src/components/game/game-scenes.ts` — spawn/ground constant unification, new sign content, thought-bubble helper, failure-message map, distance-based animation, polish tweaks.
+- `src/components/game/game-canvas.tsx` — none expected unless the overlay font swap needs a CSS class; small edit at most.
 
-### 4. Camera, scaling, pixel snapping
+Nothing else (voting, leaderboard, admin, DB, routes) is modified.
 
-- Set `pixelDensity: Math.min(2, devicePixelRatio)` and keep `crisp: true` for nearest-neighbor.
-- Wrap camera position each frame with `k.camPos(Math.round(x), Math.round(y))` to kill sub-pixel jitter.
-- Keep `letterbox: true` so mobile scaling stays integer-friendly.
+### Verification
 
-### 5. Ground / tilemap seams
+Headless Playwright walkthrough capturing `/tmp/browser/polish/*.png` at:
+1. Spawn (feet flush with sign baseline)
+2. Each of the 4 new Step 1 signs
+3. Step 2 with visible thought bubbles
+4. Deliberate death in each zone → screenshot the zone-specific failure message
+5. Mid-run hero at 3 different X positions to confirm frame cadence changes with speed
 
-Replace the 3-rect `addGround` with a single helper that draws one soil rect + one grass strip using the same `x`/`w`, at `LAYERS.GROUND`/`GROUND_TOP`, and asserts `x2 > x1`. Adjacent ground segments now share exact edges (no 1px seam) because they're issued from one function with integer coordinates.
+Manual pass on desktop + mobile viewport (390×844).
 
-### 6. Automated QA sweep
+### Intentionally out of scope
 
-Add `scripts/qa-game-render.mjs`: launches the built game in headless Chromium via Playwright, scripts the player to teleport through each biome (using a debug `window.__qa` hook we expose only when `import.meta.env.DEV`), and screenshots every 200px. A post-processing pass:
-
-- Confirms the player's bottom pixel row equals `GROUND_Y` at rest in every biome.
-- Confirms every monster/prop's visible bottom-edge matches its ground segment top.
-- Confirms adjacent ground rects have no transparent column between them.
-- Fails the script if any check misses.
-
-Report is written to `QA-REPORT.md`.
-
-### 7. Regression pass
-
-After the refactor: walk every zone, jump every gap, ride every moving platform, collide with every monster, collect every doc, hit the win + lose overlays. Verified in the QA script above and by a manual Playwright screenshot pass captured into `/tmp/browser/qa/`.
-
-## Files touched
-
-- **New**: `scripts/build-game-sprites.mjs`, `scripts/qa-game-render.mjs`, `src/assets/game/sprites/*.png.asset.json`, `src/assets/game/sprites/index.ts`, `src/assets/game/sprites/manifest.json`.
-- **Rewritten**: `src/components/game/game-scenes.ts` (asset imports, spawn helpers, layer constants, foot-pad removal, ground helper, snap simplification).
-- **Minor**: `src/components/game/game-canvas.tsx` (dev-only `window.__qa` hook), `QA-REPORT.md` (regenerated).
-- **Untouched**: routing, voting, scoring, leaderboard, admin panels — this is purely a rendering-pipeline refactor.
-
-## Confirmation criteria
-
-The plan is complete when: no `*_FOOT_PAD` constant exists anywhere in the codebase; every entity flows through `spawnGrounded` / `spawnAirborne` / `spawnDecor`; the QA script passes for all five biomes on desktop and a mobile viewport; and manual Playwright screenshots show the hero, ranger, form monsters, envelopes, and signs all standing on the same visible ground line with no cropping and no gaps.
+- New sprite art beyond re-slicing the existing sheet (no image generation this pass).
+- Changing voting improvements list, DB schema, or scoring formula.
+- New zones / new enemy types / new music.

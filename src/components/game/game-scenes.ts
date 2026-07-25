@@ -158,7 +158,7 @@ function pickFailureMessage(zone: number, cause: FailCause): string {
   const arr = FAILURE_MESSAGES[z] ?? FAILURE_MESSAGES[0];
   const base = arr[Math.floor(Math.random() * arr.length)];
   if (cause === "water") return `${base}\n(Don't slip crossing the river of paperwork.)`;
-  if (cause === "boulder") return `${base}\n(A tough eligibility question knocked you back.)`;
+  if (cause === "boulder") return `${base}\n(Another day slipped by on the waiting list.)`;
   if (cause === "monster") return `${base}\n(A confusing form stood in your way.)`;
   if (cause === "fell") return `${base}\n(You wandered off the trail — try again.)`;
   return base;

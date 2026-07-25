@@ -64,13 +64,13 @@ const ZONES = [
 
 const GROUND_Y = 470;
 const LEVEL_END = ZONES.length * BIOME_W;
-const MOVE_SPEED = 240;
-const JUMP_VEL = 680;
-const COYOTE_S = 0.09;
-const JUMP_BUFFER_S = 0.12;
-const INVULN_S = 0.6;
-const PLATFORM_SNAP_TOLERANCE = 22;
-const PLATFORM_EDGE_TOLERANCE = 16;
+const MOVE_SPEED = 260;
+const JUMP_VEL = 720;
+const COYOTE_S = 0.14;
+const JUMP_BUFFER_S = 0.18;
+const INVULN_S = 0.9;
+const PLATFORM_SNAP_TOLERANCE = 26;
+const PLATFORM_EDGE_TOLERANCE = 22;
 
 // Zone-specific overlay title + failure copy. Every death message ties back
 // to the step of the Medicaid application journey the player was on.
@@ -143,24 +143,24 @@ const LAYERS = {
 // Target visible height (world px) for each trimmed sprite. Width is derived
 // from the sprite's own trimmed aspect ratio, so nothing is ever stretched.
 const DISPLAY_H: Record<string, number> = {
-  "hero-idle": 68,
-  "hero-walk-0": 68,
-  "hero-walk-1": 68,
-  "hero-walk-2": 68,
-  "hero-walk-3": 68,
-  "hero-jump": 68,
-  signpost: 68,
-  ranger: 64,
-  map: 44,
-  campfire: 48,
-  backpack: 40,
-  bridge: 26,
-  id: 34,
-  paystub: 34,
-  envelope: 34,
-  boulder: 34,
-  "form-monster": 60,
-  denied: 44,
+  "hero-idle": 66,
+  "hero-walk-0": 66,
+  "hero-walk-1": 66,
+  "hero-walk-2": 66,
+  "hero-walk-3": 66,
+  "hero-jump": 66,
+  signpost: 46,
+  ranger: 60,
+  map: 40,
+  campfire: 44,
+  backpack: 36,
+  bridge: 24,
+  id: 30,
+  paystub: 30,
+  envelope: 30,
+  boulder: 30,
+  "form-monster": 50,
+  denied: 40,
 };
 
 // ============================ Sprite trim pipeline ============================
@@ -496,8 +496,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ]);
 
     // Water kill-plane
-    const RIVER_GAP_X0 = BIOME_W + 300;
-    const RIVER_GAP_X1 = BIOME_W + 900;
+    const RIVER_GAP_X0 = BIOME_W + 320;
+    const RIVER_GAP_X1 = BIOME_W + 800;
     k.add([
       k.rect(RIVER_GAP_X1 - RIVER_GAP_X0, 40),
       k.pos(RIVER_GAP_X0, GROUND_Y + 40),
@@ -549,14 +549,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       addSpeech(k, (rx0 + rx1) / 2, GROUND_Y - 90, "★ Clear instructions", [30, 100, 60]);
     } else {
       const platforms = [
-        { x: rx0 + 60, y: GROUND_Y - 40, amp: 30, spd: 2.2 },
-        { x: rx0 + 200, y: GROUND_Y - 80, amp: 50, spd: 1.6 },
-        { x: rx0 + 340, y: GROUND_Y - 40, amp: 40, spd: 2.5 },
-        { x: rx0 + 480, y: GROUND_Y - 90, amp: 60, spd: 1.9 },
+        { x: rx0 + 40,  y: GROUND_Y - 34, amp: 12, spd: 1.4 },
+        { x: rx0 + 160, y: GROUND_Y - 58, amp: 18, spd: 1.2 },
+        { x: rx0 + 280, y: GROUND_Y - 44, amp: 14, spd: 1.6 },
+        { x: rx0 + 400, y: GROUND_Y - 34, amp: 12, spd: 1.4 },
       ];
       for (const p of platforms) {
         const plat = k.add([
-          k.rect(48, 12),
+          k.rect(72, 14),
           k.pos(p.x, p.y),
           k.color(120, 130, 140),
           k.outline(2, k.rgb(60, 70, 80)),
@@ -627,9 +627,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     // Form-monster enemies (patrol) — walk on the ground.
-    const monsterSpots = [tx0 + 300, tx0 + 500, tx0 + 750];
+    const monsterSpots = [tx0 + 340, tx0 + 780];
     for (const mx of monsterSpots) {
-      const speed = active.plain_language ? 40 : 110;
+      const speed = active.plain_language ? 30 : 70;
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
       const m = spawnGrounded(k, "form-monster", sizes, {
@@ -740,18 +740,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(px, py) },
         ]);
       }
-      for (let i = 0; i < 3; i++) {
-        const bx = mx0 + 300 + i * 240;
+      for (let i = 0; i < 2; i++) {
+        const bx = mx0 + 400 + i * 400;
         const b = spawnAirborne(k, "boulder", sizes, {
           x: bx,
-          y: -40 - i * 200,
+          y: -80 - i * 220,
           z: LAYERS.ACTOR,
           tag: "boulder",
-          props: { spd: 260 + i * 40, home: bx },
+          props: { spd: 180 + i * 30, home: bx },
         });
         b.onUpdate(() => {
           b.pos.y += b.spd * k.dt();
-          if (b.pos.y > 700) b.pos = k.vec2(b.home, -100);
+          if (b.pos.y > 700) b.pos = k.vec2(b.home, -180);
         });
       }
     }
@@ -824,7 +824,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         checkpointX,
         won: false,
         dead: false,
-        lives: (active.phone_support ? 2 : 1) + (lives - 1),
+        lives: (active.phone_support ? 4 : 3) + (lives - 1),
         facing: 1 as 1 | -1,
         invulnUntil: 0,
         lastGroundedAt: k.time(),
@@ -1209,11 +1209,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         setAnim("jump");
       } else if (dir !== 0) {
         setAnim("walk");
-        // Distance-based 6-frame ping-pong cycle: never slides, animation
-        // speed always tracks actual movement across the ground.
-        const CYCLE = [0, 1, 2, 3, 2, 1];
-        const STRIDE_PX = 12;
-        const idx = Math.floor(Math.abs(player.rightmostX + player.pos.x) / STRIDE_PX) % CYCLE.length;
+        // Distance-based cycle: legs advance in lockstep with real movement.
+        // Tighter stride + a subtle squash/stretch per frame makes the run
+        // read clearly even when trimmed frames look similar.
+        const CYCLE = [0, 1, 2, 3];
+        const STRIDE_PX = 9;
+        const idx = Math.floor(Math.abs(player.pos.x) / STRIDE_PX) % CYCLE.length;
         const target = CYCLE[idx];
         if (player.walkFrame !== target) {
           player.walkFrame = target;

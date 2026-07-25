@@ -1013,7 +1013,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         return;
       }
       const rx = active.save_progress ? player.checkpointX : 40;
-      player.pos = k.vec2(rx, GROUND_Y);
+      player.pos = k.vec2(rx, GROUND_Y - 20);
       player.vel = k.vec2(0, 0);
       player.riding = null;
       if (!active.documents_earlier && rx < BIOME_W * 2) {

@@ -1369,7 +1369,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.pos(zoneL + Math.random() * span, pd.y),
           k.anchor("center"),
           k.z(LAYERS.BG_NEAR + 2),
-          k.opacity(0.9),
           { basY: pd.y, spd: pd.spd, phase: pd.phase, bobA: pd.bobA, bobS: pd.bobS },
         ]) as AnyObj;
         plane.onUpdate(() => {

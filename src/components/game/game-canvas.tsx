@@ -14,6 +14,11 @@ type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: b
 type LaunchMode = "standard" | "fullscreen";
 type MenuScreen = "title" | "scores";
 
+const isCoarsePointer = () =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(pointer: coarse)").matches;
+
 export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);

@@ -68,7 +68,7 @@ const MOVE_SPEED = 260;
 const JUMP_VEL = 720;
 const COYOTE_S = 0.14;
 const JUMP_BUFFER_S = 0.18;
-const INVULN_S = 0.9;
+const INVULN_S = 2.0;
 const PLATFORM_SNAP_TOLERANCE = 26;
 const PLATFORM_EDGE_TOLERANCE = 22;
 

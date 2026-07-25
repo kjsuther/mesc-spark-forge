@@ -43,9 +43,11 @@ import doorLockUrl from "@/assets/game/door-lock.png";
 import docIdAsset from "@/assets/game/doc-id.png.asset.json";
 import docPaystubAsset from "@/assets/game/doc-paystub.png.asset.json";
 import docEnvelopeAsset from "@/assets/game/doc-envelope.png.asset.json";
+import formMonsterV2Asset from "@/assets/game/form-monster-v2.png.asset.json";
 const docIdUrl = docIdAsset.url;
 const docPaystubUrl = docPaystubAsset.url;
 const docEnvelopeUrl = docEnvelopeAsset.url;
+const formMonsterV2Url = formMonsterV2Asset.url;
 
 export type GameFlags = Record<ImprovementKey, boolean>;
 
@@ -245,7 +247,7 @@ const DISPLAY_H: Record<string, number> = {
   "plan-orange": 60,
   "medical-id": 46,
   "calendar-page": 46,
-  "paper-airplane": 26,
+  "paper-airplane": 34,
   "brick-idle": 38,
   "brick-hit": 38,
   "envelope-gremlin-0": 42,
@@ -539,9 +541,9 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "backpack", frame: 4 },
     { name: "bridge", frame: 5 },
     { name: "boulder", frame: 9 },
-    { name: "form-monster", frame: 10 },
     { name: "denied", frame: 11 },
   ];
+  const formMonsterFrames: FrameSpec[] = [{ name: "form-monster", frame: 0 }];
   const docIdFrames: FrameSpec[] = [{ name: "id", frame: 0 }];
   const docPaystubFrames: FrameSpec[] = [{ name: "paystub", frame: 0 }];
   const docEnvelopeFrames: FrameSpec[] = [{ name: "envelope", frame: 0 }];
@@ -586,7 +588,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
   ];
   const lockFrames: FrameSpec[] = [{ name: "door-lock", frame: 0 }];
 
-  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, lockSizes, docIdSizes, docPaystubSizes, docEnvelopeSizes] = await Promise.all([
+  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, lockSizes, docIdSizes, docPaystubSizes, docEnvelopeSizes, formMonsterSizes] = await Promise.all([
     safeLoadSheet(k, {
       url: charSheetUrl,
       cols: 3,
@@ -621,6 +623,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadSheet(k, { url: docIdUrl,            cols: 1, rows: 1, frames: docIdFrames,       label: "doc-id.png" }),
     safeLoadSheet(k, { url: docPaystubUrl,       cols: 1, rows: 1, frames: docPaystubFrames,  label: "doc-paystub.png" }),
     safeLoadSheet(k, { url: docEnvelopeUrl,      cols: 1, rows: 1, frames: docEnvelopeFrames, label: "doc-envelope.png" }),
+    safeLoadSheet(k, { url: formMonsterV2Url,    cols: 1, rows: 1, frames: formMonsterFrames, label: "form-monster-v2.png" }),
   ]);
 
   // Register horizontally-mirrored copies of the hero walk/idle/jump frames
@@ -648,7 +651,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     (window as unknown as { __gameAssetReport?: AssetReport }).__gameAssetReport = ASSET_REPORT;
   }
 
-  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes, ...brickSizes, ...gremlinSizes, ...bossSizes, ...lockSizes, ...docIdSizes, ...docPaystubSizes, ...docEnvelopeSizes };
+  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes, ...brickSizes, ...gremlinSizes, ...bossSizes, ...lockSizes, ...docIdSizes, ...docPaystubSizes, ...docEnvelopeSizes, ...formMonsterSizes };
 }
 
 /** Load already-registered sprites' backing images from the sheets by pulling
@@ -1366,7 +1369,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.pos(zoneL + Math.random() * span, pd.y),
           k.anchor("center"),
           k.z(LAYERS.BG_NEAR + 2),
-          k.opacity(0.9),
           { basY: pd.y, spd: pd.spd, phase: pd.phase, bobA: pd.bobA, bobS: pd.bobS },
         ]) as AnyObj;
         plane.onUpdate(() => {
@@ -1465,7 +1467,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           : zoneState.bossDefeated
             ? "GRAB KEY →"
             : zoneState.planPicked
-              ? `BOSS ${zoneState.bossHits}/3`
+              ? `BOSS ${zoneState.bossHits}/2`
               : "PLAN ☐",
       met: () => zoneState.hasKey,
     };
@@ -2153,18 +2155,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function spawnPlanBoss() {
       if (zoneState.bossSpawned) return;
       zoneState.bossSpawned = true;
-      const bx = BIOME_W * 6 + 560;
+      const bx = BIOME_W * 6 + 1050;
       const bh = DISPLAY_H["boss-idle"];
       const bw = displaySize("boss-idle", sizes).w;
       const boss = spawnGrounded(k, "boss-idle", sizes, {
         x: bx, z: LAYERS.ACTOR, tag: "boss",
-        props: { dir: 1, home: bx, range: 110, hits: 0, hurtUntil: 0, dead: false },
+        props: { dir: 1, home: bx, range: 90, hits: 0, hurtUntil: 0, dead: false },
         hitboxScale: { x: -bw / 2, w: bw, h: bh },
       });
-      // Hearts HUD above the boss
+      // Hearts HUD above the boss (2 hits to defeat).
       const hearts = k.add([
-        k.text("♥♥♥", { size: 16, font: "sans-serif" }),
-        k.pos(bx, GROUND_Y - bh - 24),
+        k.text("♥♥", { size: 16, font: "sans-serif" }),
+        k.pos(bx, GROUND_Y - bh - 40),
         k.anchor("center"), k.color(230, 60, 80), k.z(LAYERS.HUD - 1),
       ]) as AnyObj;
       boss.onUpdate(() => {
@@ -2193,18 +2195,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // (fast-fall grace) OR their feet are in the top ~55% of the boss and
         // they are not moving upward. Otherwise it's side/underside contact.
         const stomp =
-          playerFootPrev <= bossTop + 4 ||
-          (playerFoot <= bossTop + bh * 0.55 && vy >= -20);
+          playerFootPrev <= bossTop + 8 ||
+          (playerFoot <= bossTop + bh * 0.75 && vy >= -80);
         if (stomp) {
           boss.hits += 1;
           boss.hurtUntil = k.time() + 0.4;
           zoneState.bossHits = boss.hits;
-          player.vel.y = -260; // firm bounce so we clear the boss top before the next collide
-          player.pos.y = bossTop - 2; // pop above the boss to avoid immediate re-collision
+          player.vel.y = -260;
+          player.pos.y = bossTop - 2;
           player.invulnUntil = k.time() + 0.5;
           player.score += 300;
-          hearts.text = "♥".repeat(Math.max(0, 3 - boss.hits));
-          if (boss.hits >= 3) {
+          hearts.text = "♥".repeat(Math.max(0, 2 - boss.hits));
+          if (boss.hits >= 2) {
             boss.dead = true;
             zoneState.bossDefeated = true;
             setGameObjSprite(boss, "boss-defeat");
@@ -2217,7 +2219,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
               showHint("Boss defeated! Grab the key.");
             });
           } else {
-            showHint(`Boss hit! ${3 - boss.hits} to go.`);
+            showHint(`Boss hit! ${2 - boss.hits} to go.`);
           }
         } else {
           loseLife("monster");

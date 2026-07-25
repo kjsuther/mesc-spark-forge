@@ -19,10 +19,14 @@ import type { KAPLAYCtx } from "kaplay";
 import type { ImprovementKey } from "@/lib/game.functions";
 import charSheetUrl from "@/assets/game/character-sheet.png";
 import propsSheetUrl from "@/assets/game/props-sheet.png";
+import propsSheet2Url from "@/assets/game/props-sheet-2.png";
 import bgForestUrl from "@/assets/game/bg-forest.png";
+import bgSignupUrl from "@/assets/game/bg-signup.png";
 import bgRiverUrl from "@/assets/game/bg-river.png";
 import bgTownUrl from "@/assets/game/bg-town.png";
+import bgRelayUrl from "@/assets/game/bg-relay.png";
 import bgMountainUrl from "@/assets/game/bg-mountain.png";
+import bgMarketUrl from "@/assets/game/bg-market.png";
 import bgClinicUrl from "@/assets/game/bg-clinic.png";
 
 export type GameFlags = Record<ImprovementKey, boolean>;
@@ -32,7 +36,7 @@ export type WinResult = {
   docs: number;
   lives: number;
   mode: "before" | "after";
-  farthestZone: number; // 0..4
+  farthestZone: number; // 0..7
   won: boolean;
   score: number;
   distancePx: number;
@@ -55,11 +59,14 @@ type Ctx = KAPLAYCtx;
 
 const BIOME_W = 1200;
 const ZONES = [
-  { key: "forest", label: "Finding the Trail", phase: "Step 1 · Learn you may qualify", bg: "bg-forest", ground: [80, 130, 60] as [number, number, number], soil: [70, 45, 25] as [number, number, number] },
-  { key: "river", label: "Crossing River of Paperwork", phase: "Step 2 · Start your application", bg: "bg-river", ground: [180, 160, 110] as [number, number, number], soil: [120, 90, 50] as [number, number, number] },
-  { key: "town", label: "At the County Office", phase: "Step 3 · Submit your documents", bg: "bg-town", ground: [140, 140, 150] as [number, number, number], soil: [80, 80, 90] as [number, number, number] },
-  { key: "mountain", label: "Application Mountain", phase: "Step 4 · Wait for review", bg: "bg-mountain", ground: [130, 120, 110] as [number, number, number], soil: [70, 60, 55] as [number, number, number] },
-  { key: "clinic", label: "Health Coverage", phase: "Step 5 · Enroll in coverage", bg: "bg-clinic", ground: [220, 220, 225] as [number, number, number], soil: [140, 145, 155] as [number, number, number] },
+  { key: "forest",   label: "Finding the Trail",         phase: "Step 1 · Learn you may qualify",           bg: "bg-forest",   ground: [80, 130, 60] as [number, number, number],  soil: [70, 45, 25] as [number, number, number] },
+  { key: "signup",   label: "Setting Up Camp",           phase: "Step 2 · Create your account",             bg: "bg-signup",   ground: [95, 115, 70] as [number, number, number],  soil: [60, 45, 30] as [number, number, number] },
+  { key: "river",    label: "Crossing River of Paperwork", phase: "Step 3 · Start your application",         bg: "bg-river",    ground: [180, 160, 110] as [number, number, number], soil: [120, 90, 50] as [number, number, number] },
+  { key: "town",     label: "Gathering Supplies",        phase: "Step 4 · Gather your documents",           bg: "bg-town",     ground: [140, 140, 150] as [number, number, number], soil: [80, 80, 90] as [number, number, number] },
+  { key: "relay",    label: "Answering the Call",        phase: "Step 5 · Respond to requests for info",    bg: "bg-relay",    ground: [140, 170, 90] as [number, number, number],  soil: [90, 70, 40] as [number, number, number] },
+  { key: "mountain", label: "Waiting Mountain",          phase: "Step 6 · Await a decision",                bg: "bg-mountain", ground: [130, 120, 110] as [number, number, number], soil: [70, 60, 55] as [number, number, number] },
+  { key: "market",   label: "Choosing Your Path",        phase: "Step 7 · Choose a health plan",            bg: "bg-market",   ground: [150, 180, 100] as [number, number, number], soil: [90, 65, 40] as [number, number, number] },
+  { key: "clinic",   label: "Coverage Begins",           phase: "Step 8 · Enroll in coverage",              bg: "bg-clinic",   ground: [220, 220, 225] as [number, number, number], soil: [140, 145, 155] as [number, number, number] },
 ] as const;
 
 const GROUND_Y = 470;
@@ -77,33 +84,44 @@ const PLATFORM_EDGE_TOLERANCE = 22;
 type FailCause = "monster" | "boulder" | "water" | "fell" | "noDocs";
 const OVERLAY_TITLES = [
   "PAUSE ON THE TRAIL",
+  "ACCOUNT NOT CREATED",
   "APPLICATION PAUSED",
   "MISSING PAPERWORK",
+  "REQUEST UNANSWERED",
   "REVIEW IN PROGRESS",
+  "PLAN NOT CHOSEN",
   "ALMOST ENROLLED",
 ] as const;
 const FAILURE_MESSAGES: Record<number, string[]> = {
   0: [
     "Pick a way to apply before moving forward.",
     "Every journey starts by choosing how you'll apply.",
-    "You missed your chance to choose an application method.",
   ],
   1: [
-    "A missing answer is slowing your journey.",
-    "Double-check your application before submitting.",
-    "Some application questions were left unanswered.",
+    "You need an account before you can apply online.",
+    "Set up your login and try again.",
   ],
   2: [
-    "Looks like some documents are still missing.",
-    "Gather everything you need before continuing.",
-    "Your application is waiting for supporting documents.",
+    "A missing answer is slowing your journey.",
+    "Double-check your application before submitting.",
   ],
   3: [
-    "Your application is still under review.",
-    "The agency needs a little more information.",
-    "Stay on the trail — you're almost there.",
+    "Looks like some documents are still missing.",
+    "Gather everything you need before continuing.",
   ],
   4: [
+    "The agency asked for more info — respond quickly.",
+    "A request for information went unanswered.",
+  ],
+  5: [
+    "Your application is still under review.",
+    "Stay on the trail — you're almost there.",
+  ],
+  6: [
+    "You need to pick a health plan to continue.",
+    "Choose the plan that best fits your household.",
+  ],
+  7: [
     "One final step remains before coverage begins.",
     "Don't stop now — you're almost enrolled!",
   ],
@@ -161,6 +179,12 @@ const DISPLAY_H: Record<string, number> = {
   boulder: 30,
   "form-monster": 38,
   denied: 40,
+  laptop: 34,
+  padlock: 36,
+  phone: 34,
+  mailbox: 42,
+  "plan-card": 32,
+  "insurance-card": 32,
 };
 
 // ============================ Sprite trim pipeline ============================
@@ -307,8 +331,16 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "form-monster", frame: 10 },
     { name: "denied", frame: 11 },
   ];
+  const propFrames2: FrameSpec[] = [
+    { name: "laptop",         frame: 0 },
+    { name: "padlock",        frame: 1 },
+    { name: "phone",          frame: 2 },
+    { name: "mailbox",        frame: 3 },
+    { name: "plan-card",      frame: 4 },
+    { name: "insurance-card", frame: 5 },
+  ];
 
-  const [heroSizes, propSizes] = await Promise.all([
+  const [heroSizes, propSizes, propSizes2] = await Promise.all([
     loadTrimmedSheet(k, {
       url: charSheetUrl,
       cols: 3,
@@ -324,18 +356,27 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
       rows: 3,
       frames: propFrames,
     }),
+    loadTrimmedSheet(k, {
+      url: propsSheet2Url,
+      cols: 3,
+      rows: 2,
+      frames: propFrames2,
+    }),
   ]);
 
   // Backgrounds don't need trimming.
   await Promise.all([
     k.loadSprite("bg-forest", bgForestUrl),
+    k.loadSprite("bg-signup", bgSignupUrl),
     k.loadSprite("bg-river", bgRiverUrl),
     k.loadSprite("bg-town", bgTownUrl),
+    k.loadSprite("bg-relay", bgRelayUrl),
     k.loadSprite("bg-mountain", bgMountainUrl),
+    k.loadSprite("bg-market", bgMarketUrl),
     k.loadSprite("bg-clinic", bgClinicUrl),
   ]);
 
-  return { ...heroSizes, ...propSizes };
+  return { ...heroSizes, ...propSizes, ...propSizes2 };
 }
 
 // ============================ Spawn helpers ============================
@@ -469,20 +510,35 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     // ---- Ground ----
-    // Zone 1: two ground spans with a small 46px teaching gap the player must hop.
-    const Z1_GAP_X0 = 640;
-    const Z1_GAP_X1 = 686;
-    addGround(k, 0, Z1_GAP_X0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
-    addGround(k, Z1_GAP_X1, BIOME_W, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
-    // Zone 2: river with paperwork gap in the middle (kill plane already handles it).
-    addGround(k, BIOME_W, BIOME_W + 300, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
-    addGround(k, BIOME_W + 900, BIOME_W * 2, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
-    // Zone 3: continuous.
-    addGround(k, BIOME_W * 2, BIOME_W * 3, GROUND_Y, ZONES[2].ground, ZONES[2].soil);
-    // Zone 4: mountain now has a continuous walkable floor. Platforms sit above it as shortcuts.
+    // Zone 0 (forest): two spans with a small 46px teaching gap.
+    const Z0_GAP_X0 = 640;
+    const Z0_GAP_X1 = 686;
+    addGround(k, 0, Z0_GAP_X0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    addGround(k, Z0_GAP_X1, BIOME_W, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+
+    // Zone 1 (signup): continuous ground with one modest teaching gap.
+    const Z1_GAP_X0 = BIOME_W + 720;
+    const Z1_GAP_X1 = BIOME_W + 780;
+    addGround(k, BIOME_W, Z1_GAP_X0, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
+    addGround(k, Z1_GAP_X1, BIOME_W * 2, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
+
+    // Zone 2 (river): the paperwork gap in the middle (kill plane handles it).
+    const RIVER_BASE = BIOME_W * 2;
+    const RIVER_GAP_X0 = RIVER_BASE + 320;
+    const RIVER_GAP_X1 = RIVER_BASE + 800;
+    addGround(k, RIVER_BASE, RIVER_GAP_X0, GROUND_Y, ZONES[2].ground, ZONES[2].soil);
+    addGround(k, RIVER_GAP_X1, BIOME_W * 3, GROUND_Y, ZONES[2].ground, ZONES[2].soil);
+
+    // Zone 3 (town): continuous.
     addGround(k, BIOME_W * 3, BIOME_W * 4, GROUND_Y, ZONES[3].ground, ZONES[3].soil);
-    // Zone 5: clinic.
-    addGround(k, BIOME_W * 4, LEVEL_END, GROUND_Y, ZONES[4].ground, ZONES[4].soil);
+    // Zone 4 (relay): continuous.
+    addGround(k, BIOME_W * 4, BIOME_W * 5, GROUND_Y, ZONES[4].ground, ZONES[4].soil);
+    // Zone 5 (mountain): continuous walkable floor. Platforms above are shortcuts.
+    addGround(k, BIOME_W * 5, BIOME_W * 6, GROUND_Y, ZONES[5].ground, ZONES[5].soil);
+    // Zone 6 (market): continuous.
+    addGround(k, BIOME_W * 6, BIOME_W * 7, GROUND_Y, ZONES[6].ground, ZONES[6].soil);
+    // Zone 7 (clinic): finish stretch.
+    addGround(k, BIOME_W * 7, LEVEL_END, GROUND_Y, ZONES[7].ground, ZONES[7].soil);
 
     // Invisible walls
     k.add([
@@ -502,9 +558,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(LAYERS.BOUND),
     ]);
 
-    // Water kill-plane
-    const RIVER_GAP_X0 = BIOME_W + 320;
-    const RIVER_GAP_X1 = BIOME_W + 800;
+    // Water kill-plane inside the river gap.
     k.add([
       k.rect(RIVER_GAP_X1 - RIVER_GAP_X0, 40),
       k.pos(RIVER_GAP_X0, GROUND_Y + 40),
@@ -513,22 +567,50 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       "water",
     ]);
 
-    // ================= ZONE 1: Forest — four ways to apply for Medicaid =================
-    const applyMethods: { x: number; icon: string; label: string; tint: [number, number, number] }[] = [
-      { x: 220, icon: "MAIL",      label: "Apply by Mail",      tint: [200, 90, 30] },
-      { x: 460, icon: "PHONE",     label: "Apply by Phone",     tint: [40, 120, 60] },
-      { x: 720, icon: "IN PERSON", label: "Apply In Person",    tint: [30, 90, 160] },
-      { x: 980, icon: "ONLINE",    label: "Apply Online",       tint: [130, 60, 160] },
+    // ================= ZONE 0: Forest — four ways to apply =================
+    const applyMethods: { x: number; icon: string; label: string }[] = [
+      { x: 220, icon: "MAIL",      label: "Apply by Mail" },
+      { x: 460, icon: "PHONE",     label: "Apply by Phone" },
+      { x: 720, icon: "IN PERSON", label: "Apply In Person" },
+      { x: 980, icon: "ONLINE",    label: "Apply Online" },
     ];
     for (const m of applyMethods) {
       spawnDecor(k, "signpost", sizes, { x: m.x, z: LAYERS.PROP });
       const topY = GROUND_Y - DISPLAY_H["signpost"] - 6;
       addSignPlaque(k, m.x, topY, m.label, m.icon);
     }
-    // Kicker sign after the four options
     addSignPlaque(k, 1120, GROUND_Y - DISPLAY_H["signpost"] - 30, "Pick a path", "→");
 
-    // ================= ZONE 2: River =================
+    // ================= ZONE 1: Setting Up Camp — create your account =================
+    const sx0 = BIOME_W;
+    // Three account-setup laptops as decor.
+    const laptopSpots = [sx0 + 180, sx0 + 380, sx0 + 560];
+    for (const lx of laptopSpots) {
+      spawnDecor(k, "laptop", sizes, { x: lx, z: LAYERS.PROP });
+    }
+    addSpeech(k, sx0 + 380, GROUND_Y - DISPLAY_H["laptop"] - 30, "Create an account", [40, 60, 120]);
+    // Password padlock — patrols like a monster (a login barrier).
+    {
+      const px = sx0 + 900;
+      const ph = DISPLAY_H["padlock"];
+      const pw = displaySize("padlock", sizes).w;
+      const speed = 40;
+      const m = spawnGrounded(k, "padlock", sizes, {
+        x: px,
+        z: LAYERS.ACTOR,
+        tag: "monster",
+        props: { dir: 1, home: px, range: 60 },
+        hitboxScale: { x: -pw / 2, w: pw, h: ph },
+      });
+      m.onUpdate(() => {
+        m.pos.x += m.dir * speed * k.dt();
+        m.pos.y = GROUND_Y;
+        if (m.pos.x > m.home + m.range) { m.pos.x = m.home + m.range; m.dir = -1; }
+        if (m.pos.x < m.home - m.range) { m.pos.x = m.home - m.range; m.dir = 1; }
+      });
+    }
+
+    // ================= ZONE 2: Crossing River of Paperwork =================
     const rx0 = RIVER_GAP_X0;
     const rx1 = RIVER_GAP_X1;
 
@@ -548,7 +630,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       for (let i = 0; i < 6; i++) {
         spawnDecor(k, "bridge", sizes, {
           x: rx0 + i * 100 + 50,
-          groundY: GROUND_Y - 6 + bridgeH, // sprite sits atop plank
+          groundY: GROUND_Y - 6 + bridgeH,
           z: LAYERS.PLATFORM - 1,
         });
       }
@@ -593,10 +675,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     }
 
-    // Zone 2 environmental storytelling: floating question bubbles that
-    // represent real questions Medicaid applicants have while filling out
-    // an application. Rendered high in the sky at parallax-adjacent depth
-    // so they never overlap gameplay hitboxes.
+    // Floating question bubbles above the river.
     const applicantQuestions = [
       "What documents do I need?",
       "Do I qualify?",
@@ -607,15 +686,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       "Where do I upload documents?",
     ];
     applicantQuestions.forEach((q, i) => {
-      const bx = BIOME_W + 80 + i * 150;
+      const bx = RIVER_BASE + 80 + i * 150;
       const by = 70 + (i % 3) * 42;
       spawnThoughtBubble(k, bx, by, q);
     });
 
-
-
-    // ================= ZONE 3: Town =================
-    const tx0 = BIOME_W * 2;
+    // ================= ZONE 3: Town — gather documents =================
+    const tx0 = BIOME_W * 3;
     const docs: [number, "id" | "paystub" | "envelope", string][] = [
       [tx0 + 180, "id", "ID"],
       [tx0 + 380, "paystub", "Income"],
@@ -632,7 +709,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
 
-    // Form-monster enemies (patrol) — walk on the ground.
+    // Form-monster patrols.
     const monsterSpots = [tx0 + 260, tx0 + 900];
     for (const mx of monsterSpots) {
       const speed = active.plain_language ? 24 : 55;
@@ -647,7 +724,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
       m.onUpdate(() => {
         m.pos.x += m.dir * speed * k.dt();
-        m.pos.y = GROUND_Y; // stay planted
+        m.pos.y = GROUND_Y;
         if (m.pos.x > m.home + m.range) {
           m.pos.x = m.home + m.range;
           m.dir = -1;
@@ -661,7 +738,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
 
-    // Locked coverage gate
+    // Locked coverage gate — opens once all 3 docs are collected.
     const gateX = tx0 + BIOME_W - 60;
     k.add([
       k.rect(20, 100),
@@ -679,12 +756,51 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       groundY: GROUND_Y - 100,
       z: LAYERS.PROP + 1,
     });
-    // Track for later removal
-    k.get("gate"); // no-op; kept to reflect naming
     addSpeech(k, gateX + 10, GROUND_Y - 180, "COUNTY OFFICE\nDocs required", [140, 40, 40]);
 
-    // ================= ZONE 4: Mountain =================
-    const mx0 = BIOME_W * 3;
+    // ================= ZONE 4: Relay — respond to requests for info =================
+    const relayBase = BIOME_W * 4;
+    // Mailbox + phone bonus collectibles (score only, no gate).
+    const relayItems: [number, "mailbox" | "phone", string, number][] = [
+      [relayBase + 180, "mailbox", "letter", 400],
+      [relayBase + 380, "phone",   "call",   400],
+      [relayBase + 640, "mailbox", "letter", 400],
+      [relayBase + 900, "phone",   "call",   400],
+    ];
+    for (const [rx, prop, kind, bonus] of relayItems) {
+      const dh = DISPLAY_H[prop];
+      spawnGrounded(k, prop, sizes, {
+        x: rx,
+        z: LAYERS.PROP,
+        tag: "reply",
+        props: { replyKind: kind, bonus },
+        hitboxScale: { x: -dh / 2, w: dh, h: dh },
+      });
+    }
+    // A single form-monster patrols the middle to keep the pace up.
+    {
+      const mx = relayBase + 520;
+      const mh = DISPLAY_H["form-monster"];
+      const mw = displaySize("form-monster", sizes).w;
+      const speed = active.plain_language ? 22 : 45;
+      const m = spawnGrounded(k, "form-monster", sizes, {
+        x: mx,
+        z: LAYERS.ACTOR,
+        tag: "monster",
+        props: { dir: 1, home: mx, range: 70 },
+        hitboxScale: { x: -mw / 2, w: mw, h: mh },
+      });
+      m.onUpdate(() => {
+        m.pos.x += m.dir * speed * k.dt();
+        m.pos.y = GROUND_Y;
+        if (m.pos.x > m.home + m.range) { m.pos.x = m.home + m.range; m.dir = -1; m.flipX = true; }
+        if (m.pos.x < m.home - m.range) { m.pos.x = m.home - m.range; m.dir = 1; m.flipX = false; }
+      });
+    }
+    addSpeech(k, relayBase + 100, GROUND_Y - DISPLAY_H["mailbox"] - 40, "Answer requests for info", [40, 80, 130]);
+
+    // ================= ZONE 5: Mountain — awaiting a decision =================
+    const mx0 = BIOME_W * 5;
     if (active.clearer_directions) {
       const steps = 10;
       for (let i = 0; i < steps; i++) {
@@ -762,8 +878,34 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     }
 
-    // ================= ZONE 5: Clinic — finish =================
-    const cx = BIOME_W * 4 + 700;
+    // ================= ZONE 6: Market — choose a health plan =================
+    const kx0 = BIOME_W * 6;
+    // Three plan-card collectibles. Grabbing any one is enough to continue,
+    // but each one boosts score.
+    const planSpots: [number, string][] = [
+      [kx0 + 260, "Care"],
+      [kx0 + 560, "Health"],
+      [kx0 + 860, "Family"],
+    ];
+    for (const [px, label] of planSpots) {
+      const dh = DISPLAY_H["plan-card"];
+      spawnGrounded(k, "plan-card", sizes, {
+        x: px,
+        z: LAYERS.PROP,
+        tag: "plan",
+        props: { planLabel: label, bonus: 600 },
+        hitboxScale: { x: -dh / 2, w: dh, h: dh },
+      });
+      addSpeech(k, px, GROUND_Y - dh - 12, label, [40, 90, 60]);
+    }
+    addSpeech(k, kx0 + 560, GROUND_Y - 200, "Pick a plan", [30, 60, 120]);
+
+    // ================= ZONE 7: Clinic — coverage begins =================
+    const cx = BIOME_W * 7 + 700;
+    // Insurance-card decor beckoning the finish.
+    spawnDecor(k, "insurance-card", sizes, { x: cx - 220, z: LAYERS.PROP });
+    addSpeech(k, cx - 220, GROUND_Y - DISPLAY_H["insurance-card"] - 12, "Coverage active", [30, 100, 60]);
+    // Clinic building.
     k.add([
       k.rect(80, 140),
       k.pos(cx, GROUND_Y),
@@ -795,10 +937,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       "finish",
     ]);
 
-    // Save-point campfire
+    // Save-point campfire near the start of the town (gathering docs) zone.
     const checkpointX = spawnX > 1000 ? spawnX : 40;
     if (active.save_progress) {
-      const fx = BIOME_W * 2 + 40;
+      const fx = BIOME_W * 3 + 40;
       const ch = DISPLAY_H["campfire"];
       spawnGrounded(k, "campfire", sizes, {
         x: fx,
@@ -815,6 +957,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       spawnDecor(k, "backpack", sizes, { x: 80, z: LAYERS.PROP });
       addSpeech(k, 100, GROUND_Y - DISPLAY_H["backpack"] - 12, "Bring: ID, Income, Household", [40, 60, 100]);
     }
+
+
 
     // ================= Player =================
     const player = k.add([
@@ -1037,6 +1181,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.docs.add(doc.docKey);
       player.score += 750;
       doc.destroy();
+      updateHud();
+    });
+
+    player.onCollide("reply", (r) => {
+      const item = r as unknown as { bonus: number; destroy: () => void };
+      player.score += item.bonus ?? 300;
+      item.destroy();
+      updateHud();
+    });
+
+    player.onCollide("plan", (p) => {
+      const item = p as unknown as { bonus: number; destroy: () => void };
+      player.score += item.bonus ?? 500;
+      item.destroy();
       updateHud();
     });
 

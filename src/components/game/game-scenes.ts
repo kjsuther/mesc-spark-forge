@@ -1901,10 +1901,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       const pole = fp as unknown as { poleX: number; poleTop: number; poleBaseY: number };
       zoneState.firePoleAttached = true;
+      // Snap to the knob at the very top so the slide always covers the
+      // full length of the pole (Mario-flagpole behavior).
       player.pos.x = pole.poleX;
+      player.pos.y = pole.poleTop + 6;
       player.vel = k.vec2(0, 0);
       showHint("Sliding down…");
     });
+
 
 
     player.onCollide("pole-base", () => {

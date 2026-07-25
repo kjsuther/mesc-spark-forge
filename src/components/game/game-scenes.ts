@@ -1597,6 +1597,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       hintUntil = k.time() + 1.8;
     }
 
+    // Big Zone-5 "Awaiting a decision" countdown, top-center.
+    const waitBgW = 260;
+    const waitBgH = 68;
+    const waitBg = k.add([
+      k.rect(waitBgW, waitBgH, { radius: 8 }),
+      k.pos(k.width() / 2 - waitBgW / 2, 12),
+      k.color(15, 15, 30),
+      k.outline(3, k.rgb(255, 220, 90)),
+      k.opacity(0),
+      k.fixed(),
+      k.z(LAYERS.HUD),
+    ]) as AnyObj;
+    const waitLabel = pixelHudText({
+      x: k.width() / 2, y: 22, size: 12, color: [255, 220, 90],
+      anchor: "top", initial: "AWAITING DECISION", opacity: 0,
+    });
+    const waitCountdown = pixelHudText({
+      x: k.width() / 2, y: 40, size: 28, color: [255, 255, 255],
+      anchor: "top", initial: "0:30", opacity: 0,
+    });
+
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
       appIcons.forEach((g, i) => {
@@ -1614,8 +1635,36 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const z = player.farthestZone;
       const obj = zoneObjectives[z];
       objectiveHud.text = obj ? obj.hudLabel() : "";
+
+      // Zone-5 big countdown: visible while player is in Zone 5 with an
+      // active wait timer, or briefly flashes APPROVED! at 0.
+      const inZone5 = Math.floor(player.pos.x / BIOME_W) === 5;
+      const started = zoneState.waitStart > 0;
+      const elapsed = started ? k.time() - zoneState.waitStart : 0;
+      const remaining = started ? Math.max(0, zoneState.waitDur - elapsed) : zoneState.waitDur;
+      const approvedFlash = started && elapsed >= zoneState.waitDur && elapsed < zoneState.waitDur + 1.5;
+      const showTimer = inZone5 && (started || !zoneState.approved);
+      if (showTimer) {
+        waitBg.opacity = 0.85;
+        waitLabel.opacity = 1;
+        waitCountdown.opacity = 1;
+        if (approvedFlash) {
+          waitLabel.text = "APPROVED!";
+          waitCountdown.text = "✓";
+          (waitLabel as unknown as { color?: unknown }); // color set via node; keep as-is
+        } else {
+          waitLabel.text = started ? "AWAITING DECISION" : "STEP INTO THE MOUNTAIN";
+          const secs = Math.ceil(remaining);
+          waitCountdown.text = `0:${String(secs).padStart(2, "0")}`;
+        }
+      } else {
+        waitBg.opacity = 0;
+        waitLabel.opacity = 0;
+        waitCountdown.opacity = 0;
+      }
     }
     updateHud();
+
 
     // ================= Asset debug overlay =================
     // Toggle with the "D" key or by loading the page with ?debug=assets.

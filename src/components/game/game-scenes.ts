@@ -496,8 +496,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ]);
 
     // Water kill-plane
-    const RIVER_GAP_X0 = BIOME_W + 300;
-    const RIVER_GAP_X1 = BIOME_W + 900;
+    const RIVER_GAP_X0 = BIOME_W + 320;
+    const RIVER_GAP_X1 = BIOME_W + 800;
     k.add([
       k.rect(RIVER_GAP_X1 - RIVER_GAP_X0, 40),
       k.pos(RIVER_GAP_X0, GROUND_Y + 40),

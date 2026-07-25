@@ -331,8 +331,16 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "form-monster", frame: 10 },
     { name: "denied", frame: 11 },
   ];
+  const propFrames2: FrameSpec[] = [
+    { name: "laptop",         frame: 0 },
+    { name: "padlock",        frame: 1 },
+    { name: "phone",          frame: 2 },
+    { name: "mailbox",        frame: 3 },
+    { name: "plan-card",      frame: 4 },
+    { name: "insurance-card", frame: 5 },
+  ];
 
-  const [heroSizes, propSizes] = await Promise.all([
+  const [heroSizes, propSizes, propSizes2] = await Promise.all([
     loadTrimmedSheet(k, {
       url: charSheetUrl,
       cols: 3,
@@ -348,18 +356,27 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
       rows: 3,
       frames: propFrames,
     }),
+    loadTrimmedSheet(k, {
+      url: propsSheet2Url,
+      cols: 3,
+      rows: 2,
+      frames: propFrames2,
+    }),
   ]);
 
   // Backgrounds don't need trimming.
   await Promise.all([
     k.loadSprite("bg-forest", bgForestUrl),
+    k.loadSprite("bg-signup", bgSignupUrl),
     k.loadSprite("bg-river", bgRiverUrl),
     k.loadSprite("bg-town", bgTownUrl),
+    k.loadSprite("bg-relay", bgRelayUrl),
     k.loadSprite("bg-mountain", bgMountainUrl),
+    k.loadSprite("bg-market", bgMarketUrl),
     k.loadSprite("bg-clinic", bgClinicUrl),
   ]);
 
-  return { ...heroSizes, ...propSizes };
+  return { ...heroSizes, ...propSizes, ...propSizes2 };
 }
 
 // ============================ Spawn helpers ============================

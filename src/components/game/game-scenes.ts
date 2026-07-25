@@ -824,7 +824,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         checkpointX,
         won: false,
         dead: false,
-        lives: (active.phone_support ? 2 : 1) + (lives - 1),
+        lives: (active.phone_support ? 4 : 3) + (lives - 1),
         facing: 1 as 1 | -1,
         invulnUntil: 0,
         lastGroundedAt: k.time(),

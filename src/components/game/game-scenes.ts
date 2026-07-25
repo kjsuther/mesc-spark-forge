@@ -1580,7 +1580,33 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           player.score += 1000;
         }
         showTitleCard(k, ZONES[z].phase.toUpperCase(), ZONES[z].label.toUpperCase(), [255, 220, 90], 1.4);
+        // Start the 30-second wait when the player enters Waiting Mountain.
+        if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
       }
+
+      // Check each zone's objective and unlock its door when met.
+      for (let i = 0; i < doors.length; i++) {
+        const d = doors[i];
+        const obj = zoneObjectives[i];
+        if (!d || d.unlocked || !obj) continue;
+        if (obj.met()) unlockDoor(i);
+      }
+
+      // Fire-pole slide: freeze x, descend at controlled speed until base.
+      if (zoneState.firePoleAttached && !zoneState.firePoleDone) {
+        player.vel = k.vec2(0, 0);
+        player.pos.y = Math.min(GROUND_Y, player.pos.y + 220 * k.dt());
+      }
+
+      // Hint fade
+      if (hintUntil > 0 && k.time() > hintUntil) {
+        hintHud.opacity = Math.max(0, hintHud.opacity - k.dt() * 3);
+        if (hintHud.opacity <= 0) hintUntil = 0;
+      }
+
+      // Winning: fire pole reached the base.
+      if (zoneState.firePoleDone && !player.won) tryWin();
+
 
       if (player.pos.x > player.rightmostX) {
         const gained = player.pos.x - player.rightmostX;

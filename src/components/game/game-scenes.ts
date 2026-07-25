@@ -810,9 +810,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         "door",
         { zoneIdx, unlocked: false },
       ]) as AnyObj;
-      // Solid barrier centered on door — blocks passage while locked.
+      // Solid barrier centered on door — blocks passage while locked. Height
+      // is a full playfield so players can't jump over (peak jump ≈ 144 px
+      // with JUMP_VEL 720 / gravity 1800, which used to clear the old 120 px
+      // wall). Anchor "bot" keeps its base flush with GROUND_Y.
       const bar = k.add([
-        k.rect(14, 120),
+        k.rect(14, 560),
         k.pos(dx, GROUND_Y),
         k.anchor("bot"),
         k.color(60, 40, 20),
@@ -821,6 +824,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.body({ isStatic: true }),
         k.z(LAYERS.PROP),
       ]);
+
       return { obj: doorObj, barrier: bar, unlocked: false, playedAnim: false };
     }
 

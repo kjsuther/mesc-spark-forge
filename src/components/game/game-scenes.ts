@@ -76,7 +76,11 @@ type Ctx = KAPLAYCtx;
 // backgrounds cannot clip, misalign, or shift when the screen resizes.
 const LOGICAL_W = 960;
 const LOGICAL_H = 540;
-const PIXEL_DENSITY = 2;
+// Constant pixel density of 1 keeps GPU texture memory low on mobile
+// (iOS Safari kills the WebGL context around ~64MB of backing store).
+// Combined with `imageRendering: pixelated` on the canvas, this is
+// visually indistinguishable from 2 for pixel-art content.
+const PIXEL_DENSITY = 1;
 /** Snap any world coordinate or computed sprite dimension to an integer.
  *  Using `floor` (not `round`) is deterministic across renders: a value of
  *  N.4999 and N.5001 both collapse to N, so a sub-pixel jitter can never

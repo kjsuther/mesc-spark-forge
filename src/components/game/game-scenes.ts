@@ -2124,6 +2124,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (player.pos.y >= GROUND_Y) {
           zoneState.firePoleDone = true;
           startFireworks(k, player.pos.x + 100, GROUND_Y - 240);
+          if (zoneState.cutscene && zoneState.cutscenePhase === "slide") {
+            zoneState.cutscenePhase = "walk-to-office";
+            zoneState.cutsceneTargetX = LEVEL_END - 140;
+            player.facing = 1;
+          }
         }
       }
 
@@ -2134,8 +2139,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (hintHud.opacity <= 0) hintUntil = 0;
       }
 
-      // Winning: fire pole reached the base.
-      if (zoneState.firePoleDone && !player.won) tryWin();
+      // Winning: fire pole reached the base. Hold off during the walk-to-office
+      // beat of the cutscene so the character actually arrives at the medical
+      // office before the WIN overlay fires.
+      if (
+        zoneState.firePoleDone &&
+        !player.won &&
+        (!zoneState.cutscene || zoneState.cutscenePhase === "done")
+      ) {
+        tryWin();
+      }
 
 
       if (player.pos.x > player.rightmostX) {
@@ -2155,13 +2168,38 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
 
       let dir = 0;
-      for (const key of leftKeys) if (k.isKeyDown(key as never)) dir -= 1;
-      for (const key of rightKeys) if (k.isKeyDown(key as never)) dir += 1;
-      if (w?.__gameInput?.left) dir -= 1;
-      if (w?.__gameInput?.right) dir += 1;
-      dir = Math.sign(dir);
+      if (zoneState.cutscene) {
+        // Scripted finale — ignore all player input.
+        if (zoneState.cutscenePhase === "walk-to-pole") {
+          dir = 1;
+          if (player.pos.x >= zoneState.cutscenePoleX) {
+            player.pos.x = zoneState.cutscenePoleX;
+            player.vel = k.vec2(0, 0);
+            player.pos.y = zoneState.cutscenePoleTop + 6;
+            zoneState.firePoleAttached = true;
+            zoneState.cutscenePhase = "slide";
+            dir = 0;
+          }
+        } else if (zoneState.cutscenePhase === "walk-to-office") {
+          dir = 1;
+          if (player.pos.x >= zoneState.cutsceneTargetX) {
+            player.pos.x = zoneState.cutsceneTargetX;
+            zoneState.cutscenePhase = "done";
+            zoneState.cutscene = false;
+            dir = 0;
+          }
+        } else {
+          dir = 0;
+        }
+      } else {
+        for (const key of leftKeys) if (k.isKeyDown(key as never)) dir -= 1;
+        for (const key of rightKeys) if (k.isKeyDown(key as never)) dir += 1;
+        if (w?.__gameInput?.left) dir -= 1;
+        if (w?.__gameInput?.right) dir += 1;
+        dir = Math.sign(dir);
+      }
       player.move(dir * MOVE_SPEED, 0);
-      if (dir > 0) player.score += 1;
+      if (dir > 0 && !zoneState.cutscene) player.score += 1;
 
       if (player.riding) {
         const dt = k.dt();

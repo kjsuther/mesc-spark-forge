@@ -1184,6 +1184,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       updateHud();
     });
 
+    player.onCollide("reply", (r) => {
+      const item = r as unknown as { bonus: number; destroy: () => void };
+      player.score += item.bonus ?? 300;
+      item.destroy();
+      updateHud();
+    });
+
+    player.onCollide("plan", (p) => {
+      const item = p as unknown as { bonus: number; destroy: () => void };
+      player.score += item.bonus ?? 500;
+      item.destroy();
+      updateHud();
+    });
+
     player.onCollide("checkpoint", (c) => {
       const ch = c as unknown as { atX: number };
       player.checkpointX = ch.atX;

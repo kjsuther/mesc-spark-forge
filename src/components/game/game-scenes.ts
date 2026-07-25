@@ -34,6 +34,8 @@ import credentialsSheetUrl from "@/assets/game/credentials-sheet.png";
 import goldKeyUrl from "@/assets/game/gold-key.png";
 import planCardsSheetUrl from "@/assets/game/plan-cards-sheet.png";
 import medicalIdUrl from "@/assets/game/medical-id.png";
+import calendarPageUrl from "@/assets/game/calendar-page.png";
+import paperAirplaneUrl from "@/assets/game/paper-airplane.png";
 
 export type GameFlags = Record<ImprovementKey, boolean>;
 

@@ -28,6 +28,11 @@ import bgRelayUrl from "@/assets/game/bg-relay.png";
 import bgMountainUrl from "@/assets/game/bg-mountain.png";
 import bgMarketUrl from "@/assets/game/bg-market.png";
 import bgClinicUrl from "@/assets/game/bg-clinic.png";
+import doorSheetUrl from "@/assets/game/door-sheet.png";
+import credentialsSheetUrl from "@/assets/game/credentials-sheet.png";
+import goldKeyUrl from "@/assets/game/gold-key.png";
+import planCardsSheetUrl from "@/assets/game/plan-cards-sheet.png";
+import medicalIdUrl from "@/assets/game/medical-id.png";
 
 export type GameFlags = Record<ImprovementKey, boolean>;
 
@@ -185,6 +190,15 @@ const DISPLAY_H: Record<string, number> = {
   mailbox: 42,
   "plan-card": 32,
   "insurance-card": 32,
+  "door-closed": 108,
+  "door-open": 108,
+  username: 34,
+  password: 34,
+  "gold-key": 30,
+  "plan-blue": 60,
+  "plan-green": 60,
+  "plan-orange": 60,
+  "medical-id": 46,
 };
 
 // ============================ Sprite trim pipeline ============================
@@ -340,14 +354,28 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "insurance-card", frame: 5 },
   ];
 
-  const [heroSizes, propSizes, propSizes2] = await Promise.all([
+  const doorFrames: FrameSpec[] = [
+    { name: "door-closed", frame: 0 },
+    { name: "door-open", frame: 1 },
+  ];
+  const credFrames: FrameSpec[] = [
+    { name: "username", frame: 0 },
+    { name: "password", frame: 1 },
+  ];
+  const keyFrames: FrameSpec[] = [{ name: "gold-key", frame: 0 }];
+  const planFrames: FrameSpec[] = [
+    { name: "plan-blue", frame: 0 },
+    { name: "plan-green", frame: 1 },
+    { name: "plan-orange", frame: 2 },
+  ];
+  const idFrames: FrameSpec[] = [{ name: "medical-id", frame: 0 }];
+
+  const [heroSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes] = await Promise.all([
     loadTrimmedSheet(k, {
       url: charSheetUrl,
       cols: 3,
       rows: 2,
       frames: heroFrames,
-      // All hero frames share size so the character never jitters horizontally
-      // and its feet always meet the ground exactly.
       groups: [heroFrames.map((f) => f.name)],
     }),
     loadTrimmedSheet(k, {
@@ -362,6 +390,11 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
       rows: 2,
       frames: propFrames2,
     }),
+    loadTrimmedSheet(k, { url: doorSheetUrl, cols: 2, rows: 1, frames: doorFrames }),
+    loadTrimmedSheet(k, { url: credentialsSheetUrl, cols: 2, rows: 1, frames: credFrames }),
+    loadTrimmedSheet(k, { url: goldKeyUrl, cols: 1, rows: 1, frames: keyFrames }),
+    loadTrimmedSheet(k, { url: planCardsSheetUrl, cols: 3, rows: 1, frames: planFrames }),
+    loadTrimmedSheet(k, { url: medicalIdUrl, cols: 1, rows: 1, frames: idFrames }),
   ]);
 
   // Backgrounds don't need trimming.
@@ -376,7 +409,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     k.loadSprite("bg-clinic", bgClinicUrl),
   ]);
 
-  return { ...heroSizes, ...propSizes, ...propSizes2 };
+  return { ...heroSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes };
 }
 
 // ============================ Spawn helpers ============================
@@ -500,7 +533,31 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   k.scene("trail", (spawnX: number = 40, lives: number = 1) => {
     const startTime = k.time();
 
-    // ---- Backgrounds ----
+    // ---- Sky backdrops (per-zone solid color behind the painted bg so
+    //      images with transparent or off-color edges don't leave whitespace).
+    const SKY_COLORS: Array<[number, number, number]> = [
+      [128, 190, 220], // forest
+      [140, 200, 235], // signup
+      [110, 180, 220], // river
+      [160, 200, 220], // town
+      [150, 200, 210], // relay - fixes zone 5 whitespace
+      [130, 155, 190], // mountain
+      [180, 210, 230], // market
+      [220, 235, 245], // clinic
+    ];
+    ZONES.forEach((_z, i) => {
+      k.add([
+        k.rect(BIOME_W + 2, 540),
+        k.pos(i * BIOME_W - 1, 0),
+        k.color(...SKY_COLORS[i]),
+        k.z(LAYERS.BG_FAR - 1),
+      ]);
+    });
+
+    // ---- Backgrounds (painted). Draw the bg twice per zone with 50% overlap
+    //      offset so any single tile with transparent edges is covered by the
+    //      neighbor. Cheap fix for the zone-5 whitespace problem across the
+    //      whole trail.
     ZONES.forEach((z, i) => {
       k.add([
         k.sprite(z.bg, { width: BIOME_W, height: 540 }),
@@ -510,64 +567,134 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     // ---- Ground ----
-    // Zone 0 (forest): two spans with a small 46px teaching gap.
     const Z0_GAP_X0 = 640;
     const Z0_GAP_X1 = 686;
     addGround(k, 0, Z0_GAP_X0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
     addGround(k, Z0_GAP_X1, BIOME_W, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
 
-    // Zone 1 (signup): continuous ground with one modest teaching gap.
     const Z1_GAP_X0 = BIOME_W + 720;
     const Z1_GAP_X1 = BIOME_W + 780;
     addGround(k, BIOME_W, Z1_GAP_X0, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
     addGround(k, Z1_GAP_X1, BIOME_W * 2, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
 
-    // Zone 2 (river): the paperwork gap in the middle (kill plane handles it).
     const RIVER_BASE = BIOME_W * 2;
     const RIVER_GAP_X0 = RIVER_BASE + 320;
     const RIVER_GAP_X1 = RIVER_BASE + 800;
     addGround(k, RIVER_BASE, RIVER_GAP_X0, GROUND_Y, ZONES[2].ground, ZONES[2].soil);
     addGround(k, RIVER_GAP_X1, BIOME_W * 3, GROUND_Y, ZONES[2].ground, ZONES[2].soil);
 
-    // Zone 3 (town): continuous.
     addGround(k, BIOME_W * 3, BIOME_W * 4, GROUND_Y, ZONES[3].ground, ZONES[3].soil);
-    // Zone 4 (relay): continuous.
     addGround(k, BIOME_W * 4, BIOME_W * 5, GROUND_Y, ZONES[4].ground, ZONES[4].soil);
-    // Zone 5 (mountain): continuous walkable floor. Platforms above are shortcuts.
     addGround(k, BIOME_W * 5, BIOME_W * 6, GROUND_Y, ZONES[5].ground, ZONES[5].soil);
-    // Zone 6 (market): continuous.
     addGround(k, BIOME_W * 6, BIOME_W * 7, GROUND_Y, ZONES[6].ground, ZONES[6].soil);
-    // Zone 7 (clinic): finish stretch.
     addGround(k, BIOME_W * 7, LEVEL_END, GROUND_Y, ZONES[7].ground, ZONES[7].soil);
 
-    // Invisible walls
+    // Invisible level walls
     k.add([
-      k.rect(20, 800),
-      k.pos(-20, 0),
-      k.area(),
-      k.body({ isStatic: true }),
-      k.opacity(0),
-      k.z(LAYERS.BOUND),
+      k.rect(20, 800), k.pos(-20, 0), k.area(),
+      k.body({ isStatic: true }), k.opacity(0), k.z(LAYERS.BOUND),
     ]);
     k.add([
-      k.rect(20, 800),
-      k.pos(LEVEL_END, 0),
-      k.area(),
-      k.body({ isStatic: true }),
-      k.opacity(0),
-      k.z(LAYERS.BOUND),
+      k.rect(20, 800), k.pos(LEVEL_END, 0), k.area(),
+      k.body({ isStatic: true }), k.opacity(0), k.z(LAYERS.BOUND),
     ]);
 
-    // Water kill-plane inside the river gap.
+    // Water kill plane inside river gap.
     k.add([
       k.rect(RIVER_GAP_X1 - RIVER_GAP_X0, 40),
       k.pos(RIVER_GAP_X0, GROUND_Y + 40),
-      k.area(),
-      k.opacity(0),
-      "water",
+      k.area(), k.opacity(0), "water",
     ]);
 
-    // ================= ZONE 0: Forest — four ways to apply =================
+    // ============ Zone objective + door system ============
+    type ZoneObjective = {
+      hudLabel: () => string;
+      met: () => boolean;
+    };
+    const zoneObjectives: (ZoneObjective | null)[] = new Array(ZONES.length).fill(null);
+    const zoneState = {
+      methodTouched: false,
+      userGot: false,
+      passGot: false,
+      docsInZone: 0,
+      repliesGot: 0,
+      repliesNeeded: 0,
+      waitStart: 0,
+      waitDur: 30,
+      planPicked: false,
+      hasKey: false,
+      firePoleAttached: false,
+      firePoleDone: false,
+    };
+
+    type Door = { obj: AnyObj; barrier: AnyObj | null; unlocked: boolean; playedAnim: boolean };
+    const doors: (Door | null)[] = new Array(ZONES.length).fill(null);
+
+    function spawnDoor(zoneIdx: number): Door {
+      const dx = (zoneIdx + 1) * BIOME_W - 60;
+      const disp = displaySize("door-closed", sizes);
+      const doorObj = k.add([
+        k.sprite("door-closed", { width: disp.w, height: DISPLAY_H["door-closed"] }),
+        k.pos(dx, GROUND_Y),
+        k.anchor("bot"),
+        k.area({ shape: new k.Rect(k.vec2(-disp.w / 2, -DISPLAY_H["door-closed"]), disp.w, DISPLAY_H["door-closed"]) }),
+        k.z(LAYERS.PROP + 2),
+        "door",
+        { zoneIdx, unlocked: false },
+      ]) as AnyObj;
+      // Solid barrier centered on door — blocks passage while locked.
+      const bar = k.add([
+        k.rect(14, 120),
+        k.pos(dx, GROUND_Y),
+        k.anchor("bot"),
+        k.color(60, 40, 20),
+        k.opacity(0),
+        k.area(),
+        k.body({ isStatic: true }),
+        k.z(LAYERS.PROP),
+      ]);
+      return { obj: doorObj, barrier: bar, unlocked: false, playedAnim: false };
+    }
+
+    function unlockDoor(zoneIdx: number) {
+      const d = doors[zoneIdx];
+      if (!d || d.unlocked) return;
+      d.unlocked = true;
+      // Unlock animation: brief shake, chime, then swap sprite + drop barrier.
+      d.obj.use(k.color(255, 240, 120));
+      k.wait(0.25, () => d.obj.use(k.color(255, 255, 255)));
+      k.wait(0.5, () => {
+        const disp = displaySize("door-open", sizes);
+        d.obj.use(k.sprite("door-open", { width: disp.w, height: DISPLAY_H["door-open"] }));
+        d.barrier?.destroy();
+        d.barrier = null;
+        // Sparkle burst above door
+        for (let i = 0; i < 8; i++) {
+          const angle = (i / 8) * Math.PI * 2;
+          const sp = k.add([
+            k.rect(4, 4),
+            k.pos(d.obj.pos.x, d.obj.pos.y - DISPLAY_H["door-open"] / 2),
+            k.color(255, 230, 100),
+            k.anchor("center"),
+            k.z(LAYERS.EFFECT),
+            k.opacity(1),
+            { vx: Math.cos(angle) * 90, vy: Math.sin(angle) * 90, life: 0 },
+          ]);
+          sp.onUpdate(() => {
+            sp.pos.x += sp.vx * k.dt();
+            sp.pos.y += sp.vy * k.dt();
+            sp.life += k.dt();
+            sp.opacity = Math.max(0, 1 - sp.life * 1.5);
+            if (sp.life > 0.8) sp.destroy();
+          });
+        }
+      });
+    }
+
+    // Spawn doors for zones 0..6 (zone 7 = finale, uses fire pole instead).
+    for (let i = 0; i < 7; i++) doors[i] = spawnDoor(i);
+
+    // ================= ZONE 0: Finding the Trail — pick an apply method =================
     const applyMethods: { x: number; icon: string; label: string }[] = [
       { x: 220, icon: "MAIL",      label: "Apply by Mail" },
       { x: 460, icon: "PHONE",     label: "Apply by Phone" },
@@ -575,30 +702,71 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       { x: 980, icon: "ONLINE",    label: "Apply Online" },
     ];
     for (const m of applyMethods) {
-      spawnDecor(k, "signpost", sizes, { x: m.x, z: LAYERS.PROP });
+      const post = spawnGrounded(k, "signpost", sizes, {
+        x: m.x,
+        z: LAYERS.PROP,
+        tag: "method",
+        hitboxScale: { x: -DISPLAY_H["signpost"] / 2, w: DISPLAY_H["signpost"], h: DISPLAY_H["signpost"] + 16 },
+      });
+      void post;
       const topY = GROUND_Y - DISPLAY_H["signpost"] - 6;
       addSignPlaque(k, m.x, topY, m.label, m.icon);
     }
-    addSignPlaque(k, 1120, GROUND_Y - DISPLAY_H["signpost"] - 30, "Pick a path", "→");
+    addSignPlaque(k, 1080, GROUND_Y - DISPLAY_H["signpost"] - 30, "Reach the door →", "!");
+    zoneObjectives[0] = {
+      hudLabel: () => `METHOD ${zoneState.methodTouched ? "✓" : "☐"}`,
+      met: () => zoneState.methodTouched,
+    };
 
-    // ================= ZONE 1: Setting Up Camp — create your account =================
+    // ================= ZONE 1: Setting Up Camp — create account =================
     const sx0 = BIOME_W;
-    // Three account-setup laptops as decor.
     const laptopSpots = [sx0 + 180, sx0 + 380, sx0 + 560];
     for (const lx of laptopSpots) {
       spawnDecor(k, "laptop", sizes, { x: lx, z: LAYERS.PROP });
     }
     addSpeech(k, sx0 + 380, GROUND_Y - DISPLAY_H["laptop"] - 30, "Create an account", [40, 60, 120]);
-    // Password padlock — patrols like a monster (a login barrier).
+    // Username collectible — floats above ground
+    {
+      const ux = sx0 + 300;
+      const uy = GROUND_Y - 120;
+      const disp = displaySize("username", sizes);
+      const item = k.add([
+        k.sprite("username", { width: disp.w, height: DISPLAY_H["username"] }),
+        k.pos(ux, uy),
+        k.anchor("center"),
+        k.area({ shape: new k.Rect(k.vec2(-disp.w / 2, -DISPLAY_H["username"] / 2), disp.w, DISPLAY_H["username"]) }),
+        k.z(LAYERS.PROP),
+        "credential",
+        { credKind: "user", basY: uy, phase: 0 },
+      ]) as AnyObj;
+      item.onUpdate(() => { item.pos.y = item.basY + Math.sin(k.time() * 2) * 5; });
+      addSpeech(k, ux, uy - 32, "USERNAME", [30, 60, 130]);
+    }
+    // Password collectible + patrolling padlock
+    {
+      const px = sx0 + 620;
+      const py = GROUND_Y - 90;
+      const disp = displaySize("password", sizes);
+      const item = k.add([
+        k.sprite("password", { width: disp.w, height: DISPLAY_H["password"] }),
+        k.pos(px, py),
+        k.anchor("center"),
+        k.area({ shape: new k.Rect(k.vec2(-disp.w / 2, -DISPLAY_H["password"] / 2), disp.w, DISPLAY_H["password"]) }),
+        k.z(LAYERS.PROP),
+        "credential",
+        { credKind: "pass", basY: py, phase: 1 },
+      ]) as AnyObj;
+      item.onUpdate(() => { item.pos.y = item.basY + Math.sin(k.time() * 2 + 1) * 5; });
+      addSpeech(k, px, py - 32, "PASSWORD", [30, 60, 130]);
+    }
+    // Password padlock enemy patrol
     {
       const px = sx0 + 900;
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
       const speed = 40;
       const m = spawnGrounded(k, "padlock", sizes, {
-        x: px,
-        z: LAYERS.ACTOR,
-        tag: "monster",
+        x: px, z: LAYERS.ACTOR, tag: "monster",
         props: { dir: 1, home: px, range: 60 },
         hitboxScale: { x: -pw / 2, w: pw, h: ph },
       });
@@ -609,32 +777,29 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (m.pos.x < m.home - m.range) { m.pos.x = m.home - m.range; m.dir = 1; }
       });
     }
+    zoneObjectives[1] = {
+      hudLabel: () => `USER ${zoneState.userGot ? "✓" : "☐"}  PASS ${zoneState.passGot ? "✓" : "☐"}`,
+      met: () => zoneState.userGot && zoneState.passGot,
+    };
 
     // ================= ZONE 2: Crossing River of Paperwork =================
     const rx0 = RIVER_GAP_X0;
     const rx1 = RIVER_GAP_X1;
-
     if (active.bridge) {
       k.add([
         k.rect(rx1 - rx0, 14),
         k.pos(rx0, GROUND_Y - 6),
         k.color(140, 90, 50),
         k.outline(2, k.rgb(80, 50, 20)),
-        k.area(),
-        k.body({ isStatic: true }),
+        k.area(), k.body({ isStatic: true }),
         k.z(LAYERS.PLATFORM),
         "platform",
         { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(rx0, GROUND_Y - 6) },
       ]);
       const bridgeH = DISPLAY_H["bridge"];
       for (let i = 0; i < 6; i++) {
-        spawnDecor(k, "bridge", sizes, {
-          x: rx0 + i * 100 + 50,
-          groundY: GROUND_Y - 6 + bridgeH,
-          z: LAYERS.PLATFORM - 1,
-        });
+        spawnDecor(k, "bridge", sizes, { x: rx0 + i * 100 + 50, groundY: GROUND_Y - 6 + bridgeH, z: LAYERS.PLATFORM - 1 });
       }
-      addSpeech(k, (rx0 + rx1) / 2, GROUND_Y - 90, "★ Clear instructions", [30, 100, 60]);
     } else {
       const platforms = [
         { x: rx0 + 40,  y: GROUND_Y - 34, amp: 12, spd: 1.4 },
@@ -644,22 +809,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ];
       for (const p of platforms) {
         const plat = k.add([
-          k.rect(72, 14),
-          k.pos(p.x, p.y),
-          k.color(120, 130, 140),
-          k.outline(2, k.rgb(60, 70, 80)),
-          k.area(),
-          k.body({ isStatic: true }),
-          k.z(LAYERS.PLATFORM),
-          "platform",
-          {
-            basY: p.y,
-            amp: p.amp,
-            spd: p.spd,
-            phase: Math.random() * Math.PI * 2,
-            platformSpeed: k.vec2(0, 0),
-            lastPos: k.vec2(p.x, p.y),
-          },
+          k.rect(72, 14), k.pos(p.x, p.y),
+          k.color(120, 130, 140), k.outline(2, k.rgb(60, 70, 80)),
+          k.area(), k.body({ isStatic: true }),
+          k.z(LAYERS.PLATFORM), "platform",
+          { basY: p.y, amp: p.amp, spd: p.spd, phase: Math.random() * Math.PI * 2, platformSpeed: k.vec2(0, 0), lastPos: k.vec2(p.x, p.y) },
         ]);
         plat.onUpdate(() => {
           const newY = plat.basY + Math.sin(k.time() * plat.spd + plat.phase) * plat.amp;
@@ -674,24 +828,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         });
       }
     }
+    // Zone 2 unlocks the moment player crosses the river.
+    zoneObjectives[2] = {
+      hudLabel: () => "CROSS THE RIVER →",
+      met: () => true,
+    };
 
-    // Floating question bubbles above the river.
-    const applicantQuestions = [
-      "What documents do I need?",
-      "Do I qualify?",
-      "How long will this take?",
-      "What income should I report?",
-      "Who counts in my household?",
-      "What if I'm missing info?",
-      "Where do I upload documents?",
-    ];
-    applicantQuestions.forEach((q, i) => {
-      const bx = RIVER_BASE + 80 + i * 150;
-      const by = 70 + (i % 3) * 42;
-      spawnThoughtBubble(k, bx, by, q);
-    });
-
-    // ================= ZONE 3: Town — gather documents =================
+    // ================= ZONE 3: Gathering Documents — 3 verifications =================
     const tx0 = BIOME_W * 3;
     const docs: [number, "id" | "paystub" | "envelope", string][] = [
       [tx0 + 180, "id", "ID"],
@@ -701,92 +844,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     for (const [x, prop, key] of docs) {
       const dh = DISPLAY_H[prop];
       spawnGrounded(k, prop, sizes, {
-        x,
-        z: LAYERS.PROP,
-        tag: "doc",
+        x, z: LAYERS.PROP, tag: "doc",
         props: { docKey: key },
         hitboxScale: { x: -dh / 2, w: dh, h: dh },
       });
     }
-
-    // Form-monster patrols.
-    const monsterSpots = [tx0 + 260, tx0 + 900];
+    const monsterSpots = [tx0 + 280, tx0 + 780];
     for (const mx of monsterSpots) {
-      const speed = active.plain_language ? 24 : 55;
+      const speed = active.plain_language ? 24 : 50;
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
       const m = spawnGrounded(k, "form-monster", sizes, {
-        x: mx,
-        z: LAYERS.ACTOR,
-        tag: "monster",
-        props: { dir: 1, home: mx, range: 80 },
-        hitboxScale: { x: -mw / 2, w: mw, h: mh },
-      });
-      m.onUpdate(() => {
-        m.pos.x += m.dir * speed * k.dt();
-        m.pos.y = GROUND_Y;
-        if (m.pos.x > m.home + m.range) {
-          m.pos.x = m.home + m.range;
-          m.dir = -1;
-          m.flipX = true;
-        }
-        if (m.pos.x < m.home - m.range) {
-          m.pos.x = m.home - m.range;
-          m.dir = 1;
-          m.flipX = false;
-        }
-      });
-    }
-
-    // Locked coverage gate — opens once all 3 docs are collected.
-    const gateX = tx0 + BIOME_W - 60;
-    k.add([
-      k.rect(20, 100),
-      k.pos(gateX, GROUND_Y),
-      k.anchor("bot"),
-      k.color(180, 40, 40),
-      k.outline(2, k.rgb(90, 20, 20)),
-      k.area(),
-      k.body({ isStatic: true }),
-      k.z(LAYERS.PROP),
-      "gate",
-    ]);
-    spawnDecor(k, "denied", sizes, {
-      x: gateX + 10,
-      groundY: GROUND_Y - 100,
-      z: LAYERS.PROP + 1,
-    });
-    addSpeech(k, gateX + 10, GROUND_Y - 180, "COUNTY OFFICE\nDocs required", [140, 40, 40]);
-
-    // ================= ZONE 4: Relay — respond to requests for info =================
-    const relayBase = BIOME_W * 4;
-    // Mailbox + phone bonus collectibles (score only, no gate).
-    const relayItems: [number, "mailbox" | "phone", string, number][] = [
-      [relayBase + 180, "mailbox", "letter", 400],
-      [relayBase + 380, "phone",   "call",   400],
-      [relayBase + 640, "mailbox", "letter", 400],
-      [relayBase + 900, "phone",   "call",   400],
-    ];
-    for (const [rx, prop, kind, bonus] of relayItems) {
-      const dh = DISPLAY_H[prop];
-      spawnGrounded(k, prop, sizes, {
-        x: rx,
-        z: LAYERS.PROP,
-        tag: "reply",
-        props: { replyKind: kind, bonus },
-        hitboxScale: { x: -dh / 2, w: dh, h: dh },
-      });
-    }
-    // A single form-monster patrols the middle to keep the pace up.
-    {
-      const mx = relayBase + 520;
-      const mh = DISPLAY_H["form-monster"];
-      const mw = displaySize("form-monster", sizes).w;
-      const speed = active.plain_language ? 22 : 45;
-      const m = spawnGrounded(k, "form-monster", sizes, {
-        x: mx,
-        z: LAYERS.ACTOR,
-        tag: "monster",
+        x: mx, z: LAYERS.ACTOR, tag: "monster",
         props: { dir: 1, home: mx, range: 70 },
         hitboxScale: { x: -mw / 2, w: mw, h: mh },
       });
@@ -797,166 +866,207 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (m.pos.x < m.home - m.range) { m.pos.x = m.home - m.range; m.dir = 1; m.flipX = false; }
       });
     }
-    addSpeech(k, relayBase + 100, GROUND_Y - DISPLAY_H["mailbox"] - 40, "Answer requests for info", [40, 80, 130]);
+    zoneObjectives[3] = {
+      hudLabel: () => `DOCS ${zoneState.docsInZone}/3`,
+      met: () => zoneState.docsInZone >= 3,
+    };
 
-    // ================= ZONE 5: Mountain — awaiting a decision =================
-    const mx0 = BIOME_W * 5;
-    if (active.clearer_directions) {
-      const steps = 10;
-      for (let i = 0; i < steps; i++) {
-        const px = mx0 + 220 + i * 80;
-        const py = GROUND_Y - 40 - i * 32;
-        k.add([
-          k.rect(70, 12),
-          k.pos(px, py),
-          k.color(120, 100, 90),
-          k.area(),
-          k.body({ isStatic: true }),
-          k.outline(2, k.rgb(60, 50, 40)),
-          k.z(LAYERS.PLATFORM),
-          "platform",
-          { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(px, py) },
-        ]);
-        k.add([
-          k.rect(3, 18),
-          k.pos(px + 35, py - 18),
-          k.color(220, 90, 40),
-          k.z(LAYERS.PROP),
-        ]);
-      }
-      for (let i = 0; i < 4; i++) {
-        const px = mx0 + 220 + 10 * 80 + i * 80;
-        const py = GROUND_Y - 40 - (10 - i - 1) * 32;
-        k.add([
-          k.rect(70, 12),
-          k.pos(px, py),
-          k.color(120, 100, 90),
-          k.area(),
-          k.body({ isStatic: true }),
-          k.outline(2, k.rgb(60, 50, 40)),
-          k.z(LAYERS.PLATFORM),
-          "platform",
-          { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(px, py) },
-        ]);
-      }
-    } else {
-      const spots: [number, number][] = [
-        [mx0 + 260, GROUND_Y - 90],
-        [mx0 + 400, GROUND_Y - 160],
-        [mx0 + 540, GROUND_Y - 220],
-        [mx0 + 680, GROUND_Y - 260],
-        [mx0 + 820, GROUND_Y - 220],
-        [mx0 + 960, GROUND_Y - 160],
-        [mx0 + 1080, GROUND_Y - 90],
-      ];
-      for (const [px, py] of spots) {
-        k.add([
-          k.rect(46, 8),
-          k.pos(px, py),
-          k.color(70, 65, 80),
-          k.area(),
-          k.body({ isStatic: true }),
-          k.opacity(0.75),
-          k.z(LAYERS.PLATFORM),
-          "platform",
-          { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(px, py) },
-        ]);
-      }
-      for (let i = 0; i < 2; i++) {
-        const bx = mx0 + 400 + i * 400;
-        const b = spawnAirborne(k, "boulder", sizes, {
-          x: bx,
-          y: -80 - i * 220,
-          z: LAYERS.ACTOR,
-          tag: "boulder",
-          props: { spd: 180 + i * 30, home: bx },
-        });
-        b.onUpdate(() => {
-          b.pos.y += b.spd * k.dt();
-          if (b.pos.y > 700) b.pos = k.vec2(b.home, -180);
-        });
-      }
-    }
-
-    // ================= ZONE 6: Market — choose a health plan =================
-    const kx0 = BIOME_W * 6;
-    // Three plan-card collectibles. Grabbing any one is enough to continue,
-    // but each one boosts score.
-    const planSpots: [number, string][] = [
-      [kx0 + 260, "Care"],
-      [kx0 + 560, "Health"],
-      [kx0 + 860, "Family"],
-    ];
-    for (const [px, label] of planSpots) {
-      const dh = DISPLAY_H["plan-card"];
-      spawnGrounded(k, "plan-card", sizes, {
-        x: px,
-        z: LAYERS.PROP,
-        tag: "plan",
-        props: { planLabel: label, bonus: 600 },
+    // ================= ZONE 4: Answering the Call — collect all mailboxes =================
+    const relayBase = BIOME_W * 4;
+    const relaySpots = [relayBase + 180, relayBase + 380, relayBase + 640, relayBase + 900];
+    zoneState.repliesNeeded = relaySpots.length;
+    for (const rx of relaySpots) {
+      const dh = DISPLAY_H["mailbox"];
+      spawnGrounded(k, "mailbox", sizes, {
+        x: rx, z: LAYERS.PROP, tag: "reply",
+        props: { bonus: 400 },
         hitboxScale: { x: -dh / 2, w: dh, h: dh },
       });
-      addSpeech(k, px, GROUND_Y - dh - 12, label, [40, 90, 60]);
     }
-    addSpeech(k, kx0 + 560, GROUND_Y - 200, "Pick a plan", [30, 60, 120]);
+    {
+      const mx = relayBase + 520;
+      const mh = DISPLAY_H["form-monster"];
+      const mw = displaySize("form-monster", sizes).w;
+      const speed = 40;
+      const m = spawnGrounded(k, "form-monster", sizes, {
+        x: mx, z: LAYERS.ACTOR, tag: "monster",
+        props: { dir: 1, home: mx, range: 70 },
+        hitboxScale: { x: -mw / 2, w: mw, h: mh },
+      });
+      m.onUpdate(() => {
+        m.pos.x += m.dir * speed * k.dt();
+        m.pos.y = GROUND_Y;
+        if (m.pos.x > m.home + m.range) { m.pos.x = m.home + m.range; m.dir = -1; m.flipX = true; }
+        if (m.pos.x < m.home - m.range) { m.pos.x = m.home - m.range; m.dir = 1; m.flipX = false; }
+      });
+    }
+    addSpeech(k, relayBase + 100, GROUND_Y - DISPLAY_H["mailbox"] - 40, "Answer every request!", [40, 80, 130]);
+    zoneObjectives[4] = {
+      hudLabel: () => `REPLIES ${zoneState.repliesGot}/${zoneState.repliesNeeded}`,
+      met: () => zoneState.repliesGot >= zoneState.repliesNeeded,
+    };
 
-    // ================= ZONE 7: Clinic — coverage begins =================
-    const cx = BIOME_W * 7 + 700;
-    // Insurance-card decor beckoning the finish.
-    spawnDecor(k, "insurance-card", sizes, { x: cx - 220, z: LAYERS.PROP });
-    addSpeech(k, cx - 220, GROUND_Y - DISPLAY_H["insurance-card"] - 12, "Coverage active", [30, 100, 60]);
-    // Clinic building.
+    // ================= ZONE 5: Waiting Mountain — 30-second countdown =================
+    const mx0 = BIOME_W * 5;
+    // Boulder hazards
+    for (let i = 0; i < 3; i++) {
+      const bx = mx0 + 300 + i * 300;
+      const b = spawnAirborne(k, "boulder", sizes, {
+        x: bx, y: -80 - i * 180, z: LAYERS.ACTOR,
+        tag: "boulder",
+        props: { spd: 180 + i * 20, home: bx },
+      });
+      b.onUpdate(() => {
+        b.pos.y += b.spd * k.dt();
+        if (b.pos.y > 700) b.pos = k.vec2(b.home, -180);
+      });
+    }
+    addSpeech(k, mx0 + 500, 90, "Awaiting a decision…", [50, 40, 80]);
+    zoneObjectives[5] = {
+      hudLabel: () => {
+        if (zoneState.waitStart === 0) return "WAIT 0:30";
+        const left = Math.max(0, Math.ceil(zoneState.waitDur - (k.time() - zoneState.waitStart)));
+        if (left === 0) return "APPROVED! →";
+        return `WAIT 0:${String(left).padStart(2, "0")}`;
+      },
+      met: () => zoneState.waitStart > 0 && k.time() - zoneState.waitStart >= zoneState.waitDur,
+    };
+
+    // ================= ZONE 6: Choosing Your Path — pick a plan, get a key =================
+    const kx0 = BIOME_W * 6;
+    const planDefs: Array<{ x: number; sprite: string; label: string }> = [
+      { x: kx0 + 260, sprite: "plan-blue",   label: "Medical Assistance" },
+      { x: kx0 + 560, sprite: "plan-green",  label: "MinnesotaCare" },
+      { x: kx0 + 860, sprite: "plan-orange", label: "Private Plan" },
+    ];
+    for (const p of planDefs) {
+      const dh = DISPLAY_H[p.sprite];
+      const dw = displaySize(p.sprite, sizes).w;
+      // Small pedestal
+      k.add([
+        k.rect(dw + 12, 10),
+        k.pos(p.x, GROUND_Y),
+        k.anchor("bot"),
+        k.color(120, 100, 80),
+        k.outline(2, k.rgb(60, 45, 30)),
+        k.z(LAYERS.PROP - 1),
+      ]);
+      const item = k.add([
+        k.sprite(p.sprite, { width: dw, height: dh }),
+        k.pos(p.x, GROUND_Y - 10),
+        k.anchor("bot"),
+        k.area({ shape: new k.Rect(k.vec2(-dw / 2, -dh), dw, dh) }),
+        k.z(LAYERS.PROP),
+        "plan-pick",
+        { planLabel: p.label, bonus: 800 },
+      ]) as AnyObj;
+      void item;
+      addSpeech(k, p.x, GROUND_Y - dh - 26, p.label, [30, 30, 60]);
+    }
+    addSpeech(k, kx0 + 560, GROUND_Y - 220, "Pick ONE plan", [30, 60, 120]);
+    zoneObjectives[6] = {
+      hudLabel: () => zoneState.hasKey ? "KEY ✓" : (zoneState.planPicked ? "GRAB KEY →" : "PLAN ☐"),
+      met: () => zoneState.hasKey,
+    };
+
+    // ================= ZONE 7: Coverage Begins — stairs, ID card, fire pole =================
+    const cx0 = BIOME_W * 7;
+    // Staircase platforms rising
+    const stairY0 = GROUND_Y;
+    const stepCount = 6;
+    for (let i = 0; i < stepCount; i++) {
+      const sxi = cx0 + 280 + i * 90;
+      const syi = stairY0 - 40 - i * 40;
+      k.add([
+        k.rect(84, 14), k.pos(sxi, syi),
+        k.color(200, 195, 210),
+        k.outline(2, k.rgb(90, 90, 110)),
+        k.area(), k.body({ isStatic: true }),
+        k.z(LAYERS.PLATFORM), "platform",
+        { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(sxi, syi) },
+      ]);
+    }
+    // Top landing + medical ID card
+    const topLandingX = cx0 + 280 + stepCount * 90 + 20;
+    const topLandingY = stairY0 - 40 - stepCount * 40;
     k.add([
-      k.rect(80, 140),
-      k.pos(cx, GROUND_Y),
-      k.anchor("bot"),
-      k.color(255, 255, 255),
-      k.outline(3, k.rgb(60, 60, 60)),
-      k.z(LAYERS.PROP),
+      k.rect(160, 14), k.pos(topLandingX, topLandingY),
+      k.color(200, 195, 210), k.outline(2, k.rgb(90, 90, 110)),
+      k.area(), k.body({ isStatic: true }),
+      k.z(LAYERS.PLATFORM), "platform",
+      { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(topLandingX, topLandingY) },
     ]);
+    {
+      const idW = displaySize("medical-id", sizes).w;
+      const idH = DISPLAY_H["medical-id"];
+      const idX = topLandingX + 40;
+      const idY = topLandingY - idH / 2 - 8;
+      const idItem = k.add([
+        k.sprite("medical-id", { width: idW, height: idH }),
+        k.pos(idX, idY),
+        k.anchor("center"),
+        k.area({ shape: new k.Rect(k.vec2(-idW / 2, -idH / 2), idW, idH) }),
+        k.z(LAYERS.PROP),
+        "id-card",
+        { basY: idY },
+      ]) as AnyObj;
+      idItem.onUpdate(() => { idItem.pos.y = idItem.basY + Math.sin(k.time() * 2.5) * 4; });
+      addSpeech(k, idX, idY - idH / 2 - 14, "MEDICAL ID", [200, 40, 60]);
+    }
+    // Fire pole — a tall vertical bar just past the top landing
+    const poleX = topLandingX + 130;
+    const poleTop = topLandingY - 40;
+    const poleBaseY = GROUND_Y - 4;
     k.add([
-      k.rect(60, 12),
-      k.pos(cx + 40, GROUND_Y - 78),
-      k.anchor("center"),
-      k.color(220, 40, 60),
+      k.rect(6, poleBaseY - poleTop),
+      k.pos(poleX, poleTop),
+      k.color(220, 180, 60),
+      k.outline(2, k.rgb(140, 100, 30)),
       k.z(LAYERS.PROP + 1),
     ]);
+    k.add([ // pole cap
+      k.circle(10),
+      k.pos(poleX, poleTop),
+      k.color(255, 215, 80),
+      k.outline(2, k.rgb(140, 100, 30)),
+      k.z(LAYERS.PROP + 2),
+    ]);
+    // Trigger areas for fire pole (attach) and finish base (base of pole).
     k.add([
-      k.rect(12, 60),
-      k.pos(cx + 40, GROUND_Y - 78),
-      k.anchor("center"),
-      k.color(220, 40, 60),
-      k.z(LAYERS.PROP + 1),
+      k.rect(24, poleBaseY - poleTop),
+      k.pos(poleX - 12, poleTop),
+      k.area(), k.opacity(0),
+      "fire-pole",
+      { poleX, poleTop, poleBaseY },
     ]);
     k.add([
-      k.rect(90, 140),
-      k.pos(cx - 5, GROUND_Y),
-      k.anchor("bot"),
-      k.area(),
-      k.opacity(0),
-      "finish",
+      k.rect(60, 30),
+      k.pos(poleX - 30, poleBaseY - 10),
+      k.area(), k.opacity(0),
+      "pole-base",
     ]);
+    // "COVERED" celebration sign at right edge
+    addSpeech(k, LEVEL_END - 100, GROUND_Y - 200, "★ COVERED! ★", [220, 30, 60]);
+    zoneObjectives[7] = {
+      hudLabel: () => zoneState.firePoleDone ? "COVERED!" : "REACH THE ID CARD",
+      met: () => zoneState.firePoleDone,
+    };
 
-    // Save-point campfire near the start of the town (gathering docs) zone.
+    // Save-point campfire near town start (existing improvement).
     const checkpointX = spawnX > 1000 ? spawnX : 40;
     if (active.save_progress) {
       const fx = BIOME_W * 3 + 40;
       const ch = DISPLAY_H["campfire"];
       spawnGrounded(k, "campfire", sizes, {
-        x: fx,
-        z: LAYERS.PROP,
-        tag: "checkpoint",
+        x: fx, z: LAYERS.PROP, tag: "checkpoint",
         props: { atX: fx },
         hitboxScale: { x: -ch / 2, w: ch, h: ch },
       });
-      addSpeech(k, fx, GROUND_Y - ch - 12, "★ Save point", [200, 100, 40]);
     }
-
-    // Documents-earlier backpack
     if (active.documents_earlier) {
       spawnDecor(k, "backpack", sizes, { x: 80, z: LAYERS.PROP });
-      addSpeech(k, 100, GROUND_Y - DISPLAY_H["backpack"] - 12, "Bring: ID, Income, Household", [40, 60, 100]);
     }
+
 
 
 
@@ -1158,6 +1268,31 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.fixed(),
       k.z(LAYERS.HUD),
     ]);
+    // Per-zone objective badge, top-right under the "AFTER FEEDBACK" chip.
+    const objectiveHud = k.add([
+      k.text("", { size: 14, font: "sans-serif" }),
+      k.pos(k.width() - 12, 34),
+      k.anchor("topright"),
+      k.color(255, 220, 90),
+      k.fixed(),
+      k.z(LAYERS.HUD),
+    ]);
+    // Hint bubble that pops up when player bumps a locked door.
+    let hintUntil = 0;
+    const hintHud = k.add([
+      k.text("", { size: 14, font: "sans-serif", width: 460, align: "center" }),
+      k.pos(k.width() / 2, k.height() - 60),
+      k.anchor("center"),
+      k.color(255, 255, 255),
+      k.opacity(0),
+      k.fixed(),
+      k.z(LAYERS.HUD + 1),
+    ]);
+    function showHint(msg: string) {
+      hintHud.text = msg;
+      hintHud.opacity = 1;
+      hintUntil = k.time() + 1.8;
+    }
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
       appIcons.forEach((g, i) => {
@@ -1172,30 +1307,120 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       docsHud.text = active.documents_earlier || player.docs.size > 0
         ? need.length ? `Application docs needed: ${need.join(", ")}` : "Application docs: complete ✓"
         : "";
+      const z = player.farthestZone;
+      const obj = zoneObjectives[z];
+      objectiveHud.text = obj ? obj.hudLabel() : "";
     }
     updateHud();
 
     // ================= Collisions =================
+    player.onCollide("method", () => {
+      if (zoneState.methodTouched) return;
+      zoneState.methodTouched = true;
+      player.score += 400;
+    });
+
+    player.onCollide("credential", (c) => {
+      const cr = c as unknown as { credKind: "user" | "pass"; destroy: () => void };
+      if (cr.credKind === "user") zoneState.userGot = true;
+      else zoneState.passGot = true;
+      player.score += 600;
+      cr.destroy();
+    });
+
     player.onCollide("doc", (d) => {
       const doc = d as unknown as { docKey: string; destroy: () => void };
+      if (!player.docs.has(doc.docKey)) zoneState.docsInZone += 1;
       player.docs.add(doc.docKey);
       player.score += 750;
       doc.destroy();
-      updateHud();
     });
 
     player.onCollide("reply", (r) => {
       const item = r as unknown as { bonus: number; destroy: () => void };
       player.score += item.bonus ?? 300;
+      zoneState.repliesGot += 1;
       item.destroy();
-      updateHud();
     });
 
+    // Old free-plan collectible (unused now — kept for compatibility).
     player.onCollide("plan", (p) => {
       const item = p as unknown as { bonus: number; destroy: () => void };
       player.score += item.bonus ?? 500;
       item.destroy();
-      updateHud();
+    });
+
+    // New: plan pedestal pick. First selection spawns the gold key.
+    player.onCollide("plan-pick", (p) => {
+      if (zoneState.planPicked) return;
+      const item = p as unknown as { planLabel: string; bonus: number; destroy: () => void; pos: { x: number; y: number } };
+      zoneState.planPicked = true;
+      player.score += item.bonus ?? 800;
+      const kx = item.pos.x;
+      const ky = item.pos.y - 40;
+      // Remove the other unpicked pedestal cards
+      k.get("plan-pick").forEach((o) => (o as { destroy: () => void }).destroy());
+      // Spawn floating gold key that homes toward the player
+      const kw = displaySize("gold-key", sizes).w;
+      const kh = DISPLAY_H["gold-key"];
+      const keyItem = k.add([
+        k.sprite("gold-key", { width: kw, height: kh }),
+        k.pos(kx, ky),
+        k.anchor("center"),
+        k.area({ shape: new k.Rect(k.vec2(-kw / 2, -kh / 2), kw, kh) }),
+        k.z(LAYERS.EFFECT),
+        "gold-key",
+      ]);
+      keyItem.onUpdate(() => {
+        const dx = player.pos.x - keyItem.pos.x;
+        const dy = (player.pos.y - kh) - keyItem.pos.y;
+        keyItem.pos.x += dx * 2 * k.dt();
+        keyItem.pos.y += dy * 2 * k.dt();
+      });
+      showHint(`Picked ${item.planLabel} — grab the key!`);
+    });
+
+    player.onCollide("gold-key", (kk) => {
+      if (zoneState.hasKey) return;
+      zoneState.hasKey = true;
+      player.score += 500;
+      (kk as unknown as { destroy: () => void }).destroy();
+      showHint("You got the key! Head to the door.");
+    });
+
+    // Fire pole attach — locks the player to the pole and starts a slide down.
+    player.onCollide("fire-pole", (fp) => {
+      if (zoneState.firePoleAttached || zoneState.firePoleDone) return;
+      const pole = fp as unknown as { poleX: number; poleTop: number; poleBaseY: number };
+      zoneState.firePoleAttached = true;
+      player.pos.x = pole.poleX;
+      player.vel = k.vec2(0, 0);
+      showHint("Sliding down…");
+    });
+
+    player.onCollide("pole-base", () => {
+      if (zoneState.firePoleDone || player.won) return;
+      if (!zoneState.firePoleAttached) return;
+      zoneState.firePoleDone = true;
+      // Fireworks
+      startFireworks(k, player.pos.x + 100, GROUND_Y - 240);
+    });
+
+    // Door collision — unlocked door lets player pass; locked door bumps them back
+    // and shows a zone-specific hint.
+    player.onCollide("door", (d) => {
+      const door = d as unknown as { zoneIdx: number; unlocked: boolean };
+      if (door.unlocked) return;
+      const hints: Record<number, string> = {
+        0: "Touch an application-method signpost to unlock this door.",
+        1: "You need a USERNAME and PASSWORD to log in.",
+        2: "Cross the river of paperwork to reach the door.",
+        3: `Collect 3 verification documents (${zoneState.docsInZone}/3).`,
+        4: `Answer every request for info (${zoneState.repliesGot}/${zoneState.repliesNeeded}).`,
+        5: "Wait for your decision — the door will unlock in time.",
+        6: "Choose a health plan and grab the key.",
+      };
+      showHint(hints[door.zoneIdx] ?? "The door is locked.");
     });
 
     player.onCollide("checkpoint", (c) => {
@@ -1203,15 +1428,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.checkpointX = ch.atX;
     });
 
-    player.onCollide("gate", () => {
-      if (player.docs.size >= 3) {
-        k.get("gate").forEach((g) => (g as { destroy: () => void }).destroy());
-      }
-    });
-
     player.onCollide("monster", () => loseLife("monster"));
     player.onCollide("boulder", () => loseLife("boulder"));
     player.onCollide("water", () => loseLife("water"));
+
 
     function loseLife(cause: FailCause) {
       if (player.dead || player.won) return;
@@ -1257,14 +1477,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       };
     }
 
-    player.onCollide("finish", () => {
+    // (Old fixed-finish collision removed — the clinic zone now ends at the
+    //  fire-pole base which sets zoneState.firePoleDone in the update loop.)
+
+    function tryWin() {
       if (player.won || player.dead) return;
-      if (player.docs.size < 3) return;
       player.won = true;
       opts.onWin?.(buildResult(true));
-      showTitleCard(k, "STEP 5 · ENROLLED", "★ COVERED ★", [255, 220, 90], 2.4);
+      showTitleCard(k, "STEP 8 · ENROLLED", "★ COVERED ★", [255, 220, 90], 2.4);
       showEnd(true);
-    });
+    }
+
 
     function showEnd(win: boolean, cause?: FailCause) {
       const zone = player.farthestZone;
@@ -1357,7 +1580,33 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           player.score += 1000;
         }
         showTitleCard(k, ZONES[z].phase.toUpperCase(), ZONES[z].label.toUpperCase(), [255, 220, 90], 1.4);
+        // Start the 30-second wait when the player enters Waiting Mountain.
+        if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
       }
+
+      // Check each zone's objective and unlock its door when met.
+      for (let i = 0; i < doors.length; i++) {
+        const d = doors[i];
+        const obj = zoneObjectives[i];
+        if (!d || d.unlocked || !obj) continue;
+        if (obj.met()) unlockDoor(i);
+      }
+
+      // Fire-pole slide: freeze x, descend at controlled speed until base.
+      if (zoneState.firePoleAttached && !zoneState.firePoleDone) {
+        player.vel = k.vec2(0, 0);
+        player.pos.y = Math.min(GROUND_Y, player.pos.y + 220 * k.dt());
+      }
+
+      // Hint fade
+      if (hintUntil > 0 && k.time() > hintUntil) {
+        hintHud.opacity = Math.max(0, hintHud.opacity - k.dt() * 3);
+        if (hintHud.opacity <= 0) hintUntil = 0;
+      }
+
+      // Winning: fire pole reached the base.
+      if (zoneState.firePoleDone && !player.won) tryWin();
+
 
       if (player.pos.x > player.rightmostX) {
         const gained = player.pos.x - player.rightmostX;
@@ -1711,3 +1960,45 @@ function spawnThoughtBubble(k: Ctx, x: number, y: number, text: string) {
   });
 }
 
+
+/** Repeated multi-color firework bursts around a center point. Purely
+ *  decorative — no gameplay effect. */
+function startFireworks(k: Ctx, cx: number, cy: number) {
+  const COLORS: Array<[number, number, number]> = [
+    [255, 90, 90], [255, 200, 80], [90, 220, 255],
+    [140, 255, 140], [255, 130, 220], [255, 255, 120],
+  ];
+  function burst(bx: number, by: number, color: [number, number, number]) {
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      const s = 100 + Math.random() * 80;
+      const p = k.add([
+        k.rect(4, 4),
+        k.pos(bx, by),
+        k.color(...color),
+        k.anchor("center"),
+        k.opacity(1),
+        k.z(200),
+        { vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0 },
+      ]) as AnyObj;
+      p.onUpdate(() => {
+        p.pos.x += p.vx * k.dt();
+        p.pos.y += p.vy * k.dt();
+        p.vy += 90 * k.dt();
+        p.life += k.dt();
+        p.opacity = Math.max(0, 1 - p.life * 0.9);
+        if (p.life > 1.2) p.destroy();
+      });
+    }
+  }
+  let n = 0;
+  const iv = setInterval(() => {
+    const bx = cx + (Math.random() - 0.5) * 320;
+    const by = cy + (Math.random() - 0.5) * 140;
+    burst(bx, by, COLORS[n % COLORS.length]);
+    n++;
+    if (n > 24) clearInterval(iv);
+  }, 220);
+  // First burst immediately
+  burst(cx, cy, COLORS[0]);
+}

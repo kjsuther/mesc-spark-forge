@@ -1,73 +1,52 @@
-
 ## Goal
 
-Fix remaining sprite/rendering issues and expand the game from 5 zones to 8 zones matching the real Medicaid application journey. Add new backgrounds, prop sprites, obstacles, and collectibles to the art library.
+Restructure every zone around a **door-based progression gate**: each zone ends at a locked door that only opens once the player has satisfied that zone's Medicaid-themed objective. Add a shared door-unlock animation, generate the new imagery required, and rework Zones 5–8 with brand new mechanics.
 
-## Part 1 — Comprehensive art audit
+## New art to generate (into `src/assets/game/`)
 
-Inspect every existing asset in `src/assets/game/` (5 backgrounds + 2 sprite sheets) and verify:
+Use `imagegen` (SNES 16-bit, matching existing palette/scale):
 
-- **Sheet grid math**: `character-sheet.png` is loaded as 3 cols × 2 rows (6 frames), `props-sheet.png` as 4 cols × 3 rows (12 frames). Re-open the actual PNGs and confirm each frame sits in its declared cell with transparent margins. If any frame bleeds into an adjacent cell, the alpha-trim pipeline will grab the wrong pixels and cause the "cut-off head / floating monster" class of bugs the user has been seeing.
-- **Frame integrity**: for each sprite name in `DISPLAY_H`, render just that trimmed frame to a debug PNG and eyeball it (head, feet, and left/right edges present, no neighbor bleed).
-- **Backgrounds**: confirm each biome PNG is a seamless 1200×540-ish parallax band, no watermark, no cropped subjects.
+1. `door-sheet.png` — 4-frame horizontal sprite sheet: closed → unlocking (key inserted, glow) → half-open → fully open (portal glow). Shared across all zones, tinted per-zone at runtime.
+2. `credentials-sheet.png` — two collectibles: a floating **Username** card (ID badge) and a **Password** token (key with asterisks).
+3. `plan-cards-sheet.png` — 3 selectable plan cards: **Medical Assistance** (blue), **MinnesotaCare** (green), **Private Plan** (orange). Existing `props-sheet-2` cards are decorative; these are UI-sized pickable cards with clear labels.
+4. `key-sheet.png` — 2-frame shiny golden key (post-plan-selection reward).
+5. `flagpole-sheet.png` — Zone 8 fire pole + platform steps + medical ID card at top + flag base.
+6. `fireworks-sheet.png` — 6-frame fireworks burst (looped/staggered for the finale).
+7. `hud-timer.png` — small clock icon for Zone 6 countdown badge (optional; can also be pure text).
 
-Any sheet that fails the audit gets regenerated (via `imagegen`) with an explicit uniform-cell prompt and clear inter-frame padding, then re-trimmed by the existing `loadTrimmedSheet` pipeline (no code change needed once the source PNG is clean).
+## Zone-by-zone changes (`src/components/game/game-scenes.ts`)
 
-## Part 2 — Zone restructure (5 → 8)
+Add a shared `spawnDoor(x, zoneIndex, opts)` helper that:
+- spawns a closed door sprite at the zone's end
+- exposes `door.unlock()` which plays the 4-frame unlock animation, plays a chime, then sets `door.isOpen = true`
+- on player overlap when `isOpen`, transitions to the next zone (replaces current "reach x position" progression)
+- when locked and touched, shows a floating hint ("Find username & password to unlock", etc.)
 
-New `ZONES` array, in order, with themed labels:
+Per zone:
 
-1. `forest` — **Finding the Trail** (Step 1 · Learn you may qualify) — unchanged
-2. `signup` — **Setting Up Camp** (Step 2 · Create your account) — NEW
-3. `river` — **Crossing the River of Paperwork** (Step 3 · Start your application) — was Zone 2
-4. `town` — **Gathering Supplies** (Step 4 · Gather your documents) — was Zone 3, relabeled
-5. `relay` — **Answering the Call** (Step 5 · Respond to requests for information) — NEW
-6. `mountain` — **Waiting Mountain** (Step 6 · Await a decision) — was Zone 4
-7. `market` — **Choosing Your Path** (Step 7 · Pick a health plan) — NEW
-8. `clinic` — **Coverage Begins** (Step 8 · Enroll in coverage) — was Zone 5
+- **Zone 1 — Finding the Trail:** player must jump and touch any one application-method plaque (Mail / Phone / In-Person / Office). On first touch, door at zone end unlocks. Existing small teaching gap stays.
+- **Zone 2 — Setting Up Camp (Create account):** spawn a floating **Username** card and a **Password** token as required collectibles. HUD shows `USER ☐  PASS ☐`. When both collected, door unlocks.
+- **Zone 3 — Crossing River of Paperwork:** no mechanic change. Add door at end; touching it triggers unlock animation, then transitions.
+- **Zone 4 — Gathering Supplies (Gather Documents):** require **3 verification pickups** (reuse doc collectible) while avoiding paperwork form-monster. Door stays locked until `docsCollectedInZone >= 3`; HUD shows `DOCS 0/3`.
+- **Zone 5 — Answering the Call:** fix background — currently leaves whitespace at the right edge. Make `bg-relay` tile/repeat across the zone's full pixel length (same tiling helper other zones use, or `repeat: true` on the bg sprite). Require **all mailboxes collected** and no hit taken from obstacles to unlock the door; HUD shows `REPLIES x/N`.
+- **Zone 6 — Waiting Mountain:** add a 30-second countdown timer badge in the HUD. During the wait, existing falling boulders continue. Door is visibly locked with a padlock overlay; at t=0 the padlock breaks, unlock animation plays, and a floating "Decision approved — door open!" banner appears. Player must still walk to the door to advance.
+- **Zone 7 — Choosing Your Path:** spawn **3 plan card pedestals** (Medical Assistance / MinnesotaCare / Private Plan). Player jumps onto/into one to select. Selection spawns a golden **key** that auto-attaches to the player and marks the door as unlockable; touching the door plays unlock animation and advances.
+- **Zone 8 — Coverage Begins:** replace flat run with a **staircase of platforms** rising to a **medical ID card** at the top. Touching the card attaches player to a **fire pole**; player slides down (locked horizontal, controlled vertical descent). On reaching the pole base, trigger `fireworks-sheet` bursts across the background on a loop and show the existing "★ ENROLLED IN COVERAGE ★" win overlay.
 
-`LEVEL_END`, camera bounds, zone-index math, `FAILURE_MESSAGES`, `OVERLAY_TITLES`, and admin/leaderboard "farthestZone" copy all extend from 5 to 8 entries. Every new zone gets a continuous ground span (no impossible gaps) plus one small teaching obstacle so it's beatable on first try.
+## Shared systems
 
-## Part 3 — New art assets
-
-Generate three new backgrounds and one new props sheet (SNES 16-bit style, matching the existing palette and horizon line so parallax stitching is invisible):
-
-- `src/assets/game/bg-signup.png` — dusk campsite with tents, lantern, laptop-on-log motif (account creation)
-- `src/assets/game/bg-relay.png` — telephone-pole prairie with mailboxes and signal towers (requests for info)
-- `src/assets/game/bg-market.png` — plan-selection market stalls with health-plan banners
-
-New props sheet `src/assets/game/props-sheet-2.png` (4×3 grid, uniform cells, transparent gutters) with:
-
-- `laptop` (collectible) — account setup
-- `password-lock` (obstacle) — 2-factor block
-- `phone-ring` (collectible) — respond to RFI
-- `mailbox` (obstacle) — missed mail
-- `clipboard-question` (enemy) — the RFI form-monster variant
-- `plan-card-a`, `plan-card-b`, `plan-card-c` (collectibles) — pick a plan
-- `nurse` (NPC decor)
-- `insurance-card` (final collectible)
-- 3 filler decor slots (fern, cactus, cloud) to fill the sheet
-
-Loaded through the same `loadTrimmedSheet` call as the existing props sheet; each new name gets a `DISPLAY_H` entry and a spawn helper caller.
-
-## Part 4 — New obstacles / collectibles per new zone
-
-- **Zone 2 Setting Up Camp**: collect `laptop` icons (account fields), hop over `password-lock` blocks, one `clipboard-question` walker.
-- **Zone 5 Answering the Call**: collect `phone-ring` bubbles that float on parabolas; avoid `mailbox` gaps and one boulder rolled from a telephone pole.
-- **Zone 7 Choosing Your Path**: three `plan-card-*` collectibles on branching platforms — collecting any one unlocks the exit gate; `nurse` NPC at the end.
-
-Scoring hooks into the existing `score += ...` accumulator (docs → points, plan choice → bonus).
-
-## Part 5 — QA pass
-
-- Playwright headless run through all 8 zones on desktop viewport, screenshot every zone entry, confirm ground alignment, enemy grounding, and no sprite clipping.
-- Same on mobile viewport (390×844), verifying touch controls do not overlap gameplay across the longer level.
-- Confirm HUD score/lives still correct after new zones added.
+- **Door unlock animation:** 4-frame sprite advanced on a 90ms timer, with a brief camera shake + chime SFX (reuse existing collect chime, pitched up).
+- **HUD:** extend existing HUD renderer with per-zone objective row (e.g. `USER ✓ PASS ☐`, `DOCS 2/3`, `REPLIES 3/4`, `WAIT 0:23`, `PLAN ☐`, `KEY ✓`). Reuse pixel font.
+- **Zone transitions:** replace the current "cross x position ⇒ next zone" trigger with "overlap open door ⇒ next zone". Locked door blocks passage with a soft push-back + hint bubble.
+- **Progression state:** add `zoneObjectiveState` object reset on every zone enter; drives both HUD and door-unlock check each frame.
 
 ## Files touched
 
-- `src/components/game/game-scenes.ts` — ZONES array, sprite specs, spawn calls for new zones, failure/overlay copy arrays extended.
-- `src/assets/game/bg-signup.png`, `bg-relay.png`, `bg-market.png` — new (via imagegen).
-- `src/assets/game/props-sheet-2.png` — new (via imagegen).
-- `src/assets/game/character-sheet.png`, `props-sheet.png` — regenerated only if the audit flags them.
-- `src/routes/tool.tsx` and any leaderboard/admin copy that hardcodes "5 zones" — updated to 8.
+- `src/components/game/game-scenes.ts` — door system, per-zone objective logic, HUD extension, Zone 5 bg tiling fix, Zone 6 timer, Zone 7 plan-select, Zone 8 stairs + fire pole + fireworks.
+- `src/components/game/game-canvas.tsx` — no structural change; may add a small overlay for Zone 6 countdown if easier than in-canvas HUD.
+- `src/assets/game/*` — new sprite sheets listed above (+ `.asset.json` pointers via `lovable-assets`).
+- Register new sheets in `loadAllSprites` using the existing `loadTrimmedSheet` pipeline so anchors stay pixel-truthful.
+
+## QA
+
+After build, run a Playwright pass (desktop + mobile viewport) that plays through all 8 zones, screenshots each door unlock, verifies Zone 5 has no background whitespace, Zone 6 timer counts to 0 and unlocks, Zone 7 grants a key on plan selection, and Zone 8 fireworks trigger at pole base.

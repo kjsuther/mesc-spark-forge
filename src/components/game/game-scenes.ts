@@ -1094,6 +1094,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         });
       }
     }
+    // Background thought bubbles — decorative "what am I filling out?" chatter.
+    {
+      const bubbles: Array<[number, number, string]> = [
+        [rx0 + 60,  120, "Which form?"],
+        [rx0 + 220, 90,  "Do I qualify?"],
+        [rx0 + 360, 140, "Where do I start?"],
+        [rx0 + 500, 100, "Is this online?"],
+        [rx0 + 640, 130, "How long?"],
+      ];
+      for (const [bx, by, text] of bubbles) spawnThoughtBubble(k, bx, by, text);
+    }
     // Zone 2 unlocks the moment player crosses the river.
     zoneObjectives[2] = {
       hudLabel: () => "CROSS THE RIVER →",

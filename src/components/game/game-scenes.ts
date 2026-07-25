@@ -159,7 +159,7 @@ const DISPLAY_H: Record<string, number> = {
   paystub: 30,
   envelope: 30,
   boulder: 30,
-  "form-monster": 50,
+  "form-monster": 38,
   denied: 40,
 };
 

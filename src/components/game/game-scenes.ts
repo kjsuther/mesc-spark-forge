@@ -2060,22 +2060,26 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         p.opacity = 1;
       }
       // Belt-and-suspenders: hard-clamp player X so no jump/collision-resolution
-      // edge case can smuggle them past a locked door. Uses the door object's
-      // world X (dx) minus half the player hitbox width as an upper bound while
-      // in the same or preceding zone. Applied only for the nearest locked door
-      // ahead of the player to avoid interfering with movement in later zones.
+      // edge case can smuggle them past a locked door. Applied while the player
+      // is still on the "wrong" side of the nearest locked door — anywhere
+      // before the door itself or within the door's own zone boundary if they
+      // tunneled through in one frame.
       const HITBOX_HALF = 12;
       for (let i = 0; i < doors.length; i++) {
         const d = doors[i];
         if (!d || d.unlocked) continue;
         const dx = (i + 1) * BIOME_W - 60;
-        if (player.pos.x + HITBOX_HALF > dx - 4 && player.pos.x < dx + 40) {
-          player.pos.x = dx - 4 - HITBOX_HALF;
+        const clampX = dx - 4 - HITBOX_HALF;
+        // Only clamp if player has not YET beaten this door's zone (they should
+        // still be in zone i or earlier). Never clamp backwards from a later zone.
+        if (player.farthestZone <= i && player.pos.x > clampX) {
+          player.pos.x = clampX;
           if (p.vel && p.vel.x > 0) p.vel.x = 0;
-          break;
         }
+        break; // nearest locked door only
       }
     });
+
 
     k.onUpdate(() => {
       if (!player.dead) updateHud();

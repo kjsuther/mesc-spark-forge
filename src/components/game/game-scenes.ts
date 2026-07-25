@@ -1262,6 +1262,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.anchor("bot"),
       k.z(LAYERS.PLAYER),
       "player",
+    ]);
+    // Debug hook so QA/Playwright can inspect live game state.
+    if (typeof window !== "undefined") {
+      (window as unknown as { __gameDebug?: unknown }).__gameDebug = {
+        player, doors, zoneState, zoneObjectives,
+        BIOME_W, GROUND_Y, ZONES_LEN: ZONES.length,
+      };
+    }
+    player.use(
+
       {
         docs: new Set<string>(),
         checkpointX,

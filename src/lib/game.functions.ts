@@ -61,6 +61,17 @@ export const resetImprovements = createServerFn({ method: "POST" }).handler(asyn
   return { ok: true as const };
 });
 
+export const resetLeaderboard = createServerFn({ method: "POST" }).handler(async () => {
+  await requireAdmin();
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { error } = await supabaseAdmin
+    .from("game_scores")
+    .delete()
+    .neq("id", "00000000-0000-0000-0000-000000000000");
+  if (error) throw error;
+  return { ok: true as const };
+});
+
 // ---------------- Round-based voting ----------------
 
 // Start a new voting round. Ends any active round first. Duration in seconds.

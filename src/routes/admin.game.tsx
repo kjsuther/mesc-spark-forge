@@ -13,6 +13,7 @@ import {
   setImprovementEnabled,
   setBeforeAfter,
   resetImprovements,
+  resetLeaderboard,
   startVoteRound,
   endAndApplyRound,
   IMPROVEMENT_KEYS,

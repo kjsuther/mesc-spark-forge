@@ -1467,7 +1467,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           : zoneState.bossDefeated
             ? "GRAB KEY →"
             : zoneState.planPicked
-              ? `BOSS ${zoneState.bossHits}/3`
+              ? `BOSS ${zoneState.bossHits}/2`
               : "PLAN ☐",
       met: () => zoneState.hasKey,
     };

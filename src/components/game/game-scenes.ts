@@ -1153,8 +1153,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
       const spots: Array<{ x: number; dir: 1 | -1; speed: number; range: number }> = [
-        { x: sx0 + 470, dir:  1, speed: 90, range: 220 },
-        { x: sx0 + 510, dir: -1, speed: 90, range: 220 },
+        { x: sx0 + 470, dir:  1, speed: 130, range: 300 },
+        { x: sx0 + 510, dir: -1, speed: 130, range: 300 },
+        // Fourth padlock guarding the approach to the door on the right.
+        { x: sx0 + 1000, dir: -1, speed: 120, range: 160 },
       ];
       for (const s of spots) {
         const m = spawnGrounded(k, "padlock", sizes, {
@@ -1170,6 +1172,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         });
       }
     }
+
 
     zoneObjectives[1] = {
       hudLabel: () => `USER ${zoneState.userGot ? "✓" : "☐"}  PASS ${zoneState.passGot ? "✓" : "☐"}`,
@@ -1199,11 +1202,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // platform surface so the player literally steps on "About You", "Household",
       // "Income", "Signature" to cross the river.
       const platforms = [
-        { x: rx0 + 40,  y: GROUND_Y - 34, amp: 26, spd: 2.6, label: "ABOUT YOU" },
-        { x: rx0 + 160, y: GROUND_Y - 58, amp: 38, spd: 2.2, label: "HOUSEHOLD" },
-        { x: rx0 + 280, y: GROUND_Y - 44, amp: 30, spd: 2.9, label: "INCOME" },
-        { x: rx0 + 400, y: GROUND_Y - 34, amp: 26, spd: 2.6, label: "SIGNATURE" },
+        { x: rx0 + 20,  y: GROUND_Y - 44, amp: 46, spd: 3.6, label: "ABOUT YOU" },
+        { x: rx0 + 165, y: GROUND_Y - 76, amp: 62, spd: 3.1, label: "HOUSEHOLD" },
+        { x: rx0 + 310, y: GROUND_Y - 58, amp: 52, spd: 4.0, label: "INCOME" },
+        { x: rx0 + 455, y: GROUND_Y - 44, amp: 46, spd: 3.4, label: "SIGNATURE" },
       ];
+
       for (const p of platforms) {
         const PLAT_W = 108;
         const plat = k.add([
@@ -1292,12 +1296,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     {
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
-      const baseSpeed = active.plain_language ? 24 : 40;
+      const baseSpeed = active.plain_language ? 30 : 52;
       const monsterSpots: Array<{ x: number; speed: number; range: number }> = [
-        { x: tx0 + 380,  speed: active.plain_language ? 20 : 34, range: 90 },
-        { x: tx0 + 720,  speed: baseSpeed,                        range: 90 },
-        { x: tx0 + 1000, speed: active.plain_language ? 20 : 34, range: 90 },
+        { x: tx0 + 340,  speed: active.plain_language ? 26 : 46, range: 110 },
+        { x: tx0 + 620,  speed: baseSpeed,                        range: 130 },
+        { x: tx0 + 820,  speed: active.plain_language ? 28 : 50, range: 100 },
+        { x: tx0 + 1020, speed: active.plain_language ? 26 : 44, range: 120 },
       ];
+
       for (const s of monsterSpots) {
         const m = spawnGrounded(k, "form-monster", sizes, {
           x: s.x, z: LAYERS.ACTOR, tag: "monster",
@@ -1330,37 +1336,48 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
     {
-      // Two Envelope-Gremlins wandering the FULL zone with unpredictable
-      // direction/speed re-rolls so their pattern never repeats.
+      // Three Envelope-Gremlins wandering the FULL zone with unpredictable
+      // re-rolls and occasional "dive" bursts toward the player.
       const mh = DISPLAY_H["envelope-gremlin-0"];
       const mw = displaySize("envelope-gremlin-0", sizes).w;
       const zoneL = relayBase + 80;
       const zoneR = relayBase + BIOME_W - 80;
-      const startXs = [relayBase + 300, relayBase + 820];
+      const startXs = [relayBase + 260, relayBase + 620, relayBase + 960];
       for (let gi = 0; gi < startXs.length; gi++) {
         const sx = startXs[gi];
         const m = spawnGrounded(k, "envelope-gremlin-0", sizes, {
           x: sx, z: LAYERS.ACTOR, tag: "monster",
           props: {
             dir: (Math.random() < 0.5 ? -1 : 1) as 1 | -1,
-            speed: 35 + Math.random() * 40,
+            speed: 55 + Math.random() * 55,
             targetX: zoneL + Math.random() * (zoneR - zoneL),
-            nextRoll: 1.2 + Math.random() * 1.0,
+            nextRoll: 0.7 + Math.random() * 0.6,
             rollT: 0,
             baseY: GROUND_Y,
             bobPhase: Math.random() * Math.PI * 2,
             animT: 0,
             gremlinFrame: 0,
+            diveUntil: 0,
+            nextDive: 2.5 + Math.random() * 2.0,
           },
           hitboxScale: { x: -mw / 2, w: mw, h: mh },
         });
         m.onUpdate(() => {
           const dt = k.dt();
+          const now = k.time();
           m.rollT += dt;
-          if (m.rollT >= m.nextRoll || Math.abs(m.pos.x - m.targetX) < 8) {
+          // Occasionally lock onto the player for a short dive burst.
+          if (now >= m.nextDive) {
+            m.diveUntil = now + 0.6;
+            m.nextDive = now + 2.5 + Math.random() * 2.0;
+          }
+          if (now < m.diveUntil) {
+            m.targetX = player.pos.x;
+            m.speed = 150;
+          } else if (m.rollT >= m.nextRoll || Math.abs(m.pos.x - m.targetX) < 8) {
             m.targetX = zoneL + Math.random() * (zoneR - zoneL);
-            m.speed = 35 + Math.random() * 40;
-            m.nextRoll = 1.2 + Math.random() * 1.0;
+            m.speed = 55 + Math.random() * 55;
+            m.nextRoll = 0.7 + Math.random() * 0.6;
             m.rollT = 0;
           }
           m.dir = m.pos.x < m.targetX ? 1 : -1;
@@ -1378,6 +1395,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         });
       }
     }
+
     addSpeech(k, relayBase + 100, GROUND_Y - DISPLAY_H["mailbox"] - 40, "Answer every request!", [40, 80, 130]);
     // Decorative paper airplanes drifting across the sky — ties into the
     // "letters back and forth with the agency" theme. No collision.
@@ -1416,16 +1434,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= ZONE 5: Waiting Mountain — 10-second countdown =================
     const mx0 = BIOME_W * 5;
     // Falling calendar pages — days peeling off the calendar while you wait.
-    // Dense, fast rain: 14 pages, higher fall speed, tighter respawn cadence.
-    const CAL_COUNT = 14;
+    // Very dense rain: 20 pages, faster fall, horizontal drift so straight-line
+    // dodging fails. Getting hit also resets the countdown (see loseLife).
+    const CAL_COUNT = 20;
     for (let i = 0; i < CAL_COUNT; i++) {
       const initialX = mx0 + 80 + Math.random() * (BIOME_W - 160);
       const b = spawnAirborne(k, "calendar-page", sizes, {
         x: initialX, y: -80 - Math.random() * 300, z: LAYERS.ACTOR,
         tag: "boulder",
         props: {
-          spd: 300 + Math.random() * 180,
+          spd: 380 + Math.random() * 240,
           spin: (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 60),
+          driftAmp: 20 + Math.random() * 40,
+          driftSpd: 1.2 + Math.random() * 1.6,
+          driftPhase: Math.random() * Math.PI * 2,
+          baseX: initialX,
           zoneL: mx0 + 60,
           zoneR: mx0 + BIOME_W - 60,
         },
@@ -1433,16 +1456,22 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       b.use(k.rotate(0));
       b.onUpdate(() => {
         b.pos.y += b.spd * k.dt();
+        b.pos.x = b.baseX + Math.sin(k.time() * b.driftSpd + b.driftPhase) * b.driftAmp;
         b.angle = (b.angle ?? 0) + b.spin * k.dt();
         if (b.pos.y > 700) {
-          // Re-roll X anywhere in the zone; respawn close above so cadence stays tight.
-          b.pos = k.vec2(b.zoneL + Math.random() * (b.zoneR - b.zoneL), -80 - Math.random() * 120);
-          b.spd = 300 + Math.random() * 180;
+          const nx = b.zoneL + Math.random() * (b.zoneR - b.zoneL);
+          b.baseX = nx;
+          b.pos = k.vec2(nx, -80 - Math.random() * 100);
+          b.spd = 380 + Math.random() * 240;
           b.spin = (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 60);
+          b.driftAmp = 20 + Math.random() * 40;
+          b.driftSpd = 1.2 + Math.random() * 1.6;
+          b.driftPhase = Math.random() * Math.PI * 2;
           b.angle = 0;
         }
       });
     }
+
     addSpeech(k, mx0 + 500, 90, "Awaiting a decision…", [50, 40, 80]);
     zoneObjectives[5] = {
       hudLabel: () => {
@@ -2344,7 +2373,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     player.onCollide("monster", () => loseLife("monster"));
-    player.onCollide("boulder", () => loseLife("boulder"));
+    player.onCollide("boulder", () => {
+      // In the Awaiting-Decision zone, a calendar hit also resets the countdown
+      // to the full 10 seconds — feels like the clock starting over.
+      const inWaitZone = Math.floor(player.pos.x / BIOME_W) === 5;
+      const alive = !player.dead && !player.won && k.time() >= player.invulnUntil;
+      if (inWaitZone && alive && zoneState.waitStart > 0) {
+        zoneState.waitStart = k.time();
+      }
+      loseLife("boulder");
+    });
     player.onCollide("water", () => loseLife("water"));
 
 

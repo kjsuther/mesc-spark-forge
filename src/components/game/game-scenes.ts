@@ -230,6 +230,8 @@ const DISPLAY_H: Record<string, number> = {
   "plan-green": 60,
   "plan-orange": 60,
   "medical-id": 46,
+  "calendar-page": 46,
+  "paper-airplane": 26,
 };
 
 // ============================ Sprite trim pipeline ============================

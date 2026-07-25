@@ -28,6 +28,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const [launchMode, setLaunchMode] = useState<LaunchMode | null>(null);
   const [menuScreen, setMenuScreen] = useState<MenuScreen>("title");
   const [showHint, setShowHint] = useState(true);
+  const [loading, setLoading] = useState(false);
   const key = `${mode}|${Object.entries(flags)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}:${v ? 1 : 0}`)

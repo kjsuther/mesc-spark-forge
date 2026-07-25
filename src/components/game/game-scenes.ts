@@ -2240,6 +2240,26 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.dead) return;
         if (k.time() < player.invulnUntil) return;
         if (k.time() < boss.hurtUntil) return;
+        // Navigator power-up: helper takes the boss out on first contact.
+        if (active.navigator_helper) {
+          boss.hits = 2;
+          boss.hurtUntil = k.time() + 0.4;
+          zoneState.bossHits = 2;
+          player.invulnUntil = k.time() + 0.5;
+          player.score += 600;
+          boss.dead = true;
+          zoneState.bossDefeated = true;
+          setGameObjSprite(boss, "boss-defeat");
+          hearts.destroy();
+          const kx = boss.pos.x;
+          const ky = GROUND_Y - 40;
+          k.wait(0.6, () => {
+            boss.destroy();
+            spawnGoldKey(kx, ky);
+            showHint("Navigator handled the boss — grab the key!");
+          });
+          return;
+        }
         // Both actors anchored "bot": pos.y = feet. Boss top is bh above its feet.
         const bossTop = boss.pos.y - bh;
         const playerFoot = player.pos.y;
@@ -2372,11 +2392,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.checkpointX = ch.atX;
     });
 
-    player.onCollide("monster", () => loseLife("monster"));
+    player.onCollide("monster", () => {
+      // Live Chat Assistant: invincible to all enemies in Zone 4 (Gathering Documents).
+      const inGatherZone = Math.floor(player.pos.x / BIOME_W) === 3;
+      if (active.chat_invincible && inGatherZone) return;
+      loseLife("monster");
+    });
     player.onCollide("boulder", () => {
       // In the Awaiting-Decision zone, a calendar hit also resets the countdown
       // to the full 10 seconds — feels like the clock starting over.
       const inWaitZone = Math.floor(player.pos.x / BIOME_W) === 5;
+      // Email Your Case Worker: umbrella blocks falling calendar dates in Zone 6.
+      if (active.email_umbrella && inWaitZone) return;
       const alive = !player.dead && !player.won && k.time() >= player.invulnUntil;
       if (inWaitZone && alive && zoneState.waitStart > 0) {
         zoneState.waitStart = k.time();

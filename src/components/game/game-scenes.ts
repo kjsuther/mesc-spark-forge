@@ -84,33 +84,44 @@ const PLATFORM_EDGE_TOLERANCE = 22;
 type FailCause = "monster" | "boulder" | "water" | "fell" | "noDocs";
 const OVERLAY_TITLES = [
   "PAUSE ON THE TRAIL",
+  "ACCOUNT NOT CREATED",
   "APPLICATION PAUSED",
   "MISSING PAPERWORK",
+  "REQUEST UNANSWERED",
   "REVIEW IN PROGRESS",
+  "PLAN NOT CHOSEN",
   "ALMOST ENROLLED",
 ] as const;
 const FAILURE_MESSAGES: Record<number, string[]> = {
   0: [
     "Pick a way to apply before moving forward.",
     "Every journey starts by choosing how you'll apply.",
-    "You missed your chance to choose an application method.",
   ],
   1: [
-    "A missing answer is slowing your journey.",
-    "Double-check your application before submitting.",
-    "Some application questions were left unanswered.",
+    "You need an account before you can apply online.",
+    "Set up your login and try again.",
   ],
   2: [
-    "Looks like some documents are still missing.",
-    "Gather everything you need before continuing.",
-    "Your application is waiting for supporting documents.",
+    "A missing answer is slowing your journey.",
+    "Double-check your application before submitting.",
   ],
   3: [
-    "Your application is still under review.",
-    "The agency needs a little more information.",
-    "Stay on the trail — you're almost there.",
+    "Looks like some documents are still missing.",
+    "Gather everything you need before continuing.",
   ],
   4: [
+    "The agency asked for more info — respond quickly.",
+    "A request for information went unanswered.",
+  ],
+  5: [
+    "Your application is still under review.",
+    "Stay on the trail — you're almost there.",
+  ],
+  6: [
+    "You need to pick a health plan to continue.",
+    "Choose the plan that best fits your household.",
+  ],
+  7: [
     "One final step remains before coverage begins.",
     "Don't stop now — you're almost enrolled!",
   ],

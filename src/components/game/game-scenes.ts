@@ -2899,31 +2899,41 @@ function addSpeech(
  *  no collision, no gameplay effect. Uses BG_NEAR layer so it sits between
  *  the biome painting and gameplay elements. */
 function spawnThoughtBubble(k: Ctx, x: number, y: number, text: string) {
-  const w = Math.max(80, text.length * 6 + 22);
-  const h = 24;
+  const size = 12;
+  const charW = size * 0.62;
+  const w = Math.max(96, Math.ceil(text.length * charW) + 22);
+  const h = size + 14;
   const bg = k.add([
-    k.rect(w, h, { radius: 10 }),
+    k.rect(w, h, { radius: 8 }),
     k.pos(x, y),
     k.anchor("center"),
     k.color(255, 255, 255),
-    k.outline(2, k.rgb(90, 110, 150)),
-    k.opacity(0.9),
+    k.outline(3, k.rgb(30, 45, 90)),
+    k.opacity(1),
     k.z(LAYERS.BG_NEAR + 1),
   ]);
   const tail = k.add([
-    k.circle(3),
-    k.pos(x - 4, y + h / 2 + 3),
+    k.circle(4),
+    k.pos(x - 6, y + h / 2 + 4),
     k.color(255, 255, 255),
-    k.outline(2, k.rgb(90, 110, 150)),
-    k.opacity(0.9),
+    k.outline(3, k.rgb(30, 45, 90)),
+    k.opacity(1),
     k.z(LAYERS.BG_NEAR + 1),
   ]);
+  const shadow = k.add([
+    k.text(text, { size, font: "sans-serif" }),
+    k.pos(x + 1, y + 1),
+    k.anchor("center"),
+    k.color(0, 0, 0),
+    k.opacity(0.35),
+    k.z(LAYERS.BG_NEAR + 2),
+  ]);
   const t = k.add([
-    k.text(text, { size: 10, font: "sans-serif" }),
+    k.text(text, { size, font: "sans-serif" }),
     k.pos(x, y),
     k.anchor("center"),
-    k.color(45, 60, 100),
-    k.z(LAYERS.BG_NEAR + 2),
+    k.color(30, 45, 90),
+    k.z(LAYERS.BG_NEAR + 3),
   ]);
   const base = y;
   const phase = Math.random() * Math.PI * 2;
@@ -2931,7 +2941,8 @@ function spawnThoughtBubble(k: Ctx, x: number, y: number, text: string) {
     const dy = Math.sin(k.time() * 1.3 + phase) * 4;
     bg.pos.y = base + dy;
     t.pos.y = base + dy;
-    tail.pos.y = base + dy + h / 2 + 3;
+    shadow.pos.y = base + dy + 1;
+    tail.pos.y = base + dy + h / 2 + 4;
   });
 }
 

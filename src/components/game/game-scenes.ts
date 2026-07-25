@@ -1357,9 +1357,10 @@ function addGround(
     k.color(...topColor),
     k.z(LAYERS.GROUND_TOP),
   ]);
+  // Highlight ribbon along the top of the grass band.
   k.add([
     k.rect(w, 2),
-    k.pos(x, yy),
+    k.pos(x, yy - 10),
     k.color(
       Math.min(255, topColor[0] + 40),
       Math.min(255, topColor[1] + 40),

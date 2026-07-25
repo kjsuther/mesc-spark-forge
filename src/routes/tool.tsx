@@ -11,7 +11,7 @@ import { Leaderboard } from "@/components/game/leaderboard";
 import { ScoreSubmit } from "@/components/game/score-submit";
 import type { WinResult } from "@/components/game/game-scenes";
 import { improvementsQuery, gameSettingsQuery, activeRoundQuery } from "@/lib/game.queries";
-import { nowBuildingQuery, versionsQuery } from "@/lib/queries";
+import { nowBuildingQuery } from "@/lib/queries";
 import { IMPROVEMENT_KEYS, type ImprovementKey } from "@/lib/game.functions";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -40,7 +40,7 @@ export const Route = createFileRoute("/tool")({
     context.queryClient.ensureQueryData(gameSettingsQuery);
     context.queryClient.ensureQueryData(activeRoundQuery);
     context.queryClient.ensureQueryData(nowBuildingQuery);
-    context.queryClient.ensureQueryData(versionsQuery);
+    
   },
   component: ToolPage,
 });
@@ -48,14 +48,14 @@ export const Route = createFileRoute("/tool")({
 function ToolPage() {
   const { data: improvements } = useSuspenseQuery(improvementsQuery);
   const { data: nowBuilding } = useSuspenseQuery(nowBuildingQuery);
-  const { data: versions } = useSuspenseQuery(versionsQuery);
+  
   const { data: settings } = useQuery(gameSettingsQuery);
   const qc = useQueryClient();
   const [localMode, setLocalMode] = useState<"before" | "after" | null>(null);
   const [gameEnded, setGameEnded] = useState(false);
   const [winResult, setWinResult] = useState<WinResult | null>(null);
 
-  const current = versions.find((v) => v.is_current) ?? versions[versions.length - 1];
+  
 
   useEffect(() => {
     const channel = supabase
@@ -106,7 +106,7 @@ function ToolPage() {
       <SiteChrome />
 
       <main id="main-content" className="max-w-6xl w-full mx-auto py-10 px-4 sm:px-6 flex-1">
-        <NowBuildingBanner items={nowBuilding} currentSemver={current?.semver} variant="tool" />
+        <NowBuildingBanner items={nowBuilding} variant="tool" />
 
         <header className="mb-6">
           <SectionHeading as="h1">Blazing the Trail to Coverage</SectionHeading>

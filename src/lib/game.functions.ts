@@ -2,14 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireAdmin } from "./admin-session.server";
 
 export const IMPROVEMENT_KEYS = [
-  "clearer_directions",
-  "helper",
-  "documents_earlier",
-  "save_progress",
-  "bridge",
-  "plain_language",
-  "phone_support",
-  "translated_signs",
+  "extra_lives",
+  "navigator_helper",
+  "chat_invincible",
+  "email_umbrella",
+  "resume_checkpoint",
 ] as const;
 
 export type ImprovementKey = (typeof IMPROVEMENT_KEYS)[number];

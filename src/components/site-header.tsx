@@ -6,12 +6,11 @@ import mescLogo from "@/assets/mesc-2026-logo.png.asset.json";
 import mnDhsLogo from "@/assets/mn-dhs-logo-new.png.asset.json";
 
 const NAV_LINKS: ReadonlyArray<{
-  to: "/" | "/changelog" | "/about";
+  to: "/" | "/about";
   label: string;
   exact?: boolean;
 }> = [
   { to: "/", label: "Home", exact: true },
-  { to: "/changelog", label: "Version History" },
   { to: "/about", label: "About" },
 ];
 

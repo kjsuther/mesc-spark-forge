@@ -805,7 +805,7 @@ function spawnDecor(
 
 export async function startGame(opts: StartGameOpts): Promise<() => void> {
   const kaplay = (await import("kaplay")).default;
-  const active: Partial<GameFlags> = opts.mode === "after" ? opts.flags : {};
+  const active: Record<string, boolean | undefined> = opts.mode === "after" ? { ...opts.flags } : {};
 
   const k: Ctx = kaplay({
     canvas: opts.canvas,
@@ -1633,7 +1633,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // Save-point campfire near town start (existing improvement).
     const checkpointX = spawnX > 1000 ? spawnX : 40;
-    if (active.save_progress) {
+    if (active.resume_checkpoint) {
       const fx = BIOME_W * 3 + 40;
       const ch = DISPLAY_H["campfire"];
       spawnGrounded(k, "campfire", sizes, {
@@ -1663,8 +1663,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         checkpointX,
         won: false,
         dead: false,
-        lives: 3 + Math.max(0, lives - 1),
-        maxLives: 3 + Math.max(0, lives - 1),
+        lives: active.extra_lives ? 5 : 3,
+        maxLives: active.extra_lives ? 5 : 3,
         facing: 1 as 1 | -1,
         invulnUntil: 0,
         lastGroundedAt: k.time(),
@@ -1783,7 +1783,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     // ================= Ranger helper =================
-    if (active.helper) {
+    if (active.navigator_helper) {
       const ranger = spawnGrounded(k, "ranger", sizes, {
         x: spawnX + 60,
         z: LAYERS.ACTOR,
@@ -2240,6 +2240,26 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.dead) return;
         if (k.time() < player.invulnUntil) return;
         if (k.time() < boss.hurtUntil) return;
+        // Navigator power-up: helper takes the boss out on first contact.
+        if (active.navigator_helper) {
+          boss.hits = 2;
+          boss.hurtUntil = k.time() + 0.4;
+          zoneState.bossHits = 2;
+          player.invulnUntil = k.time() + 0.5;
+          player.score += 600;
+          boss.dead = true;
+          zoneState.bossDefeated = true;
+          setGameObjSprite(boss, "boss-defeat");
+          hearts.destroy();
+          const kx = boss.pos.x;
+          const ky = GROUND_Y - 40;
+          k.wait(0.6, () => {
+            boss.destroy();
+            spawnGoldKey(kx, ky);
+            showHint("Navigator handled the boss — grab the key!");
+          });
+          return;
+        }
         // Both actors anchored "bot": pos.y = feet. Boss top is bh above its feet.
         const bossTop = boss.pos.y - bh;
         const playerFoot = player.pos.y;
@@ -2372,11 +2392,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.checkpointX = ch.atX;
     });
 
-    player.onCollide("monster", () => loseLife("monster"));
+    player.onCollide("monster", () => {
+      // Live Chat Assistant: invincible to all enemies in Zone 4 (Gathering Documents).
+      const inGatherZone = Math.floor(player.pos.x / BIOME_W) === 3;
+      if (active.chat_invincible && inGatherZone) return;
+      loseLife("monster");
+    });
     player.onCollide("boulder", () => {
       // In the Awaiting-Decision zone, a calendar hit also resets the countdown
       // to the full 10 seconds — feels like the clock starting over.
       const inWaitZone = Math.floor(player.pos.x / BIOME_W) === 5;
+      // Email Your Case Worker: umbrella blocks falling calendar dates in Zone 6.
+      if (active.email_umbrella && inWaitZone) return;
       const alive = !player.dead && !player.won && k.time() >= player.invulnUntil;
       if (inWaitZone && alive && zoneState.waitStart > 0) {
         zoneState.waitStart = k.time();
@@ -2400,7 +2427,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Resume at the entry of the zone the player already reached — never
       // start the whole trail over. Save-point campfire still wins if active.
       const zoneEntryX = Math.max(40, player.farthestZone * BIOME_W + 40);
-      const rx = active.save_progress ? player.checkpointX : zoneEntryX;
+      const rx = active.resume_checkpoint ? player.checkpointX : zoneEntryX;
       player.pos = k.vec2(rx, GROUND_Y - 40);
       player.vel = k.vec2(0, 0);
       player.riding = null;

@@ -249,7 +249,7 @@ function AdminGamePage() {
                 disabled={disabledImprovements.length < 2}
                 className="bg-accent-orange text-white font-bold text-sm px-4 py-2 rounded hover:brightness-110 disabled:opacity-40"
               >
-                Auto-pick 5 & start
+                Start next round ({disabledImprovements.length} option{disabledImprovements.length === 1 ? "" : "s"})
               </button>
             </div>
           </div>

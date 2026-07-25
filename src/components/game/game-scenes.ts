@@ -2234,6 +2234,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             player.pos.y = zoneState.cutscenePoleTop + 6;
             zoneState.firePoleAttached = true;
             zoneState.cutscenePhase = "slide";
+            const landing = zoneState.topLandingRef;
+            if (landing) {
+              try { landing.unuse("body"); landing.unuse("area"); } catch { /* ignore */ }
+            }
             dir = 0;
           }
         } else if (zoneState.cutscenePhase === "walk-to-office") {

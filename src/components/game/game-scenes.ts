@@ -56,7 +56,7 @@ type Ctx = KAPLAYCtx;
 const BIOME_W = 1200;
 const ZONES = [
   { key: "forest", label: "Finding the Trail", phase: "Step 1 · Learn you may qualify", bg: "bg-forest", ground: [80, 130, 60] as [number, number, number], soil: [70, 45, 25] as [number, number, number] },
-  { key: "river", label: "Crossing the River", phase: "Step 2 · Start your application", bg: "bg-river", ground: [180, 160, 110] as [number, number, number], soil: [120, 90, 50] as [number, number, number] },
+  { key: "river", label: "Crossing River of Paperwork", phase: "Step 2 · Start your application", bg: "bg-river", ground: [180, 160, 110] as [number, number, number], soil: [120, 90, 50] as [number, number, number] },
   { key: "town", label: "At the County Office", phase: "Step 3 · Submit your documents", bg: "bg-town", ground: [140, 140, 150] as [number, number, number], soil: [80, 80, 90] as [number, number, number] },
   { key: "mountain", label: "Application Mountain", phase: "Step 4 · Wait for review", bg: "bg-mountain", ground: [130, 120, 110] as [number, number, number], soil: [70, 60, 55] as [number, number, number] },
   { key: "clinic", label: "Health Coverage", phase: "Step 5 · Enroll in coverage", bg: "bg-clinic", ground: [220, 220, 225] as [number, number, number], soil: [140, 145, 155] as [number, number, number] },

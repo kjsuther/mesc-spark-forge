@@ -1187,7 +1187,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]) as AnyObj;
       idItem.onUpdate(() => { idItem.pos.y = idItem.basY + Math.sin(k.time() * 2.5) * 4; });
       addSpeech(k, idX, idY - idH / 2 - 14, "MEDICAL ID", [200, 40, 60]);
+      addSpeech(k, topLandingX + 40, topLandingY - 42, "GRAB THE ID →", [220, 30, 60]);
     }
+
     // Fire pole — a tall vertical bar just past the top landing
     const poleX = topLandingX + 130;
     const poleTop = topLandingY - 40;

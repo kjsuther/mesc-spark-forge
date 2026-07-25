@@ -1960,3 +1960,45 @@ function spawnThoughtBubble(k: Ctx, x: number, y: number, text: string) {
   });
 }
 
+
+/** Repeated multi-color firework bursts around a center point. Purely
+ *  decorative — no gameplay effect. */
+function startFireworks(k: Ctx, cx: number, cy: number) {
+  const COLORS: Array<[number, number, number]> = [
+    [255, 90, 90], [255, 200, 80], [90, 220, 255],
+    [140, 255, 140], [255, 130, 220], [255, 255, 120],
+  ];
+  function burst(bx: number, by: number, color: [number, number, number]) {
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      const s = 100 + Math.random() * 80;
+      const p = k.add([
+        k.rect(4, 4),
+        k.pos(bx, by),
+        k.color(...color),
+        k.anchor("center"),
+        k.opacity(1),
+        k.z(200),
+        { vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0 },
+      ]) as AnyObj;
+      p.onUpdate(() => {
+        p.pos.x += p.vx * k.dt();
+        p.pos.y += p.vy * k.dt();
+        p.vy += 90 * k.dt();
+        p.life += k.dt();
+        p.opacity = Math.max(0, 1 - p.life * 0.9);
+        if (p.life > 1.2) p.destroy();
+      });
+    }
+  }
+  let n = 0;
+  const iv = setInterval(() => {
+    const bx = cx + (Math.random() - 0.5) * 320;
+    const by = cy + (Math.random() - 0.5) * 140;
+    burst(bx, by, COLORS[n % COLORS.length]);
+    n++;
+    if (n > 24) clearInterval(iv);
+  }, 220);
+  // First burst immediately
+  burst(cx, cy, COLORS[0]);
+}

@@ -1,43 +1,45 @@
-## Difficulty pass: Zones 2–6
+## Goal
+Make it much harder to reach Zone 8 without upgrades, so the voting/upgrade mechanic feels essential. Leave Zone 1, 7, and 8 untouched.
 
-All edits in `src/components/game/game-scenes.ts`. User-facing zones 2–6 map to code zones 1–5 (Zone 1 = code 0).
+Note on zone numbering: the "countdown + falling calendar dates" zone is Zone 6 in code ("Awaiting a Decision"). I'm treating your Zone 7 timer-reset request as applying to that zone (the only one with a countdown + calendar rain). If you actually meant a different zone, tell me and I'll adjust.
 
-### Zone 2 (code Zone 1) — Setting Up Camp — faster padlocks, longer patrols
-In the "two padlocks left of Z1 gap" block (~line 1153):
-- Bump `speed` 55 → 90.
-- Bump `range` 90 → 220 so both padlocks travel further across the zone (past the gap).
-- Keep the single right-side padlock at `sx0+900` unchanged.
+## Changes in `src/components/game/game-scenes.ts`
 
-### Zone 3 (code Zone 2) — River of Paperwork — faster, taller-swinging platforms
-In the `platforms` array (~line 1204):
-- Multiply each `amp` by ~2x (12→26, 18→38, 14→30, 12→26).
-- Multiply each `spd` by ~1.8x (1.4→2.6, 1.2→2.2, 1.6→2.9, 1.4→2.6).
-- Leave X positions and platform width alone so the crossing is still geometrically possible.
+### Zone 2 — Create Your Account
+- Increase padlock speed further (90 → 130) and widen patrol (220 → 300) so both padlocks fully sweep the gap.
+- Add a third padlock patrolling the right approach to the door.
+- Narrow the mid-zone safe ledge slightly so mistimed jumps fall.
 
-### Zone 4 (code Zone 3) — Gathering Documents — +2 more monsters
-After the existing form-monster block (~line 1290):
-- Spawn 2 additional `form-monster` patrols at `tx0+380` and `tx0+1000`, each with `range: 90`, `speed: 34`, respecting `active.plain_language` slowdown for parity with the existing one. Placed between the docs so the player must time each pickup.
+### Zone 3 — Crossing the River of Paperwork
+- Increase gap between river platforms (~30% wider spacing).
+- Raise vertical amplitude again (higher highs / lower lows) and increase oscillation speed ~1.4×.
+- Desync platform phases so you can't rely on a rhythm.
+- Add one extra "dropping" platform that briefly falls when stepped on before returning.
 
-### Zone 5 (code Zone 4) — Answering the Call — +1 gremlin, wide unpredictable patrols
-- Refactor the single envelope-gremlin (~line 1329) into a loop of 2 gremlins at `relayBase+300` and `relayBase+820`.
-- Replace the fixed `home ± range` bounce with a wandering pattern across the full zone (`relayBase+80 … relayBase+BIOME_W-80`): each gremlin re-rolls a new random target X and a new speed (35–75 px/s) every 1.2–2.2s, plus small vertical bob (`sin(time*3+phase)*8`) so movement is less predictable. Flip sprite based on current direction.
-- Keep hitbox + animation frame swap identical to today.
+### Zone 4 — Gathering Documents
+- Bump form-monster count from 3 → 4 and slightly increase their patrol speed.
+- Add two small pits between document pickups (survivable with a normal jump, punishing if mistimed).
+- Slightly stagger monster spawn Y so at least one patrols a raised ledge.
 
-### Zone 6 (code Zone 5) — Waiting Mountain — 10s timer, dense fast calendar rain
-- `zoneState.waitDur = 30` → `10` (line 940).
-- HUD default label "WAIT 0:30" → "WAIT 0:10" (line 1424).
-- In the falling-calendar block (~line 1395):
-  - Increase count from 6 → 14 pages.
-  - Raise fall speed by boosting gravity/vy on respawn (double current fall rate) and shorten respawn X reroll delay so pages hit ground more frequently.
-  - Keep zone-wide X reroll on each cycle.
+### Zone 5 — Respond to Requests
+- Add a third Envelope Gremlin.
+- Increase max wander speed and reduce re-roll interval so movement is more erratic.
+- Introduce brief "dive" behavior: occasionally a gremlin accelerates toward the player's current X for ~0.6s before resuming wander.
 
-### Zones 7 & 8
-No changes.
+### Zone 6 — Awaiting a Decision (the countdown/calendar-rain zone)
+- **Getting hit by a falling calendar date resets the countdown back to 10 seconds** (in addition to costing a life / i-frames as today).
+- Increase calendar rain density (14 → 20) and fall speed further.
+- Add small horizontal drift to some calendars so straight-line dodging fails.
+- Keep the 10-second base timer.
 
-### Verification
-Playwright desktop 1280×800 + mobile 852×402:
-- Zone 2: two left padlocks visibly sweep across most of the zone and are noticeably faster.
-- Zone 3: platforms bob higher/faster but the 4-hop crossing still completes.
-- Zone 4: 3 total form-monsters between docs; run is completable with careful timing.
-- Zone 5: 2 gremlins roaming the entire zone with irregular direction changes.
-- Zone 6: HUD counts down from 0:10; calendar pages fall thick and fast.
+### Zones intentionally unchanged
+- Zone 1 (Choosing How to Apply)
+- Zone 7 (Choose a Health Plan / boss)
+- Zone 8 (Coverage Begins / pole finale)
+
+## Out of scope
+- No changes to physics constants, HUD, controls, art assets, or upgrade/voting logic.
+- No changes to win/lose screens or scoring formulas.
+
+## Verification
+- Playwright smoke run through zones 2–6 on desktop viewport: confirm each zone is beatable but clearly harder, timer resets on calendar hit in Zone 6, and Zones 1/7/8 render identically to current build.

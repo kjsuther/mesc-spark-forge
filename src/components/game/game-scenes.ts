@@ -595,7 +595,57 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     (window as unknown as { __gameAssetReport?: AssetReport }).__gameAssetReport = ASSET_REPORT;
   }
 
-  return { ...heroSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes };
+  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes };
+}
+
+/** Load already-registered sprites' backing images from the sheets by pulling
+ *  their PNG data URLs via the browser, flipping horizontally on a canvas,
+ *  and re-registering as `${name}-left`. Because we start from the trimmed
+ *  bitmap the mirrored copy has identical trim + unified size — nothing else
+ *  in the pipeline needs to change. */
+async function registerLeftMirrors(
+  k: Ctx,
+  names: string[],
+  sizes: SpriteSizes,
+): Promise<SpriteSizes> {
+  const out: SpriteSizes = {};
+  // Reload the source hero sheet once and re-slice using the trim bboxes we
+  // already recorded on ASSET_REPORT.entries.
+  for (const name of names) {
+    const entry = ASSET_REPORT.entries[name];
+    const src = sizes[name];
+    if (!entry || !entry.sheetUrl || !entry.sheetRect || !entry.trimBBox || !src) continue;
+    try {
+      const img = await loadImageEl(entry.sheetUrl);
+      const { fx, fy } = entry.sheetRect;
+      const bb = entry.trimBBox;
+      const cvs = document.createElement("canvas");
+      cvs.width = src.w;
+      cvs.height = src.h;
+      const cx = cvs.getContext("2d");
+      if (!cx) continue;
+      cx.imageSmoothingEnabled = false;
+      const dx = Math.floor((src.w - bb.w) / 2);
+      const dy = src.h - bb.h;
+      cx.save();
+      cx.translate(src.w, 0);
+      cx.scale(-1, 1);
+      cx.drawImage(img, fx + bb.x, fy + bb.y, bb.w, bb.h, src.w - dx - bb.w, dy, bb.w, bb.h);
+      cx.restore();
+      const leftName = `${name}-left`;
+      await k.loadSprite(leftName, cvs.toDataURL("image/png"));
+      out[leftName] = { w: src.w, h: src.h };
+      ASSET_REPORT.entries[leftName] = {
+        ...entry,
+        name: leftName,
+        sheetLabel: `${entry.sheetLabel ?? ""} (mirror)`,
+        status: "loaded",
+      };
+    } catch (err) {
+      console.warn(`[assets] mirror failed: ${name}`, err);
+    }
+  }
+  return out;
 }
 
 

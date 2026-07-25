@@ -1385,3 +1385,44 @@ function addSpeech(
     k.z(LAYERS.EFFECT),
   ]);
 }
+
+/** Floating pixel-art thought bubble drawn in the sky. Purely decorative —
+ *  no collision, no gameplay effect. Uses BG_NEAR layer so it sits between
+ *  the biome painting and gameplay elements. */
+function spawnThoughtBubble(k: Ctx, x: number, y: number, text: string) {
+  const w = Math.max(80, text.length * 6 + 22);
+  const h = 24;
+  const bg = k.add([
+    k.rect(w, h, { radius: 10 }),
+    k.pos(x, y),
+    k.anchor("center"),
+    k.color(255, 255, 255),
+    k.outline(2, k.rgb(90, 110, 150)),
+    k.opacity(0.9),
+    k.z(LAYERS.BG_NEAR + 1),
+  ]);
+  const tail = k.add([
+    k.circle(3),
+    k.pos(x - 4, y + h / 2 + 3),
+    k.color(255, 255, 255),
+    k.outline(2, k.rgb(90, 110, 150)),
+    k.opacity(0.9),
+    k.z(LAYERS.BG_NEAR + 1),
+  ]);
+  const t = k.add([
+    k.text(text, { size: 10, font: "sans-serif" }),
+    k.pos(x, y),
+    k.anchor("center"),
+    k.color(45, 60, 100),
+    k.z(LAYERS.BG_NEAR + 2),
+  ]);
+  const base = y;
+  const phase = Math.random() * Math.PI * 2;
+  k.onUpdate(() => {
+    const dy = Math.sin(k.time() * 1.3 + phase) * 4;
+    bg.pos.y = base + dy;
+    t.pos.y = base + dy;
+    tail.pos.y = base + dy + h / 2 + 3;
+  });
+}
+

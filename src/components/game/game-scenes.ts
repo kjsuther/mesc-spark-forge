@@ -469,12 +469,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     // ---- Ground ----
-    addGround(k, 0, BIOME_W, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    // Zone 1: two ground spans with a small 46px teaching gap the player must hop.
+    const Z1_GAP_X0 = 640;
+    const Z1_GAP_X1 = 686;
+    addGround(k, 0, Z1_GAP_X0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    addGround(k, Z1_GAP_X1, BIOME_W, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    // Zone 2: river with paperwork gap in the middle (kill plane already handles it).
     addGround(k, BIOME_W, BIOME_W + 300, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
     addGround(k, BIOME_W + 900, BIOME_W * 2, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
+    // Zone 3: continuous.
     addGround(k, BIOME_W * 2, BIOME_W * 3, GROUND_Y, ZONES[2].ground, ZONES[2].soil);
-    addGround(k, BIOME_W * 3, BIOME_W * 3 + 200, GROUND_Y, ZONES[3].ground, ZONES[3].soil);
-    addGround(k, BIOME_W * 4 - 100, BIOME_W * 4, GROUND_Y, ZONES[3].ground, ZONES[3].soil);
+    // Zone 4: mountain now has a continuous walkable floor. Platforms sit above it as shortcuts.
+    addGround(k, BIOME_W * 3, BIOME_W * 4, GROUND_Y, ZONES[3].ground, ZONES[3].soil);
+    // Zone 5: clinic.
     addGround(k, BIOME_W * 4, LEVEL_END, GROUND_Y, ZONES[4].ground, ZONES[4].soil);
 
     // Invisible walls

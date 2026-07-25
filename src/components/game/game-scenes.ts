@@ -884,6 +884,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       cutsceneTargetX: 0,
       cutscenePoleX: 0,
       cutscenePoleTop: 0,
+      topLandingRef: null as null | AnyObj,
     };
 
 

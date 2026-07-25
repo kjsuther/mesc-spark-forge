@@ -1677,15 +1677,51 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       showHint("You got the key! Head to the door.");
     });
 
+    // Medical ID card pickup — required before the fire pole will activate.
+    player.onCollide("id-card", (c) => {
+      if (zoneState.idCardCollected) return;
+      const card = c as unknown as { destroy: () => void; pos: { x: number; y: number } };
+      zoneState.idCardCollected = true;
+      player.score += 1500;
+      // Sparkle burst
+      for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2;
+        const sp = k.add([
+          k.rect(4, 4),
+          k.pos(card.pos.x, card.pos.y),
+          k.color(255, 230, 120),
+          k.anchor("center"),
+          k.z(LAYERS.EFFECT),
+          k.opacity(1),
+          { vx: Math.cos(angle) * 120, vy: Math.sin(angle) * 120, life: 0 },
+        ]);
+        sp.onUpdate(() => {
+          sp.pos.x += sp.vx * k.dt();
+          sp.pos.y += sp.vy * k.dt();
+          sp.life += k.dt();
+          sp.opacity = Math.max(0, 1 - sp.life * 1.5);
+          if (sp.life > 0.8) sp.destroy();
+        });
+      }
+      card.destroy();
+      showHint("You got your Medical ID — slide down the pole!");
+    });
+
     // Fire pole attach — locks the player to the pole and starts a slide down.
+    // Gated on picking up the Medical ID card first.
     player.onCollide("fire-pole", (fp) => {
       if (zoneState.firePoleAttached || zoneState.firePoleDone) return;
+      if (!zoneState.idCardCollected) {
+        showHint("Grab the Medical ID card first!");
+        return;
+      }
       const pole = fp as unknown as { poleX: number; poleTop: number; poleBaseY: number };
       zoneState.firePoleAttached = true;
       player.pos.x = pole.poleX;
       player.vel = k.vec2(0, 0);
       showHint("Sliding down…");
     });
+
 
     player.onCollide("pole-base", () => {
       if (zoneState.firePoleDone || player.won) return;

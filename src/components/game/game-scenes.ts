@@ -1384,7 +1384,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // Manual animation: swap sprite per state. All hero frames share size
     // (grouped in the trim step), so swapping never causes horizontal jitter.
+    let currentSpriteName = "hero-idle";
     function setSprite(name: string) {
+      if (currentSpriteName === name) return;
+      currentSpriteName = name;
       const ds = displaySize(name, sizes);
       player.use(k.sprite(name, { width: ds.w, height: DISPLAY_H[name] }));
     }

@@ -62,7 +62,26 @@ type Ctx = KAPLAYCtx;
 
 // ============================ Constants ============================
 
+// -------- Viewport scaling contract --------
+// The game renders into a FIXED logical resolution. Kaplay's letterbox mode
+// scales that buffer to whatever CSS box the canvas has while preserving the
+// 16:9 aspect ratio, so world coordinates never depend on the device's
+// physical pixels. `PIXEL_DENSITY` is intentionally a constant (not
+// `window.devicePixelRatio`) so the backing buffer stays the same size across
+// DPR changes (rotation, browser zoom, external monitor). Combined with the
+// integer `px()` snap used by every spawn/camera call, sprites and
+// backgrounds cannot clip, misalign, or shift when the screen resizes.
+const LOGICAL_W = 960;
+const LOGICAL_H = 540;
+const PIXEL_DENSITY = 2;
+/** Snap any world coordinate or computed sprite dimension to an integer.
+ *  Using `floor` (not `round`) is deterministic across renders: a value of
+ *  N.4999 and N.5001 both collapse to N, so a sub-pixel jitter can never
+ *  toggle a sprite between two adjacent integer positions. */
+const px = (n: number): number => Math.floor(n);
+
 const BIOME_W = 1200;
+
 const ZONES = [
   { key: "forest",   label: "Finding the Trail",         phase: "Step 1 · Learn you may qualify",           bg: "bg-forest",   ground: [80, 130, 60] as [number, number, number],  soil: [70, 45, 25] as [number, number, number] },
   { key: "signup",   label: "Setting Up Camp",           phase: "Step 2 · Create your account",             bg: "bg-signup",   ground: [95, 115, 70] as [number, number, number],  soil: [60, 45, 30] as [number, number, number] },

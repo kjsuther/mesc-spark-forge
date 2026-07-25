@@ -791,7 +791,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       hasKey: false,
       firePoleAttached: false,
       firePoleDone: false,
+      idCardCollected: false,
     };
+
 
     type Door = { obj: AnyObj; barrier: AnyObj | null; unlocked: boolean; playedAnim: boolean };
     const doors: (Door | null)[] = new Array(ZONES.length).fill(null);

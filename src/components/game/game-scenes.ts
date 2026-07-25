@@ -18,6 +18,7 @@
 import type { KAPLAYCtx } from "kaplay";
 import type { ImprovementKey } from "@/lib/game.functions";
 import charSheetUrl from "@/assets/game/character-sheet.png";
+import heroSlideSheetUrl from "@/assets/game/hero-slide-sheet.png";
 import propsSheetUrl from "@/assets/game/props-sheet.png";
 import propsSheet2Url from "@/assets/game/props-sheet-2.png";
 import bgForestUrl from "@/assets/game/bg-forest.png";
@@ -191,6 +192,15 @@ const DISPLAY_H: Record<string, number> = {
   "hero-walk-2": 66,
   "hero-walk-3": 66,
   "hero-jump": 66,
+  "hero-slide-0": 66,
+  "hero-slide-1": 66,
+  // Mirrored left-facing frames registered post-load in registerLeftMirrors().
+  "hero-idle-left": 66,
+  "hero-walk-0-left": 66,
+  "hero-walk-1-left": 66,
+  "hero-walk-2-left": 66,
+  "hero-walk-3-left": 66,
+  "hero-jump-left": 66,
   signpost: 46,
   ranger: 60,
   map: 40,

@@ -604,7 +604,7 @@ function spawnGrounded(
   const gy = opts.groundY ?? GROUND_Y;
   const comps: unknown[] = [
     k.sprite(name, { width: w, height: h }),
-    k.pos(Math.round(opts.x), Math.round(gy)),
+    k.pos(px(opts.x), px(gy)),
     k.anchor("bot"),
     k.z(opts.z ?? LAYERS.ACTOR),
   ];
@@ -640,7 +640,7 @@ function spawnAirborne(
   const r = opts.hitboxRadius ?? Math.min(w, h) / 2;
   const comps: unknown[] = [
     k.sprite(name, { width: w, height: h }),
-    k.pos(Math.round(opts.x), Math.round(opts.y)),
+    k.pos(px(opts.x), px(opts.y)),
     k.anchor("center"),
     k.z(opts.z ?? LAYERS.PROP),
     k.area({ shape: new k.Rect(k.vec2(-r, -r), r * 2, r * 2) }),
@@ -660,7 +660,7 @@ function spawnDecor(
   const gy = opts.groundY ?? GROUND_Y;
   return k.add([
     k.sprite(name, { width: w, height: h }),
-    k.pos(Math.round(opts.x), Math.round(gy)),
+    k.pos(px(opts.x), px(gy)),
     k.anchor("bot"),
     k.z(opts.z ?? LAYERS.PROP),
   ]);

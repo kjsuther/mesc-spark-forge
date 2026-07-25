@@ -14,6 +14,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as ToolEmbedRouteImport } from './routes/tool.embed'
 import { Route as AdminUnlockRouteImport } from './routes/admin.unlock'
 import { Route as AdminPosterRouteImport } from './routes/admin.poster'
 import { Route as AdminNowBuildingRouteImport } from './routes/admin.now-building'
@@ -47,6 +48,11 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRoute,
+} as any)
+const ToolEmbedRoute = ToolEmbedRouteImport.update({
+  id: '/embed',
+  path: '/embed',
+  getParentRoute: () => ToolRoute,
 } as any)
 const AdminUnlockRoute = AdminUnlockRouteImport.update({
   id: '/unlock',
@@ -95,13 +101,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
-  '/tool': typeof ToolRoute
+  '/tool': typeof ToolRouteWithChildren
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
   '/admin/unlock': typeof AdminUnlockRoute
+  '/tool/embed': typeof ToolEmbedRoute
   '/admin/': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
   '/actions/report-a-change/start': typeof ActionsReportAChangeStartRoute
@@ -109,13 +116,14 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/tool': typeof ToolRoute
+  '/tool': typeof ToolRouteWithChildren
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
   '/admin/unlock': typeof AdminUnlockRoute
+  '/tool/embed': typeof ToolEmbedRoute
   '/admin': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
   '/actions/report-a-change/start': typeof ActionsReportAChangeStartRoute
@@ -125,13 +133,14 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
-  '/tool': typeof ToolRoute
+  '/tool': typeof ToolRouteWithChildren
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
   '/admin/unlock': typeof AdminUnlockRoute
+  '/tool/embed': typeof ToolEmbedRoute
   '/admin/': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
   '/actions/report-a-change/start': typeof ActionsReportAChangeStartRoute
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/admin/now-building'
     | '/admin/poster'
     | '/admin/unlock'
+    | '/tool/embed'
     | '/admin/'
     | '/actions/check-documents/start'
     | '/actions/report-a-change/start'
@@ -163,6 +173,7 @@ export interface FileRouteTypes {
     | '/admin/now-building'
     | '/admin/poster'
     | '/admin/unlock'
+    | '/tool/embed'
     | '/admin'
     | '/actions/check-documents/start'
     | '/actions/report-a-change/start'
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/admin/now-building'
     | '/admin/poster'
     | '/admin/unlock'
+    | '/tool/embed'
     | '/admin/'
     | '/actions/check-documents/start'
     | '/actions/report-a-change/start'
@@ -187,7 +199,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   AdminRoute: typeof AdminRouteWithChildren
-  ToolRoute: typeof ToolRoute
+  ToolRoute: typeof ToolRouteWithChildren
   ActionsSlugRoute: typeof ActionsSlugRoute
   ActionsCheckDocumentsStartRoute: typeof ActionsCheckDocumentsStartRoute
   ActionsReportAChangeStartRoute: typeof ActionsReportAChangeStartRoute
@@ -229,6 +241,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/tool/embed': {
+      id: '/tool/embed'
+      path: '/embed'
+      fullPath: '/tool/embed'
+      preLoaderRoute: typeof ToolEmbedRouteImport
+      parentRoute: typeof ToolRoute
     }
     '/admin/unlock': {
       id: '/admin/unlock'
@@ -309,11 +328,21 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface ToolRouteChildren {
+  ToolEmbedRoute: typeof ToolEmbedRoute
+}
+
+const ToolRouteChildren: ToolRouteChildren = {
+  ToolEmbedRoute: ToolEmbedRoute,
+}
+
+const ToolRouteWithChildren = ToolRoute._addFileChildren(ToolRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   AdminRoute: AdminRouteWithChildren,
-  ToolRoute: ToolRoute,
+  ToolRoute: ToolRouteWithChildren,
   ActionsSlugRoute: ActionsSlugRoute,
   ActionsCheckDocumentsStartRoute: ActionsCheckDocumentsStartRoute,
   ActionsReportAChangeStartRoute: ActionsReportAChangeStartRoute,
@@ -321,3 +350,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

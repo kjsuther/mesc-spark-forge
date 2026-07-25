@@ -43,9 +43,11 @@ import doorLockUrl from "@/assets/game/door-lock.png";
 import docIdAsset from "@/assets/game/doc-id.png.asset.json";
 import docPaystubAsset from "@/assets/game/doc-paystub.png.asset.json";
 import docEnvelopeAsset from "@/assets/game/doc-envelope.png.asset.json";
+import formMonsterV2Asset from "@/assets/game/form-monster-v2.png.asset.json";
 const docIdUrl = docIdAsset.url;
 const docPaystubUrl = docPaystubAsset.url;
 const docEnvelopeUrl = docEnvelopeAsset.url;
+const formMonsterV2Url = formMonsterV2Asset.url;
 
 export type GameFlags = Record<ImprovementKey, boolean>;
 

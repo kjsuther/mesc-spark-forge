@@ -1238,7 +1238,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.onKeyPress("r", () => k.go("trail", 40, 1));
 
     player.onUpdate(() => {
-      if (player.pos.y > 720) loseLife("Fell off the trail.");
+      if (player.pos.y > 720) loseLife("fell");
     });
   });
 

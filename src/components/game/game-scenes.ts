@@ -1643,7 +1643,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const elapsed = started ? k.time() - zoneState.waitStart : 0;
       const remaining = started ? Math.max(0, zoneState.waitDur - elapsed) : zoneState.waitDur;
       const approvedFlash = started && elapsed >= zoneState.waitDur && elapsed < zoneState.waitDur + 1.5;
-      const showTimer = inZone5 && (started || !zoneState.approved);
+      const showTimer = inZone5 && !zoneState.firePoleDone;
       if (showTimer) {
         waitBg.opacity = 0.85;
         waitLabel.opacity = 1;

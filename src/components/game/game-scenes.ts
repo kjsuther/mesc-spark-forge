@@ -1961,9 +1961,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       player.prevFeetY = player.pos.y;
 
-      // Camera follow with integer pixel snap
-      const camX = Math.max(k.width() / 2, Math.min(player.pos.x, LEVEL_END - k.width() / 2));
-      k.setCamPos(Math.round(camX), Math.round(k.height() / 2));
+      // Camera follow with integer pixel snap (uses LOGICAL_* so it never
+      // drifts when the CSS box or DPR changes).
+      const camX = Math.max(LOGICAL_W / 2, Math.min(player.pos.x, LEVEL_END - LOGICAL_W / 2));
+      k.setCamPos(px(camX), px(LOGICAL_H / 2));
+
     });
 
     for (const key of jumpKeys) k.onKeyPress(key as never, () => tryJump());

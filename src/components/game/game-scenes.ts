@@ -578,9 +578,10 @@ function displaySize(name: string, sizes: SpriteSizes): { w: number; h: number }
   const s = sizes[name];
   if (!s) throw new Error(`unknown sprite ${name}`);
   const h = DISPLAY_H[name] ?? s.h;
-  const w = Math.round(s.w * (h / s.h));
-  return { w, h };
+  const w = px(s.w * (h / s.h));
+  return { w, h: px(h) };
 }
+
 
 type SpawnGrounded = {
   x: number;

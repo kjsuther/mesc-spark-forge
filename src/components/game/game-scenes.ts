@@ -805,7 +805,7 @@ function spawnDecor(
 
 export async function startGame(opts: StartGameOpts): Promise<() => void> {
   const kaplay = (await import("kaplay")).default;
-  const active: Partial<GameFlags> = opts.mode === "after" ? opts.flags : {};
+  const active: Record<string, boolean | undefined> = opts.mode === "after" ? { ...opts.flags } : {};
 
   const k: Ctx = kaplay({
     canvas: opts.canvas,
@@ -1633,7 +1633,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // Save-point campfire near town start (existing improvement).
     const checkpointX = spawnX > 1000 ? spawnX : 40;
-    if (active.save_progress) {
+    if (active.resume_checkpoint) {
       const fx = BIOME_W * 3 + 40;
       const ch = DISPLAY_H["campfire"];
       spawnGrounded(k, "campfire", sizes, {
@@ -1663,8 +1663,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         checkpointX,
         won: false,
         dead: false,
-        lives: 3 + Math.max(0, lives - 1),
-        maxLives: 3 + Math.max(0, lives - 1),
+        lives: active.extra_lives ? 5 : 3,
+        maxLives: active.extra_lives ? 5 : 3,
         facing: 1 as 1 | -1,
         invulnUntil: 0,
         lastGroundedAt: k.time(),
@@ -1783,7 +1783,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     // ================= Ranger helper =================
-    if (active.helper) {
+    if (active.navigator_helper) {
       const ranger = spawnGrounded(k, "ranger", sizes, {
         x: spawnX + 60,
         z: LAYERS.ACTOR,
@@ -2400,7 +2400,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Resume at the entry of the zone the player already reached — never
       // start the whole trail over. Save-point campfire still wins if active.
       const zoneEntryX = Math.max(40, player.farthestZone * BIOME_W + 40);
-      const rx = active.save_progress ? player.checkpointX : zoneEntryX;
+      const rx = active.resume_checkpoint ? player.checkpointX : zoneEntryX;
       player.pos = k.vec2(rx, GROUND_Y - 40);
       player.vel = k.vec2(0, 0);
       player.riding = null;

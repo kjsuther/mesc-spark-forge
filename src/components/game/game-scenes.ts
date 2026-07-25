@@ -2195,18 +2195,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // (fast-fall grace) OR their feet are in the top ~55% of the boss and
         // they are not moving upward. Otherwise it's side/underside contact.
         const stomp =
-          playerFootPrev <= bossTop + 4 ||
-          (playerFoot <= bossTop + bh * 0.55 && vy >= -20);
+          playerFootPrev <= bossTop + 8 ||
+          (playerFoot <= bossTop + bh * 0.75 && vy >= -80);
         if (stomp) {
           boss.hits += 1;
           boss.hurtUntil = k.time() + 0.4;
           zoneState.bossHits = boss.hits;
-          player.vel.y = -260; // firm bounce so we clear the boss top before the next collide
-          player.pos.y = bossTop - 2; // pop above the boss to avoid immediate re-collision
+          player.vel.y = -260;
+          player.pos.y = bossTop - 2;
           player.invulnUntil = k.time() + 0.5;
           player.score += 300;
-          hearts.text = "♥".repeat(Math.max(0, 3 - boss.hits));
-          if (boss.hits >= 3) {
+          hearts.text = "♥".repeat(Math.max(0, 2 - boss.hits));
+          if (boss.hits >= 2) {
             boss.dead = true;
             zoneState.bossDefeated = true;
             setGameObjSprite(boss, "boss-defeat");
@@ -2219,7 +2219,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
               showHint("Boss defeated! Grab the key.");
             });
           } else {
-            showHint(`Boss hit! ${3 - boss.hits} to go.`);
+            showHint(`Boss hit! ${2 - boss.hits} to go.`);
           }
         } else {
           loseLife("monster");

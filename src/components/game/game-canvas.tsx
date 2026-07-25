@@ -568,62 +568,88 @@ function MenuButton({ children, onClick }: { children: React.ReactNode; onClick:
 }
 
 
-function LabeledTouch({
+function PadButton({
   children,
   onDown,
   onUp,
   aria,
-  big,
-  compact,
   label,
+  size = 72,
+  accent,
+  dim,
 }: {
   children: React.ReactNode;
   onDown: () => void;
   onUp?: () => void;
   aria: string;
-  big?: boolean;
-  compact?: boolean;
   label: string;
+  size?: number;
+  accent?: boolean;
+  dim?: boolean;
 }) {
-  const sizeClass = compact
-    ? big
-      ? "h-14 w-16 text-sm"
-      : "h-12 w-12 text-xl"
-    : big
-      ? "h-20 w-20 text-base sm:h-24 sm:w-24 sm:text-lg"
-      : "h-14 w-14 text-xl sm:h-16 sm:w-16 sm:text-2xl";
-
+  const bg = accent
+    ? "rgba(214, 90, 49, 0.82)" // orange
+    : dim
+      ? "rgba(30, 41, 82, 0.55)"
+      : "rgba(30, 41, 82, 0.72)";
+  const border = accent ? "var(--color-accent-gold)" : "var(--color-cream)";
   return (
-    <div className="flex flex-col items-center gap-1">
-      <button
-        type="button"
-        aria-label={aria}
-        onPointerDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          try {
-            (e.currentTarget as HTMLButtonElement).setPointerCapture?.(e.pointerId);
-          } catch {
-            // Some mobile browsers and automated touch events don't expose an active pointer capture target.
-          }
-          onDown();
+    <button
+      type="button"
+      aria-label={aria}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+          (e.currentTarget as HTMLButtonElement).setPointerCapture?.(e.pointerId);
+        } catch {
+          /* noop */
+        }
+        onDown();
+      }}
+      onPointerUp={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onUp?.();
+      }}
+      onPointerLeave={() => onUp?.()}
+      onPointerCancel={() => onUp?.()}
+      onContextMenu={(e) => e.preventDefault()}
+      className="pointer-events-auto relative touch-none select-none font-black text-cream active:translate-y-[2px]"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: Math.round(size * 0.22),
+        background: bg,
+        border: `3px solid ${border}`,
+        boxShadow:
+          "inset 0 -4px 0 rgba(0,0,0,0.35), inset 0 3px 0 rgba(255,255,255,0.22), 0 3px 0 rgba(0,0,0,0.5)",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
+        fontSize: size >= 88 ? 18 : size >= 68 ? 26 : 20,
+        fontFamily: '"Press Start 2P", ui-monospace, monospace',
+        letterSpacing: 1,
+        touchAction: "none",
+        WebkitUserSelect: "none",
+        WebkitTouchCallout: "none",
+        WebkitTapHighlightColor: "transparent",
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: 3,
+          left: 5,
+          fontSize: 7,
+          letterSpacing: 1,
+          color: "rgba(245, 232, 199, 0.85)",
+          fontFamily: '"Press Start 2P", ui-monospace, monospace',
         }}
-        onPointerUp={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onUp?.();
-        }}
-        onPointerLeave={() => onUp?.()}
-        onPointerCancel={() => onUp?.()}
-        onContextMenu={(e) => e.preventDefault()}
-        className={`rounded-full bg-mn-blue font-black text-cream shadow-lg active:brightness-125 touch-none select-none ${sizeClass}`}
-        style={{ touchAction: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
       >
-        {children}
-      </button>
-      <span className="rounded bg-mn-blue/70 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-cream drop-shadow sm:text-[10px]">
         {label}
       </span>
-    </div>
+      <span style={{ display: "inline-block", lineHeight: 1 }}>{children}</span>
+    </button>
   );
 }
+

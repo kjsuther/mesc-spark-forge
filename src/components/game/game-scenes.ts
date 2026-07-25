@@ -587,6 +587,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     }
 
+    // Zone 2 environmental storytelling: floating question bubbles that
+    // represent real questions Medicaid applicants have while filling out
+    // an application. Rendered high in the sky at parallax-adjacent depth
+    // so they never overlap gameplay hitboxes.
+    const applicantQuestions = [
+      "What documents do I need?",
+      "Do I qualify?",
+      "How long will this take?",
+      "What income should I report?",
+      "Who counts in my household?",
+      "What if I'm missing info?",
+      "Where do I upload documents?",
+    ];
+    applicantQuestions.forEach((q, i) => {
+      const bx = BIOME_W + 80 + i * 150;
+      const by = 70 + (i % 3) * 42;
+      spawnThoughtBubble(k, bx, by, q);
+    });
+
+
+
     // ================= ZONE 3: Town =================
     const tx0 = BIOME_W * 2;
     const docs: [number, "id" | "paystub" | "envelope", string][] = [

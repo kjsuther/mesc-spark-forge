@@ -871,6 +871,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       firePoleAttached: false,
       firePoleDone: false,
       idCardCollected: false,
+      cutscene: false,
+      cutscenePhase: "none" as "none" | "walk-to-pole" | "slide" | "walk-to-office" | "done",
+      cutsceneTargetX: 0,
+      cutscenePoleX: 0,
+      cutscenePoleTop: 0,
     };
 
 

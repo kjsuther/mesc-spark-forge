@@ -2173,14 +2173,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.onCollide("boss", () => {
         if (boss.dead) return;
         if (k.time() < player.invulnUntil) return;
-        // Stomp = falling AND player feet are above the boss's middle.
-        const falling = (player.vel?.y ?? 0) > 40;
-        const aboveBoss = player.pos.y < boss.pos.y - bh * 0.4;
-        if (falling && aboveBoss) {
+        // Both actors are anchored "bot": pos.y = feet. Boss top is bh above its feet.
+        const bossTop = boss.pos.y - bh;
+        const playerFoot = player.pos.y;
+        const vy = player.vel?.y ?? 0;
+        const stomp =
+          // Direct head hit: feet in the top 40% of the boss and not moving upward.
+          (playerFoot <= bossTop + bh * 0.4 && vy >= -10) ||
+          // Grace: previous frame's foot was clearly above the boss top.
+          ((player.prevFootY ?? playerFoot) <= bossTop + 4);
+        if (stomp) {
           boss.hits += 1;
           boss.hurtUntil = k.time() + 0.35;
           zoneState.bossHits = boss.hits;
           player.vel.y = -JUMP_VEL * 0.7; // bounce
+          player.invulnUntil = k.time() + 0.4; // brief i-frames so single collision doesn't multi-hit
           player.score += 300;
           hearts.text = "♥".repeat(Math.max(0, 3 - boss.hits));
           if (boss.hits >= 3) {

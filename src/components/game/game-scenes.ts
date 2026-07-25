@@ -72,6 +72,53 @@ const INVULN_S = 0.6;
 const PLATFORM_SNAP_TOLERANCE = 22;
 const PLATFORM_EDGE_TOLERANCE = 16;
 
+// Zone-specific overlay title + failure copy. Every death message ties back
+// to the step of the Medicaid application journey the player was on.
+type FailCause = "monster" | "boulder" | "water" | "fell" | "noDocs";
+const OVERLAY_TITLES = [
+  "PAUSE ON THE TRAIL",
+  "APPLICATION PAUSED",
+  "MISSING PAPERWORK",
+  "REVIEW IN PROGRESS",
+  "ALMOST ENROLLED",
+] as const;
+const FAILURE_MESSAGES: Record<number, string[]> = {
+  0: [
+    "Pick a way to apply before moving forward.",
+    "Every journey starts by choosing how you'll apply.",
+    "You missed your chance to choose an application method.",
+  ],
+  1: [
+    "A missing answer is slowing your journey.",
+    "Double-check your application before submitting.",
+    "Some application questions were left unanswered.",
+  ],
+  2: [
+    "Looks like some documents are still missing.",
+    "Gather everything you need before continuing.",
+    "Your application is waiting for supporting documents.",
+  ],
+  3: [
+    "Your application is still under review.",
+    "The agency needs a little more information.",
+    "Stay on the trail — you're almost there.",
+  ],
+  4: [
+    "One final step remains before coverage begins.",
+    "Don't stop now — you're almost enrolled!",
+  ],
+};
+function pickFailureMessage(zone: number, cause: FailCause): string {
+  const z = Math.max(0, Math.min(ZONES.length - 1, zone));
+  const arr = FAILURE_MESSAGES[z] ?? FAILURE_MESSAGES[0];
+  const base = arr[Math.floor(Math.random() * arr.length)];
+  if (cause === "water") return `${base}\n(Don't slip crossing the river of paperwork.)`;
+  if (cause === "boulder") return `${base}\n(A tough eligibility question knocked you back.)`;
+  if (cause === "monster") return `${base}\n(A confusing form stood in your way.)`;
+  if (cause === "fell") return `${base}\n(You wandered off the trail — try again.)`;
+  return base;
+}
+
 // Player collision box (fixed — never changes with sprite frame).
 const PLAYER_HITBOX = { x: -12, y: -60, w: 24, h: 60 };
 

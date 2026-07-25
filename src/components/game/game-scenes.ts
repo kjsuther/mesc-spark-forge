@@ -501,6 +501,10 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "hero-walk-3", frame: 4 },
     { name: "hero-jump", frame: 5 },
   ];
+  const slideFrames: FrameSpec[] = [
+    { name: "hero-slide-0", frame: 0 },
+    { name: "hero-slide-1", frame: 1 },
+  ];
   const propFrames: FrameSpec[] = [
     { name: "signpost", frame: 0 },
     { name: "ranger", frame: 1 },

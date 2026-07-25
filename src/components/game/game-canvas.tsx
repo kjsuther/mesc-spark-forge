@@ -14,6 +14,11 @@ type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: b
 type LaunchMode = "standard" | "fullscreen";
 type MenuScreen = "title" | "scores";
 
+const isCoarsePointer = () =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(pointer: coarse)").matches;
+
 export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -23,6 +28,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const [launchMode, setLaunchMode] = useState<LaunchMode | null>(null);
   const [menuScreen, setMenuScreen] = useState<MenuScreen>("title");
   const [showHint, setShowHint] = useState(true);
+  const [loading, setLoading] = useState(false);
   const key = `${mode}|${Object.entries(flags)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}:${v ? 1 : 0}`)
@@ -37,6 +43,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
     let cancelled = false;
     let destroy: (() => void) | null = null;
     setError(null);
+    setLoading(true);
 
     (async () => {
       try {
@@ -45,9 +52,13 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
         const { startGame } = await import("./game-scenes");
         if (cancelled) return;
         destroy = await startGame({ canvas, flags, mode, onWin, onLose });
+        if (!cancelled) setLoading(false);
       } catch (err) {
         console.error("[game] failed to start", err);
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to start game");
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Failed to start game");
+          setLoading(false);
+        }
       }
     })();
 
@@ -106,6 +117,13 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
 
   const focusCanvas = () => canvasRef.current?.focus();
 
+  const nativeFullscreenSupported = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return false;
+    const anyEl = el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+    return !!(anyEl.requestFullscreen || anyEl.webkitRequestFullscreen);
+  }, []);
+
   const requestNativeFullscreen = useCallback(async () => {
     const el = containerRef.current;
     if (!el) return false;
@@ -144,21 +162,42 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
       setFauxFullscreen(false);
       return;
     }
+    if (!nativeFullscreenSupported()) {
+      setFauxFullscreen(true);
+      return;
+    }
     const ok = await requestNativeFullscreen();
     if (!ok) setFauxFullscreen(true);
-  }, [isFullscreen, fauxFullscreen, requestNativeFullscreen, exitNativeFullscreen]);
+  }, [
+    isFullscreen,
+    fauxFullscreen,
+    requestNativeFullscreen,
+    exitNativeFullscreen,
+    nativeFullscreenSupported,
+  ]);
 
-  // User picked a mode. Fullscreen MUST be requested synchronously from the click.
+  // User picked a mode. On mobile / touch devices we skip native fullscreen
+  // (unsupported on iOS Safari for divs, and awaiting the promise loses the
+  // user gesture) and go straight to faux-fullscreen so the launch is
+  // instantaneous and the canvas gets the whole viewport.
   const pickMode = useCallback(
-    async (m: LaunchMode) => {
-      if (m === "fullscreen") {
-        const ok = await requestNativeFullscreen();
-        if (!ok) setFauxFullscreen(true);
+    (m: LaunchMode) => {
+      const coarse = isCoarsePointer();
+      if (m === "fullscreen" || coarse) {
+        if (!coarse && nativeFullscreenSupported()) {
+          // Fire-and-forget; do not await so setLaunchMode is synchronous.
+          void requestNativeFullscreen().then((ok) => {
+            if (!ok) setFauxFullscreen(true);
+          });
+        } else {
+          setFauxFullscreen(true);
+        }
       }
       setLaunchMode(m);
     },
-    [requestNativeFullscreen],
+    [requestNativeFullscreen, nativeFullscreenSupported],
   );
+
 
   function setBtn(k: "left" | "right", v: boolean) {
     const w = window as unknown as { __gameInput?: TouchInput };
@@ -331,6 +370,24 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
           </div>
         )}
 
+        {/* Loading overlay between Start tap and first frame */}
+        {launchMode && loading && !error && (
+          <div
+            className="absolute inset-0 z-30 grid place-items-center bg-mn-blue text-cream"
+            style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
+          >
+            <div className="text-center">
+              <p className="mb-3 animate-pulse text-[10px] tracking-widest text-accent-gold sm:text-xs">
+                LOADING…
+              </p>
+              <p className="text-[8px] tracking-widest text-cream/70 sm:text-[10px]">
+                Preparing the trail
+              </p>
+            </div>
+          </div>
+        )}
+
+
         {/* Fullscreen toggle overlay button (only while game is running) */}
         {launchMode && !overlayFs && (
           <button
@@ -407,16 +464,35 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
 }
 
 function MenuButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  const firedRef = useRef(false);
+  const fire = (e: React.SyntheticEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (firedRef.current) return;
+    firedRef.current = true;
+    // Reset shortly so re-mounts / re-renders don't lock the button.
+    setTimeout(() => {
+      firedRef.current = false;
+    }, 400);
+    onClick();
+  };
   return (
     <button
       type="button"
-      onClick={onClick}
-      className="flex-1 border-2 border-accent-gold bg-accent-orange px-4 py-3 text-sm font-black uppercase tracking-widest text-cream shadow-[4px_4px_0_var(--color-accent-gold)] active:translate-x-1 active:translate-y-1 active:shadow-none"
+      // Use pointerup so touch and mouse both fire immediately; iOS Safari
+      // sometimes drops synthetic click events under containers with
+      // touch-action:none / user-select:none.
+      onPointerUp={fire}
+      onClick={fire}
+      onContextMenu={(e) => e.preventDefault()}
+      className="flex-1 touch-none select-none border-2 border-accent-gold bg-accent-orange px-4 py-3 text-sm font-black uppercase tracking-widest text-cream shadow-[4px_4px_0_var(--color-accent-gold)] active:translate-x-1 active:translate-y-1 active:shadow-none"
+      style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}
     >
       {children}
     </button>
   );
 }
+
 
 function LabeledTouch({
   children,

@@ -406,7 +406,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
                   className="mx-auto flex max-w-xs flex-col gap-3"
                   style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
                 >
-                  <MenuButton onClick={() => setMenuScreen("explainer")}>▶ Start Game</MenuButton>
+                  <MenuButton onClick={() => { music.start(); setMusicOn(true); setMenuScreen("explainer"); }}>▶ Start Game</MenuButton>
                   <MenuButton onClick={() => setMenuScreen("scores")}>★ High Scores</MenuButton>
                 </div>
               </div>

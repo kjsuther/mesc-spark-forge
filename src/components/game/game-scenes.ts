@@ -2010,9 +2010,10 @@ function addGround(
   soilColor: [number, number, number] = [70, 45, 25],
 ) {
   if (x2 <= x1) return;
-  const w = Math.round(x2 - x1);
-  const x = Math.round(x1);
-  const yy = Math.round(y);
+  const w = px(x2 - x1);
+  const x = px(x1);
+  const yy = px(y);
+
   // Solid physics soil rect starts at the feet line (y) and runs downward.
   k.add([
     k.rect(w, 80),

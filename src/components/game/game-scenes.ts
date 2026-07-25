@@ -2173,19 +2173,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.onCollide("boss", () => {
         if (boss.dead) return;
         if (k.time() < player.invulnUntil) return;
-        // Both actors are anchored "bot": pos.y = feet. Boss top is bh above its feet.
+        if (k.time() < boss.hurtUntil) return;
+        // Both actors anchored "bot": pos.y = feet. Boss top is bh above its feet.
         const bossTop = boss.pos.y - bh;
         const playerFoot = player.pos.y;
+        const playerFootPrev = (player as AnyObj).lastY ?? playerFoot;
         const vy = player.vel?.y ?? 0;
+        // Stomp if the player was clearly above the boss on the previous frame
+        // (fast-fall grace) OR their feet are in the top ~55% of the boss and
+        // they are not moving upward. Otherwise it's side/underside contact.
         const stomp =
-          // Direct head hit: feet in the top 40% of the boss and not moving upward.
-          playerFoot <= bossTop + bh * 0.4 && vy >= -10;
+          playerFootPrev <= bossTop + 4 ||
+          (playerFoot <= bossTop + bh * 0.55 && vy >= -20);
         if (stomp) {
           boss.hits += 1;
-          boss.hurtUntil = k.time() + 0.35;
+          boss.hurtUntil = k.time() + 0.4;
           zoneState.bossHits = boss.hits;
-          player.vel.y = -JUMP_VEL * 0.7; // bounce
-          player.invulnUntil = k.time() + 0.4; // brief i-frames so single collision doesn't multi-hit
+          player.vel.y = -260; // firm bounce so we clear the boss top before the next collide
+          player.pos.y = bossTop - 2; // pop above the boss to avoid immediate re-collision
+          player.invulnUntil = k.time() + 0.5;
           player.score += 300;
           hearts.text = "♥".repeat(Math.max(0, 3 - boss.hits));
           if (boss.hits >= 3) {
@@ -2193,7 +2199,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             zoneState.bossDefeated = true;
             setGameObjSprite(boss, "boss-defeat");
             hearts.destroy();
-            // Fade + destroy, then drop the key at the boss's spot.
             const kx = boss.pos.x;
             const ky = GROUND_Y - 40;
             k.wait(0.6, () => {
@@ -2205,7 +2210,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             showHint(`Boss hit! ${3 - boss.hits} to go.`);
           }
         } else {
-          player.invulnUntil = k.time() + INVULN_S;
           loseLife("monster");
         }
       });

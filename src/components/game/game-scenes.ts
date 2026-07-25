@@ -354,14 +354,28 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "insurance-card", frame: 5 },
   ];
 
-  const [heroSizes, propSizes, propSizes2] = await Promise.all([
+  const doorFrames: FrameSpec[] = [
+    { name: "door-closed", frame: 0 },
+    { name: "door-open", frame: 1 },
+  ];
+  const credFrames: FrameSpec[] = [
+    { name: "username", frame: 0 },
+    { name: "password", frame: 1 },
+  ];
+  const keyFrames: FrameSpec[] = [{ name: "gold-key", frame: 0 }];
+  const planFrames: FrameSpec[] = [
+    { name: "plan-blue", frame: 0 },
+    { name: "plan-green", frame: 1 },
+    { name: "plan-orange", frame: 2 },
+  ];
+  const idFrames: FrameSpec[] = [{ name: "medical-id", frame: 0 }];
+
+  const [heroSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes] = await Promise.all([
     loadTrimmedSheet(k, {
       url: charSheetUrl,
       cols: 3,
       rows: 2,
       frames: heroFrames,
-      // All hero frames share size so the character never jitters horizontally
-      // and its feet always meet the ground exactly.
       groups: [heroFrames.map((f) => f.name)],
     }),
     loadTrimmedSheet(k, {
@@ -376,6 +390,11 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
       rows: 2,
       frames: propFrames2,
     }),
+    loadTrimmedSheet(k, { url: doorSheetUrl, cols: 2, rows: 1, frames: doorFrames }),
+    loadTrimmedSheet(k, { url: credentialsSheetUrl, cols: 2, rows: 1, frames: credFrames }),
+    loadTrimmedSheet(k, { url: goldKeyUrl, cols: 1, rows: 1, frames: keyFrames }),
+    loadTrimmedSheet(k, { url: planCardsSheetUrl, cols: 3, rows: 1, frames: planFrames }),
+    loadTrimmedSheet(k, { url: medicalIdUrl, cols: 1, rows: 1, frames: idFrames }),
   ]);
 
   // Backgrounds don't need trimming.
@@ -390,7 +409,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     k.loadSprite("bg-clinic", bgClinicUrl),
   ]);
 
-  return { ...heroSizes, ...propSizes, ...propSizes2 };
+  return { ...heroSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes };
 }
 
 // ============================ Spawn helpers ============================

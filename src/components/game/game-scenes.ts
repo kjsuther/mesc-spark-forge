@@ -1918,10 +1918,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
 
       // Fire-pole slide: freeze x, descend at controlled speed until base.
+      // Safety-net: complete when Y reaches GROUND_Y even if the base
+      // collider is missed on a dropped frame.
       if (zoneState.firePoleAttached && !zoneState.firePoleDone) {
         player.vel = k.vec2(0, 0);
         player.pos.y = Math.min(GROUND_Y, player.pos.y + 220 * k.dt());
+        if (player.pos.y >= GROUND_Y) {
+          zoneState.firePoleDone = true;
+          startFireworks(k, player.pos.x + 100, GROUND_Y - 240);
+        }
       }
+
 
       // Hint fade
       if (hintUntil > 0 && k.time() > hintUntil) {

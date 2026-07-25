@@ -202,7 +202,7 @@ function AdminGamePage() {
           <div className="space-y-3">
             <p className="text-xs text-dark-gray/70">
               Start a voting round. Attendees will see a countdown and can cast one vote. Pick
-              candidates below or leave empty for a random 3.
+              candidates below or leave empty to auto-pick 5.
             </p>
             <div className="flex flex-wrap gap-2">
               {disabledImprovements.map((imp) => (
@@ -249,7 +249,7 @@ function AdminGamePage() {
                 disabled={disabledImprovements.length < 2}
                 className="bg-accent-orange text-white font-bold text-sm px-4 py-2 rounded hover:brightness-110 disabled:opacity-40"
               >
-                Auto-pick 3 & start
+                Auto-pick 5 & start
               </button>
             </div>
           </div>
@@ -262,6 +262,12 @@ function AdminGamePage() {
           className="bg-white border-2 border-red-500 text-red-600 font-bold text-sm px-4 py-2 rounded hover:bg-red-50"
         >
           Reset all improvements & votes
+        </button>
+        <button
+          onClick={handleResetScores}
+          className="bg-white border-2 border-red-500 text-red-600 font-bold text-sm px-4 py-2 rounded hover:bg-red-50"
+        >
+          Reset High Scores leaderboard
         </button>
       </section>
 

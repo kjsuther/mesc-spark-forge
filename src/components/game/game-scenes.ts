@@ -633,9 +633,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     // Form-monster enemies (patrol) — walk on the ground.
-    const monsterSpots = [tx0 + 340, tx0 + 780];
+    const monsterSpots = [tx0 + 260, tx0 + 900];
     for (const mx of monsterSpots) {
-      const speed = active.plain_language ? 30 : 70;
+      const speed = active.plain_language ? 24 : 55;
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
       const m = spawnGrounded(k, "form-monster", sizes, {

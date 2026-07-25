@@ -506,18 +506,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       "water",
     ]);
 
-    // ================= ZONE 1: Forest signs =================
-    const signs: [number, string, string][] = [
-      [180, "?", "Coverage \u2192"],
-      [420, "??", "River ahead\nBring docs"],
-      [700, "?", "Town office \u2192"],
-      [960, "??", "Watch for gaps"],
+    // ================= ZONE 1: Forest — four ways to apply for Medicaid =================
+    const applyMethods: { x: number; icon: string; label: string; tint: [number, number, number] }[] = [
+      { x: 220, icon: "MAIL",      label: "Apply by Mail",      tint: [200, 90, 30] },
+      { x: 460, icon: "PHONE",     label: "Apply by Phone",     tint: [40, 120, 60] },
+      { x: 720, icon: "IN PERSON", label: "Apply In Person",    tint: [30, 90, 160] },
+      { x: 980, icon: "ONLINE",    label: "Apply Online",       tint: [130, 60, 160] },
     ];
-    for (const [x, bad, good] of signs) {
-      spawnDecor(k, "signpost", sizes, { x, z: LAYERS.PROP });
-      const label = active.clearer_directions ? good : (active.translated_signs ? `${bad}\n(??)` : bad);
-      addSpeech(k, x, GROUND_Y - DISPLAY_H["signpost"] - 10, label, active.clearer_directions ? [40, 100, 40] : [140, 40, 40]);
+    for (const m of applyMethods) {
+      spawnDecor(k, "signpost", sizes, { x: m.x, z: LAYERS.PROP });
+      const topY = GROUND_Y - DISPLAY_H["signpost"] - 6;
+      addSpeech(k, m.x, topY, m.label, [25, 45, 90]);
+      addSpeech(k, m.x, topY - 16, `[ ${m.icon} ]`, m.tint);
     }
+    // Kicker sign after the four options
+    addSpeech(k, 1120, GROUND_Y - DISPLAY_H["signpost"] - 30, "Pick a path →", [40, 100, 40]);
 
     // ================= ZONE 2: River =================
     const rx0 = RIVER_GAP_X0;

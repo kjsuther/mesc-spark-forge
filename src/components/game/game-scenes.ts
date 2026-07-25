@@ -512,46 +512,44 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
   const idFrames: FrameSpec[] = [{ name: "medical-id", frame: 0 }];
 
   const [heroSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes] = await Promise.all([
-    loadTrimmedSheet(k, {
+    safeLoadSheet(k, {
       url: charSheetUrl,
       cols: 3,
       rows: 2,
       frames: heroFrames,
       groups: [heroFrames.map((f) => f.name)],
+      label: "character-sheet.png",
     }),
-    loadTrimmedSheet(k, {
-      url: propsSheetUrl,
-      cols: 4,
-      rows: 3,
-      frames: propFrames,
-    }),
-    loadTrimmedSheet(k, {
-      url: propsSheet2Url,
-      cols: 3,
-      rows: 2,
-      frames: propFrames2,
-    }),
-    loadTrimmedSheet(k, { url: doorSheetUrl, cols: 2, rows: 1, frames: doorFrames }),
-    loadTrimmedSheet(k, { url: credentialsSheetUrl, cols: 2, rows: 1, frames: credFrames }),
-    loadTrimmedSheet(k, { url: goldKeyUrl, cols: 1, rows: 1, frames: keyFrames }),
-    loadTrimmedSheet(k, { url: planCardsSheetUrl, cols: 3, rows: 1, frames: planFrames }),
-    loadTrimmedSheet(k, { url: medicalIdUrl, cols: 1, rows: 1, frames: idFrames }),
+    safeLoadSheet(k, { url: propsSheetUrl,  cols: 4, rows: 3, frames: propFrames,  label: "props-sheet.png" }),
+    safeLoadSheet(k, { url: propsSheet2Url, cols: 3, rows: 2, frames: propFrames2, label: "props-sheet-2.png" }),
+    safeLoadSheet(k, { url: doorSheetUrl,        cols: 2, rows: 1, frames: doorFrames, label: "door-sheet.png" }),
+    safeLoadSheet(k, { url: credentialsSheetUrl, cols: 2, rows: 1, frames: credFrames, label: "credentials-sheet.png" }),
+    safeLoadSheet(k, { url: goldKeyUrl,          cols: 1, rows: 1, frames: keyFrames,  label: "gold-key.png" }),
+    safeLoadSheet(k, { url: planCardsSheetUrl,   cols: 3, rows: 1, frames: planFrames, label: "plan-cards-sheet.png" }),
+    safeLoadSheet(k, { url: medicalIdUrl,        cols: 1, rows: 1, frames: idFrames,   label: "medical-id.png" }),
   ]);
 
-  // Backgrounds don't need trimming.
+  // Backgrounds don't need trimming but still get load-status tracking + a
+  // magenta fallback so a missing PNG doesn't crash the scene.
   await Promise.all([
-    k.loadSprite("bg-forest", bgForestUrl),
-    k.loadSprite("bg-signup", bgSignupUrl),
-    k.loadSprite("bg-river", bgRiverUrl),
-    k.loadSprite("bg-town", bgTownUrl),
-    k.loadSprite("bg-relay", bgRelayUrl),
-    k.loadSprite("bg-mountain", bgMountainUrl),
-    k.loadSprite("bg-market", bgMarketUrl),
-    k.loadSprite("bg-clinic", bgClinicUrl),
+    safeLoadBackground(k, "bg-forest",   bgForestUrl),
+    safeLoadBackground(k, "bg-signup",   bgSignupUrl),
+    safeLoadBackground(k, "bg-river",    bgRiverUrl),
+    safeLoadBackground(k, "bg-town",     bgTownUrl),
+    safeLoadBackground(k, "bg-relay",    bgRelayUrl),
+    safeLoadBackground(k, "bg-mountain", bgMountainUrl),
+    safeLoadBackground(k, "bg-market",   bgMarketUrl),
+    safeLoadBackground(k, "bg-clinic",   bgClinicUrl),
   ]);
+
+  ASSET_REPORT.ready = true;
+  if (typeof window !== "undefined") {
+    (window as unknown as { __gameAssetReport?: AssetReport }).__gameAssetReport = ASSET_REPORT;
+  }
 
   return { ...heroSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes };
 }
+
 
 // ============================ Spawn helpers ============================
 

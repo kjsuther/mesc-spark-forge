@@ -370,6 +370,24 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
           </div>
         )}
 
+        {/* Loading overlay between Start tap and first frame */}
+        {launchMode && loading && !error && (
+          <div
+            className="absolute inset-0 z-30 grid place-items-center bg-mn-blue text-cream"
+            style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
+          >
+            <div className="text-center">
+              <p className="mb-3 animate-pulse text-[10px] tracking-widest text-accent-gold sm:text-xs">
+                LOADING…
+              </p>
+              <p className="text-[8px] tracking-widest text-cream/70 sm:text-[10px]">
+                Preparing the trail
+              </p>
+            </div>
+          </div>
+        )}
+
+
         {/* Fullscreen toggle overlay button (only while game is running) */}
         {launchMode && !overlayFs && (
           <button

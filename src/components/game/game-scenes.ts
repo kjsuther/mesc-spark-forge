@@ -1297,8 +1297,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     for (const key of jumpKeys) k.onKeyPress(key as never, () => tryJump());
     k.onKeyPress("r", () => k.go("trail", 40, 1));
 
+    player.use(k.opacity(1));
     player.onUpdate(() => {
       if (player.pos.y > 720) loseLife("fell");
+      // SNES-style blinking during 2s of invulnerability after a hit.
+      const now = k.time();
+      if (now < player.invulnUntil) {
+        const t = player.invulnUntil - now;
+        player.opacity = Math.floor(t * 10) % 2 === 0 ? 0.25 : 1;
+      } else if (player.opacity !== 1) {
+        player.opacity = 1;
+      }
+    });
+    // Tick HUD every frame so the score readout accumulates live.
+    k.onUpdate(() => {
+      if (!player.dead) updateHud();
     });
   });
 

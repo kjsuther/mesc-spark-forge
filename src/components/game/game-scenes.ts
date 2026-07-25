@@ -882,8 +882,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     addGround(k, BIOME_W * 5, BIOME_W * 6, GROUND_Y, ZONES[5].ground, ZONES[5].soil);
     addGround(k, BIOME_W * 6, BIOME_W * 7, GROUND_Y, ZONES[6].ground, ZONES[6].soil);
     // Zone 7 has a lethal gap under the staircase — miss a step, lose a life.
+    // Gap width tracks STEP_GAP_X (110) below so the pole base always lands on solid ground.
     const Z7_GAP0 = BIOME_W * 7 + 240;
-    const Z7_GAP1 = BIOME_W * 7 + 240 + 140 * 6;
+    const Z7_GAP1 = BIOME_W * 7 + 240 + 110 * 6;
     addGround(k, BIOME_W * 7, Z7_GAP0, GROUND_Y, ZONES[7].ground, ZONES[7].soil);
     addGround(k, Z7_GAP1, LEVEL_END, GROUND_Y, ZONES[7].ground, ZONES[7].soil);
     // Kill plane inside the gap.

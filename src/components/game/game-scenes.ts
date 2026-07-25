@@ -1181,6 +1181,36 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
     addSpeech(k, relayBase + 100, GROUND_Y - DISPLAY_H["mailbox"] - 40, "Answer every request!", [40, 80, 130]);
+    // Decorative paper airplanes drifting across the sky — ties into the
+    // "letters back and forth with the agency" theme. No collision.
+    {
+      const planeDefs = [
+        { y: 90,  spd: 70, phase: 0.0, bobA: 8,  bobS: 1.6 },
+        { y: 140, spd: 55, phase: 1.7, bobA: 6,  bobS: 1.2 },
+        { y: 190, spd: 85, phase: 3.2, bobA: 10, bobS: 1.9 },
+        { y: 60,  spd: 45, phase: 2.4, bobA: 5,  bobS: 1.4 },
+      ];
+      const zoneL = relayBase - 40;
+      const zoneR = relayBase + BIOME_W + 40;
+      const span = zoneR - zoneL;
+      for (const pd of planeDefs) {
+        const pw = displaySize("paper-airplane", sizes).w;
+        const ph = DISPLAY_H["paper-airplane"];
+        const plane = k.add([
+          k.sprite("paper-airplane", { width: pw, height: ph }),
+          k.pos(zoneL + Math.random() * span, pd.y),
+          k.anchor("center"),
+          k.z(LAYERS.BG_NEAR + 2),
+          k.opacity(0.9),
+          { basY: pd.y, spd: pd.spd, phase: pd.phase, bobA: pd.bobA, bobS: pd.bobS },
+        ]) as AnyObj;
+        plane.onUpdate(() => {
+          plane.pos.x += plane.spd * k.dt();
+          if (plane.pos.x > zoneR) plane.pos.x = zoneL;
+          plane.pos.y = plane.basY + Math.sin(k.time() * plane.bobS + plane.phase) * plane.bobA;
+        });
+      }
+    }
     zoneObjectives[4] = {
       hudLabel: () => `REPLIES ${zoneState.repliesGot}/${zoneState.repliesNeeded}`,
       met: () => zoneState.repliesGot >= zoneState.repliesNeeded,

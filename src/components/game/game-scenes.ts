@@ -813,7 +813,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= Player =================
     const player = k.add([
       k.sprite("hero-idle", { width: displaySize("hero-idle", sizes).w, height: DISPLAY_H["hero-idle"] }),
-      k.pos(spawnX, GROUND_Y),
+      k.pos(spawnX, GROUND_Y - 20),
       k.area({ shape: new k.Rect(k.vec2(PLAYER_HITBOX.x, PLAYER_HITBOX.y), PLAYER_HITBOX.w, PLAYER_HITBOX.h) }),
       k.body(),
       k.anchor("bot"),

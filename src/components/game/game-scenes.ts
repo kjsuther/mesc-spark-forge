@@ -1003,8 +1003,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Zone 2 unlocks the moment player crosses the river.
     zoneObjectives[2] = {
       hudLabel: () => "CROSS THE RIVER →",
-      met: () => true,
+      // Only unlock after the player physically crosses the river and is
+      // within reach of the door at (BIOME_W*3 - 60).
+      met: () => player.pos.x >= BIOME_W * 3 - 160,
     };
+
 
     // ================= ZONE 3: Gathering Documents — 3 verifications =================
     const tx0 = BIOME_W * 3;

@@ -1,95 +1,84 @@
-## Polish pass: "Blazing the Trail to Coverage"
+## Goal
 
-All work is scoped to the game engine + canvas. No changes to voting, admin, leaderboard, or DB.
+Play the game as a real user would — on a phone and on a desktop — and fix everything that hurts playability. Concrete targets from the screenshot and your notes:
 
-### 1. Fix player spawn / ground alignment (root-cause)
+1. The hero's feet must sit on the **green grass strip**, not the brown soil below it.
+2. The character must **look like he's running** when moving (right now the legs barely change).
+3. Sprites (monsters, boulders, envelopes, signs) are **too big** — the player can't get around them. Shrink them so there is real room to dodge and jump.
+4. Overall difficulty needs to come **down** — the first playthrough should feel possible, not punishing.
 
-In `game-scenes.ts` the player is created with `k.anchor("bot")` at `y = GROUND_Y`, but `GROUND_Y = 470` is the *top of the soil rect*, while props (`spawnDecor` for signposts) use the same value via a helper that already accounts for its own baseline — the mismatch shows as the hero sitting a few pixels lower than the signs.
+## How I'll test (this is the part that has been missing)
 
-- Introduce `WORLD.groundTopY` (the pixel row where feet must sit) and use it uniformly for:
-  - `addGround` (top edge of the grass strip)
-  - `spawnGrounded` / `spawnDecor` default `groundY`
-  - player spawn and every `player.pos = ...` respawn line
-  - platform snap calculations and the water kill-plane offset
-- Verify by asserting in dev-only that at rest `player.pos.y === WORLD.groundTopY` and the sign's `y + h === WORLD.groundTopY`.
+I will drive a real browser against the running preview with Playwright and actually play, not just read code. Two full passes:
 
-### 2. Step 1 signage — four ways to apply
+**Pass A — Desktop (1280×800, keyboard)**
+Play from title screen → each zone → win/lose overlay, using ←/→/Space. Screenshot on entry to each zone, mid-zone, at every obstacle, at every death, and at the end overlay. Log where I get stuck, what feels unfair, what looks wrong.
 
-Replace the current cryptic signs (`?`, `??`, "River ahead") with four themed, evenly spaced signposts introducing application methods:
+**Pass B — Mobile (iPhone-class viewport, touch)**
+Same run using only the on-screen touch buttons. Test: reachability of controls, fullscreen behavior, tap-to-restart, thumb obstruction, whether jumps land on the platforms in Zone 2, whether monsters in Zone 3 can actually be avoided.
 
-- 📬 Apply by Mail
-- 📞 Apply by Phone
-- 🏢 Apply In Person
-- 💻 Apply Online
+For each pass I record:
+- A screenshot timeline (`/tmp/browser/uat/{desktop,mobile}/NN_label.png`)
+- Frame-by-frame observation: character Y vs. grass Y, sprite footprint vs. corridor width, jump arc vs. platform gap, enemy density, time-to-first-death, time-to-first-win.
 
-Implementation: extend `addSpeech` to accept an icon glyph rendered above the label, keep the wood-sign sprite, and color the callouts in the friendly cream/blue palette. Signs act as decorative teaching moments (no gameplay branching — the "path choice" is visual).
+Findings go into `UAT-FINDINGS.md` — one row per issue with severity, evidence screenshot, and the exact fix.
 
-### 3. Step 2 environment — floating question bubbles
+## Fixes I already know I'll make (and will confirm/adjust from the playtest)
 
-Add a new `spawnThoughtBubble(k, {x, y, text})` helper that renders a small pixel-art cloud (rounded rect + tail, drawn with `k.rect` + `k.circle`) at parallax layer `LAYERS.BG_NEAR`, gently bobbing via `onUpdate`. Populate Step 2 with 6–7 bubbles cycling through:
+### 1. Ground alignment — feet on grass, not soil
+The grass strip is drawn above `GROUND_Y` as a thin band; the player's `anchor("bot")` currently lands on the soil rectangle's top. I'll:
+- Move `GROUND_Y` up by the grass-strip height so `anchor("bot")` lands the feet on the green line, and adjust the soil rect + grass strip so they still meet with no seam.
+- Verify against a pixel-diff of hero-bottom-Y vs. grass-top-Y — must be equal.
 
-- "What documents do I need?"
-- "Do I qualify?"
-- "How long will this take?"
-- "What income should I report?"
-- "Who counts in my household?"
-- "What if I'm missing information?"
-- "Where do I upload documents?"
+### 2. Running animation that actually reads as running
+Current cycle is `[0,1,2,3,2,1]` every 12px. Problem is the trimmed hero-walk frames only differ by a few pixels of leg lift, so at any speed it looks like a glide. I'll:
+- Increase per-frame leg contrast by using a taller crop tolerance in the trim step so leg-lift is visible.
+- Add a small vertical bob (±1–2 px) tied to the same stride counter so the whole silhouette moves the way a runner does.
+- Tighten stride to ~9 px so the cadence matches the higher move speed we'll set below.
+- If two of the walk frames are near-identical after trim, drop them and drive the cycle from the 2 most distinct frames plus interstitials, so the eye sees clear alternation.
 
-Bubbles sit high in the sky so they never overlap gameplay hitboxes.
+### 3. Shrink sprites and open corridors
+- Reduce `DISPLAY_H` for `form-monster`, `denied`, `envelope`, `boulder` by ~25–30% so they no longer choke the lane.
+- Shrink signposts likewise so the forest doesn't feel walled in.
+- Widen the vertical clearance under floating platforms in Zone 2 and Zone 4 so a normal jump clears them.
+- Recompute each entity's collider from the new trimmed size (helpers already do this — I just verify).
 
-### 4. Context-aware failure messages
+### 4. Make the first playthrough winnable
+- Reduce monster density per zone (fewer spawns, wider spacing).
+- Reduce boulder frequency and speed in Zone 4.
+- Give the player 3 lives baseline (was effectively 1–2 without `phone_support`).
+- Widen Zone 2 platform tops by ~20% and shorten gaps.
+- Loosen coyote time from 90ms → 130ms and jump buffer from 120ms → 160ms so mistimed inputs still feel fair.
+- Keep the "before feedback" experience harder than "after," but not impossible. Target: a focused player finishes in ~2–3 minutes on the first or second attempt.
 
-Replace the single `reason` string with a `getFailureMessage(cause, zoneIndex)` lookup. Cause keys: `monster`, `boulder`, `water`, `timeout`, `noDocs`. Zone-specific copy:
+### 5. Mobile-specific corrections (driven by Pass B)
+- Verify the touch buttons don't cover the play area in fullscreen; if they do, shrink or reposition.
+- Confirm tap-to-restart works from the game-over overlay on iOS-class viewports.
+- Confirm the score-submit form is reachable and the keyboard doesn't hide the Submit button.
 
-- Step 1 (forest): "Pick a way to apply before moving forward." / "Every journey starts by choosing how you'll apply."
-- Step 2 (river): "A missing answer is slowing your journey." / "Double-check your application before submitting."
-- Step 3 (town): "Looks like some documents are still missing." / "Gather everything you need before continuing."
-- Step 4 (mountain): "Your application is still under review." / "The agency needs a little more information."
-- Step 5 (clinic): "One final step remains before coverage begins." / "Don't stop now — you're almost enrolled!"
+## Deliverables
 
-Overlay title also changes per zone ("APPLICATION PAUSED" / "REVIEW IN PROGRESS" / etc.) instead of the blanket "APPLICATION BLOCKED".
+- `UAT-FINDINGS.md` — every issue observed, with screenshots and severity.
+- Fixes applied to `src/components/game/game-scenes.ts` (and `game-canvas.tsx` only if mobile controls need moving).
+- A second Playwright pass after the fixes on both desktop and mobile, with before/after screenshots proving:
+  - Hero feet sit on the green grass line in every zone.
+  - Running animation is visibly a run (multi-frame leg lift + subtle bob).
+  - Every obstacle can be dodged or jumped with the standard controls.
+  - A first-attempt playthrough reaches the "Covered!" overlay.
+- Short written summary of what changed and what the playtest showed before vs. after.
 
-### 5. Running animation
+## Files expected to change
 
-The current hero has 4 walk frames (`hero-walk-0..3`) advanced every ~10fps. Upgrade to a 6-frame cycle with SNES-style cadence:
+- `src/components/game/game-scenes.ts` — ground constants, sprite sizes, monster/boulder spawns, walk animation, difficulty tuning.
+- `src/components/game/game-canvas.tsx` — only if mobile controls need repositioning or the fullscreen frame needs adjustment.
+- `UAT-FINDINGS.md` — new file with the playtest report.
 
-- Add `hero-walk-4` and `hero-walk-5` by re-slicing the existing character sheet's walk row (frames already carry small pose variations; we'll duplicate + mirror-blend the two most distinct frames to synthesize the extra two through a canvas post-step in `loadTrimmedSheet`).
-- Advance frames on distance travelled (`frame = floor(distancePx / 14) % 6`) rather than wallclock, so animation speed tracks actual movement and never "slides."
-- Add a subtle 1px vertical bob on frames 1, 3, 5 via a `spriteOffsetY` field applied at draw time.
-- Idle → walk transition uses a 100ms crossfade frame; jump keeps the single jump frame.
+Nothing about voting, leaderboard, routing, or admin panels is touched — this pass is purely playability.
 
-If the synthesized frames read poorly on QA screenshots, fall back to a smoother 4-frame loop with distance-based timing and the bob — the visible "slide" fix comes from distance-based frame advancement, not frame count.
+## What I won't do unless you say so
 
-### 6. General polish
+- Redesign the art style or generate new sprite sheets.
+- Change the 5-zone structure or the Medicaid-journey narrative.
+- Rework the voting/round system.
 
-- Title cards: raise contrast, add 1-frame screen flash on zone entry, delay player input for 200ms so the card reads.
-- Speech bubbles: unify padding, drop shadow, and max-width. Reuse in signs + thought bubbles.
-- Ground seams: assert integer coords in `addGround` and extend the last segment by +2px to hide sub-pixel gaps between biomes.
-- Overlay: replace `font: "sans-serif"` with the loaded Press Start 2P where already available for HUD/end screens; keep sans for long paragraphs.
-- Ranger helper: give a short greeting speech bubble on first proximity ("I'll walk you through this.").
-- Camera: add a 6px vertical lookahead so the player isn't glued to the bottom third.
-
-### Files touched
-
-- `src/components/game/game-scenes.ts` — spawn/ground constant unification, new sign content, thought-bubble helper, failure-message map, distance-based animation, polish tweaks.
-- `src/components/game/game-canvas.tsx` — none expected unless the overlay font swap needs a CSS class; small edit at most.
-
-Nothing else (voting, leaderboard, admin, DB, routes) is modified.
-
-### Verification
-
-Headless Playwright walkthrough capturing `/tmp/browser/polish/*.png` at:
-1. Spawn (feet flush with sign baseline)
-2. Each of the 4 new Step 1 signs
-3. Step 2 with visible thought bubbles
-4. Deliberate death in each zone → screenshot the zone-specific failure message
-5. Mid-run hero at 3 different X positions to confirm frame cadence changes with speed
-
-Manual pass on desktop + mobile viewport (390×844).
-
-### Intentionally out of scope
-
-- New sprite art beyond re-slicing the existing sheet (no image generation this pass).
-- Changing voting improvements list, DB schema, or scoring formula.
-- New zones / new enemy types / new music.
+If you'd rather I focus this pass on **mobile only** (since most attendees will be on phones), say the word and I'll skip the desktop pass to move faster.

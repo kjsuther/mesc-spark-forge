@@ -1061,19 +1061,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.invulnUntil = k.time() + INVULN_S;
       player.lives -= 1;
       player.deaths += 1;
-      player.score = Math.max(0, player.score - 500);
       if (player.lives <= 0) {
         player.dead = true;
         showEnd(false, cause);
         return;
       }
-      const rx = active.save_progress ? player.checkpointX : 40;
-      player.pos = k.vec2(rx, GROUND_Y - 20);
+      // Resume at the entry of the zone the player already reached — never
+      // start the whole trail over. Save-point campfire still wins if active.
+      const zoneEntryX = Math.max(40, player.farthestZone * BIOME_W + 40);
+      const rx = active.save_progress ? player.checkpointX : zoneEntryX;
+      player.pos = k.vec2(rx, GROUND_Y - 40);
       player.vel = k.vec2(0, 0);
       player.riding = null;
-      if (!active.documents_earlier && rx < BIOME_W * 2) {
-        player.docs.clear();
-      }
       updateHud();
     }
 

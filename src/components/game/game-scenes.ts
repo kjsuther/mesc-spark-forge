@@ -810,20 +810,22 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         "door",
         { zoneIdx, unlocked: false },
       ]) as AnyObj;
-      // Solid barrier centered on door — blocks passage while locked. Height
-      // is a full playfield so players can't jump over (peak jump ≈ 144 px
-      // with JUMP_VEL 720 / gravity 1800, which used to clear the old 120 px
-      // wall). Anchor "bot" keeps its base flush with GROUND_Y.
+      // Solid barrier centered on door — blocks passage while locked. Kaplay's
+      // default k.area() shape is anchored top-left of the rect regardless of
+      // k.anchor(...), so we place the rect at top-left explicitly and give
+      // it an explicit shape to be safe. Height 560 keeps its top above the
+      // player's peak jump (GROUND_Y - 144).
+      const BAR_W = 14, BAR_H = 560;
       const bar = k.add([
-        k.rect(14, 560),
-        k.pos(dx, GROUND_Y),
-        k.anchor("bot"),
+        k.rect(BAR_W, BAR_H),
+        k.pos(dx - BAR_W / 2, GROUND_Y - BAR_H),
         k.color(60, 40, 20),
         k.opacity(0),
-        k.area(),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), BAR_W, BAR_H) }),
         k.body({ isStatic: true }),
         k.z(LAYERS.PROP),
       ]);
+
 
       return { obj: doorObj, barrier: bar, unlocked: false, playedAnim: false };
     }

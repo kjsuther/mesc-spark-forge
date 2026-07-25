@@ -1,43 +1,43 @@
-# Fixes: Zone 4 sprites, visibility, trail map, boss
+## Difficulty pass: Zones 2–6
 
-All edits are in `src/components/game/game-scenes.ts`, `src/components/game/game-canvas.tsx`, plus regenerated art assets under `src/assets/game/`.
+All edits in `src/components/game/game-scenes.ts`. User-facing zones 2–6 map to code zones 1–5 (Zone 1 = code 0).
 
-## 1. Rebuild Zone 4 form-monster from scratch
-- Regenerate `form-monster` art as a brand-new standalone 128×128 opaque pixel sprite: a menacing but readable "paperwork clipboard creature" with clear silhouette, dark outline, saturated palette (red/black/white), and cartoon-monster face — no reuse of the current one.
-- Save as new file `src/assets/game/form-monster-v2.png` (new asset, so the old library entry is bypassed). Old `form-monster` frame from `props-sheet` is no longer referenced.
-- In `loadAllSprites`, load `form-monster` via `safeLoadSheet` from the new PNG (single frame), the same way `doc-id`/`doc-paystub` are loaded — remove the `props-sheet` frame entry named `form-monster` at line 542.
-- Keep `DISPLAY_H["form-monster"] = 36` (already sized for Zone 4). Verify the Zone 4 spawn at line ~1292 renders on the ground with no clipping.
+### Zone 2 (code Zone 1) — Setting Up Camp — faster padlocks, longer patrols
+In the "two padlocks left of Z1 gap" block (~line 1153):
+- Bump `speed` 55 → 90.
+- Bump `range` 90 → 220 so both padlocks travel further across the zone (past the gap).
+- Keep the single right-side padlock at `sx0+900` unchanged.
 
-## 2. Paper airplanes opaque + higher-contrast
-- Regenerate `src/assets/game/paper-airplane.png` as a fully filled-in, saturated white/red pixel-art paper airplane with a bold black outline on a transparent background (transparent = outside silhouette, not the plane body).
-- In Zone 5 airplane spawn (~line 1369), remove `k.opacity(0.9)` so planes render fully opaque, and bump display size (`DISPLAY_H["paper-airplane"]` from 26 → 32).
+### Zone 3 (code Zone 2) — River of Paperwork — faster, taller-swinging platforms
+In the `platforms` array (~line 1204):
+- Multiply each `amp` by ~2x (12→26, 18→38, 14→30, 12→26).
+- Multiply each `spd` by ~1.8x (1.4→2.6, 1.2→2.2, 1.6→2.9, 1.4→2.6).
+- Leave X positions and platform width alone so the crossing is still geometrically possible.
 
-## 3. Trail-map background matches the uploaded reference
-- Regenerate `src/assets/game/trail-map-bg.png` as a top-down illustrated parchment map (cream background, dashed trail, forest/river/mountain/hospital icons, numbered stops 1–8) closely matching the uploaded reference image.
-- In `TrailMap` (`game-canvas.tsx` line 714), replace the CSS gradient background with `backgroundImage: url(trailMapBg)` (imported), `backgroundSize: cover`. Keep the SVG dashed-line reveal overlay on top so the 8 nodes still animate in sequence over the illustrated map.
+### Zone 4 (code Zone 3) — Gathering Documents — +2 more monsters
+After the existing form-monster block (~line 1290):
+- Spawn 2 additional `form-monster` patrols at `tx0+380` and `tx0+1000`, each with `range: 90`, `speed: 34`, respecting `active.plain_language` slowdown for parity with the existing one. Placed between the docs so the player must time each pickup.
 
-## 4. Zone 4 door-unlock docs opaque + brighter
-- Regenerate the three Zone 4 pickup icons (`doc-id.png`, `doc-paystub.png`, `doc-envelope.png`) as fully filled-in, high-saturation pixel-art cards with thick black outlines and a bright inner fill (teal, green, cream). No translucent regions inside the silhouette.
-- Overwrite the existing lovable-asset entries so the URLs stay valid.
-- Confirm no `k.opacity(...)` is applied to the doc pickups (currently none — leave as is).
+### Zone 5 (code Zone 4) — Answering the Call — +1 gremlin, wide unpredictable patrols
+- Refactor the single envelope-gremlin (~line 1329) into a loop of 2 gremlins at `relayBase+300` and `relayBase+820`.
+- Replace the fixed `home ± range` bounce with a wandering pattern across the full zone (`relayBase+80 … relayBase+BIOME_W-80`): each gremlin re-rolls a new random target X and a new speed (35–75 px/s) every 1.2–2.2s, plus small vertical bob (`sin(time*3+phase)*8`) so movement is less predictable. Flip sprite based on current direction.
+- Keep hitbox + animation frame swap identical to today.
 
-## 5. Boss fight rebalance (Zone 7 / code Zone 6)
-Spawn position + mechanics changes in `spawnPlanBoss()` (~line 2153):
+### Zone 6 (code Zone 5) — Waiting Mountain — 10s timer, dense fast calendar rain
+- `zoneState.waitDur = 30` → `10` (line 940).
+- HUD default label "WAIT 0:30" → "WAIT 0:10" (line 1424).
+- In the falling-calendar block (~line 1395):
+  - Increase count from 6 → 14 pages.
+  - Raise fall speed by boosting gravity/vy on respawn (double current fall rate) and shorten respawn X reroll delay so pages hit ground more frequently.
+  - Keep zone-wide X reroll on each cycle.
 
-- **Spawn location**: change `bx = BIOME_W * 6 + 560` → `bx = BIOME_W * 6 + 1050` so the boss appears past the "Medica" pedestal (x=860) and closer to the exit door, not on top of the middle "HealthPartners" plan.
-- **Reduce required hits**: 3 → **2** stomps.
-- **Easier stomp detection**: widen the stomp window — accept a stomp when `playerFoot <= bossTop + bh * 0.75` (up from 0.55) and `vy >= -80` (was -20), OR the previous-frame foot was above the boss. This makes glancing top-hits count.
-- **Alternate kill path — projectile stomp assist**: give the player a one-shot "paperwork shield" — when the boss is active, spawn a floating **stapler power-up** (`plan-boss-stapler`, reuse `gold-key` sprite tinted red or a small new 64×64 asset) above a nearby platform. Picking it up grants `player.canThrow = true`. Pressing Jump while holding it (or an on-screen "THROW" button on mobile) throws a projectile that counts as one boss hit and consumes the power-up. This gives players who can't land stomps a guaranteed second path.
-  - New tag `"boss-projectile"` with a simple rightward-moving `k.area`; on collide with `"boss"` → same hit path as a stomp (increment `boss.hits`, brief `hurtUntil`, destroy projectile). On collide with any solid or off-screen → destroy.
-  - HUD shows `"THROW READY"` when `canThrow` is true.
-- **Clearer hearts HUD**: keep the ♥♥ (now 2) but also raise it to `GROUND_Y - bh - 40` so it doesn't overlap the boss sprite.
-- Keep the loseLife path unchanged for side/underside contact.
+### Zones 7 & 8
+No changes.
 
-## 6. Verification (Playwright, desktop 1280×800 + mobile 852×402)
-- Zone 4: new monster renders, three docs are visibly opaque, level is completable.
-- Zone 5: airplanes are fully opaque and easy to see against the sky.
-- Trail map screen: illustrated parchment map background renders; dashed reveal animation still works over it.
-- Zone 7 boss: appears near the right side past the Medica pedestal; two stomps kill him; stapler pickup + throw also works.
-
-## Out of scope
-- Other zones, HUD layout, music, physics constants, or scoring.
+### Verification
+Playwright desktop 1280×800 + mobile 852×402:
+- Zone 2: two left padlocks visibly sweep across most of the zone and are noticeably faster.
+- Zone 3: platforms bob higher/faster but the 4-hop crossing still completes.
+- Zone 4: 3 total form-monsters between docs; run is completable with careful timing.
+- Zone 5: 2 gremlins roaming the entire zone with irregular direction changes.
+- Zone 6: HUD counts down from 0:10; calendar pages fall thick and fast.

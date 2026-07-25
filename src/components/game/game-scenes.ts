@@ -217,11 +217,11 @@ const DISPLAY_H: Record<string, number> = {
   campfire: 44,
   backpack: 36,
   bridge: 24,
-  id: 30,
-  paystub: 30,
-  envelope: 30,
+  id: 48,
+  paystub: 48,
+  envelope: 48,
   boulder: 30,
-  "form-monster": 38,
+  "form-monster": 56,
   denied: 40,
   laptop: 34,
   padlock: 36,
@@ -1487,7 +1487,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const topLandingX = STEP_START_X + stepCount * STEP_GAP_X + 20;
     const topLandingY = stairY0 - 60 - stepCount * 45;
     const topLanding = k.add([
-      k.rect(120, 14), k.pos(topLandingX, topLandingY),
+      k.rect(72, 14), k.pos(topLandingX, topLandingY),
       k.color(200, 195, 210), k.outline(2, k.rgb(90, 90, 110)),
       k.area(), k.body({ isStatic: true }),
       k.z(LAYERS.PLATFORM), "platform",
@@ -1497,7 +1497,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     {
       const idW = displaySize("medical-id", sizes).w;
       const idH = DISPLAY_H["medical-id"];
-      const idX = topLandingX + 40;
+      const idX = topLandingX + 30;
       const idY = topLandingY - idH / 2 - 8;
       const idItem = k.add([
         k.sprite("medical-id", { width: idW, height: idH }),
@@ -1510,17 +1510,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]) as AnyObj;
       idItem.onUpdate(() => { idItem.pos.y = idItem.basY + Math.sin(k.time() * 2.5) * 4; });
       addSpeech(k, idX, idY - idH / 2 - 14, "MEDICAL ID", [200, 40, 60]);
-      addSpeech(k, topLandingX + 40, topLandingY - 42, "GRAB THE ID →", [220, 30, 60]);
+      addSpeech(k, idX, topLandingY - 42, "GRAB THE ID →", [220, 30, 60]);
     }
 
-    // Fire pole — placed PAST the top landing so nothing blocks the slide.
-    // Must stay inside LEVEL_END or the camera clamp hides it and the finale never fires.
-    const poleX = topLandingX + 120;
+    // Fire pole — offset from top landing with a visible air gap so the pole
+    // reads as a separate grabbable target and the slide can't be interrupted
+    // by re-landing on the landing's static body.
+    const poleX = topLandingX + 96;
     if (poleX > LEVEL_END - 40) {
-      // Loud dev-time warning if this ever regresses.
       console.warn("[game] Zone 8 fire pole placed past LEVEL_END", { poleX, LEVEL_END });
     }
-    const poleTop = topLandingY - 40;
+    const poleTop = topLandingY - 60;
     const poleBaseY = GROUND_Y - 4;
     k.add([
       k.rect(6, poleBaseY - poleTop),
@@ -2173,19 +2173,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.onCollide("boss", () => {
         if (boss.dead) return;
         if (k.time() < player.invulnUntil) return;
-        // Both actors are anchored "bot": pos.y = feet. Boss top is bh above its feet.
+        if (k.time() < boss.hurtUntil) return;
+        // Both actors anchored "bot": pos.y = feet. Boss top is bh above its feet.
         const bossTop = boss.pos.y - bh;
         const playerFoot = player.pos.y;
+        const playerFootPrev = (player as AnyObj).lastY ?? playerFoot;
         const vy = player.vel?.y ?? 0;
+        // Stomp if the player was clearly above the boss on the previous frame
+        // (fast-fall grace) OR their feet are in the top ~55% of the boss and
+        // they are not moving upward. Otherwise it's side/underside contact.
         const stomp =
-          // Direct head hit: feet in the top 40% of the boss and not moving upward.
-          playerFoot <= bossTop + bh * 0.4 && vy >= -10;
+          playerFootPrev <= bossTop + 4 ||
+          (playerFoot <= bossTop + bh * 0.55 && vy >= -20);
         if (stomp) {
           boss.hits += 1;
-          boss.hurtUntil = k.time() + 0.35;
+          boss.hurtUntil = k.time() + 0.4;
           zoneState.bossHits = boss.hits;
-          player.vel.y = -JUMP_VEL * 0.7; // bounce
-          player.invulnUntil = k.time() + 0.4; // brief i-frames so single collision doesn't multi-hit
+          player.vel.y = -260; // firm bounce so we clear the boss top before the next collide
+          player.pos.y = bossTop - 2; // pop above the boss to avoid immediate re-collision
+          player.invulnUntil = k.time() + 0.5;
           player.score += 300;
           hearts.text = "♥".repeat(Math.max(0, 3 - boss.hits));
           if (boss.hits >= 3) {
@@ -2193,7 +2199,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             zoneState.bossDefeated = true;
             setGameObjSprite(boss, "boss-defeat");
             hearts.destroy();
-            // Fade + destroy, then drop the key at the boss's spot.
             const kx = boss.pos.x;
             const ky = GROUND_Y - 40;
             k.wait(0.6, () => {
@@ -2205,7 +2210,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             showHint(`Boss hit! ${3 - boss.hits} to go.`);
           }
         } else {
-          player.invulnUntil = k.time() + INVULN_S;
           loseLife("monster");
         }
       });
@@ -2532,7 +2536,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             zoneState.cutscenePhase = "slide";
             const landing = zoneState.topLandingRef;
             if (landing) {
-              try { landing.unuse("body"); landing.unuse("area"); } catch { /* ignore */ }
+              try { landing.destroy(); } catch { /* ignore */ }
+              zoneState.topLandingRef = null;
             }
             dir = 0;
           }
@@ -2675,6 +2680,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
         break; // nearest locked door only
       }
+      // Record foot Y for next-frame stomp geometry (boss/other overhead checks).
+      (p as AnyObj).lastY = player.pos.y;
     });
 
 

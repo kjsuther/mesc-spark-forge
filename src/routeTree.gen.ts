@@ -10,12 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ToolRouteImport } from './routes/tool'
-import { Route as ChangelogRouteImport } from './routes/changelog'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
-import { Route as VersionSemverRouteImport } from './routes/version.$semver'
 import { Route as AdminUnlockRouteImport } from './routes/admin.unlock'
 import { Route as AdminPosterRouteImport } from './routes/admin.poster'
 import { Route as AdminNowBuildingRouteImport } from './routes/admin.now-building'
@@ -28,11 +26,6 @@ import { Route as ActionsCheckDocumentsStartRouteImport } from './routes/actions
 const ToolRoute = ToolRouteImport.update({
   id: '/tool',
   path: '/tool',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ChangelogRoute = ChangelogRouteImport.update({
-  id: '/changelog',
-  path: '/changelog',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -54,11 +47,6 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRoute,
-} as any)
-const VersionSemverRoute = VersionSemverRouteImport.update({
-  id: '/version/$semver',
-  path: '/version/$semver',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const AdminUnlockRoute = AdminUnlockRouteImport.update({
   id: '/unlock',
@@ -107,7 +95,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
-  '/changelog': typeof ChangelogRoute
   '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/game': typeof AdminGameRoute
@@ -115,7 +102,6 @@ export interface FileRoutesByFullPath {
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
   '/admin/unlock': typeof AdminUnlockRoute
-  '/version/$semver': typeof VersionSemverRoute
   '/admin/': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
   '/actions/report-a-change/start': typeof ActionsReportAChangeStartRoute
@@ -123,7 +109,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/changelog': typeof ChangelogRoute
   '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/game': typeof AdminGameRoute
@@ -131,7 +116,6 @@ export interface FileRoutesByTo {
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
   '/admin/unlock': typeof AdminUnlockRoute
-  '/version/$semver': typeof VersionSemverRoute
   '/admin': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
   '/actions/report-a-change/start': typeof ActionsReportAChangeStartRoute
@@ -141,7 +125,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
-  '/changelog': typeof ChangelogRoute
   '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/game': typeof AdminGameRoute
@@ -149,7 +132,6 @@ export interface FileRoutesById {
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
   '/admin/unlock': typeof AdminUnlockRoute
-  '/version/$semver': typeof VersionSemverRoute
   '/admin/': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
   '/actions/report-a-change/start': typeof ActionsReportAChangeStartRoute
@@ -160,7 +142,6 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
-    | '/changelog'
     | '/tool'
     | '/actions/$slug'
     | '/admin/game'
@@ -168,7 +149,6 @@ export interface FileRouteTypes {
     | '/admin/now-building'
     | '/admin/poster'
     | '/admin/unlock'
-    | '/version/$semver'
     | '/admin/'
     | '/actions/check-documents/start'
     | '/actions/report-a-change/start'
@@ -176,7 +156,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
-    | '/changelog'
     | '/tool'
     | '/actions/$slug'
     | '/admin/game'
@@ -184,7 +163,6 @@ export interface FileRouteTypes {
     | '/admin/now-building'
     | '/admin/poster'
     | '/admin/unlock'
-    | '/version/$semver'
     | '/admin'
     | '/actions/check-documents/start'
     | '/actions/report-a-change/start'
@@ -193,7 +171,6 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
-    | '/changelog'
     | '/tool'
     | '/actions/$slug'
     | '/admin/game'
@@ -201,7 +178,6 @@ export interface FileRouteTypes {
     | '/admin/now-building'
     | '/admin/poster'
     | '/admin/unlock'
-    | '/version/$semver'
     | '/admin/'
     | '/actions/check-documents/start'
     | '/actions/report-a-change/start'
@@ -211,10 +187,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   AdminRoute: typeof AdminRouteWithChildren
-  ChangelogRoute: typeof ChangelogRoute
   ToolRoute: typeof ToolRoute
   ActionsSlugRoute: typeof ActionsSlugRoute
-  VersionSemverRoute: typeof VersionSemverRoute
   ActionsCheckDocumentsStartRoute: typeof ActionsCheckDocumentsStartRoute
   ActionsReportAChangeStartRoute: typeof ActionsReportAChangeStartRoute
 }
@@ -226,13 +200,6 @@ declare module '@tanstack/react-router' {
       path: '/tool'
       fullPath: '/tool'
       preLoaderRoute: typeof ToolRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/changelog': {
-      id: '/changelog'
-      path: '/changelog'
-      fullPath: '/changelog'
-      preLoaderRoute: typeof ChangelogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -262,13 +229,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
-    }
-    '/version/$semver': {
-      id: '/version/$semver'
-      path: '/version/$semver'
-      fullPath: '/version/$semver'
-      preLoaderRoute: typeof VersionSemverRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/admin/unlock': {
       id: '/admin/unlock'
@@ -353,10 +313,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   AdminRoute: AdminRouteWithChildren,
-  ChangelogRoute: ChangelogRoute,
   ToolRoute: ToolRoute,
   ActionsSlugRoute: ActionsSlugRoute,
-  VersionSemverRoute: VersionSemverRoute,
   ActionsCheckDocumentsStartRoute: ActionsCheckDocumentsStartRoute,
   ActionsReportAChangeStartRoute: ActionsReportAChangeStartRoute,
 }

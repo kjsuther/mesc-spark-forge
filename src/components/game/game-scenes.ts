@@ -2179,9 +2179,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const vy = player.vel?.y ?? 0;
         const stomp =
           // Direct head hit: feet in the top 40% of the boss and not moving upward.
-          (playerFoot <= bossTop + bh * 0.4 && vy >= -10) ||
-          // Grace: previous frame's foot was clearly above the boss top.
-          ((player.prevFootY ?? playerFoot) <= bossTop + 4);
+          playerFoot <= bossTop + bh * 0.4 && vy >= -10;
         if (stomp) {
           boss.hits += 1;
           boss.hurtUntil = k.time() + 0.35;

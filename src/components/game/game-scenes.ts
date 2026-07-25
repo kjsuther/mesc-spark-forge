@@ -190,6 +190,15 @@ const DISPLAY_H: Record<string, number> = {
   mailbox: 42,
   "plan-card": 32,
   "insurance-card": 32,
+  "door-closed": 108,
+  "door-open": 108,
+  username: 34,
+  password: 34,
+  "gold-key": 30,
+  "plan-blue": 60,
+  "plan-green": 60,
+  "plan-orange": 60,
+  "medical-id": 46,
 };
 
 // ============================ Sprite trim pipeline ============================

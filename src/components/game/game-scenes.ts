@@ -2373,7 +2373,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     player.onCollide("monster", () => loseLife("monster"));
-    player.onCollide("boulder", () => loseLife("boulder"));
+    player.onCollide("boulder", () => {
+      // In the Awaiting-Decision zone, a calendar hit also resets the countdown
+      // to the full 10 seconds — feels like the clock starting over.
+      const inWaitZone = Math.floor(player.pos.x / BIOME_W) === 5;
+      const alive = !player.dead && !player.won && k.time() >= player.invulnUntil;
+      if (inWaitZone && alive && zoneState.waitStart > 0) {
+        zoneState.waitStart = k.time();
+      }
+      loseLife("boulder");
+    });
     player.onCollide("water", () => loseLife("water"));
 
 

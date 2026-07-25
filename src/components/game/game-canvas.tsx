@@ -19,6 +19,24 @@ const isCoarsePointer = () =>
   typeof window.matchMedia === "function" &&
   window.matchMedia("(pointer: coarse)").matches;
 
+function useOrientation() {
+  const [portrait, setPortrait] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerHeight > window.innerWidth;
+  });
+  useEffect(() => {
+    const update = () => setPortrait(window.innerHeight > window.innerWidth);
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+    };
+  }, []);
+  return { portrait };
+}
+
 export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -29,6 +47,8 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const [menuScreen, setMenuScreen] = useState<MenuScreen>("title");
   const [showHint, setShowHint] = useState(true);
   const [loading, setLoading] = useState(false);
+  const { portrait } = useOrientation();
+  const [isTouch] = useState(() => isCoarsePointer());
   const key = `${mode}|${Object.entries(flags)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}:${v ? 1 : 0}`)

@@ -40,6 +40,12 @@ import brickBlockSheetUrl from "@/assets/game/brick-block-sheet.png";
 import envelopeGremlinSheetUrl from "@/assets/game/envelope-gremlin-sheet.png";
 import bossSheetUrl from "@/assets/game/boss-sheet.png";
 import doorLockUrl from "@/assets/game/door-lock.png";
+import docIdAsset from "@/assets/game/doc-id.png.asset.json";
+import docPaystubAsset from "@/assets/game/doc-paystub.png.asset.json";
+import docEnvelopeAsset from "@/assets/game/doc-envelope.png.asset.json";
+const docIdUrl = docIdAsset.url;
+const docPaystubUrl = docPaystubAsset.url;
+const docEnvelopeUrl = docEnvelopeAsset.url;
 
 export type GameFlags = Record<ImprovementKey, boolean>;
 
@@ -217,11 +223,11 @@ const DISPLAY_H: Record<string, number> = {
   campfire: 44,
   backpack: 36,
   bridge: 24,
-  id: 48,
-  paystub: 48,
-  envelope: 48,
+  id: 30,
+  paystub: 30,
+  envelope: 30,
   boulder: 30,
-  "form-monster": 56,
+  "form-monster": 36,
   denied: 40,
   laptop: 34,
   padlock: 36,
@@ -532,13 +538,13 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "campfire", frame: 3 },
     { name: "backpack", frame: 4 },
     { name: "bridge", frame: 5 },
-    { name: "id", frame: 6 },
-    { name: "paystub", frame: 7 },
-    { name: "envelope", frame: 8 },
     { name: "boulder", frame: 9 },
     { name: "form-monster", frame: 10 },
     { name: "denied", frame: 11 },
   ];
+  const docIdFrames: FrameSpec[] = [{ name: "id", frame: 0 }];
+  const docPaystubFrames: FrameSpec[] = [{ name: "paystub", frame: 0 }];
+  const docEnvelopeFrames: FrameSpec[] = [{ name: "envelope", frame: 0 }];
   const propFrames2: FrameSpec[] = [
     { name: "laptop",         frame: 0 },
     { name: "padlock",        frame: 1 },
@@ -580,7 +586,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
   ];
   const lockFrames: FrameSpec[] = [{ name: "door-lock", frame: 0 }];
 
-  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, lockSizes] = await Promise.all([
+  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, lockSizes, docIdSizes, docPaystubSizes, docEnvelopeSizes] = await Promise.all([
     safeLoadSheet(k, {
       url: charSheetUrl,
       cols: 3,
@@ -612,6 +618,9 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
       groups: [gremlinFrames.map((f) => f.name)], label: "envelope-gremlin-sheet.png" }),
     safeLoadSheet(k, { url: bossSheetUrl,        cols: 3, rows: 1, frames: bossFrames, label: "boss-sheet.png" }),
     safeLoadSheet(k, { url: doorLockUrl,         cols: 1, rows: 1, frames: lockFrames, label: "door-lock.png" }),
+    safeLoadSheet(k, { url: docIdUrl,            cols: 1, rows: 1, frames: docIdFrames,       label: "doc-id.png" }),
+    safeLoadSheet(k, { url: docPaystubUrl,       cols: 1, rows: 1, frames: docPaystubFrames,  label: "doc-paystub.png" }),
+    safeLoadSheet(k, { url: docEnvelopeUrl,      cols: 1, rows: 1, frames: docEnvelopeFrames, label: "doc-envelope.png" }),
   ]);
 
   // Register horizontally-mirrored copies of the hero walk/idle/jump frames
@@ -639,7 +648,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     (window as unknown as { __gameAssetReport?: AssetReport }).__gameAssetReport = ASSET_REPORT;
   }
 
-  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes, ...brickSizes, ...gremlinSizes, ...bossSizes, ...lockSizes };
+  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes, ...brickSizes, ...gremlinSizes, ...bossSizes, ...lockSizes, ...docIdSizes, ...docPaystubSizes, ...docEnvelopeSizes };
 }
 
 /** Load already-registered sprites' backing images from the sheets by pulling
@@ -1264,9 +1273,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= ZONE 3: Gathering Documents — 3 verifications =================
     const tx0 = BIOME_W * 3;
     const docs: [number, "id" | "paystub" | "envelope", string][] = [
-      [tx0 + 180, "id", "ID"],
-      [tx0 + 380, "paystub", "Income"],
-      [tx0 + 580, "envelope", "Household"],
+      [tx0 + 220, "id", "ID"],
+      [tx0 + 520, "paystub", "Income"],
+      [tx0 + 900, "envelope", "Household"],
     ];
     for (const [x, prop, key] of docs) {
       const dh = DISPLAY_H[prop];
@@ -1276,14 +1285,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         hitboxScale: { x: -dh / 2, w: dh, h: dh },
       });
     }
-    const monsterSpots = [tx0 + 280, tx0 + 780];
-    for (const mx of monsterSpots) {
-      const speed = active.plain_language ? 24 : 50;
+    addSpeech(k, tx0 + 120, GROUND_Y - 80, "GATHER 3 DOCS", [40, 60, 120]);
+    {
+      const mx = tx0 + 720;
+      const speed = active.plain_language ? 24 : 40;
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
       const m = spawnGrounded(k, "form-monster", sizes, {
         x: mx, z: LAYERS.ACTOR, tag: "monster",
-        props: { dir: 1, home: mx, range: 70 },
+        props: { dir: 1, home: mx, range: 90 },
         hitboxScale: { x: -mw / 2, w: mw, h: mh },
       });
       m.onUpdate(() => {

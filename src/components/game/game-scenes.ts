@@ -64,13 +64,13 @@ const ZONES = [
 
 const GROUND_Y = 470;
 const LEVEL_END = ZONES.length * BIOME_W;
-const MOVE_SPEED = 240;
-const JUMP_VEL = 680;
-const COYOTE_S = 0.09;
-const JUMP_BUFFER_S = 0.12;
-const INVULN_S = 0.6;
-const PLATFORM_SNAP_TOLERANCE = 22;
-const PLATFORM_EDGE_TOLERANCE = 16;
+const MOVE_SPEED = 260;
+const JUMP_VEL = 720;
+const COYOTE_S = 0.14;
+const JUMP_BUFFER_S = 0.18;
+const INVULN_S = 0.9;
+const PLATFORM_SNAP_TOLERANCE = 26;
+const PLATFORM_EDGE_TOLERANCE = 22;
 
 // Zone-specific overlay title + failure copy. Every death message ties back
 // to the step of the Medicaid application journey the player was on.

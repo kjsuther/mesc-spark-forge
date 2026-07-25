@@ -72,6 +72,53 @@ const INVULN_S = 0.6;
 const PLATFORM_SNAP_TOLERANCE = 22;
 const PLATFORM_EDGE_TOLERANCE = 16;
 
+// Zone-specific overlay title + failure copy. Every death message ties back
+// to the step of the Medicaid application journey the player was on.
+type FailCause = "monster" | "boulder" | "water" | "fell" | "noDocs";
+const OVERLAY_TITLES = [
+  "PAUSE ON THE TRAIL",
+  "APPLICATION PAUSED",
+  "MISSING PAPERWORK",
+  "REVIEW IN PROGRESS",
+  "ALMOST ENROLLED",
+] as const;
+const FAILURE_MESSAGES: Record<number, string[]> = {
+  0: [
+    "Pick a way to apply before moving forward.",
+    "Every journey starts by choosing how you'll apply.",
+    "You missed your chance to choose an application method.",
+  ],
+  1: [
+    "A missing answer is slowing your journey.",
+    "Double-check your application before submitting.",
+    "Some application questions were left unanswered.",
+  ],
+  2: [
+    "Looks like some documents are still missing.",
+    "Gather everything you need before continuing.",
+    "Your application is waiting for supporting documents.",
+  ],
+  3: [
+    "Your application is still under review.",
+    "The agency needs a little more information.",
+    "Stay on the trail — you're almost there.",
+  ],
+  4: [
+    "One final step remains before coverage begins.",
+    "Don't stop now — you're almost enrolled!",
+  ],
+};
+function pickFailureMessage(zone: number, cause: FailCause): string {
+  const z = Math.max(0, Math.min(ZONES.length - 1, zone));
+  const arr = FAILURE_MESSAGES[z] ?? FAILURE_MESSAGES[0];
+  const base = arr[Math.floor(Math.random() * arr.length)];
+  if (cause === "water") return `${base}\n(Don't slip crossing the river of paperwork.)`;
+  if (cause === "boulder") return `${base}\n(A tough eligibility question knocked you back.)`;
+  if (cause === "monster") return `${base}\n(A confusing form stood in your way.)`;
+  if (cause === "fell") return `${base}\n(You wandered off the trail — try again.)`;
+  return base;
+}
+
 // Player collision box (fixed — never changes with sprite frame).
 const PLAYER_HITBOX = { x: -12, y: -60, w: 24, h: 60 };
 
@@ -459,18 +506,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       "water",
     ]);
 
-    // ================= ZONE 1: Forest signs =================
-    const signs: [number, string, string][] = [
-      [180, "?", "Coverage \u2192"],
-      [420, "??", "River ahead\nBring docs"],
-      [700, "?", "Town office \u2192"],
-      [960, "??", "Watch for gaps"],
+    // ================= ZONE 1: Forest — four ways to apply for Medicaid =================
+    const applyMethods: { x: number; icon: string; label: string; tint: [number, number, number] }[] = [
+      { x: 220, icon: "MAIL",      label: "Apply by Mail",      tint: [200, 90, 30] },
+      { x: 460, icon: "PHONE",     label: "Apply by Phone",     tint: [40, 120, 60] },
+      { x: 720, icon: "IN PERSON", label: "Apply In Person",    tint: [30, 90, 160] },
+      { x: 980, icon: "ONLINE",    label: "Apply Online",       tint: [130, 60, 160] },
     ];
-    for (const [x, bad, good] of signs) {
-      spawnDecor(k, "signpost", sizes, { x, z: LAYERS.PROP });
-      const label = active.clearer_directions ? good : (active.translated_signs ? `${bad}\n(??)` : bad);
-      addSpeech(k, x, GROUND_Y - DISPLAY_H["signpost"] - 10, label, active.clearer_directions ? [40, 100, 40] : [140, 40, 40]);
+    for (const m of applyMethods) {
+      spawnDecor(k, "signpost", sizes, { x: m.x, z: LAYERS.PROP });
+      const topY = GROUND_Y - DISPLAY_H["signpost"] - 6;
+      addSpeech(k, m.x, topY, m.label, [25, 45, 90]);
+      addSpeech(k, m.x, topY - 16, `[ ${m.icon} ]`, m.tint);
     }
+    // Kicker sign after the four options
+    addSpeech(k, 1120, GROUND_Y - DISPLAY_H["signpost"] - 30, "Pick a path →", [40, 100, 40]);
 
     // ================= ZONE 2: River =================
     const rx0 = RIVER_GAP_X0;
@@ -536,6 +586,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         });
       }
     }
+
+    // Zone 2 environmental storytelling: floating question bubbles that
+    // represent real questions Medicaid applicants have while filling out
+    // an application. Rendered high in the sky at parallax-adjacent depth
+    // so they never overlap gameplay hitboxes.
+    const applicantQuestions = [
+      "What documents do I need?",
+      "Do I qualify?",
+      "How long will this take?",
+      "What income should I report?",
+      "Who counts in my household?",
+      "What if I'm missing info?",
+      "Where do I upload documents?",
+    ];
+    applicantQuestions.forEach((q, i) => {
+      const bx = BIOME_W + 80 + i * 150;
+      const by = 70 + (i % 3) * 42;
+      spawnThoughtBubble(k, bx, by, q);
+    });
+
+
 
     // ================= ZONE 3: Town =================
     const tx0 = BIOME_W * 2;
@@ -742,7 +813,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= Player =================
     const player = k.add([
       k.sprite("hero-idle", { width: displaySize("hero-idle", sizes).w, height: DISPLAY_H["hero-idle"] }),
-      k.pos(spawnX, GROUND_Y),
+      k.pos(spawnX, GROUND_Y - 20),
       k.area({ shape: new k.Rect(k.vec2(PLAYER_HITBOX.x, PLAYER_HITBOX.y), PLAYER_HITBOX.w, PLAYER_HITBOX.h) }),
       k.body(),
       k.anchor("bot"),
@@ -925,11 +996,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     });
 
-    player.onCollide("monster", () => loseLife("A form-monster stopped you."));
-    player.onCollide("boulder", () => loseLife("A falling boulder hit you."));
-    player.onCollide("water", () => loseLife("Fell in the river."));
+    player.onCollide("monster", () => loseLife("monster"));
+    player.onCollide("boulder", () => loseLife("boulder"));
+    player.onCollide("water", () => loseLife("water"));
 
-    function loseLife(reason: string) {
+    function loseLife(cause: FailCause) {
       if (player.dead || player.won) return;
       if (k.time() < player.invulnUntil) return;
       player.invulnUntil = k.time() + INVULN_S;
@@ -938,11 +1009,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.score = Math.max(0, player.score - 500);
       if (player.lives <= 0) {
         player.dead = true;
-        showEnd(false, reason);
+        showEnd(false, cause);
         return;
       }
       const rx = active.save_progress ? player.checkpointX : 40;
-      player.pos = k.vec2(rx, GROUND_Y);
+      player.pos = k.vec2(rx, GROUND_Y - 20);
       player.vel = k.vec2(0, 0);
       player.riding = null;
       if (!active.documents_earlier && rx < BIOME_W * 2) {
@@ -983,32 +1054,34 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       showEnd(true);
     });
 
-    function showEnd(win: boolean, reason?: string) {
+    function showEnd(win: boolean, cause?: FailCause) {
+      const zone = player.farthestZone;
+      const title = win
+        ? "★ ENROLLED IN COVERAGE ★"
+        : (OVERLAY_TITLES[zone] ?? OVERLAY_TITLES[0]);
+      const body = win
+        ? "You navigated every step and enrolled in Medicaid coverage."
+        : `${pickFailureMessage(zone, cause ?? "fell")}\n\nVote on a UX improvement below to make the next attempt easier.`;
       const overlay = k.add([
         k.rect(k.width(), k.height()),
         k.pos(0, 0),
         k.color(0, 0, 0),
-        k.opacity(0.7),
+        k.opacity(0.72),
         k.area(),
         k.fixed(),
         k.z(LAYERS.OVERLAY),
       ]);
       overlay.onClick(() => k.go("trail", 40, 1));
       k.add([
-        k.text(win ? "★ ENROLLED IN COVERAGE ★" : "APPLICATION BLOCKED", { size: 34, font: "sans-serif" }),
-        k.pos(k.width() / 2, k.height() / 2 - 70),
+        k.text(title, { size: 30, font: "sans-serif" }),
+        k.pos(k.width() / 2, k.height() / 2 - 78),
         k.anchor("center"),
-        k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 120, 120)),
+        k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 150, 150)),
         k.fixed(),
         k.z(LAYERS.OVERLAY_TEXT),
       ]);
       k.add([
-        k.text(
-          win
-            ? "You navigated every step and enrolled in Medicaid coverage."
-            : `${reason ?? "The barriers were too many."}\nVote on a UX improvement to make the next attempt easier.`,
-          { size: 16, font: "sans-serif", width: 720, align: "center" },
-        ),
+        k.text(body, { size: 16, font: "sans-serif", width: 720, align: "center" }),
         k.pos(k.width() / 2, k.height() / 2),
         k.anchor("center"),
         k.color(240, 240, 240),
@@ -1017,7 +1090,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]);
       k.add([
         k.text("Tap screen or press R to try again", { size: 14, font: "sans-serif" }),
-        k.pos(k.width() / 2, k.height() / 2 + 90),
+        k.pos(k.width() / 2, k.height() / 2 + 100),
         k.anchor("center"),
         k.color(220, 220, 220),
         k.fixed(),
@@ -1136,12 +1209,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         setAnim("jump");
       } else if (dir !== 0) {
         setAnim("walk");
-        // advance walk frame ~10fps
-        player.animTick += k.dt();
-        if (player.animTick > 0.1) {
-          player.animTick = 0;
-          player.walkFrame = (player.walkFrame + 1) % 4;
-          setSprite(`hero-walk-${player.walkFrame}`);
+        // Distance-based 6-frame ping-pong cycle: never slides, animation
+        // speed always tracks actual movement across the ground.
+        const CYCLE = [0, 1, 2, 3, 2, 1];
+        const STRIDE_PX = 12;
+        const idx = Math.floor(Math.abs(player.rightmostX + player.pos.x) / STRIDE_PX) % CYCLE.length;
+        const target = CYCLE[idx];
+        if (player.walkFrame !== target) {
+          player.walkFrame = target;
+          setSprite(`hero-walk-${target}`);
         }
       } else {
         setAnim("idle");
@@ -1167,7 +1243,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.onKeyPress("r", () => k.go("trail", 40, 1));
 
     player.onUpdate(() => {
-      if (player.pos.y > 720) loseLife("Fell off the trail.");
+      if (player.pos.y > 720) loseLife("fell");
     });
   });
 
@@ -1314,3 +1390,44 @@ function addSpeech(
     k.z(LAYERS.EFFECT),
   ]);
 }
+
+/** Floating pixel-art thought bubble drawn in the sky. Purely decorative —
+ *  no collision, no gameplay effect. Uses BG_NEAR layer so it sits between
+ *  the biome painting and gameplay elements. */
+function spawnThoughtBubble(k: Ctx, x: number, y: number, text: string) {
+  const w = Math.max(80, text.length * 6 + 22);
+  const h = 24;
+  const bg = k.add([
+    k.rect(w, h, { radius: 10 }),
+    k.pos(x, y),
+    k.anchor("center"),
+    k.color(255, 255, 255),
+    k.outline(2, k.rgb(90, 110, 150)),
+    k.opacity(0.9),
+    k.z(LAYERS.BG_NEAR + 1),
+  ]);
+  const tail = k.add([
+    k.circle(3),
+    k.pos(x - 4, y + h / 2 + 3),
+    k.color(255, 255, 255),
+    k.outline(2, k.rgb(90, 110, 150)),
+    k.opacity(0.9),
+    k.z(LAYERS.BG_NEAR + 1),
+  ]);
+  const t = k.add([
+    k.text(text, { size: 10, font: "sans-serif" }),
+    k.pos(x, y),
+    k.anchor("center"),
+    k.color(45, 60, 100),
+    k.z(LAYERS.BG_NEAR + 2),
+  ]);
+  const base = y;
+  const phase = Math.random() * Math.PI * 2;
+  k.onUpdate(() => {
+    const dy = Math.sin(k.time() * 1.3 + phase) * 4;
+    bg.pos.y = base + dy;
+    t.pos.y = base + dy;
+    tail.pos.y = base + dy + h / 2 + 3;
+  });
+}
+

@@ -1202,11 +1202,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // platform surface so the player literally steps on "About You", "Household",
       // "Income", "Signature" to cross the river.
       const platforms = [
-        { x: rx0 + 40,  y: GROUND_Y - 34, amp: 26, spd: 2.6, label: "ABOUT YOU" },
-        { x: rx0 + 160, y: GROUND_Y - 58, amp: 38, spd: 2.2, label: "HOUSEHOLD" },
-        { x: rx0 + 280, y: GROUND_Y - 44, amp: 30, spd: 2.9, label: "INCOME" },
-        { x: rx0 + 400, y: GROUND_Y - 34, amp: 26, spd: 2.6, label: "SIGNATURE" },
+        { x: rx0 + 20,  y: GROUND_Y - 44, amp: 46, spd: 3.6, label: "ABOUT YOU" },
+        { x: rx0 + 165, y: GROUND_Y - 76, amp: 62, spd: 3.1, label: "HOUSEHOLD" },
+        { x: rx0 + 310, y: GROUND_Y - 58, amp: 52, spd: 4.0, label: "INCOME" },
+        { x: rx0 + 455, y: GROUND_Y - 44, amp: 46, spd: 3.4, label: "SIGNATURE" },
       ];
+
       for (const p of platforms) {
         const PLAT_W = 108;
         const plat = k.add([

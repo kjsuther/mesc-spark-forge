@@ -996,11 +996,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     });
 
-    player.onCollide("monster", () => loseLife("A form-monster stopped you."));
-    player.onCollide("boulder", () => loseLife("A falling boulder hit you."));
-    player.onCollide("water", () => loseLife("Fell in the river."));
+    player.onCollide("monster", () => loseLife("monster"));
+    player.onCollide("boulder", () => loseLife("boulder"));
+    player.onCollide("water", () => loseLife("water"));
 
-    function loseLife(reason: string) {
+    function loseLife(cause: FailCause) {
       if (player.dead || player.won) return;
       if (k.time() < player.invulnUntil) return;
       player.invulnUntil = k.time() + INVULN_S;
@@ -1009,7 +1009,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.score = Math.max(0, player.score - 500);
       if (player.lives <= 0) {
         player.dead = true;
-        showEnd(false, reason);
+        showEnd(false, cause);
         return;
       }
       const rx = active.save_progress ? player.checkpointX : 40;

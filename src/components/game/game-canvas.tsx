@@ -262,13 +262,13 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
         overscrollBehavior: "contain",
       };
 
-  const showRotatePrompt = !!launchMode && isTouch && portrait;
+  const showRotatePrompt = isTouch && portrait;
 
   return (
     <div ref={containerRef} className="relative w-full" style={containerStyle}>
       {/* Rotate-to-landscape overlay for touch devices held in portrait.
-          At 393x852 the 16:9 canvas would be only ~220px tall, which makes
-          text unreadable and touch controls crowd the game. Force landscape. */}
+          Shown BEFORE launch too, so mobile users are never stuck on a
+          squished title screen with no visible action. */}
       {showRotatePrompt && (
         <div
           className="fixed inset-0 z-[10000] grid place-items-center bg-mn-blue p-6 text-center text-cream"
@@ -282,24 +282,26 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
               ↻
             </div>
             <p className="mb-2 text-[10px] tracking-widest text-accent-gold">
-              ROTATE YOUR DEVICE
+              TURN YOUR PHONE
             </p>
             <p className="text-[8px] leading-relaxed tracking-wider text-cream/90">
-              Turn your phone sideways to play. The trail needs a wide screen.
+              Blazing the Trail is a landscape adventure. Rotate sideways to play.
             </p>
-            <button
-              type="button"
-              onPointerUp={(e) => {
-                e.preventDefault();
-                setLaunchMode(null);
-                setFauxFullscreen(false);
-                setMenuScreen("title");
-              }}
-              className="mt-6 rounded border-2 border-accent-gold bg-accent-orange px-4 py-2 text-[10px] font-black uppercase tracking-widest text-cream"
-              style={{ touchAction: "manipulation" }}
-            >
-              ✕ Exit
-            </button>
+            {launchMode && (
+              <button
+                type="button"
+                onPointerUp={(e) => {
+                  e.preventDefault();
+                  setLaunchMode(null);
+                  setFauxFullscreen(false);
+                  setMenuScreen("title");
+                }}
+                className="mt-6 rounded border-2 border-accent-gold bg-accent-orange px-4 py-2 text-[10px] font-black uppercase tracking-widest text-cream"
+                style={{ touchAction: "manipulation" }}
+              >
+                ✕ Exit
+              </button>
+            )}
           </div>
           <style>{`@keyframes rotate-hint { 0%,45% { transform: rotate(0deg); } 55%,100% { transform: rotate(-90deg); } }`}</style>
         </div>
@@ -316,7 +318,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
           }}
           onContextMenu={(e) => e.preventDefault()}
           className="absolute right-2 top-2 z-40 rounded bg-mn-blue/80 px-3 py-1.5 text-xs font-black uppercase tracking-widest text-cream shadow-lg touch-none"
-          style={{ touchAction: "none" }}
+          style={{ touchAction: "none", paddingTop: "calc(env(safe-area-inset-top, 0px) + 6px)" }}
         >
           ✕ Exit
         </button>
@@ -331,9 +333,9 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
         style={
           overlayFs
             ? {
-                width: "min(100vw, calc((100dvh - 96px) * 16 / 9))",
-                maxHeight: "calc(100dvh - 96px)",
-                aspectRatio: "16 / 9",
+                // Fill the full viewport; canvas itself letterboxes via object-fit.
+                width: "100vw",
+                height: "100dvh",
               }
             : undefined
         }
@@ -344,10 +346,6 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
           onContextMenu={(e) => e.preventDefault()}
           className="block w-full h-full touch-none select-none"
           style={{
-            // Hard 16:9 lock so the canvas box always matches the game's
-            // logical aspect ratio. Combined with the fixed pixelDensity in
-            // game-scenes.ts, this means CSS-pixel size or DPR changes can
-            // never squeeze or stretch a sprite.
             aspectRatio: "16 / 9",
             width: "100%",
             height: "100%",
@@ -368,7 +366,6 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
           <div className="absolute inset-0 z-30 grid place-items-center bg-mn-blue p-4 text-cream">
             {menuScreen === "title" && (
               <div className="w-full max-w-lg text-center">
-                {/* SNES-style title card: pixel border, blinking press start */}
                 <div
                   className="relative mx-auto mb-6 border-[6px] border-cream bg-mn-blue px-5 py-8"
                   style={{
@@ -448,12 +445,11 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
           </div>
         )}
 
-
-        {/* Fullscreen toggle overlay button (only while game is running) */}
+        {/* Fullscreen toggle overlay button (only while game is running, non-fs) */}
         {launchMode && !overlayFs && (
           <button
             type="button"
-            aria-label={overlayFs ? "Exit fullscreen" : "Enter fullscreen"}
+            aria-label="Enter fullscreen"
             onPointerDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -463,7 +459,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
             className="absolute right-2 top-2 z-20 rounded bg-mn-blue/75 px-2 py-1 text-xs font-bold text-cream hover:bg-mn-blue touch-none"
             style={{ touchAction: "none" }}
           >
-            {overlayFs ? "✕ Exit" : "⛶ Full"}
+            ⛶ Full
           </button>
         )}
 
@@ -475,24 +471,38 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
             </div>
           </div>
         )}
-      </div>
 
-      {/* Fullscreen controls live outside the canvas so they never cover the trail. */}
-      {launchMode && overlayFs && (
-        <div
-          className="grid w-full max-w-[720px] grid-cols-[minmax(0,1fr)_auto] items-end gap-2 px-3 pt-2 select-none"
-          style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
-        >
-          <div className="flex min-w-0 gap-2">
-            <LabeledTouch compact label="Left" aria="Move left" onDown={() => setBtn("left", true)} onUp={() => setBtn("left", false)}>◀</LabeledTouch>
-            <LabeledTouch compact label="Right" aria="Move right" onDown={() => setBtn("right", true)} onUp={() => setBtn("right", false)}>▶</LabeledTouch>
-          </div>
-          <div className="flex items-end gap-2">
-            <LabeledTouch compact label="Restart" aria="Restart" onDown={reset}>⟳</LabeledTouch>
-            <LabeledTouch compact label="Jump" aria="Jump" onDown={jump} big>JUMP</LabeledTouch>
-          </div>
-        </div>
-      )}
+        {/* Overlay touch controls — sit ON TOP of the canvas in fullscreen so
+            the game fills the whole viewport. Only shown on touch devices. */}
+        {launchMode && overlayFs && isTouch && (
+          <>
+            {/* D-pad, bottom-left */}
+            <div
+              className="pointer-events-none absolute z-30 flex gap-1"
+              style={{
+                left: "calc(env(safe-area-inset-left, 0px) + 12px)",
+                bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+              }}
+            >
+              <PadButton label="LEFT" aria="Move left" size={72}
+                onDown={() => setBtn("left", true)} onUp={() => setBtn("left", false)}>◀</PadButton>
+              <PadButton label="RIGHT" aria="Move right" size={72}
+                onDown={() => setBtn("right", true)} onUp={() => setBtn("right", false)}>▶</PadButton>
+            </div>
+            {/* Action cluster, bottom-right */}
+            <div
+              className="pointer-events-none absolute z-30 flex items-end gap-2"
+              style={{
+                right: "calc(env(safe-area-inset-right, 0px) + 12px)",
+                bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+              }}
+            >
+              <PadButton label="RESET" aria="Restart" size={52} dim onDown={reset}>⟳</PadButton>
+              <PadButton label="JUMP" aria="Jump" size={92} accent onDown={jump}>JUMP</PadButton>
+            </div>
+          </>
+        )}
+      </div>
 
       {/* Inline touch controls (non-fullscreen mobile) */}
       {launchMode && !overlayFs && (
@@ -503,13 +513,15 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
             </p>
           )}
           <div className="mt-3 flex items-end justify-between gap-2 md:hidden select-none">
-            <div className="flex gap-2">
-              <LabeledTouch compact label="Left" aria="Move left" onDown={() => setBtn("left", true)} onUp={() => setBtn("left", false)}>◀</LabeledTouch>
-              <LabeledTouch compact label="Right" aria="Move right" onDown={() => setBtn("right", true)} onUp={() => setBtn("right", false)}>▶</LabeledTouch>
+            <div className="flex gap-1">
+              <PadButton label="LEFT" aria="Move left" size={60}
+                onDown={() => setBtn("left", true)} onUp={() => setBtn("left", false)}>◀</PadButton>
+              <PadButton label="RIGHT" aria="Move right" size={60}
+                onDown={() => setBtn("right", true)} onUp={() => setBtn("right", false)}>▶</PadButton>
             </div>
             <div className="flex items-end gap-2">
-              <LabeledTouch compact label="Restart" aria="Restart" onDown={reset}>⟳</LabeledTouch>
-              <LabeledTouch compact label="Jump" aria="Jump" onDown={jump} big>JUMP</LabeledTouch>
+              <PadButton label="RESET" aria="Restart" size={48} dim onDown={reset}>⟳</PadButton>
+              <PadButton label="JUMP" aria="Jump" size={76} accent onDown={jump}>JUMP</PadButton>
             </div>
           </div>
         </>
@@ -523,6 +535,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
     </div>
   );
 }
+
 
 function MenuButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   const firedRef = useRef(false);
@@ -555,62 +568,88 @@ function MenuButton({ children, onClick }: { children: React.ReactNode; onClick:
 }
 
 
-function LabeledTouch({
+function PadButton({
   children,
   onDown,
   onUp,
   aria,
-  big,
-  compact,
   label,
+  size = 72,
+  accent,
+  dim,
 }: {
   children: React.ReactNode;
   onDown: () => void;
   onUp?: () => void;
   aria: string;
-  big?: boolean;
-  compact?: boolean;
   label: string;
+  size?: number;
+  accent?: boolean;
+  dim?: boolean;
 }) {
-  const sizeClass = compact
-    ? big
-      ? "h-14 w-16 text-sm"
-      : "h-12 w-12 text-xl"
-    : big
-      ? "h-20 w-20 text-base sm:h-24 sm:w-24 sm:text-lg"
-      : "h-14 w-14 text-xl sm:h-16 sm:w-16 sm:text-2xl";
-
+  const bg = accent
+    ? "rgba(214, 90, 49, 0.82)" // orange
+    : dim
+      ? "rgba(30, 41, 82, 0.55)"
+      : "rgba(30, 41, 82, 0.72)";
+  const border = accent ? "var(--color-accent-gold)" : "var(--color-cream)";
   return (
-    <div className="flex flex-col items-center gap-1">
-      <button
-        type="button"
-        aria-label={aria}
-        onPointerDown={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          try {
-            (e.currentTarget as HTMLButtonElement).setPointerCapture?.(e.pointerId);
-          } catch {
-            // Some mobile browsers and automated touch events don't expose an active pointer capture target.
-          }
-          onDown();
+    <button
+      type="button"
+      aria-label={aria}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        try {
+          (e.currentTarget as HTMLButtonElement).setPointerCapture?.(e.pointerId);
+        } catch {
+          /* noop */
+        }
+        onDown();
+      }}
+      onPointerUp={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onUp?.();
+      }}
+      onPointerLeave={() => onUp?.()}
+      onPointerCancel={() => onUp?.()}
+      onContextMenu={(e) => e.preventDefault()}
+      className="pointer-events-auto relative touch-none select-none font-black text-cream active:translate-y-[2px]"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: Math.round(size * 0.22),
+        background: bg,
+        border: `3px solid ${border}`,
+        boxShadow:
+          "inset 0 -4px 0 rgba(0,0,0,0.35), inset 0 3px 0 rgba(255,255,255,0.22), 0 3px 0 rgba(0,0,0,0.5)",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
+        fontSize: size >= 88 ? 18 : size >= 68 ? 26 : 20,
+        fontFamily: '"Press Start 2P", ui-monospace, monospace',
+        letterSpacing: 1,
+        touchAction: "none",
+        WebkitUserSelect: "none",
+        WebkitTouchCallout: "none",
+        WebkitTapHighlightColor: "transparent",
+      }}
+    >
+      <span
+        style={{
+          position: "absolute",
+          top: 3,
+          left: 5,
+          fontSize: 7,
+          letterSpacing: 1,
+          color: "rgba(245, 232, 199, 0.85)",
+          fontFamily: '"Press Start 2P", ui-monospace, monospace',
         }}
-        onPointerUp={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onUp?.();
-        }}
-        onPointerLeave={() => onUp?.()}
-        onPointerCancel={() => onUp?.()}
-        onContextMenu={(e) => e.preventDefault()}
-        className={`rounded-full bg-mn-blue font-black text-cream shadow-lg active:brightness-125 touch-none select-none ${sizeClass}`}
-        style={{ touchAction: "none", WebkitUserSelect: "none", WebkitTouchCallout: "none" }}
       >
-        {children}
-      </button>
-      <span className="rounded bg-mn-blue/70 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-cream drop-shadow sm:text-[10px]">
         {label}
       </span>
-    </div>
+      <span style={{ display: "inline-block", lineHeight: 1 }}>{children}</span>
+    </button>
   );
 }
+

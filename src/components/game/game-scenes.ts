@@ -1054,32 +1054,34 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       showEnd(true);
     });
 
-    function showEnd(win: boolean, reason?: string) {
+    function showEnd(win: boolean, cause?: FailCause) {
+      const zone = player.farthestZone;
+      const title = win
+        ? "★ ENROLLED IN COVERAGE ★"
+        : (OVERLAY_TITLES[zone] ?? OVERLAY_TITLES[0]);
+      const body = win
+        ? "You navigated every step and enrolled in Medicaid coverage."
+        : `${pickFailureMessage(zone, cause ?? "fell")}\n\nVote on a UX improvement below to make the next attempt easier.`;
       const overlay = k.add([
         k.rect(k.width(), k.height()),
         k.pos(0, 0),
         k.color(0, 0, 0),
-        k.opacity(0.7),
+        k.opacity(0.72),
         k.area(),
         k.fixed(),
         k.z(LAYERS.OVERLAY),
       ]);
       overlay.onClick(() => k.go("trail", 40, 1));
       k.add([
-        k.text(win ? "★ ENROLLED IN COVERAGE ★" : "APPLICATION BLOCKED", { size: 34, font: "sans-serif" }),
-        k.pos(k.width() / 2, k.height() / 2 - 70),
+        k.text(title, { size: 30, font: "sans-serif" }),
+        k.pos(k.width() / 2, k.height() / 2 - 78),
         k.anchor("center"),
-        k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 120, 120)),
+        k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 150, 150)),
         k.fixed(),
         k.z(LAYERS.OVERLAY_TEXT),
       ]);
       k.add([
-        k.text(
-          win
-            ? "You navigated every step and enrolled in Medicaid coverage."
-            : `${reason ?? "The barriers were too many."}\nVote on a UX improvement to make the next attempt easier.`,
-          { size: 16, font: "sans-serif", width: 720, align: "center" },
-        ),
+        k.text(body, { size: 16, font: "sans-serif", width: 720, align: "center" }),
         k.pos(k.width() / 2, k.height() / 2),
         k.anchor("center"),
         k.color(240, 240, 240),
@@ -1088,7 +1090,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]);
       k.add([
         k.text("Tap screen or press R to try again", { size: 14, font: "sans-serif" }),
-        k.pos(k.width() / 2, k.height() / 2 + 90),
+        k.pos(k.width() / 2, k.height() / 2 + 100),
         k.anchor("center"),
         k.color(220, 220, 220),
         k.fixed(),

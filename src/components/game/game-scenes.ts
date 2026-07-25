@@ -19,10 +19,14 @@ import type { KAPLAYCtx } from "kaplay";
 import type { ImprovementKey } from "@/lib/game.functions";
 import charSheetUrl from "@/assets/game/character-sheet.png";
 import propsSheetUrl from "@/assets/game/props-sheet.png";
+import propsSheet2Url from "@/assets/game/props-sheet-2.png";
 import bgForestUrl from "@/assets/game/bg-forest.png";
+import bgSignupUrl from "@/assets/game/bg-signup.png";
 import bgRiverUrl from "@/assets/game/bg-river.png";
 import bgTownUrl from "@/assets/game/bg-town.png";
+import bgRelayUrl from "@/assets/game/bg-relay.png";
 import bgMountainUrl from "@/assets/game/bg-mountain.png";
+import bgMarketUrl from "@/assets/game/bg-market.png";
 import bgClinicUrl from "@/assets/game/bg-clinic.png";
 
 export type GameFlags = Record<ImprovementKey, boolean>;

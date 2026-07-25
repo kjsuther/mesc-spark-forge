@@ -179,6 +179,12 @@ const DISPLAY_H: Record<string, number> = {
   boulder: 30,
   "form-monster": 38,
   denied: 40,
+  laptop: 34,
+  padlock: 36,
+  phone: 34,
+  mailbox: 42,
+  "plan-card": 32,
+  "insurance-card": 32,
 };
 
 // ============================ Sprite trim pipeline ============================

@@ -1,23 +1,39 @@
-## 1. Remove the pole from the slide sprite
+## Goal
 
-The current `src/assets/game/hero-slide-sheet.png` bakes a yellow pole down the middle of both frames. When the sprite plays it double-draws the pole on top of the real in-scene pole. Regenerate the sheet via `imagegen--edit_image` from the existing file with `transparent_background: true`, prompting for the same 2-frame character-on-pole poses but with the pole removed — only the character (arms up gripping an invisible pole, alternating leg positions) on a transparent PNG. Keep the same file path, dimensions, and 66-px display height so no code changes are needed for asset wiring.
+When the player touches the Medical ID card in Zone 8, hand control to a scripted cutscene that walks the character to the pole, snaps them to the knob, slides them down, then walks them right to the medical office where the fireworks + WIN fire. The player has no input during the sequence.
 
-## 2. Attach at the knob, then slide the entire pole
+## Changes (all in `src/components/game/game-scenes.ts`, Zone 8 block)
 
-Today the `fire-pole` trigger is a tall column that spans `poleTop → poleBaseY`, so the slide starts wherever the player first brushes the pole. Change Zone 8 in `src/components/game/game-scenes.ts` so touching the pole always plays the full Mario-flagpole slide from the top knob down:
+### 1. New `zoneState.cutscene` flag + input lockout
 
-- Replace the tall column trigger with the same tall area but on attach:
-  - Snap `player.pos.x = poleX` (already done) AND `player.pos.y = poleTop + <small offset>` so the character starts at the knob.
-  - Zero velocity, disable input, set `firePoleAttached = true`.
-- Keep the existing per-frame descent (`player.pos.y += 220 * dt`) so the character slides the full pole length to `GROUND_Y`, then triggers `firePoleDone` + fireworks at the base (existing safety-net stays).
-- Ensure the character sprite anchors so the hands appear at the knob at attach (visually correct start), and the feet reach the ground at the end (existing `anchor("bot")` handles this).
-- After the base is reached, briefly swap back to `hero-idle` for the celebration pose (already implicit — `firePoleAttached` becomes false via `firePoleDone` gate in the anim state machine — verify it does).
+Add `cutscene: false` alongside the existing `firePoleAttached / firePoleDone / idCardCollected` flags. In the main `onUpdate` and the keyboard/touch input handlers, early-return when `zoneState.cutscene` is true so the player can't move, jump, or restart-cancel mid-scene. Also freeze horizontal velocity each frame while `cutscene && !firePoleAttached && !firePoleDone`, mirroring the existing slide freeze.
 
-## 3. Verify
+### 2. Rewrite the `id-card` collide handler as a scripted timeline
 
-Playwright UAT at 1280×1800 desktop and 844×390 mobile-landscape: force-advance to Zone 8, collect the Medical ID, touch the pole at various heights (mid-air jump, walking into the base, jumping onto the knob) and confirm every attach snaps the character to the knob, slides them down the full pole, and shows only the character over the yellow pole (no doubled sprite pole). Screenshot mid-slide and at the base.
+Replace the current "collect and print hint" handler (~line 1865) with:
 
-## Technical notes
+1. Set `idCardCollected = true`, `cutscene = true`, award the existing 1500 score + sparkle burst, destroy the card.
+2. Capture `pole = { poleX, poleTop, poleBaseY }` by looking up the `fire-pole` entity (already in-scene) so we don't depend on collision.
+3. **Beat A — walk to pole**: each frame, move `player.pos.x` toward `pole.poleX` at `MOVE_SPEED * 0.9`, set `player.facing = "right"`, run the existing `run` animation. When within 2 px, snap to `poleX`.
+4. **Beat B — grab knob**: teleport `player.pos.y = pole.poleTop + 6`, set `firePoleAttached = true`, switch to `slide` anim. The existing per-frame descent block at ~line 2111 already slides them to `GROUND_Y` and sets `firePoleDone`, so we reuse it unchanged.
+5. **Beat C — walk to the office**: once `firePoleDone` fires, keep `cutscene = true`, swap back to `run`, and tween `player.pos.x` rightward until it reaches `LEVEL_END - 140` (just under the existing "★ COVERED! ★" speech at `LEVEL_END - 100`). Small step-based movement, not a jump.
+6. **Beat D — arrive**: switch to `idle`, clear `cutscene`, then call the existing `tryWin()` path (which already runs from `firePoleDone`). Fireworks already trigger at slide-end via the current base handler; leave that intact.
 
-- Files touched: `src/components/game/game-scenes.ts` (Zone 8 fire-pole attach handler ~line 1896), regenerated `src/assets/game/hero-slide-sheet.png` (transparent PNG, same dimensions).
-- No schema, route, or server changes.
+Implement Beats A/C by pushing a small state object into a module-scoped `cutsceneStep` and driving it from the existing `onUpdate` (right next to the current fire-pole descent block) rather than nested `k.wait` chains — keeps timing frame-accurate and avoids double-updates when the tab is throttled.
+
+### 3. Remove the now-dead fire-pole collide handler behavior
+
+`player.onCollide("fire-pole", ...)` is no longer the trigger. Keep the collider so nothing else changes, but make the handler a no-op when `cutscene` or `firePoleAttached` is already set (the cutscene now owns attachment). This also removes the "Grab the Medical ID card first!" hint path since the ID pickup itself starts the sequence.
+
+### 4. HUD label update
+
+`zoneObjectives[7].hudLabel`: when `cutscene && !firePoleDone`, show `"FINISHING…"` so the "SLIDE DOWN →" prompt doesn't linger during the automated sequence.
+
+## Out of scope
+
+- No changes to Zones 0–6, scoring, or the win/lose screens.
+- No physics/collision refactor.
+
+## Verify
+
+Playwright at 1280×1800 desktop and 844×390 mobile-landscape: force-advance to Zone 8, grab the ID, and confirm the character walks to the pole, snaps to the knob, slides the full pole length, walks to the office sign, and the WIN screen fires — with keyboard/touch input ignored for the entire sequence.

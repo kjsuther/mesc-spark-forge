@@ -954,28 +954,76 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= HUD =================
     k.add([
       k.text(opts.mode === "after" ? "AFTER FEEDBACK" : "BEFORE FEEDBACK", { size: 14, font: "sans-serif" }),
-      k.pos(12, 34),
+      k.pos(12, 12),
       k.color(opts.mode === "after" ? k.rgb(30, 160, 60) : k.rgb(220, 60, 60)),
       k.fixed(),
       k.z(LAYERS.HUD),
     ]);
-    const livesHud = k.add([
-      k.text("", { size: 14, font: "sans-serif" }),
-      k.pos(12, 54),
-      k.color(255, 255, 255),
+    // Score row (above the applications-as-lives row).
+    const scoreHud = k.add([
+      k.text("SCORE 0", { size: 16, font: "sans-serif" }),
+      k.pos(12, 34),
+      k.color(255, 235, 120),
       k.fixed(),
       k.z(LAYERS.HUD),
     ]);
+    // Applications row: little application icons that represent lives.
+    // Each icon is a paper card with three horizontal "form field" lines.
+    const APP_ICON_W = 18;
+    const APP_ICON_H = 22;
+    const appIcons: AnyObj[] = [];
+    for (let i = 0; i < player.maxLives; i++) {
+      const bx = 12 + i * (APP_ICON_W + 6);
+      const by = 58;
+      const card = k.add([
+        k.rect(APP_ICON_W, APP_ICON_H),
+        k.pos(bx, by),
+        k.color(250, 245, 220),
+        k.outline(2, k.rgb(40, 40, 60)),
+        k.fixed(),
+        k.z(LAYERS.HUD),
+      ]);
+      const line1 = k.add([
+        k.rect(APP_ICON_W - 8, 2),
+        k.pos(bx + 4, by + 5),
+        k.color(80, 80, 120),
+        k.fixed(),
+        k.z(LAYERS.HUD + 1),
+      ]);
+      const line2 = k.add([
+        k.rect(APP_ICON_W - 8, 2),
+        k.pos(bx + 4, by + 10),
+        k.color(80, 80, 120),
+        k.fixed(),
+        k.z(LAYERS.HUD + 1),
+      ]);
+      const line3 = k.add([
+        k.rect(APP_ICON_W - 8, 2),
+        k.pos(bx + 4, by + 15),
+        k.color(80, 80, 120),
+        k.fixed(),
+        k.z(LAYERS.HUD + 1),
+      ]);
+      appIcons.push({ card, line1, line2, line3 });
+    }
     const docsHud = k.add([
       k.text("", { size: 14, font: "sans-serif" }),
-      k.pos(k.width() - 12, 34),
+      k.pos(k.width() - 12, 12),
       k.anchor("topright"),
       k.color(255, 255, 255),
       k.fixed(),
       k.z(LAYERS.HUD),
     ]);
     function updateHud() {
-      livesHud.text = `♥ ${player.lives}`;
+      scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
+      appIcons.forEach((g, i) => {
+        const active = i < player.lives;
+        const op = active ? 1 : 0.18;
+        g.card.opacity = op;
+        g.line1.opacity = op;
+        g.line2.opacity = op;
+        g.line3.opacity = op;
+      });
       const need = ["ID", "Income", "Household"].filter((d) => !player.docs.has(d));
       docsHud.text = active.documents_earlier || player.docs.size > 0
         ? need.length ? `Application docs needed: ${need.join(", ")}` : "Application docs: complete ✓"

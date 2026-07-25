@@ -882,8 +882,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     addGround(k, BIOME_W * 5, BIOME_W * 6, GROUND_Y, ZONES[5].ground, ZONES[5].soil);
     addGround(k, BIOME_W * 6, BIOME_W * 7, GROUND_Y, ZONES[6].ground, ZONES[6].soil);
     // Zone 7 has a lethal gap under the staircase — miss a step, lose a life.
+    // Gap width tracks STEP_GAP_X (110) below so the pole base always lands on solid ground.
     const Z7_GAP0 = BIOME_W * 7 + 240;
-    const Z7_GAP1 = BIOME_W * 7 + 240 + 140 * 6;
+    const Z7_GAP1 = BIOME_W * 7 + 240 + 110 * 6;
     addGround(k, BIOME_W * 7, Z7_GAP0, GROUND_Y, ZONES[7].ground, ZONES[7].soil);
     addGround(k, Z7_GAP1, LEVEL_END, GROUND_Y, ZONES[7].ground, ZONES[7].soil);
     // Kill plane inside the gap.
@@ -1192,23 +1193,37 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { x: rx0 + 400, y: GROUND_Y - 34, amp: 12, spd: 1.4, label: "SIGNATURE" },
       ];
       for (const p of platforms) {
+        const PLAT_W = 108;
         const plat = k.add([
-          k.rect(96, 16), k.pos(p.x, p.y),
+          k.rect(PLAT_W, 16), k.pos(p.x, p.y),
           k.color(240, 230, 200), k.outline(2, k.rgb(60, 45, 25)),
           k.area(), k.body({ isStatic: true }),
           k.z(LAYERS.PLATFORM), "platform",
           { basY: p.y, amp: p.amp, spd: p.spd, phase: Math.random() * Math.PI * 2, platformSpeed: k.vec2(0, 0), lastPos: k.vec2(p.x, p.y) },
         ]);
-        // Text label on top of the platform. Uses a shadow pair for legibility.
+        // Dark plaque + shadowed gold text sitting flush on top of the platform.
+        const labelSize = 10;
+        const charW = labelSize * 0.62;
+        const plaqueW = Math.min(PLAT_W - 4, Math.ceil(p.label.length * charW) + 12);
+        const plaqueH = labelSize + 8;
+        const plaque = k.add([
+          k.rect(plaqueW, plaqueH, { radius: 2 }),
+          k.pos(p.x + PLAT_W / 2, p.y + 3),
+          k.anchor("center"),
+          k.color(20, 25, 45),
+          k.outline(1, k.rgb(255, 220, 90)),
+          k.opacity(0.95),
+          k.z(LAYERS.PLATFORM + 1),
+        ]) as AnyObj;
         const shadow = k.add([
-          k.text(p.label, { size: 9, font: "sans-serif" }),
-          k.pos(p.x + 48 + 1, p.y + 3 + 1),
-          k.anchor("center"), k.color(0, 0, 0), k.z(LAYERS.PLATFORM + 1),
+          k.text(p.label, { size: labelSize, font: "sans-serif" }),
+          k.pos(p.x + PLAT_W / 2 + 1, p.y + 3 + 1),
+          k.anchor("center"), k.color(0, 0, 0), k.z(LAYERS.PLATFORM + 2),
         ]) as AnyObj;
         const label = k.add([
-          k.text(p.label, { size: 9, font: "sans-serif" }),
-          k.pos(p.x + 48, p.y + 3),
-          k.anchor("center"), k.color(40, 30, 20), k.z(LAYERS.PLATFORM + 2),
+          k.text(p.label, { size: labelSize, font: "sans-serif" }),
+          k.pos(p.x + PLAT_W / 2, p.y + 3),
+          k.anchor("center"), k.color(255, 220, 90), k.z(LAYERS.PLATFORM + 3),
         ]) as AnyObj;
         plat.onUpdate(() => {
           const newY = plat.basY + Math.sin(k.time() * plat.spd + plat.phase) * plat.amp;
@@ -1220,6 +1235,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           plat.lastPos.x = plat.pos.x;
           plat.lastPos.y = newY;
           plat.pos.y = newY;
+          plaque.pos.y = newY + 3;
           shadow.pos.y = newY + 3 + 1;
           label.pos.y = newY + 3;
         });
@@ -1451,7 +1467,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // over a lethal gap in the ground so a missed jump costs a life.
     const stairY0 = GROUND_Y;
     const stepCount = 6;
-    const STEP_GAP_X = 140;   // was 90; now requires a real jump
+    const STEP_GAP_X = 110;   // matches Z7_GAP1 above so the pole lands on ground
     const STEP_START_X = cx0 + 260;
     // (Lethal gap water plane is created with the ground split for Zone 7.)
     for (let i = 0; i < stepCount; i++) {
@@ -1498,7 +1514,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     // Fire pole — placed PAST the top landing so nothing blocks the slide.
-    const poleX = topLandingX + 190;
+    // Must stay inside LEVEL_END or the camera clamp hides it and the finale never fires.
+    const poleX = topLandingX + 120;
+    if (poleX > LEVEL_END - 40) {
+      // Loud dev-time warning if this ever regresses.
+      console.warn("[game] Zone 8 fire pole placed past LEVEL_END", { poleX, LEVEL_END });
+    }
     const poleTop = topLandingY - 40;
     const poleBaseY = GROUND_Y - 4;
     k.add([
@@ -2152,14 +2173,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.onCollide("boss", () => {
         if (boss.dead) return;
         if (k.time() < player.invulnUntil) return;
-        // Stomp = falling AND player feet are above the boss's middle.
-        const falling = (player.vel?.y ?? 0) > 40;
-        const aboveBoss = player.pos.y < boss.pos.y - bh * 0.4;
-        if (falling && aboveBoss) {
+        // Both actors are anchored "bot": pos.y = feet. Boss top is bh above its feet.
+        const bossTop = boss.pos.y - bh;
+        const playerFoot = player.pos.y;
+        const vy = player.vel?.y ?? 0;
+        const stomp =
+          // Direct head hit: feet in the top 40% of the boss and not moving upward.
+          playerFoot <= bossTop + bh * 0.4 && vy >= -10;
+        if (stomp) {
           boss.hits += 1;
           boss.hurtUntil = k.time() + 0.35;
           zoneState.bossHits = boss.hits;
           player.vel.y = -JUMP_VEL * 0.7; // bounce
+          player.invulnUntil = k.time() + 0.4; // brief i-frames so single collision doesn't multi-hit
           player.score += 300;
           hearts.text = "♥".repeat(Math.max(0, 3 - boss.hits));
           if (boss.hits >= 3) {
@@ -2862,21 +2888,36 @@ function addSpeech(
   x: number,
   y: number,
   text: string,
-  rgb: [number, number, number],
+  _rgb: [number, number, number],
 ) {
+  // High-contrast world label: dark plaque behind gold text with 1-px shadow.
+  // (rgb argument ignored — standardized on gold-on-navy for legibility.)
+  const size = 12;
+  const charW = size * 0.62;
+  const w = Math.max(56, Math.ceil(text.length * charW) + 16);
+  const h = size + 12;
   k.add([
-    k.text(text, { size: 11, font: "sans-serif", align: "center" }),
-    k.pos(x + 1, y + 1),
+    k.rect(w, h, { radius: 3 }),
+    k.pos(x, y),
     k.anchor("center"),
-    k.color(0, 0, 0),
+    k.color(20, 25, 45),
+    k.outline(2, k.rgb(255, 220, 90)),
+    k.opacity(0.92),
     k.z(LAYERS.EFFECT),
   ]);
   k.add([
-    k.text(text, { size: 11, font: "sans-serif", align: "center" }),
+    k.text(text, { size, font: "sans-serif", align: "center" }),
+    k.pos(x + 1, y + 1),
+    k.anchor("center"),
+    k.color(0, 0, 0),
+    k.z(LAYERS.EFFECT + 1),
+  ]);
+  k.add([
+    k.text(text, { size, font: "sans-serif", align: "center" }),
     k.pos(x, y),
     k.anchor("center"),
-    k.color(...rgb),
-    k.z(LAYERS.EFFECT + 1),
+    k.color(255, 220, 90),
+    k.z(LAYERS.EFFECT + 2),
   ]);
 }
 
@@ -2884,31 +2925,41 @@ function addSpeech(
  *  no collision, no gameplay effect. Uses BG_NEAR layer so it sits between
  *  the biome painting and gameplay elements. */
 function spawnThoughtBubble(k: Ctx, x: number, y: number, text: string) {
-  const w = Math.max(80, text.length * 6 + 22);
-  const h = 24;
+  const size = 12;
+  const charW = size * 0.62;
+  const w = Math.max(96, Math.ceil(text.length * charW) + 22);
+  const h = size + 14;
   const bg = k.add([
-    k.rect(w, h, { radius: 10 }),
+    k.rect(w, h, { radius: 8 }),
     k.pos(x, y),
     k.anchor("center"),
     k.color(255, 255, 255),
-    k.outline(2, k.rgb(90, 110, 150)),
-    k.opacity(0.9),
+    k.outline(3, k.rgb(30, 45, 90)),
+    k.opacity(1),
     k.z(LAYERS.BG_NEAR + 1),
   ]);
   const tail = k.add([
-    k.circle(3),
-    k.pos(x - 4, y + h / 2 + 3),
+    k.circle(4),
+    k.pos(x - 6, y + h / 2 + 4),
     k.color(255, 255, 255),
-    k.outline(2, k.rgb(90, 110, 150)),
-    k.opacity(0.9),
+    k.outline(3, k.rgb(30, 45, 90)),
+    k.opacity(1),
     k.z(LAYERS.BG_NEAR + 1),
   ]);
+  const shadow = k.add([
+    k.text(text, { size, font: "sans-serif" }),
+    k.pos(x + 1, y + 1),
+    k.anchor("center"),
+    k.color(0, 0, 0),
+    k.opacity(0.35),
+    k.z(LAYERS.BG_NEAR + 2),
+  ]);
   const t = k.add([
-    k.text(text, { size: 10, font: "sans-serif" }),
+    k.text(text, { size, font: "sans-serif" }),
     k.pos(x, y),
     k.anchor("center"),
-    k.color(45, 60, 100),
-    k.z(LAYERS.BG_NEAR + 2),
+    k.color(30, 45, 90),
+    k.z(LAYERS.BG_NEAR + 3),
   ]);
   const base = y;
   const phase = Math.random() * Math.PI * 2;
@@ -2916,7 +2967,8 @@ function spawnThoughtBubble(k: Ctx, x: number, y: number, text: string) {
     const dy = Math.sin(k.time() * 1.3 + phase) * 4;
     bg.pos.y = base + dy;
     t.pos.y = base + dy;
-    tail.pos.y = base + dy + h / 2 + 3;
+    shadow.pos.y = base + dy + 1;
+    tail.pos.y = base + dy + h / 2 + 4;
   });
 }
 

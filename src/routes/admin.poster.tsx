@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -82,11 +82,19 @@ function PosterView() {
             Blazing the Trail to Coverage
           </h1>
         </div>
-        <div className="text-right text-xs uppercase tracking-widest">
-          <div className="text-cream/60">Upgrades applied</div>
-          <div className="text-accent-gold font-black text-lg tabular-nums">
-            {appliedList.length}
+        <div className="flex items-center gap-4">
+          <div className="text-right text-xs uppercase tracking-widest">
+            <div className="text-cream/60">Upgrades applied</div>
+            <div className="text-accent-gold font-black text-lg tabular-nums">
+              {appliedList.length}
+            </div>
           </div>
+          <Link
+            to="/admin/game"
+            className="inline-flex items-center gap-2 rounded border-2 border-cream/40 bg-cream/10 px-3 py-2 text-xs font-black uppercase tracking-widest text-cream hover:bg-cream/20"
+          >
+            ✕ Exit Poster
+          </Link>
         </div>
       </header>
 
@@ -98,7 +106,7 @@ function PosterView() {
           </div>
           <div className="flex-1 min-h-0">
             <iframe
-              src="/tool?embed=1"
+              src="/tool/embed"
               title="Live game"
               className="w-full h-full block bg-black"
               allow="autoplay; fullscreen"

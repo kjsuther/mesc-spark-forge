@@ -1491,21 +1491,54 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     // ================= HUD =================
-    k.add([
-      k.text(opts.mode === "after" ? "AFTER FEEDBACK" : "BEFORE FEEDBACK", { size: 14, font: "sans-serif" }),
-      k.pos(12, 12),
-      k.color(opts.mode === "after" ? k.rgb(30, 160, 60) : k.rgb(220, 60, 60)),
-      k.fixed(),
-      k.z(LAYERS.HUD),
-    ]);
+    // pixelHudText: HUD label with a 1-px black drop shadow so pixel text
+    // stays legible over bright biome backgrounds (previously HUD text
+    // could wash out over the sky/snow/market palettes).
+    type HudTextOpts = {
+      x: number;
+      y: number;
+      size: number;
+      color: [number, number, number];
+      anchor?: "topleft" | "topright" | "center" | "top";
+      width?: number;
+      align?: "left" | "center" | "right";
+      initial?: string;
+      opacity?: number;
+    };
+    function pixelHudText(o: HudTextOpts) {
+      const textOpts: Record<string, unknown> = { size: o.size, font: "sans-serif" };
+      if (o.width !== undefined) textOpts.width = o.width;
+      if (o.align !== undefined) textOpts.align = o.align;
+      const initial = o.initial ?? "";
+      const mkNode = (dx: number, dy: number, rgb: [number, number, number], z: number) => {
+        const parts: unknown[] = [
+          k.text(initial, textOpts as never),
+          k.pos(o.x + dx, o.y + dy),
+          k.color(...rgb),
+          k.opacity(o.opacity ?? 1),
+          k.fixed(),
+          k.z(z),
+        ];
+        if (o.anchor) parts.push(k.anchor(o.anchor));
+        return k.add(parts as never) as AnyObj;
+      };
+      const shadow = mkNode(1, 1, [0, 0, 0], LAYERS.HUD);
+      const main = mkNode(0, 0, o.color, LAYERS.HUD + 1);
+      return {
+        get text() { return main.text as string; },
+        set text(v: string) { main.text = v; shadow.text = v; },
+        get opacity() { return main.opacity as number; },
+        set opacity(v: number) { main.opacity = v; shadow.opacity = v; },
+      };
+    }
+
+    pixelHudText({
+      x: 12, y: 12, size: 14,
+      color: opts.mode === "after" ? [30, 160, 60] : [220, 60, 60],
+      initial: opts.mode === "after" ? "AFTER FEEDBACK" : "BEFORE FEEDBACK",
+    });
     // Score row (above the applications-as-lives row).
-    const scoreHud = k.add([
-      k.text("SCORE 0", { size: 16, font: "sans-serif" }),
-      k.pos(12, 34),
-      k.color(255, 235, 120),
-      k.fixed(),
-      k.z(LAYERS.HUD),
-    ]);
+    const scoreHud = pixelHudText({ x: 12, y: 34, size: 16, color: [255, 235, 120], initial: "SCORE 0" });
     // Applications row: little application icons that represent lives.
     // Each icon is a paper card with three horizontal "form field" lines.
     const APP_ICON_W = 18;
@@ -1545,39 +1578,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]);
       appIcons.push({ card, line1, line2, line3 });
     }
-    const docsHud = k.add([
-      k.text("", { size: 14, font: "sans-serif" }),
-      k.pos(k.width() - 12, 12),
-      k.anchor("topright"),
-      k.color(255, 255, 255),
-      k.fixed(),
-      k.z(LAYERS.HUD),
-    ]);
+    const docsHud = pixelHudText({
+      x: k.width() - 12, y: 12, size: 14, color: [255, 255, 255], anchor: "topright",
+    });
     // Per-zone objective badge, top-right under the "AFTER FEEDBACK" chip.
-    const objectiveHud = k.add([
-      k.text("", { size: 14, font: "sans-serif" }),
-      k.pos(k.width() - 12, 34),
-      k.anchor("topright"),
-      k.color(255, 220, 90),
-      k.fixed(),
-      k.z(LAYERS.HUD),
-    ]);
+    const objectiveHud = pixelHudText({
+      x: k.width() - 12, y: 34, size: 14, color: [255, 220, 90], anchor: "topright",
+    });
     // Hint bubble that pops up when player bumps a locked door.
     let hintUntil = 0;
-    const hintHud = k.add([
-      k.text("", { size: 14, font: "sans-serif", width: 460, align: "center" }),
-      k.pos(k.width() / 2, k.height() - 60),
-      k.anchor("center"),
-      k.color(255, 255, 255),
-      k.opacity(0),
-      k.fixed(),
-      k.z(LAYERS.HUD + 1),
-    ]);
+    const hintHud = pixelHudText({
+      x: k.width() / 2, y: k.height() - 60, size: 14, color: [255, 255, 255],
+      anchor: "center", width: 460, align: "center", opacity: 0,
+    });
     function showHint(msg: string) {
       hintHud.text = msg;
       hintHud.opacity = 1;
       hintUntil = k.time() + 1.8;
     }
+
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
       appIcons.forEach((g, i) => {

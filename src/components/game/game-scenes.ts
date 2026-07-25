@@ -40,6 +40,12 @@ import brickBlockSheetUrl from "@/assets/game/brick-block-sheet.png";
 import envelopeGremlinSheetUrl from "@/assets/game/envelope-gremlin-sheet.png";
 import bossSheetUrl from "@/assets/game/boss-sheet.png";
 import doorLockUrl from "@/assets/game/door-lock.png";
+import docIdAsset from "@/assets/game/doc-id.png.asset.json";
+import docPaystubAsset from "@/assets/game/doc-paystub.png.asset.json";
+import docEnvelopeAsset from "@/assets/game/doc-envelope.png.asset.json";
+const docIdUrl = docIdAsset.url;
+const docPaystubUrl = docPaystubAsset.url;
+const docEnvelopeUrl = docEnvelopeAsset.url;
 
 export type GameFlags = Record<ImprovementKey, boolean>;
 

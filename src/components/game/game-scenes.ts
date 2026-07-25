@@ -1467,7 +1467,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // over a lethal gap in the ground so a missed jump costs a life.
     const stairY0 = GROUND_Y;
     const stepCount = 6;
-    const STEP_GAP_X = 140;   // was 90; now requires a real jump
+    const STEP_GAP_X = 110;   // matches Z7_GAP1 above so the pole lands on ground
     const STEP_START_X = cx0 + 260;
     // (Lethal gap water plane is created with the ground split for Zone 7.)
     for (let i = 0; i < stepCount; i++) {

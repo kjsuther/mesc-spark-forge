@@ -740,18 +740,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(px, py) },
         ]);
       }
-      for (let i = 0; i < 3; i++) {
-        const bx = mx0 + 300 + i * 240;
+      for (let i = 0; i < 2; i++) {
+        const bx = mx0 + 400 + i * 400;
         const b = spawnAirborne(k, "boulder", sizes, {
           x: bx,
-          y: -40 - i * 200,
+          y: -80 - i * 220,
           z: LAYERS.ACTOR,
           tag: "boulder",
-          props: { spd: 260 + i * 40, home: bx },
+          props: { spd: 180 + i * 30, home: bx },
         });
         b.onUpdate(() => {
           b.pos.y += b.spd * k.dt();
-          if (b.pos.y > 700) b.pos = k.vec2(b.home, -100);
+          if (b.pos.y > 700) b.pos = k.vec2(b.home, -180);
         });
       }
     }

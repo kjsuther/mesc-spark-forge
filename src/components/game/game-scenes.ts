@@ -131,6 +131,12 @@ type SheetSpec = {
 type SpriteSize = { w: number; h: number };
 type SpriteSizes = Record<string, SpriteSize>;
 
+// Loose GameObj shape used by spawn helpers. Kaplay attaches all component
+// fields at runtime; typing them as `any` here keeps the rendering pipeline
+// simple without special-casing each caller.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyObj = any;
+
 async function loadImageEl(url: string): Promise<HTMLImageElement> {
   return new Promise((res, rej) => {
     const im = new Image();

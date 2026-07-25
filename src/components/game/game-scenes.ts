@@ -791,7 +791,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       hasKey: false,
       firePoleAttached: false,
       firePoleDone: false,
+      idCardCollected: false,
     };
+
 
     type Door = { obj: AnyObj; barrier: AnyObj | null; unlocked: boolean; playedAnim: boolean };
     const doors: (Door | null)[] = new Array(ZONES.length).fill(null);
@@ -808,9 +810,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         "door",
         { zoneIdx, unlocked: false },
       ]) as AnyObj;
-      // Solid barrier centered on door — blocks passage while locked.
+      // Solid barrier centered on door — blocks passage while locked. Height
+      // is a full playfield so players can't jump over (peak jump ≈ 144 px
+      // with JUMP_VEL 720 / gravity 1800, which used to clear the old 120 px
+      // wall). Anchor "bot" keeps its base flush with GROUND_Y.
       const bar = k.add([
-        k.rect(14, 120),
+        k.rect(14, 560),
         k.pos(dx, GROUND_Y),
         k.anchor("bot"),
         k.color(60, 40, 20),
@@ -819,6 +824,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.body({ isStatic: true }),
         k.z(LAYERS.PROP),
       ]);
+
       return { obj: doorObj, barrier: bar, unlocked: false, playedAnim: false };
     }
 
@@ -997,8 +1003,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Zone 2 unlocks the moment player crosses the river.
     zoneObjectives[2] = {
       hudLabel: () => "CROSS THE RIVER →",
-      met: () => true,
+      // Only unlock after the player physically crosses the river and is
+      // within reach of the door at (BIOME_W*3 - 60).
+      met: () => player.pos.x >= BIOME_W * 3 - 160,
     };
+
 
     // ================= ZONE 3: Gathering Documents — 3 verifications =================
     const tx0 = BIOME_W * 3;
@@ -1178,7 +1187,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]) as AnyObj;
       idItem.onUpdate(() => { idItem.pos.y = idItem.basY + Math.sin(k.time() * 2.5) * 4; });
       addSpeech(k, idX, idY - idH / 2 - 14, "MEDICAL ID", [200, 40, 60]);
+      addSpeech(k, topLandingX + 40, topLandingY - 42, "GRAB THE ID →", [220, 30, 60]);
     }
+
     // Fire pole — a tall vertical bar just past the top landing
     const poleX = topLandingX + 130;
     const poleTop = topLandingY - 40;
@@ -1214,9 +1225,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // "COVERED" celebration sign at right edge
     addSpeech(k, LEVEL_END - 100, GROUND_Y - 200, "★ COVERED! ★", [220, 30, 60]);
     zoneObjectives[7] = {
-      hudLabel: () => zoneState.firePoleDone ? "COVERED!" : "REACH THE ID CARD",
+      hudLabel: () =>
+        zoneState.firePoleDone
+          ? "COVERED!"
+          : zoneState.idCardCollected
+            ? "SLIDE DOWN →"
+            : "ID CARD ☐",
       met: () => zoneState.firePoleDone,
     };
+
 
     // Save-point campfire near town start (existing improvement).
     const checkpointX = spawnX > 1000 ? spawnX : 40;
@@ -1660,15 +1677,51 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       showHint("You got the key! Head to the door.");
     });
 
+    // Medical ID card pickup — required before the fire pole will activate.
+    player.onCollide("id-card", (c) => {
+      if (zoneState.idCardCollected) return;
+      const card = c as unknown as { destroy: () => void; pos: { x: number; y: number } };
+      zoneState.idCardCollected = true;
+      player.score += 1500;
+      // Sparkle burst
+      for (let i = 0; i < 12; i++) {
+        const angle = (i / 12) * Math.PI * 2;
+        const sp = k.add([
+          k.rect(4, 4),
+          k.pos(card.pos.x, card.pos.y),
+          k.color(255, 230, 120),
+          k.anchor("center"),
+          k.z(LAYERS.EFFECT),
+          k.opacity(1),
+          { vx: Math.cos(angle) * 120, vy: Math.sin(angle) * 120, life: 0 },
+        ]);
+        sp.onUpdate(() => {
+          sp.pos.x += sp.vx * k.dt();
+          sp.pos.y += sp.vy * k.dt();
+          sp.life += k.dt();
+          sp.opacity = Math.max(0, 1 - sp.life * 1.5);
+          if (sp.life > 0.8) sp.destroy();
+        });
+      }
+      card.destroy();
+      showHint("You got your Medical ID — slide down the pole!");
+    });
+
     // Fire pole attach — locks the player to the pole and starts a slide down.
+    // Gated on picking up the Medical ID card first.
     player.onCollide("fire-pole", (fp) => {
       if (zoneState.firePoleAttached || zoneState.firePoleDone) return;
+      if (!zoneState.idCardCollected) {
+        showHint("Grab the Medical ID card first!");
+        return;
+      }
       const pole = fp as unknown as { poleX: number; poleTop: number; poleBaseY: number };
       zoneState.firePoleAttached = true;
       player.pos.x = pole.poleX;
       player.vel = k.vec2(0, 0);
       showHint("Sliding down…");
     });
+
 
     player.onCollide("pole-base", () => {
       if (zoneState.firePoleDone || player.won) return;
@@ -1865,10 +1918,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
 
       // Fire-pole slide: freeze x, descend at controlled speed until base.
+      // Safety-net: complete when Y reaches GROUND_Y even if the base
+      // collider is missed on a dropped frame.
       if (zoneState.firePoleAttached && !zoneState.firePoleDone) {
         player.vel = k.vec2(0, 0);
         player.pos.y = Math.min(GROUND_Y, player.pos.y + 220 * k.dt());
+        if (player.pos.y >= GROUND_Y) {
+          zoneState.firePoleDone = true;
+          startFireworks(k, player.pos.x + 100, GROUND_Y - 240);
+        }
       }
+
 
       // Hint fade
       if (hintUntil > 0 && k.time() > hintUntil) {

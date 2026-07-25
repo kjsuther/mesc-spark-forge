@@ -120,8 +120,9 @@ function WelcomePage() {
               <span aria-hidden="true" className="text-accent-orange ml-2 sm:ml-3">★</span>
             </h1>
             <p className="text-cream/90 text-base sm:text-lg md:text-xl mt-5 sm:mt-6 max-w-2xl">
-              A 16-bit retro platformer about applying for Medicaid — where the audience votes on
-              the next upgrade and the trail visibly gets easier.
+              Play our game and see if you can tackle the journey of applying for Medicaid! You'll
+              vote on upgrades that can assist you in your journey and see those upgrades be
+              developed live based on your feedback.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -131,11 +132,18 @@ function WelcomePage() {
               >
                 ▶ Play the game
               </Link>
+              <a
+                href="#how-it-works"
+                className="inline-flex items-center gap-2 bg-white/10 text-white font-bold py-3 px-6 rounded-xl hover:bg-white/20 transition ring-1 ring-white/40"
+              >
+                How this works
+              </a>
             </div>
           </div>
         </section>
 
-        <section className="max-w-6xl w-full mx-auto py-12 sm:py-16 px-5 sm:px-6">
+        <section id="how-it-works" className="max-w-6xl w-full mx-auto py-12 sm:py-16 px-5 sm:px-6 scroll-mt-24">
+
           <SectionHeading>How it works</SectionHeading>
           <p className="text-dark-gray/80 mt-3 max-w-2xl text-sm sm:text-base leading-relaxed">
             Every attendee plays the same game, votes on the same five upgrades, and watches the
@@ -146,7 +154,7 @@ function WelcomePage() {
             {STEPS.map((step) => (
               <li
                 key={step.num}
-                className={`relative rounded-2xl border-2 ${step.theme.border} ${step.theme.bg} p-6 flex flex-col ${step.theme.hoverBorder} hover:shadow-[0_2px_0_0_rgba(180,67,43,0.35)] transition-all`}
+                className={`relative rounded-2xl border-2 ${step.theme.border} ${step.theme.bg} p-6 flex flex-col`}
               >
                 <span
                   aria-hidden="true"
@@ -154,7 +162,7 @@ function WelcomePage() {
                 >
                   ★
                 </span>
-                <div className="flex items-start gap-4 mb-4">
+                <div className="flex items-start gap-4">
                   <span
                     className={`flex-shrink-0 w-12 h-12 rounded-full ${step.theme.ring} text-cream grid place-items-center font-black text-xl ring-2 ring-accent-gold/70`}
                   >
@@ -165,16 +173,9 @@ function WelcomePage() {
                     <p className="text-sm text-dark-gray/80 mt-2 leading-relaxed">{step.body}</p>
                   </div>
                 </div>
-                <div className="mt-auto pt-2">
-                  <Link
-                    to="/tool"
-                    className={`inline-flex items-center gap-2 ${step.theme.cta} text-white font-bold py-3 px-5 rounded-xl transition`}
-                  >
-                    {step.cta} →
-                  </Link>
-                </div>
               </li>
             ))}
+
           </ol>
         </section>
       </main>

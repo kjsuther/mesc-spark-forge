@@ -345,6 +345,7 @@ async function loadTrimmedSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
     for (const n of g) groupIndex[n] = g;
   }
 
+  const label = spec.label ?? spec.url.split("/").pop() ?? spec.url;
   const sizes: SpriteSizes = {};
   for (const f of spec.frames) {
     const group = groupIndex[f.name] ?? [f.name];
@@ -378,9 +379,89 @@ async function loadTrimmedSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
     const dataUrl = out.toDataURL("image/png");
     await k.loadSprite(f.name, dataUrl);
     sizes[f.name] = { w: unifiedW, h: unifiedH };
+    ASSET_REPORT.entries[f.name] = {
+      name: f.name,
+      kind: "sprite",
+      sheetLabel: label,
+      sheetUrl: spec.url,
+      cols: spec.cols,
+      rows: spec.rows,
+      frame: f.frame,
+      sheetRect: { fx: cc * fw, fy: rr * fh, fw, fh },
+      trimBBox: bb,
+      unified: { w: unifiedW, h: unifiedH },
+      status: "loaded",
+    };
   }
   return sizes;
 }
+
+/** Wrap loadTrimmedSheet with fallback: on any error, register 16x16 magenta
+ *  placeholders for every frame and record the failure in the asset report. */
+async function safeLoadSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
+  const label = spec.label ?? spec.url.split("/").pop() ?? spec.url;
+  try {
+    const sizes = await loadTrimmedSheet(k, spec);
+    ASSET_REPORT.sheets[label] = { url: spec.url, cols: spec.cols, rows: spec.rows, status: "loaded", label };
+    return sizes;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    ASSET_REPORT.sheets[label] = { url: spec.url, cols: spec.cols, rows: spec.rows, status: "failed", error: msg, label };
+    const fallback = makeFallbackDataUrl();
+    const sizes: SpriteSizes = {};
+    for (const f of spec.frames) {
+      try {
+        await k.loadSprite(f.name, fallback);
+      } catch {
+        /* even fallback can fail — the entry status still records it */
+      }
+      sizes[f.name] = { w: 32, h: 32 };
+      ASSET_REPORT.entries[f.name] = {
+        name: f.name,
+        kind: "sprite",
+        sheetLabel: label,
+        sheetUrl: spec.url,
+        cols: spec.cols,
+        rows: spec.rows,
+        frame: f.frame,
+        unified: { w: 32, h: 32 },
+        status: "fallback",
+        error: msg,
+      };
+    }
+    console.warn(`[assets] sheet failed: ${label}`, err);
+    return sizes;
+  }
+}
+
+/** Wrap k.loadSprite for a full-frame background, with fallback + reporting. */
+async function safeLoadBackground(k: Ctx, name: string, url: string): Promise<void> {
+  try {
+    await k.loadSprite(name, url);
+    ASSET_REPORT.entries[name] = {
+      name,
+      kind: "background",
+      sheetLabel: name,
+      sheetUrl: url,
+      status: "loaded",
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    try {
+      await k.loadSprite(name, makeFallbackDataUrl());
+    } catch { /* ignore */ }
+    ASSET_REPORT.entries[name] = {
+      name,
+      kind: "background",
+      sheetLabel: name,
+      sheetUrl: url,
+      status: "fallback",
+      error: msg,
+    };
+    console.warn(`[assets] background failed: ${name}`, err);
+  }
+}
+
 
 async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
   const heroFrames: FrameSpec[] = [

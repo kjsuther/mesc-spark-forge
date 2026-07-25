@@ -1190,7 +1190,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.color(240, 230, 200), k.outline(2, k.rgb(60, 45, 25)),
           k.area(), k.body({ isStatic: true }),
           k.z(LAYERS.PLATFORM), "platform",
-          { basY: p.y, amp: p.amp, spd: p.spd, phase: Math.random() * Math.PI * 2, platformSpeed: k.vec2(0, 0), lastPos: k.vec2(p.x, p.y), width: 96, height: 16 },
+          { basY: p.y, amp: p.amp, spd: p.spd, phase: Math.random() * Math.PI * 2, platformSpeed: k.vec2(0, 0), lastPos: k.vec2(p.x, p.y) },
         ]);
         // Text label on top of the platform. Uses a shadow pair for legibility.
         const shadow = k.add([
@@ -1456,7 +1456,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.outline(2, k.rgb(90, 90, 110)),
         k.area(), k.body({ isStatic: true }),
         k.z(LAYERS.PLATFORM), "platform",
-        { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(sxi, syi), width: 72, height: 14 },
+        { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(sxi, syi) },
       ]);
     }
     // Top landing + medical ID card. Landing width kept short so it ends

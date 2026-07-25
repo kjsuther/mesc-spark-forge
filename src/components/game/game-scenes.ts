@@ -674,16 +674,23 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   const k: Ctx = kaplay({
     canvas: opts.canvas,
-    width: 960,
-    height: 540,
+    // Fixed logical resolution. Kaplay's letterbox mode scales this buffer to
+    // whatever CSS box the canvas has while preserving 16:9, so gameplay
+    // coordinates never depend on the physical viewport.
+    width: LOGICAL_W,
+    height: LOGICAL_H,
     background: [20, 20, 30],
     letterbox: true,
     global: false,
     debug: false,
-    pixelDensity: Math.min(2, typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1),
+    // CONSTANT pixel density — not derived from devicePixelRatio. This is the
+    // whole reason sprites stay aligned across DPR changes (rotation, zoom,
+    // external displays). The browser handles all CSS-pixel scaling uniformly.
+    pixelDensity: PIXEL_DENSITY,
     crisp: true,
     touchToMouse: true,
   });
+
 
   k.setGravity(1800);
 

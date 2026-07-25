@@ -1868,7 +1868,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       showHint("You got the key! Head to the door.");
     });
 
-    // Medical ID card pickup — required before the fire pole will activate.
+    // Medical ID card pickup — triggers the automated finale cutscene.
     player.onCollide("id-card", (c) => {
       if (zoneState.idCardCollected) return;
       const card = c as unknown as { destroy: () => void; pos: { x: number; y: number } };
@@ -1895,25 +1895,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         });
       }
       card.destroy();
-      showHint("You got your Medical ID — slide down the pole!");
-    });
-
-    // Fire pole attach — locks the player to the pole and starts a slide down.
-    // Gated on picking up the Medical ID card first.
-    player.onCollide("fire-pole", (fp) => {
-      if (zoneState.firePoleAttached || zoneState.firePoleDone) return;
-      if (!zoneState.idCardCollected) {
-        showHint("Grab the Medical ID card first!");
+      // Look up the fire-pole entity so the cutscene doesn't depend on
+      // collision to know its coordinates.
+      const poleEnts = k.get("fire-pole") as unknown as Array<{ poleX: number; poleTop: number }>;
+      const pole = poleEnts[0];
+      if (!pole) {
+        // Extremely defensive: without a pole we can't slide, so just win.
+        showHint("You got your Medical ID!");
         return;
       }
-      const pole = fp as unknown as { poleX: number; poleTop: number; poleBaseY: number };
-      zoneState.firePoleAttached = true;
-      // Snap to the knob at the very top so the slide always covers the
-      // full length of the pole (Mario-flagpole behavior).
-      player.pos.x = pole.poleX;
-      player.pos.y = pole.poleTop + 6;
-      player.vel = k.vec2(0, 0);
-      showHint("Sliding down…");
+      zoneState.cutscene = true;
+      zoneState.cutscenePhase = "walk-to-pole";
+      zoneState.cutscenePoleX = pole.poleX;
+      zoneState.cutscenePoleTop = pole.poleTop;
+      player.facing = 1;
+      showHint("You got your Medical ID!");
+    });
+
+    // Fire pole attach — now driven by the cutscene, not direct collision.
+    // Kept as a no-op safety in case the player brushes the pole first.
+    player.onCollide("fire-pole", () => {
+      // Attachment is handled inside the cutscene state machine below.
     });
 
 

@@ -945,6 +945,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     type Door = { obj: AnyObj; barrier: AnyObj | null; unlocked: boolean; playedAnim: boolean };
     const doors: (Door | null)[] = new Array(ZONES.length).fill(null);
 
+    function setGameObjSprite(obj: AnyObj, name: string) {
+      const ds = displaySize(name, sizes);
+      obj.sprite = name;
+      obj.width = ds.w;
+      obj.height = DISPLAY_H[name] ?? ds.h;
+      obj.frame = 0;
+    }
+
     function spawnDoor(zoneIdx: number): Door {
       const dx = (zoneIdx + 1) * BIOME_W - 60;
       const disp = displaySize("door-closed", sizes);
@@ -995,11 +1003,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (!d || d.unlocked) return;
       d.unlocked = true;
       // Unlock animation: brief shake, chime, then swap sprite + drop barrier.
-      d.obj.use(k.color(255, 240, 120));
-      k.wait(0.25, () => d.obj.use(k.color(255, 255, 255)));
+      d.obj.color = k.rgb(255, 240, 120);
+      k.wait(0.25, () => { d.obj.color = k.rgb(255, 255, 255); });
       k.wait(0.5, () => {
-        const disp = displaySize("door-open", sizes);
-        d.obj.use(k.sprite("door-open", { width: disp.w, height: DISPLAY_H["door-open"] }));
+        setGameObjSprite(d.obj, "door-open");
         d.barrier?.destroy();
         d.barrier = null;
         // Sparkle burst above door
@@ -1296,7 +1303,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const speed = 45;
       const m = spawnGrounded(k, "envelope-gremlin-0", sizes, {
         x: mx, z: LAYERS.ACTOR, tag: "monster",
-        props: { dir: 1, home: mx, range: 80, animT: 0, frame: 0 },
+        props: { dir: 1, home: mx, range: 80, animT: 0, gremlinFrame: 0 },
         hitboxScale: { x: -mw / 2, w: mw, h: mh },
       });
       m.onUpdate(() => {
@@ -1306,9 +1313,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (m.pos.x < m.home - m.range) { m.pos.x = m.home - m.range; m.dir = 1; m.flipX = false; }
         m.animT += k.dt();
         const nf = Math.floor(m.animT * 4) % 2;
-        if (nf !== m.frame) {
-          m.frame = nf;
-          m.use(k.sprite(`envelope-gremlin-${nf}`, { width: mw, height: mh }));
+        if (nf !== m.gremlinFrame) {
+          m.gremlinFrame = nf;
+          setGameObjSprite(m, `envelope-gremlin-${nf}`);
         }
       });
     }
@@ -1609,8 +1616,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function setSprite(name: string) {
       if (currentSpriteName === name) return;
       currentSpriteName = name;
-      const ds = displaySize(name, sizes);
-      player.use(k.sprite(name, { width: ds.w, height: DISPLAY_H[name] }));
+      setGameObjSprite(player, name);
     }
     /** Returns "-left" when the player currently faces left AND a mirrored
      *  variant is registered for the sprite; otherwise returns "". */
@@ -2005,7 +2011,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if ((player.vel?.y ?? 0) >= -50) return;
       brick.hit = true;
       brick.bumpT = 1;
-      brick.use(k.sprite("brick-hit", { width: bw, height: bh }));
+      setGameObjSprite(brick, "brick-hit");
       // Cancel remaining upward velocity so it feels like a solid bonk.
       player.vel.y = Math.max(0, player.vel.y);
       // Pop the method icon out of the brick — falls to the ground and can be
@@ -2140,7 +2146,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         hearts.pos.x = boss.pos.x;
         // Swap to hurt frame briefly after each stomp.
         const wantHurt = k.time() < boss.hurtUntil;
-        boss.use(k.sprite(wantHurt ? "boss-hurt" : "boss-idle", { width: bw, height: bh }));
+        const nextBossSprite = wantHurt ? "boss-hurt" : "boss-idle";
+        if (boss.sprite !== nextBossSprite) setGameObjSprite(boss, nextBossSprite);
       });
       player.onCollide("boss", () => {
         if (boss.dead) return;
@@ -2158,7 +2165,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           if (boss.hits >= 3) {
             boss.dead = true;
             zoneState.bossDefeated = true;
-            boss.use(k.sprite("boss-defeat", { width: bw, height: DISPLAY_H["boss-defeat"] }));
+            setGameObjSprite(boss, "boss-defeat");
             hearts.destroy();
             // Fade + destroy, then drop the key at the boss's spot.
             const kx = boss.pos.x;

@@ -1339,6 +1339,7 @@ function addGround(
   const w = Math.round(x2 - x1);
   const x = Math.round(x1);
   const yy = Math.round(y);
+  // Solid physics soil rect starts at the feet line (y) and runs downward.
   k.add([
     k.rect(w, 80),
     k.pos(x, yy),
@@ -1347,9 +1348,12 @@ function addGround(
     k.body({ isStatic: true }),
     k.z(LAYERS.GROUND),
   ]);
+  // Grass strip drawn ABOVE the feet line so the player visibly stands
+  // IN the grass rather than hovering above it. 14px band centered on yy
+  // (extends 10px up, 4px down).
   k.add([
-    k.rect(w, 8),
-    k.pos(x, yy),
+    k.rect(w, 14),
+    k.pos(x, yy - 10),
     k.color(...topColor),
     k.z(LAYERS.GROUND_TOP),
   ]);

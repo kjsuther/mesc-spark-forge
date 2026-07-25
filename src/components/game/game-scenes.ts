@@ -212,9 +212,69 @@ type SheetSpec = {
   /** Group names in one group render at a shared (maxW, maxH) so animation
    *  frames stay horizontally locked and feet stay flush. */
   groups?: string[][];
+  /** Human-readable label used by the debug overlay. */
+  label?: string;
 };
 type SpriteSize = { w: number; h: number };
 type SpriteSizes = Record<string, SpriteSize>;
+
+// ============================ Asset debug report ============================
+
+type AssetStatus = "loaded" | "fallback" | "failed";
+type AssetEntry = {
+  name: string;
+  kind: "sprite" | "background";
+  sheetLabel?: string;
+  sheetUrl?: string;
+  cols?: number;
+  rows?: number;
+  frame?: number;
+  sheetRect?: { fx: number; fy: number; fw: number; fh: number };
+  trimBBox?: { x: number; y: number; w: number; h: number };
+  unified?: { w: number; h: number };
+  status: AssetStatus;
+  error?: string;
+};
+type AssetReport = {
+  entries: Record<string, AssetEntry>;
+  sheets: Record<string, { url: string; cols: number; rows: number; status: AssetStatus; error?: string; label: string }>;
+  zoneAssets: Record<number, string[]>;
+  ready: boolean;
+};
+const ASSET_REPORT: AssetReport = { entries: {}, sheets: {}, zoneAssets: {}, ready: false };
+
+// Per-zone asset presence — kept in sync with spawn logic in the trail scene.
+// Used by the debug overlay to show which assets each zone depends on.
+const ZONE_ASSETS: Record<number, string[]> = {
+  0: ["bg-forest", "signpost", "door-closed", "door-open"],
+  1: ["bg-signup", "username", "password", "laptop", "door-closed", "door-open"],
+  2: ["bg-river", "bridge", "boulder", "door-closed", "door-open"],
+  3: ["bg-town", "id", "paystub", "envelope", "form-monster", "door-closed", "door-open"],
+  4: ["bg-relay", "mailbox", "phone", "door-closed", "door-open"],
+  5: ["bg-mountain", "boulder", "denied", "door-closed", "door-open"],
+  6: ["bg-market", "plan-blue", "plan-green", "plan-orange", "gold-key", "plan-card", "insurance-card", "door-closed", "door-open"],
+  7: ["bg-clinic", "medical-id", "door-closed", "door-open", "ranger", "campfire", "backpack", "map"],
+};
+for (let i = 0; i < ZONES.length; i++) ASSET_REPORT.zoneAssets[i] = ZONE_ASSETS[i] ?? [];
+
+/** 16×16 magenta/black checker as a data URL. Used as a fallback sprite when
+ *  an asset fails to load so the game can keep running and the debug overlay
+ *  can flag the broken asset visually. */
+function makeFallbackDataUrl(): string {
+  if (typeof document === "undefined") return "";
+  const c = document.createElement("canvas");
+  c.width = 16;
+  c.height = 16;
+  const g = c.getContext("2d");
+  if (!g) return "";
+  g.fillStyle = "#ff00ff";
+  g.fillRect(0, 0, 16, 16);
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, 8, 8);
+  g.fillRect(8, 8, 8, 8);
+  return c.toDataURL("image/png");
+}
+
 
 // Loose GameObj shape used by spawn helpers. Kaplay attaches all component
 // fields at runtime; typing them as `any` here keeps the rendering pipeline
@@ -285,6 +345,7 @@ async function loadTrimmedSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
     for (const n of g) groupIndex[n] = g;
   }
 
+  const label = spec.label ?? spec.url.split("/").pop() ?? spec.url;
   const sizes: SpriteSizes = {};
   for (const f of spec.frames) {
     const group = groupIndex[f.name] ?? [f.name];
@@ -318,9 +379,89 @@ async function loadTrimmedSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
     const dataUrl = out.toDataURL("image/png");
     await k.loadSprite(f.name, dataUrl);
     sizes[f.name] = { w: unifiedW, h: unifiedH };
+    ASSET_REPORT.entries[f.name] = {
+      name: f.name,
+      kind: "sprite",
+      sheetLabel: label,
+      sheetUrl: spec.url,
+      cols: spec.cols,
+      rows: spec.rows,
+      frame: f.frame,
+      sheetRect: { fx: cc * fw, fy: rr * fh, fw, fh },
+      trimBBox: bb,
+      unified: { w: unifiedW, h: unifiedH },
+      status: "loaded",
+    };
   }
   return sizes;
 }
+
+/** Wrap loadTrimmedSheet with fallback: on any error, register 16x16 magenta
+ *  placeholders for every frame and record the failure in the asset report. */
+async function safeLoadSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
+  const label = spec.label ?? spec.url.split("/").pop() ?? spec.url;
+  try {
+    const sizes = await loadTrimmedSheet(k, spec);
+    ASSET_REPORT.sheets[label] = { url: spec.url, cols: spec.cols, rows: spec.rows, status: "loaded", label };
+    return sizes;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    ASSET_REPORT.sheets[label] = { url: spec.url, cols: spec.cols, rows: spec.rows, status: "failed", error: msg, label };
+    const fallback = makeFallbackDataUrl();
+    const sizes: SpriteSizes = {};
+    for (const f of spec.frames) {
+      try {
+        await k.loadSprite(f.name, fallback);
+      } catch {
+        /* even fallback can fail — the entry status still records it */
+      }
+      sizes[f.name] = { w: 32, h: 32 };
+      ASSET_REPORT.entries[f.name] = {
+        name: f.name,
+        kind: "sprite",
+        sheetLabel: label,
+        sheetUrl: spec.url,
+        cols: spec.cols,
+        rows: spec.rows,
+        frame: f.frame,
+        unified: { w: 32, h: 32 },
+        status: "fallback",
+        error: msg,
+      };
+    }
+    console.warn(`[assets] sheet failed: ${label}`, err);
+    return sizes;
+  }
+}
+
+/** Wrap k.loadSprite for a full-frame background, with fallback + reporting. */
+async function safeLoadBackground(k: Ctx, name: string, url: string): Promise<void> {
+  try {
+    await k.loadSprite(name, url);
+    ASSET_REPORT.entries[name] = {
+      name,
+      kind: "background",
+      sheetLabel: name,
+      sheetUrl: url,
+      status: "loaded",
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    try {
+      await k.loadSprite(name, makeFallbackDataUrl());
+    } catch { /* ignore */ }
+    ASSET_REPORT.entries[name] = {
+      name,
+      kind: "background",
+      sheetLabel: name,
+      sheetUrl: url,
+      status: "fallback",
+      error: msg,
+    };
+    console.warn(`[assets] background failed: ${name}`, err);
+  }
+}
+
 
 async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
   const heroFrames: FrameSpec[] = [
@@ -371,46 +512,44 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
   const idFrames: FrameSpec[] = [{ name: "medical-id", frame: 0 }];
 
   const [heroSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes] = await Promise.all([
-    loadTrimmedSheet(k, {
+    safeLoadSheet(k, {
       url: charSheetUrl,
       cols: 3,
       rows: 2,
       frames: heroFrames,
       groups: [heroFrames.map((f) => f.name)],
+      label: "character-sheet.png",
     }),
-    loadTrimmedSheet(k, {
-      url: propsSheetUrl,
-      cols: 4,
-      rows: 3,
-      frames: propFrames,
-    }),
-    loadTrimmedSheet(k, {
-      url: propsSheet2Url,
-      cols: 3,
-      rows: 2,
-      frames: propFrames2,
-    }),
-    loadTrimmedSheet(k, { url: doorSheetUrl, cols: 2, rows: 1, frames: doorFrames }),
-    loadTrimmedSheet(k, { url: credentialsSheetUrl, cols: 2, rows: 1, frames: credFrames }),
-    loadTrimmedSheet(k, { url: goldKeyUrl, cols: 1, rows: 1, frames: keyFrames }),
-    loadTrimmedSheet(k, { url: planCardsSheetUrl, cols: 3, rows: 1, frames: planFrames }),
-    loadTrimmedSheet(k, { url: medicalIdUrl, cols: 1, rows: 1, frames: idFrames }),
+    safeLoadSheet(k, { url: propsSheetUrl,  cols: 4, rows: 3, frames: propFrames,  label: "props-sheet.png" }),
+    safeLoadSheet(k, { url: propsSheet2Url, cols: 3, rows: 2, frames: propFrames2, label: "props-sheet-2.png" }),
+    safeLoadSheet(k, { url: doorSheetUrl,        cols: 2, rows: 1, frames: doorFrames, label: "door-sheet.png" }),
+    safeLoadSheet(k, { url: credentialsSheetUrl, cols: 2, rows: 1, frames: credFrames, label: "credentials-sheet.png" }),
+    safeLoadSheet(k, { url: goldKeyUrl,          cols: 1, rows: 1, frames: keyFrames,  label: "gold-key.png" }),
+    safeLoadSheet(k, { url: planCardsSheetUrl,   cols: 3, rows: 1, frames: planFrames, label: "plan-cards-sheet.png" }),
+    safeLoadSheet(k, { url: medicalIdUrl,        cols: 1, rows: 1, frames: idFrames,   label: "medical-id.png" }),
   ]);
 
-  // Backgrounds don't need trimming.
+  // Backgrounds don't need trimming but still get load-status tracking + a
+  // magenta fallback so a missing PNG doesn't crash the scene.
   await Promise.all([
-    k.loadSprite("bg-forest", bgForestUrl),
-    k.loadSprite("bg-signup", bgSignupUrl),
-    k.loadSprite("bg-river", bgRiverUrl),
-    k.loadSprite("bg-town", bgTownUrl),
-    k.loadSprite("bg-relay", bgRelayUrl),
-    k.loadSprite("bg-mountain", bgMountainUrl),
-    k.loadSprite("bg-market", bgMarketUrl),
-    k.loadSprite("bg-clinic", bgClinicUrl),
+    safeLoadBackground(k, "bg-forest",   bgForestUrl),
+    safeLoadBackground(k, "bg-signup",   bgSignupUrl),
+    safeLoadBackground(k, "bg-river",    bgRiverUrl),
+    safeLoadBackground(k, "bg-town",     bgTownUrl),
+    safeLoadBackground(k, "bg-relay",    bgRelayUrl),
+    safeLoadBackground(k, "bg-mountain", bgMountainUrl),
+    safeLoadBackground(k, "bg-market",   bgMarketUrl),
+    safeLoadBackground(k, "bg-clinic",   bgClinicUrl),
   ]);
+
+  ASSET_REPORT.ready = true;
+  if (typeof window !== "undefined") {
+    (window as unknown as { __gameAssetReport?: AssetReport }).__gameAssetReport = ASSET_REPORT;
+  }
 
   return { ...heroSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes };
 }
+
 
 // ============================ Spawn helpers ============================
 
@@ -1312,6 +1451,112 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       objectiveHud.text = obj ? obj.hudLabel() : "";
     }
     updateHud();
+
+    // ================= Asset debug overlay =================
+    // Toggle with the "D" key or by loading the page with ?debug=assets.
+    // Shows every asset the current zone depends on, its sheet coordinates,
+    // trimmed bounding box, unified sprite size, and load status.
+    const debugQuery =
+      typeof window !== "undefined" &&
+      /(?:^|[?&])debug=assets(?:&|$)/.test(window.location.search);
+    let debugVisible = debugQuery;
+    const debugPanel = k.add([
+      k.rect(360, 260, { radius: 4 }),
+      k.pos(k.width() - 8, 8),
+      k.anchor("topright"),
+      k.color(0, 0, 0),
+      k.opacity(0.78),
+      k.fixed(),
+      k.z(LAYERS.HUD + 5),
+    ]) as AnyObj;
+    const debugTitle = k.add([
+      k.text("ASSETS · press D", { size: 11, font: "sans-serif" }),
+      k.pos(k.width() - 16, 14),
+      k.anchor("topright"),
+      k.color(255, 220, 90),
+      k.fixed(),
+      k.z(LAYERS.HUD + 6),
+    ]) as AnyObj;
+    const debugSummary = k.add([
+      k.text("", { size: 10, font: "sans-serif", width: 344 }),
+      k.pos(k.width() - 16, 30),
+      k.anchor("topright"),
+      k.color(200, 220, 255),
+      k.fixed(),
+      k.z(LAYERS.HUD + 6),
+    ]) as AnyObj;
+    const debugBody = k.add([
+      k.text("", { size: 9, font: "sans-serif", width: 344, lineSpacing: 1 }),
+      k.pos(k.width() - 16, 60),
+      k.anchor("topright"),
+      k.color(240, 240, 240),
+      k.fixed(),
+      k.z(LAYERS.HUD + 6),
+    ]) as AnyObj;
+    function statusGlyph(s: AssetStatus): string {
+      return s === "loaded" ? "OK" : s === "fallback" ? "FB" : "!!";
+    }
+    function renderDebugOverlay() {
+      const show = debugVisible;
+      debugPanel.opacity = show ? 0.78 : 0;
+      debugTitle.opacity = show ? 1 : 0;
+      debugSummary.opacity = show ? 1 : 0;
+      debugBody.opacity = show ? 1 : 0;
+      if (!show) return;
+      const entries = Object.values(ASSET_REPORT.entries);
+      const failed = entries.filter((e) => e.status !== "loaded");
+      const failedSprite = failed.filter((e) => e.kind === "sprite").length;
+      const failedBg = failed.filter((e) => e.kind === "background").length;
+      const z = player.farthestZone;
+      debugSummary.text =
+        `Zone ${z + 1}/${ZONES.length} · ${ZONES[z].key}\n` +
+        `Sheets loaded: ${Object.values(ASSET_REPORT.sheets).filter((s) => s.status === "loaded").length}/${Object.keys(ASSET_REPORT.sheets).length}   ` +
+        `Missing sprites: ${failedSprite}   Missing bgs: ${failedBg}`;
+      const names = ZONE_ASSETS[z] ?? [];
+      const lines: string[] = [];
+      for (const n of names) {
+        const e = ASSET_REPORT.entries[n];
+        if (!e) { lines.push(`??  ${n.padEnd(16)}  (not registered)`); continue; }
+        if (e.kind === "background") {
+          lines.push(`${statusGlyph(e.status)}  ${n.padEnd(16)}  bg  ${e.sheetLabel ?? ""}`);
+        } else {
+          const r = e.sheetRect;
+          const bb = e.trimBBox;
+          const u = e.unified;
+          const coords = r ? `f${e.frame} @${r.fx},${r.fy} ${r.fw}x${r.fh}` : `f${e.frame ?? "?"}`;
+          const trim = bb ? `trim ${bb.w}x${bb.h}` : `trim -`;
+          const uni = u ? `disp ${u.w}x${u.h}` : `disp -`;
+          lines.push(`${statusGlyph(e.status)}  ${n.padEnd(16)}  ${coords}  ${trim}  ${uni}`);
+        }
+      }
+      // Always append any failed asset from other zones so problems are visible
+      // regardless of where the player currently is.
+      const globalFails = failed.filter((e) => !names.includes(e.name));
+      if (globalFails.length) {
+        lines.push("");
+        lines.push(`— failed elsewhere (${globalFails.length}) —`);
+        for (const e of globalFails.slice(0, 6)) {
+          lines.push(`${statusGlyph(e.status)}  ${e.name.padEnd(16)}  ${e.error?.slice(0, 40) ?? ""}`);
+        }
+      }
+      debugBody.text = lines.join("\n");
+    }
+    // Auto-size panel roughly to content height.
+    k.onUpdate(() => {
+      if (!debugVisible) { debugPanel.height = 26; return; }
+      const lineCount = ((debugBody as AnyObj).text ?? "").split("\n").length;
+      debugPanel.height = Math.min(520, 60 + lineCount * 12 + 8);
+      renderDebugOverlay();
+    });
+    for (const key of ["d", "D"]) {
+      k.onKeyPress(key as never, () => {
+        debugVisible = !debugVisible;
+        renderDebugOverlay();
+      });
+    }
+    renderDebugOverlay();
+
+
 
     // ================= Collisions =================
     player.onCollide("method", () => {

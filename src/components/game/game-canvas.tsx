@@ -117,6 +117,13 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
 
   const focusCanvas = () => canvasRef.current?.focus();
 
+  const nativeFullscreenSupported = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return false;
+    const anyEl = el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> };
+    return !!(anyEl.requestFullscreen || anyEl.webkitRequestFullscreen);
+  }, []);
+
   const requestNativeFullscreen = useCallback(async () => {
     const el = containerRef.current;
     if (!el) return false;
@@ -155,21 +162,42 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
       setFauxFullscreen(false);
       return;
     }
+    if (!nativeFullscreenSupported()) {
+      setFauxFullscreen(true);
+      return;
+    }
     const ok = await requestNativeFullscreen();
     if (!ok) setFauxFullscreen(true);
-  }, [isFullscreen, fauxFullscreen, requestNativeFullscreen, exitNativeFullscreen]);
+  }, [
+    isFullscreen,
+    fauxFullscreen,
+    requestNativeFullscreen,
+    exitNativeFullscreen,
+    nativeFullscreenSupported,
+  ]);
 
-  // User picked a mode. Fullscreen MUST be requested synchronously from the click.
+  // User picked a mode. On mobile / touch devices we skip native fullscreen
+  // (unsupported on iOS Safari for divs, and awaiting the promise loses the
+  // user gesture) and go straight to faux-fullscreen so the launch is
+  // instantaneous and the canvas gets the whole viewport.
   const pickMode = useCallback(
-    async (m: LaunchMode) => {
-      if (m === "fullscreen") {
-        const ok = await requestNativeFullscreen();
-        if (!ok) setFauxFullscreen(true);
+    (m: LaunchMode) => {
+      const coarse = isCoarsePointer();
+      if (m === "fullscreen" || coarse) {
+        if (!coarse && nativeFullscreenSupported()) {
+          // Fire-and-forget; do not await so setLaunchMode is synchronous.
+          void requestNativeFullscreen().then((ok) => {
+            if (!ok) setFauxFullscreen(true);
+          });
+        } else {
+          setFauxFullscreen(true);
+        }
       }
       setLaunchMode(m);
     },
-    [requestNativeFullscreen],
+    [requestNativeFullscreen, nativeFullscreenSupported],
   );
+
 
   function setBtn(k: "left" | "right", v: boolean) {
     const w = window as unknown as { __gameInput?: TouchInput };

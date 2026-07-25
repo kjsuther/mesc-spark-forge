@@ -1300,16 +1300,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(sxi, syi) },
       ]);
     }
-    // Top landing + medical ID card
+    // Top landing + medical ID card. Landing width kept short so it ends
+    // BEFORE the fire pole — otherwise the solid platform blocks the slide.
     const topLandingX = cx0 + 280 + stepCount * 90 + 20;
     const topLandingY = stairY0 - 40 - stepCount * 40;
-    k.add([
-      k.rect(160, 14), k.pos(topLandingX, topLandingY),
+    const topLanding = k.add([
+      k.rect(120, 14), k.pos(topLandingX, topLandingY),
       k.color(200, 195, 210), k.outline(2, k.rgb(90, 90, 110)),
       k.area(), k.body({ isStatic: true }),
       k.z(LAYERS.PLATFORM), "platform",
       { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(topLandingX, topLandingY) },
-    ]);
+    ]) as AnyObj;
+    zoneState.topLandingRef = topLanding;
     {
       const idW = displaySize("medical-id", sizes).w;
       const idH = DISPLAY_H["medical-id"];
@@ -1329,8 +1331,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       addSpeech(k, topLandingX + 40, topLandingY - 42, "GRAB THE ID →", [220, 30, 60]);
     }
 
-    // Fire pole — a tall vertical bar just past the top landing
-    const poleX = topLandingX + 130;
+    // Fire pole — placed PAST the top landing so nothing blocks the slide.
+    const poleX = topLandingX + 190;
     const poleTop = topLandingY - 40;
     const poleBaseY = GROUND_Y - 4;
     k.add([

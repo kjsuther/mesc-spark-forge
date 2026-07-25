@@ -1336,37 +1336,48 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
     {
-      // Two Envelope-Gremlins wandering the FULL zone with unpredictable
-      // direction/speed re-rolls so their pattern never repeats.
+      // Three Envelope-Gremlins wandering the FULL zone with unpredictable
+      // re-rolls and occasional "dive" bursts toward the player.
       const mh = DISPLAY_H["envelope-gremlin-0"];
       const mw = displaySize("envelope-gremlin-0", sizes).w;
       const zoneL = relayBase + 80;
       const zoneR = relayBase + BIOME_W - 80;
-      const startXs = [relayBase + 300, relayBase + 820];
+      const startXs = [relayBase + 260, relayBase + 620, relayBase + 960];
       for (let gi = 0; gi < startXs.length; gi++) {
         const sx = startXs[gi];
         const m = spawnGrounded(k, "envelope-gremlin-0", sizes, {
           x: sx, z: LAYERS.ACTOR, tag: "monster",
           props: {
             dir: (Math.random() < 0.5 ? -1 : 1) as 1 | -1,
-            speed: 35 + Math.random() * 40,
+            speed: 55 + Math.random() * 55,
             targetX: zoneL + Math.random() * (zoneR - zoneL),
-            nextRoll: 1.2 + Math.random() * 1.0,
+            nextRoll: 0.7 + Math.random() * 0.6,
             rollT: 0,
             baseY: GROUND_Y,
             bobPhase: Math.random() * Math.PI * 2,
             animT: 0,
             gremlinFrame: 0,
+            diveUntil: 0,
+            nextDive: 2.5 + Math.random() * 2.0,
           },
           hitboxScale: { x: -mw / 2, w: mw, h: mh },
         });
         m.onUpdate(() => {
           const dt = k.dt();
+          const now = k.time();
           m.rollT += dt;
-          if (m.rollT >= m.nextRoll || Math.abs(m.pos.x - m.targetX) < 8) {
+          // Occasionally lock onto the player for a short dive burst.
+          if (now >= m.nextDive) {
+            m.diveUntil = now + 0.6;
+            m.nextDive = now + 2.5 + Math.random() * 2.0;
+          }
+          if (now < m.diveUntil) {
+            m.targetX = player.pos.x;
+            m.speed = 150;
+          } else if (m.rollT >= m.nextRoll || Math.abs(m.pos.x - m.targetX) < 8) {
             m.targetX = zoneL + Math.random() * (zoneR - zoneL);
-            m.speed = 35 + Math.random() * 40;
-            m.nextRoll = 1.2 + Math.random() * 1.0;
+            m.speed = 55 + Math.random() * 55;
+            m.nextRoll = 0.7 + Math.random() * 0.6;
             m.rollT = 0;
           }
           m.dir = m.pos.x < m.targetX ? 1 : -1;
@@ -1384,6 +1395,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         });
       }
     }
+
     addSpeech(k, relayBase + 100, GROUND_Y - DISPLAY_H["mailbox"] - 40, "Answer every request!", [40, 80, 130]);
     // Decorative paper airplanes drifting across the sky — ties into the
     // "letters back and forth with the agency" theme. No collision.

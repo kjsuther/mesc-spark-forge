@@ -1,39 +1,52 @@
-## Goal
+## Root cause of the stuck cutscene
 
-When the player touches the Medical ID card in Zone 8, hand control to a scripted cutscene that walks the character to the pole, snaps them to the knob, slides them down, then walks them right to the medical office where the fireworks + WIN fire. The player has no input during the sequence.
+The pole spawns at `topLandingX + 130` but the top landing platform is 160 px wide (`topLandingX .. topLandingX+160`) and is a **solid `body({ isStatic: true })`**. When the cutscene snaps the player to `poleTop + 6` (above the landing) and the slide loop starts pushing `pos.y` toward `GROUND_Y`, the player's body collides with the landing platform and gets shoved back to the platform top on every frame. Result: hero stands on the landing forever, HUD says "FINISHING…", no slide, no fireworks, no WIN.
 
-## Changes (all in `src/components/game/game-scenes.ts`, Zone 8 block)
+## Fixes in `src/components/game/game-scenes.ts`
 
-### 1. New `zoneState.cutscene` flag + input lockout
+### 1. Zone 8 — actually slide down the pole (functional fix)
 
-Add `cutscene: false` alongside the existing `firePoleAttached / firePoleDone / idCardCollected` flags. In the main `onUpdate` and the keyboard/touch input handlers, early-return when `zoneState.cutscene` is true so the player can't move, jump, or restart-cancel mid-scene. Also freeze horizontal velocity each frame while `cutscene && !firePoleAttached && !firePoleDone`, mirroring the existing slide freeze.
+- Move the pole past the landing: `poleX = topLandingX + 190` (landing is 160 wide starting at `topLandingX`, so this places the pole ~30 px past the right edge). Adjust the ID card sign / arrow x accordingly so "GRAB THE ID →" still points at the card.
+- Also, during `firePoleAttached`, temporarily flip the top landing platform to non-solid (`landing.unuse("body")` once at attach time) so any residual collision with a bot-anchored hitbox can't block descent. This is defense-in-depth.
+- Keep the existing safety-net: once `pos.y >= GROUND_Y`, set `firePoleDone`, advance cutscene to `walk-to-office`, then run `tryWin()` (already wired).
 
-### 2. Rewrite the `id-card` collide handler as a scripted timeline
+### 2. Zone 8 — nicer slide visuals
 
-Replace the current "collect and print hint" handler (~line 1865) with:
+- Regenerate `src/assets/game/hero-slide-sheet.png` (transparent bg, 2 frames) tuned for the current hero look: frame 0 = both arms up gripping pole, feet together; frame 1 = same pose with a subtle body twist / motion-blur streaks to sell downward motion. No pole baked into the sprite.
+- Add a lightweight "swoosh" trail effect during the slide: a few semi-transparent vertical streaks spawned each 80 ms behind the hero, fading out over 300 ms. Purely decorative, no collision.
 
-1. Set `idCardCollected = true`, `cutscene = true`, award the existing 1500 score + sparkle burst, destroy the card.
-2. Capture `pole = { poleX, poleTop, poleBaseY }` by looking up the `fire-pole` entity (already in-scene) so we don't depend on collision.
-3. **Beat A — walk to pole**: each frame, move `player.pos.x` toward `pole.poleX` at `MOVE_SPEED * 0.9`, set `player.facing = "right"`, run the existing `run` animation. When within 2 px, snap to `poleX`.
-4. **Beat B — grab knob**: teleport `player.pos.y = pole.poleTop + 6`, set `firePoleAttached = true`, switch to `slide` anim. The existing per-frame descent block at ~line 2111 already slides them to `GROUND_Y` and sets `firePoleDone`, so we reuse it unchanged.
-5. **Beat C — walk to the office**: once `firePoleDone` fires, keep `cutscene = true`, swap back to `run`, and tween `player.pos.x` rightward until it reaches `LEVEL_END - 140` (just under the existing "★ COVERED! ★" speech at `LEVEL_END - 100`). Small step-based movement, not a jump.
-6. **Beat D — arrive**: switch to `idle`, clear `cutscene`, then call the existing `tryWin()` path (which already runs from `firePoleDone`). Fireworks already trigger at slide-end via the current base handler; leave that intact.
+### 3. Zone 3 (River of Paperwork) — restore background thought bubbles
 
-Implement Beats A/C by pushing a small state object into a module-scoped `cutsceneStep` and driving it from the existing `onUpdate` (right next to the current fire-pole descent block) rather than nested `k.wait` chains — keeps timing frame-accurate and avoids double-updates when the tab is throttled.
+Inside the Zone 3 (`rx0 = BIOME_W * 2`) block, call `spawnThoughtBubble(k, x, y, text)` for 4–5 bubbles floating over the river at `BG_NEAR` depth, e.g. "Which form?", "Do I qualify?", "Where do I start?", "Is this online?", "How long?". No gameplay effect.
 
-### 3. Remove the now-dead fire-pole collide handler behavior
+### 4. Zone 6 (Waiting Mountain) — falling calendar dates instead of boulders
 
-`player.onCollide("fire-pole", ...)` is no longer the trigger. Keep the collider so nothing else changes, but make the handler a no-op when `cutscene` or `firePoleAttached` is already set (the cutscene now owns attachment). This also removes the "Grab the Medical ID card first!" hint path since the ID pickup itself starts the sequence.
+- Generate a new sprite `src/assets/game/calendar-page.png` (single frame, ~40×48, SNES-style tear-off calendar page showing a date). Load through `safeLoadSheet` alongside existing sheets and register `DISPLAY_H["calendar-page"] = 40`.
+- Replace the 3 `boulder` spawns in the Zone 5 (index 5, "Waiting Mountain") block with `calendar-page` entities that fall the same way. Keep the `"boulder"` tag on the entity so existing collide handler / fail message ("A tough eligibility question…") still fires — or rename the tag to `"calendar"` and add a new collide handler + fail message ("Another day on the waiting list…"). Prefer the rename for clarity; update `FailCause`, `failMessage`, and `player.onCollide` accordingly.
+- Add a light rotation tween on each falling page for polish.
 
-### 4. HUD label update
+### 5. Zone 5 (Answering the Call / Respond to Requests) — paper airplanes flying across the background
 
-`zoneObjectives[7].hudLabel`: when `cutscene && !firePoleDone`, show `"FINISHING…"` so the "SLIDE DOWN →" prompt doesn't linger during the automated sequence.
+- Generate `src/assets/game/paper-airplane.png` (single frame, ~48×24, folded-paper airplane, transparent bg). Load + register display size.
+- In the Zone 4 (index 4, `relayBase = BIOME_W * 4`) block, spawn 3–4 airplane entities at `BG_NEAR` layer that drift horizontally (varying speeds, sine-wave Y bob), looping when they exit the zone bounds. No collision, no `"monster"`/`"boulder"` tag — decorative only.
+
+### 6. Text legibility pass across all zones
+
+Audit every text spawned via `addSpeech`, `addSignPlaque`, `spawnThoughtBubble`, and the HUD:
+- Ensure each label uses `pixelHudText`-style rendering: pixel font + a 1 px black drop shadow OR a dark plaque background behind the text.
+- Any labels currently drawn as plain `k.text(...)` without a plaque/shadow (e.g. `addSpeech` bodies, thought bubbles, "★ COVERED! ★", "Awaiting a decision…", "Answer every request!", HUD hint text) get upgraded to include a 1 px black shadow layer and, where they sit over busy backgrounds, a semi-opaque dark rounded rect behind them (matching the Zone 1 sign plaque style).
+- Bump the Zone 5 big countdown contrast if needed (already has a backdrop; verify).
 
 ## Out of scope
 
-- No changes to Zones 0–6, scoring, or the win/lose screens.
-- No physics/collision refactor.
+- No changes to physics, scoring, controls, or zones 1/2/4/7 gameplay.
+- No changes to backend / voting / admin.
 
 ## Verify
 
-Playwright at 1280×1800 desktop and 844×390 mobile-landscape: force-advance to Zone 8, grab the ID, and confirm the character walks to the pole, snaps to the knob, slides the full pole length, walks to the office sign, and the WIN screen fires — with keyboard/touch input ignored for the entire sequence.
+Playwright at 1280×1800 desktop and 844×390 mobile-landscape:
+1. Force-advance to Zone 8, grab the Medical ID, confirm the hero walks to the pole, **slides all the way to the ground**, walks to the medical office, fireworks fire, WIN overlay + `ScoreSubmit` appear.
+2. Walk through Zone 3 and confirm thought bubbles float in the background.
+3. Enter Zone 6 and confirm calendar pages (not boulders) fall from the sky and still damage the player.
+4. Enter Zone 5 and confirm paper airplanes drift across the background without colliding.
+5. Screenshot every zone; confirm all in-world text has readable contrast on desktop and mobile.

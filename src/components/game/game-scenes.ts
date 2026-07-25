@@ -34,6 +34,8 @@ import credentialsSheetUrl from "@/assets/game/credentials-sheet.png";
 import goldKeyUrl from "@/assets/game/gold-key.png";
 import planCardsSheetUrl from "@/assets/game/plan-cards-sheet.png";
 import medicalIdUrl from "@/assets/game/medical-id.png";
+import calendarPageUrl from "@/assets/game/calendar-page.png";
+import paperAirplaneUrl from "@/assets/game/paper-airplane.png";
 
 export type GameFlags = Record<ImprovementKey, boolean>;
 
@@ -156,7 +158,7 @@ function pickFailureMessage(zone: number, cause: FailCause): string {
   const arr = FAILURE_MESSAGES[z] ?? FAILURE_MESSAGES[0];
   const base = arr[Math.floor(Math.random() * arr.length)];
   if (cause === "water") return `${base}\n(Don't slip crossing the river of paperwork.)`;
-  if (cause === "boulder") return `${base}\n(A tough eligibility question knocked you back.)`;
+  if (cause === "boulder") return `${base}\n(Another day slipped by on the waiting list.)`;
   if (cause === "monster") return `${base}\n(A confusing form stood in your way.)`;
   if (cause === "fell") return `${base}\n(You wandered off the trail — try again.)`;
   return base;
@@ -228,6 +230,8 @@ const DISPLAY_H: Record<string, number> = {
   "plan-green": 60,
   "plan-orange": 60,
   "medical-id": 46,
+  "calendar-page": 46,
+  "paper-airplane": 26,
 };
 
 // ============================ Sprite trim pipeline ============================
@@ -543,8 +547,10 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "plan-orange", frame: 2 },
   ];
   const idFrames: FrameSpec[] = [{ name: "medical-id", frame: 0 }];
+  const calendarFrames: FrameSpec[] = [{ name: "calendar-page", frame: 0 }];
+  const airplaneFrames: FrameSpec[] = [{ name: "paper-airplane", frame: 0 }];
 
-  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes] = await Promise.all([
+  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes] = await Promise.all([
     safeLoadSheet(k, {
       url: charSheetUrl,
       cols: 3,
@@ -568,6 +574,8 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadSheet(k, { url: goldKeyUrl,          cols: 1, rows: 1, frames: keyFrames,  label: "gold-key.png" }),
     safeLoadSheet(k, { url: planCardsSheetUrl,   cols: 3, rows: 1, frames: planFrames, label: "plan-cards-sheet.png" }),
     safeLoadSheet(k, { url: medicalIdUrl,        cols: 1, rows: 1, frames: idFrames,   label: "medical-id.png" }),
+    safeLoadSheet(k, { url: calendarPageUrl,     cols: 1, rows: 1, frames: calendarFrames, label: "calendar-page.png" }),
+    safeLoadSheet(k, { url: paperAirplaneUrl,    cols: 1, rows: 1, frames: airplaneFrames, label: "paper-airplane.png" }),
   ]);
 
   // Register horizontally-mirrored copies of the hero walk/idle/jump frames
@@ -595,7 +603,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     (window as unknown as { __gameAssetReport?: AssetReport }).__gameAssetReport = ASSET_REPORT;
   }
 
-  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes };
+  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes };
 }
 
 /** Load already-registered sprites' backing images from the sheets by pulling
@@ -876,6 +884,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       cutsceneTargetX: 0,
       cutscenePoleX: 0,
       cutscenePoleTop: 0,
+      topLandingRef: null as null | AnyObj,
     };
 
 
@@ -1086,6 +1095,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         });
       }
     }
+    // Background thought bubbles — decorative "what am I filling out?" chatter.
+    {
+      const bubbles: Array<[number, number, string]> = [
+        [rx0 + 60,  120, "Which form?"],
+        [rx0 + 220, 90,  "Do I qualify?"],
+        [rx0 + 360, 140, "Where do I start?"],
+        [rx0 + 500, 100, "Is this online?"],
+        [rx0 + 640, 130, "How long?"],
+      ];
+      for (const [bx, by, text] of bubbles) spawnThoughtBubble(k, bx, by, text);
+    }
     // Zone 2 unlocks the moment player crosses the river.
     zoneObjectives[2] = {
       hudLabel: () => "CROSS THE RIVER →",
@@ -1162,6 +1182,36 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
     addSpeech(k, relayBase + 100, GROUND_Y - DISPLAY_H["mailbox"] - 40, "Answer every request!", [40, 80, 130]);
+    // Decorative paper airplanes drifting across the sky — ties into the
+    // "letters back and forth with the agency" theme. No collision.
+    {
+      const planeDefs = [
+        { y: 90,  spd: 70, phase: 0.0, bobA: 8,  bobS: 1.6 },
+        { y: 140, spd: 55, phase: 1.7, bobA: 6,  bobS: 1.2 },
+        { y: 190, spd: 85, phase: 3.2, bobA: 10, bobS: 1.9 },
+        { y: 60,  spd: 45, phase: 2.4, bobA: 5,  bobS: 1.4 },
+      ];
+      const zoneL = relayBase - 40;
+      const zoneR = relayBase + BIOME_W + 40;
+      const span = zoneR - zoneL;
+      for (const pd of planeDefs) {
+        const pw = displaySize("paper-airplane", sizes).w;
+        const ph = DISPLAY_H["paper-airplane"];
+        const plane = k.add([
+          k.sprite("paper-airplane", { width: pw, height: ph }),
+          k.pos(zoneL + Math.random() * span, pd.y),
+          k.anchor("center"),
+          k.z(LAYERS.BG_NEAR + 2),
+          k.opacity(0.9),
+          { basY: pd.y, spd: pd.spd, phase: pd.phase, bobA: pd.bobA, bobS: pd.bobS },
+        ]) as AnyObj;
+        plane.onUpdate(() => {
+          plane.pos.x += plane.spd * k.dt();
+          if (plane.pos.x > zoneR) plane.pos.x = zoneL;
+          plane.pos.y = plane.basY + Math.sin(k.time() * plane.bobS + plane.phase) * plane.bobA;
+        });
+      }
+    }
     zoneObjectives[4] = {
       hudLabel: () => `REPLIES ${zoneState.repliesGot}/${zoneState.repliesNeeded}`,
       met: () => zoneState.repliesGot >= zoneState.repliesNeeded,
@@ -1169,17 +1219,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // ================= ZONE 5: Waiting Mountain — 30-second countdown =================
     const mx0 = BIOME_W * 5;
-    // Boulder hazards
+    // Falling calendar pages — days peeling off the calendar while you wait
+    // for a decision. Same collision behavior as boulders; keeps the tag so
+    // the shared "boulder" collide handler + failure message still fire.
     for (let i = 0; i < 3; i++) {
       const bx = mx0 + 300 + i * 300;
-      const b = spawnAirborne(k, "boulder", sizes, {
+      const b = spawnAirborne(k, "calendar-page", sizes, {
         x: bx, y: -80 - i * 180, z: LAYERS.ACTOR,
         tag: "boulder",
-        props: { spd: 180 + i * 20, home: bx },
+        props: { spd: 180 + i * 20, home: bx, spin: (i % 2 === 0 ? 1 : -1) * (30 + i * 10) },
       });
+      b.use(k.rotate(0));
       b.onUpdate(() => {
         b.pos.y += b.spd * k.dt();
-        if (b.pos.y > 700) b.pos = k.vec2(b.home, -180);
+        b.angle = (b.angle ?? 0) + b.spin * k.dt();
+        if (b.pos.y > 700) { b.pos = k.vec2(b.home, -180); b.angle = 0; }
       });
     }
     addSpeech(k, mx0 + 500, 90, "Awaiting a decision…", [50, 40, 80]);
@@ -1247,16 +1301,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(sxi, syi) },
       ]);
     }
-    // Top landing + medical ID card
+    // Top landing + medical ID card. Landing width kept short so it ends
+    // BEFORE the fire pole — otherwise the solid platform blocks the slide.
     const topLandingX = cx0 + 280 + stepCount * 90 + 20;
     const topLandingY = stairY0 - 40 - stepCount * 40;
-    k.add([
-      k.rect(160, 14), k.pos(topLandingX, topLandingY),
+    const topLanding = k.add([
+      k.rect(120, 14), k.pos(topLandingX, topLandingY),
       k.color(200, 195, 210), k.outline(2, k.rgb(90, 90, 110)),
       k.area(), k.body({ isStatic: true }),
       k.z(LAYERS.PLATFORM), "platform",
       { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(topLandingX, topLandingY) },
-    ]);
+    ]) as AnyObj;
+    zoneState.topLandingRef = topLanding;
     {
       const idW = displaySize("medical-id", sizes).w;
       const idH = DISPLAY_H["medical-id"];
@@ -1276,8 +1332,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       addSpeech(k, topLandingX + 40, topLandingY - 42, "GRAB THE ID →", [220, 30, 60]);
     }
 
-    // Fire pole — a tall vertical bar just past the top landing
-    const poleX = topLandingX + 130;
+    // Fire pole — placed PAST the top landing so nothing blocks the slide.
+    const poleX = topLandingX + 190;
     const poleTop = topLandingY - 40;
     const poleBaseY = GROUND_Y - 4;
     k.add([
@@ -2178,6 +2234,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             player.pos.y = zoneState.cutscenePoleTop + 6;
             zoneState.firePoleAttached = true;
             zoneState.cutscenePhase = "slide";
+            const landing = zoneState.topLandingRef;
+            if (landing) {
+              try { landing.unuse("body"); landing.unuse("area"); } catch { /* ignore */ }
+            }
             dir = 0;
           }
         } else if (zoneState.cutscenePhase === "walk-to-office") {

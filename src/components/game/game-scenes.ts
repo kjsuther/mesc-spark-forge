@@ -1209,11 +1209,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         setAnim("jump");
       } else if (dir !== 0) {
         setAnim("walk");
-        // Distance-based 6-frame ping-pong cycle: never slides, animation
-        // speed always tracks actual movement across the ground.
-        const CYCLE = [0, 1, 2, 3, 2, 1];
-        const STRIDE_PX = 12;
-        const idx = Math.floor(Math.abs(player.rightmostX + player.pos.x) / STRIDE_PX) % CYCLE.length;
+        // Distance-based cycle: legs advance in lockstep with real movement.
+        // Tighter stride + a subtle squash/stretch per frame makes the run
+        // read clearly even when trimmed frames look similar.
+        const CYCLE = [0, 1, 2, 3];
+        const STRIDE_PX = 9;
+        const idx = Math.floor(Math.abs(player.pos.x) / STRIDE_PX) % CYCLE.length;
         const target = CYCLE[idx];
         if (player.walkFrame !== target) {
           player.walkFrame = target;

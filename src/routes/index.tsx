@@ -120,8 +120,9 @@ function WelcomePage() {
               <span aria-hidden="true" className="text-accent-orange ml-2 sm:ml-3">★</span>
             </h1>
             <p className="text-cream/90 text-base sm:text-lg md:text-xl mt-5 sm:mt-6 max-w-2xl">
-              A 16-bit retro platformer about applying for Medicaid — where the audience votes on
-              the next upgrade and the trail visibly gets easier.
+              Play our game and see if you can tackle the journey of applying for Medicaid! You'll
+              vote on upgrades that can assist you in your journey and see those upgrades be
+              developed live based on your feedback.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -131,11 +132,18 @@ function WelcomePage() {
               >
                 ▶ Play the game
               </Link>
+              <a
+                href="#how-it-works"
+                className="inline-flex items-center gap-2 bg-white/10 text-white font-bold py-3 px-6 rounded-xl hover:bg-white/20 transition ring-1 ring-white/40"
+              >
+                How this works
+              </a>
             </div>
           </div>
         </section>
 
-        <section className="max-w-6xl w-full mx-auto py-12 sm:py-16 px-5 sm:px-6">
+        <section id="how-it-works" className="max-w-6xl w-full mx-auto py-12 sm:py-16 px-5 sm:px-6 scroll-mt-24">
+
           <SectionHeading>How it works</SectionHeading>
           <p className="text-dark-gray/80 mt-3 max-w-2xl text-sm sm:text-base leading-relaxed">
             Every attendee plays the same game, votes on the same five upgrades, and watches the

@@ -16,7 +16,6 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as VersionSemverRouteImport } from './routes/version.$semver'
-import { Route as AdminVersionsRouteImport } from './routes/admin.versions'
 import { Route as AdminUnlockRouteImport } from './routes/admin.unlock'
 import { Route as AdminPosterRouteImport } from './routes/admin.poster'
 import { Route as AdminNowBuildingRouteImport } from './routes/admin.now-building'
@@ -60,11 +59,6 @@ const VersionSemverRoute = VersionSemverRouteImport.update({
   id: '/version/$semver',
   path: '/version/$semver',
   getParentRoute: () => rootRouteImport,
-} as any)
-const AdminVersionsRoute = AdminVersionsRouteImport.update({
-  id: '/versions',
-  path: '/versions',
-  getParentRoute: () => AdminRoute,
 } as any)
 const AdminUnlockRoute = AdminUnlockRouteImport.update({
   id: '/unlock',
@@ -121,7 +115,6 @@ export interface FileRoutesByFullPath {
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
   '/admin/unlock': typeof AdminUnlockRoute
-  '/admin/versions': typeof AdminVersionsRoute
   '/version/$semver': typeof VersionSemverRoute
   '/admin/': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
@@ -138,7 +131,6 @@ export interface FileRoutesByTo {
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
   '/admin/unlock': typeof AdminUnlockRoute
-  '/admin/versions': typeof AdminVersionsRoute
   '/version/$semver': typeof VersionSemverRoute
   '/admin': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
@@ -157,7 +149,6 @@ export interface FileRoutesById {
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
   '/admin/unlock': typeof AdminUnlockRoute
-  '/admin/versions': typeof AdminVersionsRoute
   '/version/$semver': typeof VersionSemverRoute
   '/admin/': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
@@ -177,7 +168,6 @@ export interface FileRouteTypes {
     | '/admin/now-building'
     | '/admin/poster'
     | '/admin/unlock'
-    | '/admin/versions'
     | '/version/$semver'
     | '/admin/'
     | '/actions/check-documents/start'
@@ -194,7 +184,6 @@ export interface FileRouteTypes {
     | '/admin/now-building'
     | '/admin/poster'
     | '/admin/unlock'
-    | '/admin/versions'
     | '/version/$semver'
     | '/admin'
     | '/actions/check-documents/start'
@@ -212,7 +201,6 @@ export interface FileRouteTypes {
     | '/admin/now-building'
     | '/admin/poster'
     | '/admin/unlock'
-    | '/admin/versions'
     | '/version/$semver'
     | '/admin/'
     | '/actions/check-documents/start'
@@ -282,13 +270,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VersionSemverRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/admin/versions': {
-      id: '/admin/versions'
-      path: '/versions'
-      fullPath: '/admin/versions'
-      preLoaderRoute: typeof AdminVersionsRouteImport
-      parentRoute: typeof AdminRoute
-    }
     '/admin/unlock': {
       id: '/admin/unlock'
       path: '/unlock'
@@ -354,7 +335,6 @@ interface AdminRouteChildren {
   AdminNowBuildingRoute: typeof AdminNowBuildingRoute
   AdminPosterRoute: typeof AdminPosterRoute
   AdminUnlockRoute: typeof AdminUnlockRoute
-  AdminVersionsRoute: typeof AdminVersionsRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
@@ -364,7 +344,6 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminNowBuildingRoute: AdminNowBuildingRoute,
   AdminPosterRoute: AdminPosterRoute,
   AdminUnlockRoute: AdminUnlockRoute,
-  AdminVersionsRoute: AdminVersionsRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 
@@ -384,13 +363,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

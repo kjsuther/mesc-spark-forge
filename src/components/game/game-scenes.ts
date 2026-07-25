@@ -871,6 +871,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       firePoleAttached: false,
       firePoleDone: false,
       idCardCollected: false,
+      cutscene: false,
+      cutscenePhase: "none" as "none" | "walk-to-pole" | "slide" | "walk-to-office" | "done",
+      cutsceneTargetX: 0,
+      cutscenePoleX: 0,
+      cutscenePoleTop: 0,
     };
 
 
@@ -1309,9 +1314,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       hudLabel: () =>
         zoneState.firePoleDone
           ? "COVERED!"
-          : zoneState.idCardCollected
-            ? "SLIDE DOWN →"
-            : "ID CARD ☐",
+          : zoneState.cutscene
+            ? "FINISHING…"
+            : zoneState.idCardCollected
+              ? "SLIDE DOWN →"
+              : "ID CARD ☐",
       met: () => zoneState.firePoleDone,
     };
 
@@ -1861,7 +1868,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       showHint("You got the key! Head to the door.");
     });
 
-    // Medical ID card pickup — required before the fire pole will activate.
+    // Medical ID card pickup — triggers the automated finale cutscene.
     player.onCollide("id-card", (c) => {
       if (zoneState.idCardCollected) return;
       const card = c as unknown as { destroy: () => void; pos: { x: number; y: number } };
@@ -1888,25 +1895,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         });
       }
       card.destroy();
-      showHint("You got your Medical ID — slide down the pole!");
-    });
-
-    // Fire pole attach — locks the player to the pole and starts a slide down.
-    // Gated on picking up the Medical ID card first.
-    player.onCollide("fire-pole", (fp) => {
-      if (zoneState.firePoleAttached || zoneState.firePoleDone) return;
-      if (!zoneState.idCardCollected) {
-        showHint("Grab the Medical ID card first!");
+      // Look up the fire-pole entity so the cutscene doesn't depend on
+      // collision to know its coordinates.
+      const poleEnts = k.get("fire-pole") as unknown as Array<{ poleX: number; poleTop: number }>;
+      const pole = poleEnts[0];
+      if (!pole) {
+        // Extremely defensive: without a pole we can't slide, so just win.
+        showHint("You got your Medical ID!");
         return;
       }
-      const pole = fp as unknown as { poleX: number; poleTop: number; poleBaseY: number };
-      zoneState.firePoleAttached = true;
-      // Snap to the knob at the very top so the slide always covers the
-      // full length of the pole (Mario-flagpole behavior).
-      player.pos.x = pole.poleX;
-      player.pos.y = pole.poleTop + 6;
-      player.vel = k.vec2(0, 0);
-      showHint("Sliding down…");
+      zoneState.cutscene = true;
+      zoneState.cutscenePhase = "walk-to-pole";
+      zoneState.cutscenePoleX = pole.poleX;
+      zoneState.cutscenePoleTop = pole.poleTop;
+      player.facing = 1;
+      showHint("You got your Medical ID!");
+    });
+
+    // Fire pole attach — now driven by the cutscene, not direct collision.
+    // Kept as a no-op safety in case the player brushes the pole first.
+    player.onCollide("fire-pole", () => {
+      // Attachment is handled inside the cutscene state machine below.
     });
 
 
@@ -2060,6 +2069,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     function tryJump() {
       if (player.dead || player.won) return;
+      if (zoneState.cutscene) return;
       const now = k.time();
       const canCoyote = now - player.lastGroundedAt < COYOTE_S;
       if (player.isGrounded() || player.riding || canCoyote) {
@@ -2114,6 +2124,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (player.pos.y >= GROUND_Y) {
           zoneState.firePoleDone = true;
           startFireworks(k, player.pos.x + 100, GROUND_Y - 240);
+          if (zoneState.cutscene && zoneState.cutscenePhase === "slide") {
+            zoneState.cutscenePhase = "walk-to-office";
+            zoneState.cutsceneTargetX = LEVEL_END - 140;
+            player.facing = 1;
+          }
         }
       }
 
@@ -2124,8 +2139,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (hintHud.opacity <= 0) hintUntil = 0;
       }
 
-      // Winning: fire pole reached the base.
-      if (zoneState.firePoleDone && !player.won) tryWin();
+      // Winning: fire pole reached the base. Hold off during the walk-to-office
+      // beat of the cutscene so the character actually arrives at the medical
+      // office before the WIN overlay fires.
+      if (
+        zoneState.firePoleDone &&
+        !player.won &&
+        (!zoneState.cutscene || zoneState.cutscenePhase === "done")
+      ) {
+        tryWin();
+      }
 
 
       if (player.pos.x > player.rightmostX) {
@@ -2145,13 +2168,38 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
 
       let dir = 0;
-      for (const key of leftKeys) if (k.isKeyDown(key as never)) dir -= 1;
-      for (const key of rightKeys) if (k.isKeyDown(key as never)) dir += 1;
-      if (w?.__gameInput?.left) dir -= 1;
-      if (w?.__gameInput?.right) dir += 1;
-      dir = Math.sign(dir);
+      if (zoneState.cutscene) {
+        // Scripted finale — ignore all player input.
+        if (zoneState.cutscenePhase === "walk-to-pole") {
+          dir = 1;
+          if (player.pos.x >= zoneState.cutscenePoleX) {
+            player.pos.x = zoneState.cutscenePoleX;
+            player.vel = k.vec2(0, 0);
+            player.pos.y = zoneState.cutscenePoleTop + 6;
+            zoneState.firePoleAttached = true;
+            zoneState.cutscenePhase = "slide";
+            dir = 0;
+          }
+        } else if (zoneState.cutscenePhase === "walk-to-office") {
+          dir = 1;
+          if (player.pos.x >= zoneState.cutsceneTargetX) {
+            player.pos.x = zoneState.cutsceneTargetX;
+            zoneState.cutscenePhase = "done";
+            zoneState.cutscene = false;
+            dir = 0;
+          }
+        } else {
+          dir = 0;
+        }
+      } else {
+        for (const key of leftKeys) if (k.isKeyDown(key as never)) dir -= 1;
+        for (const key of rightKeys) if (k.isKeyDown(key as never)) dir += 1;
+        if (w?.__gameInput?.left) dir -= 1;
+        if (w?.__gameInput?.right) dir += 1;
+        dir = Math.sign(dir);
+      }
       player.move(dir * MOVE_SPEED, 0);
-      if (dir > 0) player.score += 1;
+      if (dir > 0 && !zoneState.cutscene) player.score += 1;
 
       if (player.riding) {
         const dt = k.dt();

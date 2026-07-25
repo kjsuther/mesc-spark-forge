@@ -1477,14 +1477,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       };
     }
 
-    player.onCollide("finish", () => {
+    // (Old fixed-finish collision removed — the clinic zone now ends at the
+    //  fire-pole base which sets zoneState.firePoleDone in the update loop.)
+
+    function tryWin() {
       if (player.won || player.dead) return;
-      if (player.docs.size < 3) return;
       player.won = true;
       opts.onWin?.(buildResult(true));
-      showTitleCard(k, "STEP 5 · ENROLLED", "★ COVERED ★", [255, 220, 90], 2.4);
+      showTitleCard(k, "STEP 8 · ENROLLED", "★ COVERED ★", [255, 220, 90], 2.4);
       showEnd(true);
-    });
+    }
+
 
     function showEnd(win: boolean, cause?: FailCause) {
       const zone = player.farthestZone;

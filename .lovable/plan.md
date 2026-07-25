@@ -1,84 +1,37 @@
-## Goal
+## Fixes for Blazing the Trail to Coverage
 
-Play the game as a real user would — on a phone and on a desktop — and fix everything that hurts playability. Concrete targets from the screenshot and your notes:
+All changes live in `src/components/game/game-scenes.ts` unless noted.
 
-1. The hero's feet must sit on the **green grass strip**, not the brown soil below it.
-2. The character must **look like he's running** when moving (right now the legs barely change).
-3. Sprites (monsters, boulders, envelopes, signs) are **too big** — the player can't get around them. Shrink them so there is real room to dodge and jump.
-4. Overall difficulty needs to come **down** — the first playthrough should feel possible, not punishing.
+### 1. Player spawn height (red-arrow alignment)
+- The hero currently spawns on the soil strip below the grass line. Move initial spawn and respawn Y so the player's feet land on the top edge of the green grass strip (the light-green pixel row), matching the arrow in the screenshot.
+- Recompute `GROUND_Y` (or introduce `GRASS_TOP_Y = GROUND_Y - grassStripHeight`) and use it everywhere player/enemies/signs anchor `bot`. Signs and monsters get re-grounded to the same line so nothing floats.
 
-## How I'll test (this is the part that has been missing)
+### 2. Zone 2 title
+- In `ZONES`, rename Zone 2 label to **"Crossing River of Paperwork"** (subtitle stays Medicaid-themed, e.g. "Step 2 · Verify your info").
 
-I will drive a real browser against the running preview with Playwright and actually play, not just read code. Two full passes:
+### 3. Zone 3 paperwork villain (impossible to pass)
+- Reduce enemy `DISPLAY_H` for the form-monster from ~50 to ~36, cap width via scaled height so it fits inside the jump arc.
+- Fix cropped top: re-run `loadTrimmedSheet` with padding so alpha bounds include the top envelope flap; anchor `bot` after full trim. Verify by drawing a bounding rect during dev.
+- Space the two monsters farther apart and lower their speed slightly so a single well-timed jump clears each one.
 
-**Pass A — Desktop (1280×800, keyboard)**
-Play from title screen → each zone → win/lose overlay, using ←/→/Space. Screenshot on entry to each zone, mid-zone, at every obstacle, at every death, and at the end overlay. Log where I get stuck, what feels unfair, what looks wrong.
+### 4. Zone 4 has no road (dead end)
+- Root cause: mountain zone builds stepped platforms but the ground segment for biome index 3 isn't emitted at full width. Extend `addGround` to run continuously across all 5 biomes, and make mountain platforms sit **above** the ground rather than replacing it, so the player always has a floor to fall back to. Add a guaranteed climbable staircase from ground level up to the mountain summit and back down into Zone 5.
 
-**Pass B — Mobile (iPhone-class viewport, touch)**
-Same run using only the on-screen touch buttons. Test: reachability of controls, fullscreen behavior, tap-to-restart, thumb obstruction, whether jumps land on the platforms in Zone 2, whether monsters in Zone 3 can actually be avoided.
+### 5. Zone 1 easy obstacle
+- Add one small gap (about 40–60px) roughly midway through Zone 1 with a short hop platform, teaching the jump before Zone 2.
 
-For each pass I record:
-- A screenshot timeline (`/tmp/browser/uat/{desktop,mobile}/NN_label.png`)
-- Frame-by-frame observation: character Y vs. grass Y, sprite footprint vs. corridor width, jump arc vs. platform gap, enemy density, time-to-first-death, time-to-first-win.
+### 6. Lives = "applications", checkpoint respawn, i-frames
+- Start with 3 lives. Replace heart HUD glyphs with a small pixel "application form" icon (new sprite generated via imagegen, or a simple CSS/canvas glyph in the HUD).
+- On death: do **not** teleport to start. Respawn at the entrance of the current zone (or last checkpoint if `save_progress` improvement enabled) with 2 seconds of invulnerability during which the sprite blinks at ~10Hz (toggle opacity each 100ms). Extend `INVULN_S` to 2.0.
 
-Findings go into `UAT-FINDINGS.md` — one row per issue with severity, evidence screenshot, and the exact fix.
+### 7. Score above lives
+- Add a score readout in the HUD above the applications row. Score keeps accumulating across deaths (don't zero on respawn; only the −500 death penalty applies, floored at 0). Update `updateHud()` layout accordingly.
 
-## Fixes I already know I'll make (and will confirm/adjust from the playtest)
+### 8. Zone 1 sign readability
+- The `[MAIL] Apply by Mail` labels render in low-contrast cyan over foggy forest. Give each sign label a solid dark plaque background (e.g. filled rect behind the text with cream/parchment color and dark brown text), matching a wooden trail-sign look. Applies to all four method signs.
 
-### 1. Ground alignment — feet on grass, not soil
-The grass strip is drawn above `GROUND_Y` as a thin band; the player's `anchor("bot")` currently lands on the soil rectangle's top. I'll:
-- Move `GROUND_Y` up by the grass-strip height so `anchor("bot")` lands the feet on the green line, and adjust the soil rect + grass strip so they still meet with no seam.
-- Verify against a pixel-diff of hero-bottom-Y vs. grass-top-Y — must be equal.
-
-### 2. Running animation that actually reads as running
-Current cycle is `[0,1,2,3,2,1]` every 12px. Problem is the trimmed hero-walk frames only differ by a few pixels of leg lift, so at any speed it looks like a glide. I'll:
-- Increase per-frame leg contrast by using a taller crop tolerance in the trim step so leg-lift is visible.
-- Add a small vertical bob (±1–2 px) tied to the same stride counter so the whole silhouette moves the way a runner does.
-- Tighten stride to ~9 px so the cadence matches the higher move speed we'll set below.
-- If two of the walk frames are near-identical after trim, drop them and drive the cycle from the 2 most distinct frames plus interstitials, so the eye sees clear alternation.
-
-### 3. Shrink sprites and open corridors
-- Reduce `DISPLAY_H` for `form-monster`, `denied`, `envelope`, `boulder` by ~25–30% so they no longer choke the lane.
-- Shrink signposts likewise so the forest doesn't feel walled in.
-- Widen the vertical clearance under floating platforms in Zone 2 and Zone 4 so a normal jump clears them.
-- Recompute each entity's collider from the new trimmed size (helpers already do this — I just verify).
-
-### 4. Make the first playthrough winnable
-- Reduce monster density per zone (fewer spawns, wider spacing).
-- Reduce boulder frequency and speed in Zone 4.
-- Give the player 3 lives baseline (was effectively 1–2 without `phone_support`).
-- Widen Zone 2 platform tops by ~20% and shorten gaps.
-- Loosen coyote time from 90ms → 130ms and jump buffer from 120ms → 160ms so mistimed inputs still feel fair.
-- Keep the "before feedback" experience harder than "after," but not impossible. Target: a focused player finishes in ~2–3 minutes on the first or second attempt.
-
-### 5. Mobile-specific corrections (driven by Pass B)
-- Verify the touch buttons don't cover the play area in fullscreen; if they do, shrink or reposition.
-- Confirm tap-to-restart works from the game-over overlay on iOS-class viewports.
-- Confirm the score-submit form is reachable and the keyboard doesn't hide the Submit button.
-
-## Deliverables
-
-- `UAT-FINDINGS.md` — every issue observed, with screenshots and severity.
-- Fixes applied to `src/components/game/game-scenes.ts` (and `game-canvas.tsx` only if mobile controls need moving).
-- A second Playwright pass after the fixes on both desktop and mobile, with before/after screenshots proving:
-  - Hero feet sit on the green grass line in every zone.
-  - Running animation is visibly a run (multi-frame leg lift + subtle bob).
-  - Every obstacle can be dodged or jumped with the standard controls.
-  - A first-attempt playthrough reaches the "Covered!" overlay.
-- Short written summary of what changed and what the playtest showed before vs. after.
-
-## Files expected to change
-
-- `src/components/game/game-scenes.ts` — ground constants, sprite sizes, monster/boulder spawns, walk animation, difficulty tuning.
-- `src/components/game/game-canvas.tsx` — only if mobile controls need repositioning or the fullscreen frame needs adjustment.
-- `UAT-FINDINGS.md` — new file with the playtest report.
-
-Nothing about voting, leaderboard, routing, or admin panels is touched — this pass is purely playability.
-
-## What I won't do unless you say so
-
-- Redesign the art style or generate new sprite sheets.
-- Change the 5-zone structure or the Medicaid-journey narrative.
-- Rework the voting/round system.
-
-If you'd rather I focus this pass on **mobile only** (since most attendees will be on phones), say the word and I'll skip the desktop pass to move faster.
+### Technical notes
+- Files touched: `src/components/game/game-scenes.ts` (spawn Y, ZONES label, enemy sizing, ground continuity, Zone 1 gap, respawn logic, i-frames, HUD, sign labels).
+- Possibly `src/components/game/game-canvas.tsx` if HUD is rendered in React overlay rather than Kaplay (will confirm on read).
+- May generate one new small pixel-art icon for the "application" life via `imagegen` (16×16, transparent).
+- Verify with Playwright: desktop + mobile playthrough capturing spawn, Zone 1 gap, Zone 3 clear, Zone 4 traversal, HUD score/lives.

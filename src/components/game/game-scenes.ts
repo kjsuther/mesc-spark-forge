@@ -56,7 +56,7 @@ type Ctx = KAPLAYCtx;
 const BIOME_W = 1200;
 const ZONES = [
   { key: "forest", label: "Finding the Trail", phase: "Step 1 · Learn you may qualify", bg: "bg-forest", ground: [80, 130, 60] as [number, number, number], soil: [70, 45, 25] as [number, number, number] },
-  { key: "river", label: "Crossing the River", phase: "Step 2 · Start your application", bg: "bg-river", ground: [180, 160, 110] as [number, number, number], soil: [120, 90, 50] as [number, number, number] },
+  { key: "river", label: "Crossing River of Paperwork", phase: "Step 2 · Start your application", bg: "bg-river", ground: [180, 160, 110] as [number, number, number], soil: [120, 90, 50] as [number, number, number] },
   { key: "town", label: "At the County Office", phase: "Step 3 · Submit your documents", bg: "bg-town", ground: [140, 140, 150] as [number, number, number], soil: [80, 80, 90] as [number, number, number] },
   { key: "mountain", label: "Application Mountain", phase: "Step 4 · Wait for review", bg: "bg-mountain", ground: [130, 120, 110] as [number, number, number], soil: [70, 60, 55] as [number, number, number] },
   { key: "clinic", label: "Health Coverage", phase: "Step 5 · Enroll in coverage", bg: "bg-clinic", ground: [220, 220, 225] as [number, number, number], soil: [140, 145, 155] as [number, number, number] },
@@ -68,7 +68,7 @@ const MOVE_SPEED = 260;
 const JUMP_VEL = 720;
 const COYOTE_S = 0.14;
 const JUMP_BUFFER_S = 0.18;
-const INVULN_S = 0.9;
+const INVULN_S = 2.0;
 const PLATFORM_SNAP_TOLERANCE = 26;
 const PLATFORM_EDGE_TOLERANCE = 22;
 
@@ -159,7 +159,7 @@ const DISPLAY_H: Record<string, number> = {
   paystub: 30,
   envelope: 30,
   boulder: 30,
-  "form-monster": 50,
+  "form-monster": 38,
   denied: 40,
 };
 
@@ -469,12 +469,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     // ---- Ground ----
-    addGround(k, 0, BIOME_W, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    // Zone 1: two ground spans with a small 46px teaching gap the player must hop.
+    const Z1_GAP_X0 = 640;
+    const Z1_GAP_X1 = 686;
+    addGround(k, 0, Z1_GAP_X0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    addGround(k, Z1_GAP_X1, BIOME_W, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    // Zone 2: river with paperwork gap in the middle (kill plane already handles it).
     addGround(k, BIOME_W, BIOME_W + 300, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
     addGround(k, BIOME_W + 900, BIOME_W * 2, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
+    // Zone 3: continuous.
     addGround(k, BIOME_W * 2, BIOME_W * 3, GROUND_Y, ZONES[2].ground, ZONES[2].soil);
-    addGround(k, BIOME_W * 3, BIOME_W * 3 + 200, GROUND_Y, ZONES[3].ground, ZONES[3].soil);
-    addGround(k, BIOME_W * 4 - 100, BIOME_W * 4, GROUND_Y, ZONES[3].ground, ZONES[3].soil);
+    // Zone 4: mountain now has a continuous walkable floor. Platforms sit above it as shortcuts.
+    addGround(k, BIOME_W * 3, BIOME_W * 4, GROUND_Y, ZONES[3].ground, ZONES[3].soil);
+    // Zone 5: clinic.
     addGround(k, BIOME_W * 4, LEVEL_END, GROUND_Y, ZONES[4].ground, ZONES[4].soil);
 
     // Invisible walls
@@ -516,11 +523,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     for (const m of applyMethods) {
       spawnDecor(k, "signpost", sizes, { x: m.x, z: LAYERS.PROP });
       const topY = GROUND_Y - DISPLAY_H["signpost"] - 6;
-      addSpeech(k, m.x, topY, m.label, [25, 45, 90]);
-      addSpeech(k, m.x, topY - 16, `[ ${m.icon} ]`, m.tint);
+      addSignPlaque(k, m.x, topY, m.label, m.icon);
     }
     // Kicker sign after the four options
-    addSpeech(k, 1120, GROUND_Y - DISPLAY_H["signpost"] - 30, "Pick a path →", [40, 100, 40]);
+    addSignPlaque(k, 1120, GROUND_Y - DISPLAY_H["signpost"] - 30, "Pick a path", "→");
 
     // ================= ZONE 2: River =================
     const rx0 = RIVER_GAP_X0;
@@ -627,9 +633,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     // Form-monster enemies (patrol) — walk on the ground.
-    const monsterSpots = [tx0 + 340, tx0 + 780];
+    const monsterSpots = [tx0 + 260, tx0 + 900];
     for (const mx of monsterSpots) {
-      const speed = active.plain_language ? 30 : 70;
+      const speed = active.plain_language ? 24 : 55;
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
       const m = spawnGrounded(k, "form-monster", sizes, {
@@ -824,7 +830,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         checkpointX,
         won: false,
         dead: false,
-        lives: (active.phone_support ? 4 : 3) + (lives - 1),
+        lives: 3 + Math.max(0, lives - 1),
+        maxLives: 3 + Math.max(0, lives - 1),
         facing: 1 as 1 | -1,
         invulnUntil: 0,
         lastGroundedAt: k.time(),
@@ -947,28 +954,76 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= HUD =================
     k.add([
       k.text(opts.mode === "after" ? "AFTER FEEDBACK" : "BEFORE FEEDBACK", { size: 14, font: "sans-serif" }),
-      k.pos(12, 34),
+      k.pos(12, 12),
       k.color(opts.mode === "after" ? k.rgb(30, 160, 60) : k.rgb(220, 60, 60)),
       k.fixed(),
       k.z(LAYERS.HUD),
     ]);
-    const livesHud = k.add([
-      k.text("", { size: 14, font: "sans-serif" }),
-      k.pos(12, 54),
-      k.color(255, 255, 255),
+    // Score row (above the applications-as-lives row).
+    const scoreHud = k.add([
+      k.text("SCORE 0", { size: 16, font: "sans-serif" }),
+      k.pos(12, 34),
+      k.color(255, 235, 120),
       k.fixed(),
       k.z(LAYERS.HUD),
     ]);
+    // Applications row: little application icons that represent lives.
+    // Each icon is a paper card with three horizontal "form field" lines.
+    const APP_ICON_W = 18;
+    const APP_ICON_H = 22;
+    const appIcons: AnyObj[] = [];
+    for (let i = 0; i < player.maxLives; i++) {
+      const bx = 12 + i * (APP_ICON_W + 6);
+      const by = 58;
+      const card = k.add([
+        k.rect(APP_ICON_W, APP_ICON_H),
+        k.pos(bx, by),
+        k.color(250, 245, 220),
+        k.outline(2, k.rgb(40, 40, 60)),
+        k.fixed(),
+        k.z(LAYERS.HUD),
+      ]);
+      const line1 = k.add([
+        k.rect(APP_ICON_W - 8, 2),
+        k.pos(bx + 4, by + 5),
+        k.color(80, 80, 120),
+        k.fixed(),
+        k.z(LAYERS.HUD + 1),
+      ]);
+      const line2 = k.add([
+        k.rect(APP_ICON_W - 8, 2),
+        k.pos(bx + 4, by + 10),
+        k.color(80, 80, 120),
+        k.fixed(),
+        k.z(LAYERS.HUD + 1),
+      ]);
+      const line3 = k.add([
+        k.rect(APP_ICON_W - 8, 2),
+        k.pos(bx + 4, by + 15),
+        k.color(80, 80, 120),
+        k.fixed(),
+        k.z(LAYERS.HUD + 1),
+      ]);
+      appIcons.push({ card, line1, line2, line3 });
+    }
     const docsHud = k.add([
       k.text("", { size: 14, font: "sans-serif" }),
-      k.pos(k.width() - 12, 34),
+      k.pos(k.width() - 12, 12),
       k.anchor("topright"),
       k.color(255, 255, 255),
       k.fixed(),
       k.z(LAYERS.HUD),
     ]);
     function updateHud() {
-      livesHud.text = `♥ ${player.lives}`;
+      scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
+      appIcons.forEach((g, i) => {
+        const active = i < player.lives;
+        const op = active ? 1 : 0.18;
+        g.card.opacity = op;
+        g.line1.opacity = op;
+        g.line2.opacity = op;
+        g.line3.opacity = op;
+      });
       const need = ["ID", "Income", "Household"].filter((d) => !player.docs.has(d));
       docsHud.text = active.documents_earlier || player.docs.size > 0
         ? need.length ? `Application docs needed: ${need.join(", ")}` : "Application docs: complete ✓"
@@ -1006,19 +1061,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.invulnUntil = k.time() + INVULN_S;
       player.lives -= 1;
       player.deaths += 1;
-      player.score = Math.max(0, player.score - 500);
       if (player.lives <= 0) {
         player.dead = true;
         showEnd(false, cause);
         return;
       }
-      const rx = active.save_progress ? player.checkpointX : 40;
-      player.pos = k.vec2(rx, GROUND_Y - 20);
+      // Resume at the entry of the zone the player already reached — never
+      // start the whole trail over. Save-point campfire still wins if active.
+      const zoneEntryX = Math.max(40, player.farthestZone * BIOME_W + 40);
+      const rx = active.save_progress ? player.checkpointX : zoneEntryX;
+      player.pos = k.vec2(rx, GROUND_Y - 40);
       player.vel = k.vec2(0, 0);
       player.riding = null;
-      if (!active.documents_earlier && rx < BIOME_W * 2) {
-        player.docs.clear();
-      }
       updateHud();
     }
 
@@ -1243,8 +1297,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     for (const key of jumpKeys) k.onKeyPress(key as never, () => tryJump());
     k.onKeyPress("r", () => k.go("trail", 40, 1));
 
+    (player as AnyObj).use(k.opacity(1));
     player.onUpdate(() => {
       if (player.pos.y > 720) loseLife("fell");
+      const now = k.time();
+      const p = player as AnyObj;
+      if (now < player.invulnUntil) {
+        const t = player.invulnUntil - now;
+        p.opacity = Math.floor(t * 10) % 2 === 0 ? 0.25 : 1;
+      } else if (p.opacity !== 1) {
+        p.opacity = 1;
+      }
+    });
+    k.onUpdate(() => {
+      if (!player.dead) updateHud();
     });
   });
 
@@ -1273,6 +1339,7 @@ function addGround(
   const w = Math.round(x2 - x1);
   const x = Math.round(x1);
   const yy = Math.round(y);
+  // Solid physics soil rect starts at the feet line (y) and runs downward.
   k.add([
     k.rect(w, 80),
     k.pos(x, yy),
@@ -1281,15 +1348,19 @@ function addGround(
     k.body({ isStatic: true }),
     k.z(LAYERS.GROUND),
   ]);
+  // Grass strip drawn ABOVE the feet line so the player visibly stands
+  // IN the grass rather than hovering above it. 14px band centered on yy
+  // (extends 10px up, 4px down).
   k.add([
-    k.rect(w, 8),
-    k.pos(x, yy),
+    k.rect(w, 14),
+    k.pos(x, yy - 10),
     k.color(...topColor),
     k.z(LAYERS.GROUND_TOP),
   ]);
+  // Highlight ribbon along the top of the grass band.
   k.add([
     k.rect(w, 2),
-    k.pos(x, yy),
+    k.pos(x, yy - 10),
     k.color(
       Math.min(255, topColor[0] + 40),
       Math.min(255, topColor[1] + 40),
@@ -1374,6 +1445,56 @@ function showTitleCard(
     bigShadow.opacity = a * 0.6;
   });
   return total;
+}
+
+/** High-contrast wooden trail-sign plaque used for Zone 1 apply methods.
+ *  Draws a solid cream card with a dark outline, an icon badge on top, and
+ *  the sign label in dark brown so it stays readable over the foggy forest. */
+function addSignPlaque(
+  k: Ctx,
+  x: number,
+  topY: number,
+  label: string,
+  badge: string,
+) {
+  const w = Math.max(96, label.length * 6 + 20);
+  const badgeH = 16;
+  const labelH = 18;
+  const gap = 2;
+  const totalH = badgeH + gap + labelH;
+  const cy = topY - totalH / 2;
+  // Badge (top)
+  k.add([
+    k.rect(w, badgeH, { radius: 3 }),
+    k.pos(x, cy - totalH / 2 + badgeH / 2),
+    k.anchor("center"),
+    k.color(40, 55, 90),
+    k.outline(2, k.rgb(20, 25, 40)),
+    k.z(LAYERS.EFFECT),
+  ]);
+  k.add([
+    k.text(badge, { size: 10, font: "sans-serif" }),
+    k.pos(x, cy - totalH / 2 + badgeH / 2 + 1),
+    k.anchor("center"),
+    k.color(255, 235, 150),
+    k.z(LAYERS.EFFECT + 1),
+  ]);
+  // Label plaque (bottom)
+  k.add([
+    k.rect(w, labelH, { radius: 3 }),
+    k.pos(x, cy + totalH / 2 - labelH / 2),
+    k.anchor("center"),
+    k.color(250, 240, 210),
+    k.outline(2, k.rgb(80, 55, 25)),
+    k.z(LAYERS.EFFECT),
+  ]);
+  k.add([
+    k.text(label, { size: 11, font: "sans-serif" }),
+    k.pos(x, cy + totalH / 2 - labelH / 2 + 1),
+    k.anchor("center"),
+    k.color(50, 30, 15),
+    k.z(LAYERS.EFFECT + 1),
+  ]);
 }
 
 function addSpeech(

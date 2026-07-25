@@ -1,5 +1,20 @@
 // Kaplay game logic. Imported dynamically from the client so the "kaplay"
 // module (which touches window at import time) never reaches the server bundle.
+//
+// Rendering pipeline (single source of truth):
+//   1. `loadAllSprites` fetches every raw sheet, alpha-trims each frame, pads
+//      grouped animation frames to a shared (maxW, maxH) with bottom-center
+//      alignment, and registers each frame as its own kaplay sprite. Result:
+//      the sprite bitmap ends exactly at the visible feet on every frame.
+//   2. `spawnGrounded` / `spawnAirborne` / `spawnDecor` are the only ways to
+//      place a sprite. All use `anchor("bot")` (or "center"), the trimmed
+//      sprite's own aspect ratio, and integer coordinates.
+//   3. `LAYERS` is the single Z scheme used everywhere.
+//
+// Because the sprite ends at the visible feet, no per-entity foot-pad
+// constants exist anywhere in this file. If you find yourself writing one,
+// fix the trim/pad step instead.
+
 import type { KAPLAYCtx } from "kaplay";
 import type { ImprovementKey } from "@/lib/game.functions";
 import charSheetUrl from "@/assets/game/character-sheet.png";
@@ -26,7 +41,6 @@ export type WinResult = {
   deaths: number;
 };
 
-
 export type StartGameOpts = {
   canvas: HTMLCanvasElement;
   flags: GameFlags;
@@ -37,7 +51,8 @@ export type StartGameOpts = {
 
 type Ctx = KAPLAYCtx;
 
-// 5 biomes, each 1200px wide -> total level ~6000
+// ============================ Constants ============================
+
 const BIOME_W = 1200;
 const ZONES = [
   { key: "forest", label: "Finding the Trail", phase: "Step 1 · Learn you may qualify", bg: "bg-forest", ground: [80, 130, 60] as [number, number, number], soil: [70, 45, 25] as [number, number, number] },
@@ -54,20 +69,324 @@ const JUMP_VEL = 680;
 const COYOTE_S = 0.09;
 const JUMP_BUFFER_S = 0.12;
 const INVULN_S = 0.6;
-const PLAYER_W = 44;
-const PLAYER_H = 64;
-const MONSTER_W = 88;
-const MONSTER_H = 88;
-// Sprite bottom-padding compensation (transparent pixels below drawn feet).
-// Anchor("bot") puts the frame bottom on the ground; visible feet float above by this many pixels.
-const PLAYER_FOOT_PAD = 12;
-const RANGER_FOOT_PAD = 10;
-const MONSTER_FOOT_PAD = 56;
-const ENVELOPE_FOOT_PAD = 26;
-const DENIED_FOOT_PAD = 37;
 const PLATFORM_SNAP_TOLERANCE = 22;
 const PLATFORM_EDGE_TOLERANCE = 16;
 
+// Player collision box (fixed — never changes with sprite frame).
+const PLAYER_HITBOX = { x: -12, y: -60, w: 24, h: 60 };
+
+// Unified Z scheme used everywhere. Never call k.z with a magic number.
+const LAYERS = {
+  BG_FAR: -40,
+  BG_NEAR: -30,
+  GROUND: -12,
+  GROUND_TOP: -10,
+  BOUND: -6,
+  DECOR_BACK: -4,
+  PLATFORM: 0,
+  PROP: 5,
+  ACTOR: 10,
+  PLAYER: 12,
+  EFFECT: 20,
+  HUD: 100,
+  OVERLAY: 200,
+  OVERLAY_TEXT: 201,
+} as const;
+
+// Target visible height (world px) for each trimmed sprite. Width is derived
+// from the sprite's own trimmed aspect ratio, so nothing is ever stretched.
+const DISPLAY_H: Record<string, number> = {
+  "hero-idle": 68,
+  "hero-walk-0": 68,
+  "hero-walk-1": 68,
+  "hero-walk-2": 68,
+  "hero-walk-3": 68,
+  "hero-jump": 68,
+  signpost: 68,
+  ranger: 64,
+  map: 44,
+  campfire: 48,
+  backpack: 40,
+  bridge: 26,
+  id: 34,
+  paystub: 34,
+  envelope: 34,
+  boulder: 34,
+  "form-monster": 60,
+  denied: 44,
+};
+
+// ============================ Sprite trim pipeline ============================
+
+type FrameSpec = { name: string; frame: number };
+type SheetSpec = {
+  url: string;
+  cols: number;
+  rows: number;
+  frames: FrameSpec[];
+  /** Group names in one group render at a shared (maxW, maxH) so animation
+   *  frames stay horizontally locked and feet stay flush. */
+  groups?: string[][];
+};
+type SpriteSize = { w: number; h: number };
+type SpriteSizes = Record<string, SpriteSize>;
+
+// Loose GameObj shape used by spawn helpers. Kaplay attaches all component
+// fields at runtime; typing them as `any` here keeps the rendering pipeline
+// simple without special-casing each caller.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyObj = any;
+
+async function loadImageEl(url: string): Promise<HTMLImageElement> {
+  return new Promise((res, rej) => {
+    const im = new Image();
+    im.crossOrigin = "anonymous";
+    im.onload = () => res(im);
+    im.onerror = () => rej(new Error(`failed to load ${url}`));
+    im.src = url;
+  });
+}
+
+/**
+ * Load one sheet, alpha-trim every listed frame, pad grouped frames to shared
+ * (maxW, maxH) with bottom-center alignment, and register each frame as its
+ * own kaplay sprite. Returns the trimmed size per sprite so callers can pick a
+ * uniform display height without stretching.
+ */
+async function loadTrimmedSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
+  const img = await loadImageEl(spec.url);
+  const fw = Math.floor(img.width / spec.cols);
+  const fh = Math.floor(img.height / spec.rows);
+
+  const src = document.createElement("canvas");
+  src.width = fw;
+  src.height = fh;
+  const sx = src.getContext("2d", { willReadFrequently: true });
+  if (!sx) throw new Error("2d context unavailable");
+
+  type BBox = { x: number; y: number; w: number; h: number };
+  const bboxes: Record<string, BBox> = {};
+
+  for (const f of spec.frames) {
+    const cc = f.frame % spec.cols;
+    const rr = Math.floor(f.frame / spec.cols);
+    sx.clearRect(0, 0, fw, fh);
+    sx.drawImage(img, cc * fw, rr * fh, fw, fh, 0, 0, fw, fh);
+    const data = sx.getImageData(0, 0, fw, fh).data;
+    let minX = fw;
+    let minY = fh;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < fh; y++) {
+      for (let x = 0; x < fw; x++) {
+        const a = data[(y * fw + x) * 4 + 3];
+        if (a > 12) {
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < 0) {
+      bboxes[f.name] = { x: 0, y: 0, w: fw, h: fh };
+    } else {
+      bboxes[f.name] = { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+    }
+  }
+
+  const groupIndex: Record<string, string[]> = {};
+  for (const g of spec.groups ?? []) {
+    for (const n of g) groupIndex[n] = g;
+  }
+
+  const sizes: SpriteSizes = {};
+  for (const f of spec.frames) {
+    const group = groupIndex[f.name] ?? [f.name];
+    const unifiedW = Math.max(...group.map((n) => bboxes[n].w));
+    const unifiedH = Math.max(...group.map((n) => bboxes[n].h));
+    const bb = bboxes[f.name];
+
+    const out = document.createElement("canvas");
+    out.width = unifiedW;
+    out.height = unifiedH;
+    const ox = out.getContext("2d");
+    if (!ox) throw new Error("2d context unavailable");
+    ox.imageSmoothingEnabled = false;
+
+    const dx = Math.floor((unifiedW - bb.w) / 2);
+    const dy = unifiedH - bb.h; // bottom-align → feet flush with bitmap bottom
+    const cc = f.frame % spec.cols;
+    const rr = Math.floor(f.frame / spec.cols);
+    ox.drawImage(
+      img,
+      cc * fw + bb.x,
+      rr * fh + bb.y,
+      bb.w,
+      bb.h,
+      dx,
+      dy,
+      bb.w,
+      bb.h,
+    );
+
+    const dataUrl = out.toDataURL("image/png");
+    await k.loadSprite(f.name, dataUrl);
+    sizes[f.name] = { w: unifiedW, h: unifiedH };
+  }
+  return sizes;
+}
+
+async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
+  const heroFrames: FrameSpec[] = [
+    { name: "hero-idle", frame: 0 },
+    { name: "hero-walk-0", frame: 1 },
+    { name: "hero-walk-1", frame: 2 },
+    { name: "hero-walk-2", frame: 3 },
+    { name: "hero-walk-3", frame: 4 },
+    { name: "hero-jump", frame: 5 },
+  ];
+  const propFrames: FrameSpec[] = [
+    { name: "signpost", frame: 0 },
+    { name: "ranger", frame: 1 },
+    { name: "map", frame: 2 },
+    { name: "campfire", frame: 3 },
+    { name: "backpack", frame: 4 },
+    { name: "bridge", frame: 5 },
+    { name: "id", frame: 6 },
+    { name: "paystub", frame: 7 },
+    { name: "envelope", frame: 8 },
+    { name: "boulder", frame: 9 },
+    { name: "form-monster", frame: 10 },
+    { name: "denied", frame: 11 },
+  ];
+
+  const [heroSizes, propSizes] = await Promise.all([
+    loadTrimmedSheet(k, {
+      url: charSheetUrl,
+      cols: 3,
+      rows: 2,
+      frames: heroFrames,
+      // All hero frames share size so the character never jitters horizontally
+      // and its feet always meet the ground exactly.
+      groups: [heroFrames.map((f) => f.name)],
+    }),
+    loadTrimmedSheet(k, {
+      url: propsSheetUrl,
+      cols: 4,
+      rows: 3,
+      frames: propFrames,
+    }),
+  ]);
+
+  // Backgrounds don't need trimming.
+  await Promise.all([
+    k.loadSprite("bg-forest", bgForestUrl),
+    k.loadSprite("bg-river", bgRiverUrl),
+    k.loadSprite("bg-town", bgTownUrl),
+    k.loadSprite("bg-mountain", bgMountainUrl),
+    k.loadSprite("bg-clinic", bgClinicUrl),
+  ]);
+
+  return { ...heroSizes, ...propSizes };
+}
+
+// ============================ Spawn helpers ============================
+
+/** Compute the display width for a sprite given its trimmed size and the
+ *  target display height for that sprite name. */
+function displaySize(name: string, sizes: SpriteSizes): { w: number; h: number } {
+  const s = sizes[name];
+  if (!s) throw new Error(`unknown sprite ${name}`);
+  const h = DISPLAY_H[name] ?? s.h;
+  const w = Math.round(s.w * (h / s.h));
+  return { w, h };
+}
+
+type SpawnGrounded = {
+  x: number;
+  groundY?: number;
+  z?: number;
+  tag?: string;
+  props?: Record<string, unknown>;
+  hitboxScale?: { x: number; w: number; h: number }; // relative to sprite feet
+};
+
+/** Spawn a sprite whose feet rest on the ground. Uses anchor("bot") so the
+ *  trimmed sprite's bottom edge (== visible feet) sits at groundY. */
+function spawnGrounded(
+  k: Ctx,
+  name: string,
+  sizes: SpriteSizes,
+  opts: SpawnGrounded,
+) {
+  const { w, h } = displaySize(name, sizes);
+  const gy = opts.groundY ?? GROUND_Y;
+  const comps: unknown[] = [
+    k.sprite(name, { width: w, height: h }),
+    k.pos(Math.round(opts.x), Math.round(gy)),
+    k.anchor("bot"),
+    k.z(opts.z ?? LAYERS.ACTOR),
+  ];
+  if (opts.hitboxScale) {
+    const hx = opts.hitboxScale;
+    comps.push(
+      k.area({
+        shape: new k.Rect(k.vec2(hx.x, -hx.h + 0), hx.w, hx.h),
+      }),
+    );
+  }
+  if (opts.tag) comps.push(opts.tag);
+  if (opts.props) comps.push(opts.props);
+  return k.add(comps as never) as AnyObj;
+}
+
+type SpawnAirborne = {
+  x: number;
+  y: number;
+  z?: number;
+  tag?: string;
+  props?: Record<string, unknown>;
+  hitboxRadius?: number;
+};
+
+function spawnAirborne(
+  k: Ctx,
+  name: string,
+  sizes: SpriteSizes,
+  opts: SpawnAirborne,
+) {
+  const { w, h } = displaySize(name, sizes);
+  const r = opts.hitboxRadius ?? Math.min(w, h) / 2;
+  const comps: unknown[] = [
+    k.sprite(name, { width: w, height: h }),
+    k.pos(Math.round(opts.x), Math.round(opts.y)),
+    k.anchor("center"),
+    k.z(opts.z ?? LAYERS.PROP),
+    k.area({ shape: new k.Rect(k.vec2(-r, -r), r * 2, r * 2) }),
+  ];
+  if (opts.tag) comps.push(opts.tag);
+  if (opts.props) comps.push(opts.props);
+  return k.add(comps as never) as AnyObj;
+}
+
+function spawnDecor(
+  k: Ctx,
+  name: string,
+  sizes: SpriteSizes,
+  opts: { x: number; groundY?: number; z?: number },
+) {
+  const { w, h } = displaySize(name, sizes);
+  const gy = opts.groundY ?? GROUND_Y;
+  return k.add([
+    k.sprite(name, { width: w, height: h }),
+    k.pos(Math.round(opts.x), Math.round(gy)),
+    k.anchor("bot"),
+    k.z(opts.z ?? LAYERS.PROP),
+  ]);
+}
+
+// ============================ Game bootstrap ============================
 
 export async function startGame(opts: StartGameOpts): Promise<() => void> {
   const kaplay = (await import("kaplay")).default;
@@ -81,58 +400,28 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     letterbox: true,
     global: false,
     debug: false,
-    pixelDensity: 1,
+    pixelDensity: Math.min(2, typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1),
     crisp: true,
     touchToMouse: true,
   });
 
   k.setGravity(1800);
 
-  // ---- Load sprites ----
-  k.loadSprite("hero", charSheetUrl, {
-    sliceX: 3,
-    sliceY: 2,
-    anims: {
-      idle: 0,
-      walk: { from: 1, to: 4, loop: true, speed: 10 },
-      jump: 5,
-    },
-  });
-  k.loadSprite("props", propsSheetUrl, { sliceX: 4, sliceY: 3 });
-  k.loadSprite("bg-forest", bgForestUrl);
-  k.loadSprite("bg-river", bgRiverUrl);
-  k.loadSprite("bg-town", bgTownUrl);
-  k.loadSprite("bg-mountain", bgMountainUrl);
-  k.loadSprite("bg-clinic", bgClinicUrl);
-
-  const PROP = {
-    signpost: 0,
-    ranger: 1,
-    map: 2,
-    campfire: 3,
-    backpack: 4,
-    bridge: 5,
-    id: 6,
-    paystub: 7,
-    envelope: 8,
-    boulder: 9,
-    formMonster: 10,
-    denied: 11,
-  } as const;
+  const sizes = await loadAllSprites(k);
 
   k.scene("trail", (spawnX: number = 40, lives: number = 1) => {
     const startTime = k.time();
 
-    // ---- Backgrounds (one per biome) ----
+    // ---- Backgrounds ----
     ZONES.forEach((z, i) => {
       k.add([
         k.sprite(z.bg, { width: BIOME_W, height: 540 }),
         k.pos(i * BIOME_W, 0),
-        k.z(-30),
+        k.z(LAYERS.BG_FAR),
       ]);
     });
 
-    // ---- Ground blocks per biome, with intentional gaps ----
+    // ---- Ground ----
     addGround(k, 0, BIOME_W, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
     addGround(k, BIOME_W, BIOME_W + 300, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
     addGround(k, BIOME_W + 900, BIOME_W * 2, GROUND_Y, ZONES[1].ground, ZONES[1].soil);
@@ -141,13 +430,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     addGround(k, BIOME_W * 4 - 100, BIOME_W * 4, GROUND_Y, ZONES[3].ground, ZONES[3].soil);
     addGround(k, BIOME_W * 4, LEVEL_END, GROUND_Y, ZONES[4].ground, ZONES[4].soil);
 
-    // Invisible walls at level bounds
+    // Invisible walls
     k.add([
       k.rect(20, 800),
       k.pos(-20, 0),
       k.area(),
       k.body({ isStatic: true }),
       k.opacity(0),
+      k.z(LAYERS.BOUND),
     ]);
     k.add([
       k.rect(20, 800),
@@ -155,9 +445,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.area(),
       k.body({ isStatic: true }),
       k.opacity(0),
+      k.z(LAYERS.BOUND),
     ]);
 
-    // Kill-plane ONLY under river gap (so falling in triggers water immediately)
+    // Water kill-plane
     const RIVER_GAP_X0 = BIOME_W + 300;
     const RIVER_GAP_X1 = BIOME_W + 900;
     k.add([
@@ -168,7 +459,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       "water",
     ]);
 
-    // ================= ZONE 1: Forest =================
+    // ================= ZONE 1: Forest signs =================
     const signs: [number, string, string][] = [
       [180, "?", "Coverage \u2192"],
       [420, "??", "River ahead\nBring docs"],
@@ -176,14 +467,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       [960, "??", "Watch for gaps"],
     ];
     for (const [x, bad, good] of signs) {
-      k.add([
-        k.sprite("props", { frame: PROP.signpost, width: 56, height: 56 }),
-        k.pos(x, GROUND_Y),
-        k.anchor("bot"),
-        k.z(2),
-      ]);
+      spawnDecor(k, "signpost", sizes, { x, z: LAYERS.PROP });
       const label = active.clearer_directions ? good : (active.translated_signs ? `${bad}\n(??)` : bad);
-      addSpeech(k, x, GROUND_Y - 78, label, active.clearer_directions ? [40, 100, 40] : [140, 40, 40]);
+      addSpeech(k, x, GROUND_Y - DISPLAY_H["signpost"] - 10, label, active.clearer_directions ? [40, 100, 40] : [140, 40, 40]);
     }
 
     // ================= ZONE 2: River =================
@@ -198,20 +484,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.outline(2, k.rgb(80, 50, 20)),
         k.area(),
         k.body({ isStatic: true }),
+        k.z(LAYERS.PLATFORM),
         "platform",
         { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(rx0, GROUND_Y - 6) },
       ]);
+      const bridgeH = DISPLAY_H["bridge"];
       for (let i = 0; i < 6; i++) {
-        k.add([
-          k.sprite("props", { frame: PROP.bridge, width: 100, height: 40 }),
-          k.pos(rx0 + i * 100, GROUND_Y - 6),
-          k.anchor("bot"),
-          k.z(1),
-        ]);
+        spawnDecor(k, "bridge", sizes, {
+          x: rx0 + i * 100 + 50,
+          groundY: GROUND_Y - 6 + bridgeH, // sprite sits atop plank
+          z: LAYERS.PLATFORM - 1,
+        });
       }
       addSpeech(k, (rx0 + rx1) / 2, GROUND_Y - 90, "★ Clear instructions", [30, 100, 60]);
     } else {
-      // Tiny moving stone platforms — brutal timing
       const platforms = [
         { x: rx0 + 60, y: GROUND_Y - 40, amp: 30, spd: 2.2 },
         { x: rx0 + 200, y: GROUND_Y - 80, amp: 50, spd: 1.6 },
@@ -226,6 +512,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.outline(2, k.rgb(60, 70, 80)),
           k.area(),
           k.body({ isStatic: true }),
+          k.z(LAYERS.PLATFORM),
           "platform",
           {
             basY: p.y,
@@ -252,43 +539,38 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // ================= ZONE 3: Town =================
     const tx0 = BIOME_W * 2;
-    const docs: [number, keyof typeof PROP, string][] = [
+    const docs: [number, "id" | "paystub" | "envelope", string][] = [
       [tx0 + 180, "id", "ID"],
       [tx0 + 380, "paystub", "Income"],
       [tx0 + 580, "envelope", "Household"],
     ];
     for (const [x, prop, key] of docs) {
-      const pad = prop === "envelope" ? ENVELOPE_FOOT_PAD : 0;
-      k.add([
-        k.sprite("props", { frame: PROP[prop], width: 40, height: 40 }),
-        k.pos(x, GROUND_Y - 4 + pad),
-        k.anchor("bot"),
-        // Hitbox stays over the visible pixels (top of the frame minus pad)
-        k.area({ shape: new k.Rect(k.vec2(-16, -36 - pad), 32, 36) }),
-        k.z(3),
-        "doc",
-        { docKey: key },
-      ]);
+      const dh = DISPLAY_H[prop];
+      spawnGrounded(k, prop, sizes, {
+        x,
+        z: LAYERS.PROP,
+        tag: "doc",
+        props: { docKey: key },
+        hitboxScale: { x: -dh / 2, w: dh, h: dh },
+      });
     }
 
-    // Form-monster enemies (patrol)
+    // Form-monster enemies (patrol) — walk on the ground.
     const monsterSpots = [tx0 + 300, tx0 + 500, tx0 + 750];
     for (const mx of monsterSpots) {
       const speed = active.plain_language ? 40 : 110;
-      const m = k.add([
-        k.sprite("props", { frame: PROP.formMonster, width: MONSTER_W, height: MONSTER_H }),
-        k.pos(mx, GROUND_Y + MONSTER_FOOT_PAD),
-        k.anchor("bot"),
-        // Hitbox covers the visible monster body, not the transparent padding in the sheet.
-        k.area({ shape: new k.Rect(k.vec2(-26, -36 - MONSTER_FOOT_PAD), 52, 36) }),
-        k.z(3),
-        "monster",
-        { dir: 1, home: mx, range: 80 },
-      ]);
+      const mh = DISPLAY_H["form-monster"];
+      const mw = displaySize("form-monster", sizes).w;
+      const m = spawnGrounded(k, "form-monster", sizes, {
+        x: mx,
+        z: LAYERS.ACTOR,
+        tag: "monster",
+        props: { dir: 1, home: mx, range: 80 },
+        hitboxScale: { x: -mw / 2, w: mw, h: mh },
+      });
       m.onUpdate(() => {
         m.pos.x += m.dir * speed * k.dt();
-        // Lock vertical position so the monster can't drift off ground
-        m.pos.y = GROUND_Y + MONSTER_FOOT_PAD;
+        m.pos.y = GROUND_Y; // stay planted
         if (m.pos.x > m.home + m.range) {
           m.pos.x = m.home + m.range;
           m.dir = -1;
@@ -302,7 +584,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
 
-    // Locked coverage gate at end of town
+    // Locked coverage gate
     const gateX = tx0 + BIOME_W - 60;
     k.add([
       k.rect(20, 100),
@@ -312,15 +594,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.outline(2, k.rgb(90, 20, 20)),
       k.area(),
       k.body({ isStatic: true }),
+      k.z(LAYERS.PROP),
       "gate",
     ]);
-    k.add([
-      k.sprite("props", { frame: PROP.denied, width: 60, height: 60 }),
-      k.pos(gateX + 10, GROUND_Y - 100 + DENIED_FOOT_PAD),
-      k.anchor("bot"),
-      k.z(4),
-      "gateStamp",
-    ]);
+    spawnDecor(k, "denied", sizes, {
+      x: gateX + 10,
+      groundY: GROUND_Y - 100,
+      z: LAYERS.PROP + 1,
+    });
+    // Track for later removal
+    k.get("gate"); // no-op; kept to reflect naming
     addSpeech(k, gateX + 10, GROUND_Y - 180, "COUNTY OFFICE\nDocs required", [140, 40, 40]);
 
     // ================= ZONE 4: Mountain =================
@@ -337,6 +620,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.area(),
           k.body({ isStatic: true }),
           k.outline(2, k.rgb(60, 50, 40)),
+          k.z(LAYERS.PLATFORM),
           "platform",
           { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(px, py) },
         ]);
@@ -344,7 +628,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.rect(3, 18),
           k.pos(px + 35, py - 18),
           k.color(220, 90, 40),
-          k.z(2),
+          k.z(LAYERS.PROP),
         ]);
       }
       for (let i = 0; i < 4; i++) {
@@ -357,6 +641,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.area(),
           k.body({ isStatic: true }),
           k.outline(2, k.rgb(60, 50, 40)),
+          k.z(LAYERS.PLATFORM),
           "platform",
           { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(px, py) },
         ]);
@@ -379,21 +664,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.area(),
           k.body({ isStatic: true }),
           k.opacity(0.75),
+          k.z(LAYERS.PLATFORM),
           "platform",
           { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(px, py) },
         ]);
       }
       for (let i = 0; i < 3; i++) {
         const bx = mx0 + 300 + i * 240;
-        const b = k.add([
-          k.sprite("props", { frame: PROP.boulder, width: 40, height: 40 }),
-          k.pos(bx, -40 - i * 200),
-          k.anchor("center"),
-          k.area({ shape: new k.Rect(k.vec2(-16, -16), 32, 32) }),
-          k.z(4),
-          "boulder",
-          { spd: 260 + i * 40, home: bx },
-        ]);
+        const b = spawnAirborne(k, "boulder", sizes, {
+          x: bx,
+          y: -40 - i * 200,
+          z: LAYERS.ACTOR,
+          tag: "boulder",
+          props: { spd: 260 + i * 40, home: bx },
+        });
         b.onUpdate(() => {
           b.pos.y += b.spd * k.dt();
           if (b.pos.y > 700) b.pos = k.vec2(b.home, -100);
@@ -409,21 +693,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.anchor("bot"),
       k.color(255, 255, 255),
       k.outline(3, k.rgb(60, 60, 60)),
-      k.z(2),
+      k.z(LAYERS.PROP),
     ]);
     k.add([
       k.rect(60, 12),
       k.pos(cx + 40, GROUND_Y - 78),
       k.anchor("center"),
       k.color(220, 40, 60),
-      k.z(3),
+      k.z(LAYERS.PROP + 1),
     ]);
     k.add([
       k.rect(12, 60),
       k.pos(cx + 40, GROUND_Y - 78),
       k.anchor("center"),
       k.color(220, 40, 60),
-      k.z(3),
+      k.z(LAYERS.PROP + 1),
     ]);
     k.add([
       k.rect(90, 140),
@@ -434,43 +718,35 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       "finish",
     ]);
 
-    // ================= Save-point campfire =================
+    // Save-point campfire
     const checkpointX = spawnX > 1000 ? spawnX : 40;
     if (active.save_progress) {
       const fx = BIOME_W * 2 + 40;
-      k.add([
-        k.sprite("props", { frame: PROP.campfire, width: 48, height: 48 }),
-        k.pos(fx, GROUND_Y),
-        k.anchor("bot"),
-        k.area({ shape: new k.Rect(k.vec2(-20, -40), 40, 40) }),
-        k.z(3),
-        "checkpoint",
-        { atX: fx },
-      ]);
-      addSpeech(k, fx, GROUND_Y - 78, "★ Save point", [200, 100, 40]);
+      const ch = DISPLAY_H["campfire"];
+      spawnGrounded(k, "campfire", sizes, {
+        x: fx,
+        z: LAYERS.PROP,
+        tag: "checkpoint",
+        props: { atX: fx },
+        hitboxScale: { x: -ch / 2, w: ch, h: ch },
+      });
+      addSpeech(k, fx, GROUND_Y - ch - 12, "★ Save point", [200, 100, 40]);
     }
 
-    // ================= Documents-earlier HUD backpack =================
+    // Documents-earlier backpack
     if (active.documents_earlier) {
-      k.add([
-        k.sprite("props", { frame: PROP.backpack, width: 40, height: 40 }),
-        k.pos(80, GROUND_Y),
-        k.anchor("bot"),
-        k.z(4),
-      ]);
-      addSpeech(k, 100, GROUND_Y - 78, "Bring: ID, Income, Household", [40, 60, 100]);
+      spawnDecor(k, "backpack", sizes, { x: 80, z: LAYERS.PROP });
+      addSpeech(k, 100, GROUND_Y - DISPLAY_H["backpack"] - 12, "Bring: ID, Income, Household", [40, 60, 100]);
     }
 
     // ================= Player =================
     const player = k.add([
-      k.sprite("hero", { anim: "idle", width: PLAYER_W, height: PLAYER_H }),
-      k.pos(spawnX, GROUND_Y + PLAYER_FOOT_PAD),
-      // Collision box is shifted UP by PLAYER_FOOT_PAD so its bottom sits at (pos.y - PAD).
-      // The physics body then rests the box on the ground, which places pos.y at GROUND_Y+PAD
-      // and puts the sprite's visible feet flush with the ground line.
-      k.area({ shape: new k.Rect(k.vec2(-12, -58 - PLAYER_FOOT_PAD), 24, 58) }),
+      k.sprite("hero-idle", { width: displaySize("hero-idle", sizes).w, height: DISPLAY_H["hero-idle"] }),
+      k.pos(spawnX, GROUND_Y),
+      k.area({ shape: new k.Rect(k.vec2(PLAYER_HITBOX.x, PLAYER_HITBOX.y), PLAYER_HITBOX.w, PLAYER_HITBOX.h) }),
       k.body(),
       k.anchor("bot"),
+      k.z(LAYERS.PLAYER),
       "player",
       {
         docs: new Set<string>(),
@@ -495,9 +771,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         passedMonsters: new Set<unknown>(),
         visitedZones: new Set<number>([Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)))]),
         riding: null as null | { pos: { x: number; y: number }; platformSpeed: { x: number; y: number }; width: number; height: number },
+        animState: "idle" as "idle" | "walk" | "jump",
+        animTick: 0,
+        walkFrame: 0,
       },
     ]);
 
+    // Manual animation: swap sprite per state. All hero frames share size
+    // (grouped in the trim step), so swapping never causes horizontal jitter.
+    function setSprite(name: string) {
+      const ds = displaySize(name, sizes);
+      player.use(k.sprite(name, { width: ds.w, height: DISPLAY_H[name] }));
+    }
+    function setAnim(next: "idle" | "walk" | "jump") {
+      if (player.animState === next) return;
+      player.animState = next;
+      player.animTick = 0;
+      player.walkFrame = 0;
+      if (next === "idle") setSprite("hero-idle");
+      else if (next === "jump") setSprite("hero-jump");
+      else setSprite("hero-walk-0");
+    }
 
     type PlatformRide = {
       pos: { x: number; y: number };
@@ -507,16 +801,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     };
 
     function asPlatformRide(p: unknown): PlatformRide | null {
-      const candidate = p as Partial<PlatformRide>;
-      if (!candidate.pos || typeof candidate.pos.x !== "number" || typeof candidate.pos.y !== "number") {
-        return null;
-      }
-      const width = typeof candidate.width === "number" ? candidate.width : 0;
-      const height = typeof candidate.height === "number" ? candidate.height : 0;
+      const c = p as Partial<PlatformRide>;
+      if (!c.pos || typeof c.pos.x !== "number" || typeof c.pos.y !== "number") return null;
+      const width = typeof c.width === "number" ? c.width : 0;
+      const height = typeof c.height === "number" ? c.height : 0;
       if (width <= 0 || height <= 0) return null;
       return {
-        pos: candidate.pos,
-        platformSpeed: candidate.platformSpeed ?? k.vec2(0, 0),
+        pos: c.pos,
+        platformSpeed: c.platformSpeed ?? k.vec2(0, 0),
         width,
         height,
       };
@@ -524,13 +816,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     function snapToPlatform(plat: PlatformRide) {
       player.riding = plat;
-      player.pos.y = plat.pos.y + PLAYER_FOOT_PAD;
+      player.pos.y = plat.pos.y; // anchor("bot") + trimmed sprite = feet flush
       if (player.vel.y > 0) player.vel.y = 0;
       player.lastGroundedAt = k.time();
     }
 
     function findTopPlatformContact(): PlatformRide | null {
-      const feetY = player.pos.y - PLAYER_FOOT_PAD;
+      const feetY = player.pos.y;
       const prevFeetY = player.prevFeetY;
       const platforms = k.get("platform");
       for (const raw of platforms) {
@@ -551,57 +843,50 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       return null;
     }
 
-    // Track platform ride: when player lands on a platform, remember it.
     player.onCollide("platform", (p, col) => {
       const plat = asPlatformRide(p);
       if (!plat) return;
-      const feetY = player.pos.y - PLAYER_FOOT_PAD;
+      const feetY = player.pos.y;
       const nearTop = feetY >= plat.pos.y - PLATFORM_SNAP_TOLERANCE && feetY <= plat.pos.y + PLATFORM_SNAP_TOLERANCE;
       if (nearTop || col?.isBottom()) snapToPlatform(plat);
     });
 
     // ================= Ranger helper =================
     if (active.helper) {
-      const ranger = k.add([
-        k.sprite("props", { frame: PROP.ranger, width: 44, height: 60 }),
-        k.pos(spawnX + 60, GROUND_Y + RANGER_FOOT_PAD),
-        k.anchor("bot"),
-        k.z(4),
-      ]);
+      const ranger = spawnGrounded(k, "ranger", sizes, {
+        x: spawnX + 60,
+        z: LAYERS.ACTOR,
+      });
       const bubble = k.add([
         k.text("Follow me!", { size: 12, font: "sans-serif" }),
         k.pos(0, 0),
         k.color(30, 30, 30),
-        k.z(20),
+        k.z(LAYERS.EFFECT),
         k.anchor("center"),
       ]);
       ranger.onUpdate(() => {
         const target = Math.min(player.pos.x + 90, LEVEL_END - 100);
         const dx = target - ranger.pos.x;
         ranger.pos.x += Math.sign(dx) * Math.min(Math.abs(dx), 3);
-        ranger.pos.y = GROUND_Y + RANGER_FOOT_PAD;
-        bubble.pos = k.vec2(ranger.pos.x, ranger.pos.y - 74 - RANGER_FOOT_PAD);
+        ranger.pos.y = GROUND_Y;
+        bubble.pos = k.vec2(ranger.pos.x, ranger.pos.y - DISPLAY_H["ranger"] - 12);
       });
     }
 
     // ================= HUD =================
     k.add([
-      k.text(opts.mode === "after" ? "AFTER FEEDBACK" : "BEFORE FEEDBACK", {
-        size: 14,
-        font: "sans-serif",
-      }),
+      k.text(opts.mode === "after" ? "AFTER FEEDBACK" : "BEFORE FEEDBACK", { size: 14, font: "sans-serif" }),
       k.pos(12, 34),
       k.color(opts.mode === "after" ? k.rgb(30, 160, 60) : k.rgb(220, 60, 60)),
       k.fixed(),
-      k.z(100),
+      k.z(LAYERS.HUD),
     ]);
-
     const livesHud = k.add([
       k.text("", { size: 14, font: "sans-serif" }),
       k.pos(12, 54),
       k.color(255, 255, 255),
       k.fixed(),
-      k.z(100),
+      k.z(LAYERS.HUD),
     ]);
     const docsHud = k.add([
       k.text("", { size: 14, font: "sans-serif" }),
@@ -609,7 +894,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.anchor("topright"),
       k.color(255, 255, 255),
       k.fixed(),
-      k.z(100),
+      k.z(LAYERS.HUD),
     ]);
     function updateHud() {
       livesHud.text = `♥ ${player.lives}`;
@@ -637,7 +922,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     player.onCollide("gate", () => {
       if (player.docs.size >= 3) {
         k.get("gate").forEach((g) => (g as { destroy: () => void }).destroy());
-        k.get("gateStamp").forEach((g) => (g as { destroy: () => void }).destroy());
       }
     });
 
@@ -658,7 +942,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         return;
       }
       const rx = active.save_progress ? player.checkpointX : 40;
-      player.pos = k.vec2(rx, GROUND_Y + PLAYER_FOOT_PAD);
+      player.pos = k.vec2(rx, GROUND_Y);
       player.vel = k.vec2(0, 0);
       player.riding = null;
       if (!active.documents_earlier && rx < BIOME_W * 2) {
@@ -690,8 +974,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       };
     }
 
-
-
     player.onCollide("finish", () => {
       if (player.won || player.dead) return;
       if (player.docs.size < 3) return;
@@ -709,18 +991,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.opacity(0.7),
         k.area(),
         k.fixed(),
-        k.z(200),
+        k.z(LAYERS.OVERLAY),
       ]);
-      overlay.onClick(() => {
-        k.go("trail", 40, 1);
-      });
+      overlay.onClick(() => k.go("trail", 40, 1));
       k.add([
         k.text(win ? "★ ENROLLED IN COVERAGE ★" : "APPLICATION BLOCKED", { size: 34, font: "sans-serif" }),
         k.pos(k.width() / 2, k.height() / 2 - 70),
         k.anchor("center"),
         k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 120, 120)),
         k.fixed(),
-        k.z(201),
+        k.z(LAYERS.OVERLAY_TEXT),
       ]);
       k.add([
         k.text(
@@ -733,7 +1013,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.anchor("center"),
         k.color(240, 240, 240),
         k.fixed(),
-        k.z(201),
+        k.z(LAYERS.OVERLAY_TEXT),
       ]);
       k.add([
         k.text("Tap screen or press R to try again", { size: 14, font: "sans-serif" }),
@@ -741,7 +1021,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.anchor("center"),
         k.color(220, 220, 220),
         k.fixed(),
-        k.z(201),
+        k.z(LAYERS.OVERLAY_TEXT),
       ]);
       if (!win) opts.onLose?.(buildResult(false));
     }
@@ -755,13 +1035,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const w = typeof window !== "undefined" ? (window as unknown as { __gameInput?: TouchInput }) : undefined;
 
     let currentZone = Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)));
-    showTitleCard(
-      k,
-      ZONES[currentZone].phase.toUpperCase(),
-      ZONES[currentZone].label.toUpperCase(),
-      [255, 220, 90],
-      1.8,
-    );
+    showTitleCard(k, ZONES[currentZone].phase.toUpperCase(), ZONES[currentZone].label.toUpperCase(), [255, 220, 90], 1.8);
 
     function tryJump() {
       if (player.dead || player.won) return;
@@ -770,7 +1044,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (player.isGrounded() || player.riding || canCoyote) {
         player.jump(JUMP_VEL);
         player.jumpBufferedAt = -1;
-        // If we jumped off a moving platform, transfer its horizontal speed once
         if (player.riding) {
           player.vel.x += player.riding.platformSpeed.x;
           player.riding = null;
@@ -790,7 +1063,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       const now = k.time();
 
-      // Zone transition title cards + farthest-zone tracking
       const z = Math.min(ZONES.length - 1, Math.max(0, Math.floor(player.pos.x / BIOME_W)));
       if (z > player.farthestZone) player.farthestZone = z;
       if (z !== currentZone) {
@@ -799,16 +1071,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           player.visitedZones.add(z);
           player.score += 1000;
         }
-        showTitleCard(
-          k,
-          ZONES[z].phase.toUpperCase(),
-          ZONES[z].label.toUpperCase(),
-          [255, 220, 90],
-          1.4,
-        );
+        showTitleCard(k, ZONES[z].phase.toUpperCase(), ZONES[z].label.toUpperCase(), [255, 220, 90], 1.4);
       }
 
-      // Per-frame distance + rightmost tracking (+2 per new pixel, +1 per frame moving forward)
       if (player.pos.x > player.rightmostX) {
         const gained = player.pos.x - player.rightmostX;
         player.rightmostX = player.pos.x;
@@ -816,7 +1081,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         player.score += gained * 2;
       }
 
-      // Enemies passed (crossed without hit)
       const monsters = k.get("monster") as unknown as Array<{ pos: { x: number } }>;
       for (const m of monsters) {
         if (!player.passedMonsters.has(m) && player.pos.x > m.pos.x + 40) {
@@ -826,8 +1090,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
       }
 
-
-      // Horizontal input
       let dir = 0;
       for (const key of leftKeys) if (k.isKeyDown(key as never)) dir -= 1;
       for (const key of rightKeys) if (k.isKeyDown(key as never)) dir += 1;
@@ -835,80 +1097,74 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (w?.__gameInput?.right) dir += 1;
       dir = Math.sign(dir);
       player.move(dir * MOVE_SPEED, 0);
-      if (dir > 0) player.score += 1; // per-frame forward-motion bonus
+      if (dir > 0) player.score += 1;
 
-
-      // Moving-platform carry: apply platform horizontal velocity while riding
       if (player.riding) {
         const dt = k.dt();
         player.pos.x += player.riding.platformSpeed.x * dt;
-        // Snap feet to platform top (accounting for sprite foot padding)
-        player.pos.y = player.riding.pos.y + PLAYER_FOOT_PAD;
+        player.pos.y = player.riding.pos.y;
         if (player.vel.y > 0) player.vel.y = 0;
       }
 
       const platformContact = findTopPlatformContact();
       if (platformContact) snapToPlatform(platformContact);
 
-      // Verify player is still on the tracked platform; drop ride otherwise.
       if (player.riding) {
         const withinX =
           player.pos.x >= player.riding.pos.x - PLATFORM_EDGE_TOLERANCE &&
           player.pos.x <= player.riding.pos.x + player.riding.width + PLATFORM_EDGE_TOLERANCE;
-        const expectedY = player.riding.pos.y + PLAYER_FOOT_PAD;
-        const nearTop = Math.abs(player.pos.y - expectedY) <= PLATFORM_SNAP_TOLERANCE;
+        const nearTop = Math.abs(player.pos.y - player.riding.pos.y) <= PLATFORM_SNAP_TOLERANCE;
         if (!withinX || !nearTop) player.riding = null;
       }
 
       const groundedNow = player.isGrounded() || !!player.riding;
 
-      // Landed-on-platform bonus (once per airborne -> platform touchdown)
       if (groundedNow && !player.wasGrounded && player.riding) {
         player.jumpsLanded += 1;
         player.score += 250;
       }
       player.wasGrounded = groundedNow;
 
-      // Ground tracking for coyote time
-      if (groundedNow) {
-        player.lastGroundedAt = now;
-      }
+      if (groundedNow) player.lastGroundedAt = now;
 
+      // ---- Animation state machine ----
       if (dir !== 0) {
         player.facing = dir as 1 | -1;
         player.flipX = dir < 0;
-        if (groundedNow && player.getCurAnim()?.name !== "walk") player.play("walk");
-      } else if (groundedNow && player.getCurAnim()?.name !== "idle") {
-        player.play("idle");
       }
-      if (!groundedNow && player.getCurAnim()?.name !== "jump") player.play("jump");
+      if (!groundedNow) {
+        setAnim("jump");
+      } else if (dir !== 0) {
+        setAnim("walk");
+        // advance walk frame ~10fps
+        player.animTick += k.dt();
+        if (player.animTick > 0.1) {
+          player.animTick = 0;
+          player.walkFrame = (player.walkFrame + 1) % 4;
+          setSprite(`hero-walk-${player.walkFrame}`);
+        }
+      } else {
+        setAnim("idle");
+      }
 
-      // Touch jump edge (buffered)
       if (w?.__gameInput?.jumpReq) {
         w.__gameInput.jumpReq = false;
         tryJump();
       }
-
-      // Consume buffered jump if we just landed
       if (player.jumpBufferedAt > 0 && groundedNow && now - player.jumpBufferedAt < JUMP_BUFFER_S) {
         player.jump(JUMP_VEL);
         player.jumpBufferedAt = -1;
       }
 
-      player.prevFeetY = player.pos.y - PLAYER_FOOT_PAD;
+      player.prevFeetY = player.pos.y;
 
-      // Camera follow — recompute width() every frame for fullscreen changes
+      // Camera follow with integer pixel snap
       const camX = Math.max(k.width() / 2, Math.min(player.pos.x, LEVEL_END - k.width() / 2));
-      k.setCamPos(camX, k.height() / 2);
+      k.setCamPos(Math.round(camX), Math.round(k.height() / 2));
     });
 
-    for (const key of jumpKeys) {
-      k.onKeyPress(key as never, () => tryJump());
-    }
-
-    k.onKeyPress("r", () => {
-      k.go("trail", 40, 1);
-    });
+    for (const key of jumpKeys) k.onKeyPress(key as never, () => tryJump());
+    k.onKeyPress("r", () => k.go("trail", 40, 1));
 
     player.onUpdate(() => {
       if (player.pos.y > 720) loseLife("Fell off the trail.");
@@ -926,6 +1182,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   };
 }
 
+// ============================ Helpers ============================
+
 function addGround(
   k: Ctx,
   x1: number,
@@ -934,29 +1192,33 @@ function addGround(
   topColor: [number, number, number] = [80, 130, 60],
   soilColor: [number, number, number] = [70, 45, 25],
 ) {
+  if (x2 <= x1) return;
+  const w = Math.round(x2 - x1);
+  const x = Math.round(x1);
+  const yy = Math.round(y);
   k.add([
-    k.rect(x2 - x1, 80),
-    k.pos(x1, y),
+    k.rect(w, 80),
+    k.pos(x, yy),
     k.color(...soilColor),
     k.area(),
     k.body({ isStatic: true }),
-    k.z(-3),
+    k.z(LAYERS.GROUND),
   ]);
   k.add([
-    k.rect(x2 - x1, 8),
-    k.pos(x1, y),
+    k.rect(w, 8),
+    k.pos(x, yy),
     k.color(...topColor),
-    k.z(-2),
+    k.z(LAYERS.GROUND_TOP),
   ]);
   k.add([
-    k.rect(x2 - x1, 2),
-    k.pos(x1, y),
+    k.rect(w, 2),
+    k.pos(x, yy),
     k.color(
       Math.min(255, topColor[0] + 40),
       Math.min(255, topColor[1] + 40),
       Math.min(255, topColor[2] + 40),
     ),
-    k.z(-1),
+    k.z(LAYERS.GROUND_TOP + 1),
   ]);
 }
 
@@ -1004,7 +1266,6 @@ function showTitleCard(
     k.fixed(),
     k.z(152),
   ]);
-
   const fadeIn = 0.25;
   const fadeOut = 0.4;
   const total = fadeIn + holdSec + fadeOut;
@@ -1050,6 +1311,6 @@ function addSpeech(
     k.pos(x, y),
     k.anchor("center"),
     k.color(...rgb),
-    k.z(5),
+    k.z(LAYERS.EFFECT),
   ]);
 }

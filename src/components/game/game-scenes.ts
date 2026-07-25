@@ -1192,23 +1192,37 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { x: rx0 + 400, y: GROUND_Y - 34, amp: 12, spd: 1.4, label: "SIGNATURE" },
       ];
       for (const p of platforms) {
+        const PLAT_W = 108;
         const plat = k.add([
-          k.rect(96, 16), k.pos(p.x, p.y),
+          k.rect(PLAT_W, 16), k.pos(p.x, p.y),
           k.color(240, 230, 200), k.outline(2, k.rgb(60, 45, 25)),
           k.area(), k.body({ isStatic: true }),
           k.z(LAYERS.PLATFORM), "platform",
           { basY: p.y, amp: p.amp, spd: p.spd, phase: Math.random() * Math.PI * 2, platformSpeed: k.vec2(0, 0), lastPos: k.vec2(p.x, p.y) },
         ]);
-        // Text label on top of the platform. Uses a shadow pair for legibility.
+        // Dark plaque + shadowed gold text sitting flush on top of the platform.
+        const labelSize = 10;
+        const charW = labelSize * 0.62;
+        const plaqueW = Math.min(PLAT_W - 4, Math.ceil(p.label.length * charW) + 12);
+        const plaqueH = labelSize + 8;
+        const plaque = k.add([
+          k.rect(plaqueW, plaqueH, { radius: 2 }),
+          k.pos(p.x + PLAT_W / 2, p.y + 3),
+          k.anchor("center"),
+          k.color(20, 25, 45),
+          k.outline(1, k.rgb(255, 220, 90)),
+          k.opacity(0.95),
+          k.z(LAYERS.PLATFORM + 1),
+        ]) as AnyObj;
         const shadow = k.add([
-          k.text(p.label, { size: 9, font: "sans-serif" }),
-          k.pos(p.x + 48 + 1, p.y + 3 + 1),
-          k.anchor("center"), k.color(0, 0, 0), k.z(LAYERS.PLATFORM + 1),
+          k.text(p.label, { size: labelSize, font: "sans-serif" }),
+          k.pos(p.x + PLAT_W / 2 + 1, p.y + 3 + 1),
+          k.anchor("center"), k.color(0, 0, 0), k.z(LAYERS.PLATFORM + 2),
         ]) as AnyObj;
         const label = k.add([
-          k.text(p.label, { size: 9, font: "sans-serif" }),
-          k.pos(p.x + 48, p.y + 3),
-          k.anchor("center"), k.color(40, 30, 20), k.z(LAYERS.PLATFORM + 2),
+          k.text(p.label, { size: labelSize, font: "sans-serif" }),
+          k.pos(p.x + PLAT_W / 2, p.y + 3),
+          k.anchor("center"), k.color(255, 220, 90), k.z(LAYERS.PLATFORM + 3),
         ]) as AnyObj;
         plat.onUpdate(() => {
           const newY = plat.basY + Math.sin(k.time() * plat.spd + plat.phase) * plat.amp;
@@ -1220,6 +1234,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           plat.lastPos.x = plat.pos.x;
           plat.lastPos.y = newY;
           plat.pos.y = newY;
+          plaque.pos.y = newY + 3;
           shadow.pos.y = newY + 3 + 1;
           label.pos.y = newY + 3;
         });

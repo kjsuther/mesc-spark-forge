@@ -2679,6 +2679,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
         break; // nearest locked door only
       }
+      // Record foot Y for next-frame stomp geometry (boss/other overhead checks).
+      (p as AnyObj).lastY = player.pos.y;
     });
 
 

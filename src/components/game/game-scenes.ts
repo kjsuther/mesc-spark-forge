@@ -1314,9 +1314,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       hudLabel: () =>
         zoneState.firePoleDone
           ? "COVERED!"
-          : zoneState.idCardCollected
-            ? "SLIDE DOWN →"
-            : "ID CARD ☐",
+          : zoneState.cutscene
+            ? "FINISHING…"
+            : zoneState.idCardCollected
+              ? "SLIDE DOWN →"
+              : "ID CARD ☐",
       met: () => zoneState.firePoleDone,
     };
 

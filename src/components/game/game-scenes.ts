@@ -247,7 +247,7 @@ const DISPLAY_H: Record<string, number> = {
   "plan-orange": 60,
   "medical-id": 46,
   "calendar-page": 46,
-  "paper-airplane": 26,
+  "paper-airplane": 34,
   "brick-idle": 38,
   "brick-hit": 38,
   "envelope-gremlin-0": 42,

@@ -1,43 +1,31 @@
-# Polish pass — walk cycle, pole slide, label legibility
+## 1. Fix fire-pole slide animation (Zone 8)
 
-## 1. Left-facing walk animation
+The current `hero-slide-sheet.png` was generated separately and rendered as a different-looking, more 8-bit character than the in-game hero. Replace it so the existing 16-bit hero appears to grip and slide the pole.
 
-Today the hero uses a single right-facing sheet and `player.flipX = dir < 0` for leftward motion. That works mechanically but the frames were drawn with directional lighting/hair-fringe, so mirroring reads oddly.
+- Regenerate `src/assets/game/hero-slide-sheet.png` via `imagegen--edit_image`, using the existing `character-sheet.png` (right-facing idle) as the source image reference so the palette, proportions, hair, overalls, and outline exactly match. Prompt describes a 2-frame pose: arms overhead gripping a vertical pole, body centered on the pole, alternating leg positions (frame 0 knees together, frame 1 legs offset for descent motion) — mirroring the pose in the user's reference image but rendered in the game's current 16-bit SNES style, not 8-bit NES style.
+- Keep the sheet at the existing 2-column × 1-row layout and 66-px display height so the existing `safeLoadSheet` registration in `game-scenes.ts` (lines 504-562) needs no changes.
+- After regeneration, run Playwright UAT on Zone 8: force-advance to the fire pole, verify the sprite that plays during descent visually matches the hero used everywhere else in the game. Screenshot at desktop 1280×1800 and mobile 844×390.
 
-- Generate a dedicated left-facing sheet `hero-walk-left-sheet.png` (4 frames + idle) via `imagegen`, matching the current sprite's palette, silhouette, and 66-px display height.
-- Load it through `safeLoadSheet` alongside the existing sheet, registering `hero-idle-left`, `hero-walk-left-0..3`.
-- In `setSprite` / `setAnim`, pick the sheet based on `player.facing` and drop `flipX` for the hero (keeps art authored, no mirror artifacts). Enemies keep their existing flipX behavior.
+## 2. Ensure the gold key spawns for every plan choice (Zone 7)
 
-## 2. Slow the walk cycle
+Audit the `plan-pick` collision handler in `game-scenes.ts` (~lines 1760-1793): the key spawn currently reads `item.pos` immediately before the `k.get("plan-pick").forEach(destroy)` loop, but under some timings the collided pedestal can already be gone or `zoneState.planPicked` can short-circuit before the spawn. Guarantee:
 
-Legs currently advance every 9 px (`STRIDE_PX = 9`), which reads as a sprint at current `MOVE_SPEED`.
+- Capture `kx`/`ky` from the collided pedestal FIRST, then set `zoneState.planPicked = true`, then destroy the other pedestals by tag-filtering out the collided one explicitly (compare object identity), then spawn the key from the captured coords.
+- Add a defensive fallback: if for any reason no key entity exists 200 ms after `planPicked` becomes true, spawn one at the last known pedestal position so the objective can never soft-lock.
+- Verify with Playwright by picking each of the three plans in separate runs (Medical Assistance, MinnesotaCare, Private Plan) and confirming the gold key appears and homes to the player every time.
 
-- Raise `STRIDE_PX` to ~18 (roughly half speed) so a full 4-frame cycle spans a longer real distance.
-- Keep it distance-based (not timer-based) so the animation still tracks true velocity — no floaty legs.
+## 3. Make Zone 5 countdown timer prominent
 
-## 3. Fire-pole slide animation
+Today the 30 s wait shows only inside the small HUD chip via `zoneObjectives[5].hudLabel` (~line 1187), which is easy to miss.
 
-Right now attaching to the pole just freezes X and drops Y with the idle sprite still on screen.
-
-- Generate `hero-slide-sheet.png` (2 frames: arms overhead gripping pole, alternating leg positions) via `imagegen`, same 66-px height.
-- Load via `safeLoadSheet` as `hero-slide-0`, `hero-slide-1`.
-- Extend the anim state machine with a `"slide"` state. When `zoneState.firePoleAttached` is true, force `setAnim("slide")` and alternate frames every ~120 ms.
-- Add a small downward motion-blur / spark particle at the player's feet during the slide for readability.
-- On `pole-base` (or the y-safety-net), swap back to `hero-idle` before the fireworks trigger so the win pose isn't the slide frame.
-
-## 4. Legible pixel labels everywhere
-
-`addSignPlaque`, `addSpeech`, thought bubbles, HUD, and hint text all render with kaplay's default `sans-serif` and no dark stroke. Against bright biomes (mountain snow, river, market) they wash out.
-
-- Add a shared `pixelLabel(k, text, opts)` helper that:
-  - Uses `size: 12` minimum (bump 10/11 callsites to 12).
-  - Emits a 1-px black text-outline by rendering the same string 4× at ±1 offsets in black behind the fg draw (Kaplay text doesn't ship outlines).
-  - Uses high-contrast fg colors (`rgb(255,255,255)` for dark plaques, `rgb(20,20,20)` for cream plaques) chosen from the plaque bg.
-- Retrofit `addSignPlaque` (badge + label), `addSpeech`, `spawnThoughtBubble`, the HUD `SCORE/OBJECTIVE/HINT` texts, and title-card `k.text` calls to use it.
-- Bump plaque background opacity/outline width from 2→3 px so text has a guaranteed backdrop across every biome.
+- Add a dedicated big countdown display that only renders while the player is inside Zone 5 (`Math.floor(player.pos.x / BIOME_W) === 5`) and `zoneState.waitStart > 0`.
+- Anchor it top-center of the visible viewport (fixed to the camera, using the existing `fixed()` HUD pattern), around y ≈ 36 px, with `pixelLabel` at size ~28, high-contrast white fill on a dark rounded backdrop, showing `0:SS` and a short label like `AWAITING DECISION`.
+- When the timer hits 0, briefly flash the display to `APPROVED!` in green for ~1 s before Zone 5 completes, then hide it.
+- Verify with Playwright: force-warp into Zone 5, confirm the big timer is visible at top-center on both desktop and mobile viewports, counts down, and disappears after approval.
 
 ## Technical notes
 
-- Files touched: `src/components/game/game-scenes.ts` only for logic + label helper wiring. New assets: `src/assets/game/hero-walk-left-sheet.png.asset.json`, `src/assets/game/hero-slide-sheet.png.asset.json`.
-- No schema / route / server changes.
-- Verify with Playwright at 1280×1800 desktop and 844×390 mobile-landscape: walk left in Zone 1, slide the pole in Zone 8, and screenshot Zone 1 signs + Zone 5 mailbox hints for label contrast.
+- Files touched: `src/components/game/game-scenes.ts` (plan-pick handler, Zone 5 HUD overlay, no changes needed to slide anim wiring).
+- Regenerated asset: `src/assets/game/hero-slide-sheet.png` (same dimensions, same `.asset.json` pointer).
+- No schema, route, or server changes.
+- Final UAT: Playwright at 1280×1800 desktop and 844×390 mobile-landscape covering (a) Zone 7 with each plan pick, (b) Zone 5 timer visibility and countdown, (c) Zone 8 fire-pole slide sprite parity with the rest of the game.

@@ -1597,6 +1597,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       hintUntil = k.time() + 1.8;
     }
 
+    // Big Zone-5 "Awaiting a decision" countdown, top-center.
+    const waitBgW = 260;
+    const waitBgH = 68;
+    const waitBg = k.add([
+      k.rect(waitBgW, waitBgH, { radius: 8 }),
+      k.pos(k.width() / 2 - waitBgW / 2, 12),
+      k.color(15, 15, 30),
+      k.outline(3, k.rgb(255, 220, 90)),
+      k.opacity(0),
+      k.fixed(),
+      k.z(LAYERS.HUD),
+    ]) as AnyObj;
+    const waitLabel = pixelHudText({
+      x: k.width() / 2, y: 22, size: 12, color: [255, 220, 90],
+      anchor: "top", initial: "AWAITING DECISION", opacity: 0,
+    });
+    const waitCountdown = pixelHudText({
+      x: k.width() / 2, y: 40, size: 28, color: [255, 255, 255],
+      anchor: "top", initial: "0:30", opacity: 0,
+    });
+
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
       appIcons.forEach((g, i) => {
@@ -1614,8 +1635,36 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const z = player.farthestZone;
       const obj = zoneObjectives[z];
       objectiveHud.text = obj ? obj.hudLabel() : "";
+
+      // Zone-5 big countdown: visible while player is in Zone 5 with an
+      // active wait timer, or briefly flashes APPROVED! at 0.
+      const inZone5 = Math.floor(player.pos.x / BIOME_W) === 5;
+      const started = zoneState.waitStart > 0;
+      const elapsed = started ? k.time() - zoneState.waitStart : 0;
+      const remaining = started ? Math.max(0, zoneState.waitDur - elapsed) : zoneState.waitDur;
+      const approvedFlash = started && elapsed >= zoneState.waitDur && elapsed < zoneState.waitDur + 1.5;
+      const showTimer = inZone5;
+      if (showTimer) {
+        waitBg.opacity = 0.85;
+        waitLabel.opacity = 1;
+        waitCountdown.opacity = 1;
+        if (approvedFlash) {
+          waitLabel.text = "APPROVED!";
+          waitCountdown.text = "✓";
+          (waitLabel as unknown as { color?: unknown }); // color set via node; keep as-is
+        } else {
+          waitLabel.text = started ? "AWAITING DECISION" : "STEP INTO THE MOUNTAIN";
+          const secs = Math.ceil(remaining);
+          waitCountdown.text = `0:${String(secs).padStart(2, "0")}`;
+        }
+      } else {
+        waitBg.opacity = 0;
+        waitLabel.opacity = 0;
+        waitCountdown.opacity = 0;
+      }
     }
     updateHud();
+
 
     // ================= Asset debug overlay =================
     // Toggle with the "D" key or by loading the page with ?debug=assets.
@@ -1760,17 +1809,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       item.destroy();
     });
 
-    // New: plan pedestal pick. First selection spawns the gold key.
-    player.onCollide("plan-pick", (p) => {
-      if (zoneState.planPicked) return;
-      const item = p as unknown as { planLabel: string; bonus: number; destroy: () => void; pos: { x: number; y: number } };
-      zoneState.planPicked = true;
-      player.score += item.bonus ?? 800;
-      const kx = item.pos.x;
-      const ky = item.pos.y - 40;
-      // Remove the other unpicked pedestal cards
-      k.get("plan-pick").forEach((o) => (o as { destroy: () => void }).destroy());
-      // Spawn floating gold key that homes toward the player
+    // New: plan pedestal pick. Any selection spawns the gold key.
+    function spawnGoldKey(kx: number, ky: number) {
+      if (k.get("gold-key").length > 0) return;
       const kw = displaySize("gold-key", sizes).w;
       const kh = DISPLAY_H["gold-key"];
       const keyItem = k.add([
@@ -1787,8 +1828,30 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         keyItem.pos.x += dx * 2 * k.dt();
         keyItem.pos.y += dy * 2 * k.dt();
       });
-      showHint(`Picked ${item.planLabel} — grab the key!`);
+    }
+    player.onCollide("plan-pick", (p) => {
+      if (zoneState.planPicked) return;
+      const item = p as unknown as { planLabel: string; bonus: number; destroy: () => void; pos: { x: number; y: number } };
+      // Capture position BEFORE mutating state or destroying anything.
+      const kx = item.pos.x;
+      const ky = item.pos.y - 40;
+      const label = item.planLabel;
+      zoneState.planPicked = true;
+      player.score += item.bonus ?? 800;
+      // Spawn the key immediately from the captured coords.
+      spawnGoldKey(kx, ky);
+      // Then remove every plan pedestal (including the collided one).
+      k.get("plan-pick").forEach((o) => (o as { destroy: () => void }).destroy());
+      showHint(`Picked ${label} — grab the key!`);
+      // Defensive fallback: if for any reason the key entity is gone
+      // 250 ms later, respawn from the captured pedestal position so the
+      // objective can never soft-lock regardless of plan choice.
+      k.wait(0.25, () => {
+        if (zoneState.hasKey) return;
+        if (k.get("gold-key").length === 0) spawnGoldKey(kx, ky);
+      });
     });
+
 
     player.onCollide("gold-key", (kk) => {
       if (zoneState.hasKey) return;

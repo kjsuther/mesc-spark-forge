@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Leaderboard } from "./leaderboard";
+import { GameMusic } from "@/lib/game-music";
 import type { GameFlags, WinResult } from "./game-scenes";
 
 type Props = {
@@ -12,7 +13,7 @@ type Props = {
 type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
 
 type LaunchMode = "standard" | "fullscreen";
-type MenuScreen = "title" | "scores";
+type MenuScreen = "title" | "explainer" | "trailmap" | "scores";
 
 const isCoarsePointer = () =>
   typeof window !== "undefined" &&
@@ -49,6 +50,12 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
   const [loading, setLoading] = useState(false);
   const { portrait } = useOrientation();
   const [isTouch] = useState(() => isCoarsePointer());
+  const music = useMemo(() => new GameMusic(), []);
+  const [musicOn, setMusicOn] = useState(false);
+  useEffect(() => () => { music.stop(); }, [music]);
+  const toggleMusic = useCallback(() => {
+    setMusicOn(music.toggle());
+  }, [music]);
   const key = `${mode}|${Object.entries(flags)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}:${v ? 1 : 0}`)
@@ -399,11 +406,46 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
                   className="mx-auto flex max-w-xs flex-col gap-3"
                   style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
                 >
-                  <MenuButton onClick={() => pickMode("standard")}>▶ Start Game</MenuButton>
-                  <MenuButton onClick={() => pickMode("fullscreen")}>⛶ Fullscreen</MenuButton>
+                  <MenuButton onClick={() => setMenuScreen("explainer")}>▶ Start Game</MenuButton>
                   <MenuButton onClick={() => setMenuScreen("scores")}>★ High Scores</MenuButton>
                 </div>
               </div>
+            )}
+
+            {menuScreen === "explainer" && (
+              <div className="w-full max-w-2xl text-center" style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}>
+                <div
+                  className="mx-auto mb-5 border-[6px] border-cream bg-mn-blue px-5 py-6 text-left"
+                  style={{
+                    imageRendering: "pixelated",
+                    boxShadow:
+                      "0 0 0 6px var(--color-mn-blue), 0 0 0 12px var(--color-accent-gold), 0 0 0 18px var(--color-mn-blue)",
+                  }}
+                >
+                  <p className="mb-3 text-center text-[9px] tracking-widest text-accent-gold sm:text-[11px]">
+                    ★ THE JOURNEY ★
+                  </p>
+                  <p className="text-[9px] leading-[1.9] text-cream sm:text-[11px]">
+                    Applying for health coverage is a LONG road. Without the
+                    right tools it can feel impossible &mdash; forms pile up,
+                    letters get lost, deadlines slip, and many people GIVE UP
+                    before the finish line.
+                  </p>
+                  <p className="mt-4 text-[9px] leading-[1.9] text-cream sm:text-[11px]">
+                    Go as far as you can down the trail. When your run ends,
+                    VOTE on a tool that could help along the way. The winning
+                    tool gets added to the trail after the timer.
+                  </p>
+                </div>
+                <div className="mx-auto flex max-w-xs flex-col gap-3">
+                  <MenuButton onClick={() => setMenuScreen("trailmap")}>▶ Continue</MenuButton>
+                  <MenuButton onClick={() => setMenuScreen("title")}>Back</MenuButton>
+                </div>
+              </div>
+            )}
+
+            {menuScreen === "trailmap" && (
+              <TrailMap onContinue={() => pickMode("standard")} onBack={() => setMenuScreen("explainer")} />
             )}
 
             {menuScreen === "scores" && (
@@ -421,11 +463,24 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
                 </div>
                 <div className="mx-auto flex w-full max-w-sm gap-3">
                   <MenuButton onClick={() => setMenuScreen("title")}>Back</MenuButton>
-                  <MenuButton onClick={() => pickMode("standard")}>Start</MenuButton>
+                  <MenuButton onClick={() => setMenuScreen("explainer")}>Start</MenuButton>
                 </div>
               </div>
             )}
           </div>
+        )}
+
+        {/* Music toggle (visible whenever a game is running) */}
+        {launchMode && (
+          <button
+            type="button"
+            onClick={toggleMusic}
+            aria-label={musicOn ? "Mute music" : "Play music"}
+            className="absolute top-2 right-14 z-40 h-9 w-9 rounded-md border-2 border-cream bg-mn-blue/80 text-cream text-lg font-black backdrop-blur-sm"
+            style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
+          >
+            {musicOn ? "🔊" : "🔇"}
+          </button>
         )}
 
         {/* Loading overlay between Start tap and first frame */}

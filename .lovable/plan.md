@@ -1,48 +1,78 @@
-# Mobile-First Playability Fixes
+# Blazing the Trail — Intro Flow, Music, and Zone Overhaul
 
-## Problems observed
+All work is scoped to the game module. Outside the game (site chrome, voting DB, admin panel) is untouched unless noted.
 
-1. **Portrait mode looks broken on mobile.** The rotate-to-landscape prompt is gated behind `!!launchMode && isTouch && portrait`, so before you tap Start there is no message and no visible way to know what to do. On a 402×852 phone the title card renders but the "Start Game" buttons sit inside a 16:9 canvas box that is only ~226px tall, so tap targets are cramped and the game never launches.
-2. **Fullscreen wastes screen space.** In faux-fullscreen, the touch controls live in a separate 96px row *below* the canvas (`calc(100dvh - 96px)`), shrinking the game. The controls themselves are plain circles with tiny labels — they don't read as game buttons.
-3. **Buttons don't feel like game buttons.** Flat circles, thin labels, no D-pad grouping, no visual affordance for press state.
+## 1. New pre-game flow (Title → Explainer → Trail Map → Game)
 
-## Fix plan — all in `src/components/game/game-canvas.tsx`
+Files: `src/components/game/game-canvas.tsx` (state machine), new `src/components/game/intro-explainer.tsx`, new `src/components/game/trail-map.tsx`.
 
-### 1. Portrait handling on mobile (before AND after start)
+- Extend the launch state machine from `title → game` to `title → explainer → trailmap → game`. Keyboard (Enter/Space) and touch ("Continue") advance each step; each step is skippable with a small "Skip" affordance.
+- **Explainer screen** (SNES-style, matches title): scrolling pixel-frame with copy roughly:
+  > "The trail to health coverage is long. Without the right tools, many travelers give up before the end. Your goal: make it as far as you can. If you fail to complete the process, vote on the tool that would have helped you most from the options listed below the game screen — after the voting timer ends, the winning tool is added to the trail for everyone."  
+  > Bottom prompt: blinking **▶ CONTINUE**. Reuses the same pixel border, gold accents, MN-blue palette, and "Press Start 2P" font as the title screen.
+- **Trail map screen**: an animated 16-bit overworld map (think Super Mario World map). Static illustrated map background (generated via imagegen, 1280×720, SNES cartography style: rivers, mountains, forests, city). Eight numbered nodes (Zone 1–8) connected by dashed trail segments. Animation: dashes fill in sequentially (interpolated over ~2.5s) then the hero sprite hops between nodes to signal the full journey. "▶ CONTINUE" once the animation finishes (also tappable to skip). New asset: `src/assets/game/trail-map-bg.png`.
 
-- Show the rotate overlay whenever `isTouch && portrait`, regardless of `launchMode`. This means a mobile user in portrait sees the rotate hint immediately on page load and cannot get stuck on a squished title screen.
-- Overlay copy: pixel-art phone icon that rotates, "TURN YOUR PHONE" headline, subtitle "Blazing the Trail is a landscape adventure." Remove the Exit button in the pre-launch state (nothing to exit from yet); keep it once a game is running.
-- Overlay uses `position: fixed; inset: 0; z-index: 10000` and a solid MN-blue background so nothing behind it shows through.
+## 2. Background music with toggle
 
-### 2. Fullscreen layout maximizes the canvas
+Files: `src/components/game/game-canvas.tsx`, new `src/components/game/audio-controller.ts`, new asset `src/assets/game/music-loop.mp3` (royalty-free chiptune ~20s, e.g. from Pixabay/OpenGameArt CC0 — will pick a specific track during build and cite source).
 
-- Drop the separate control row. Canvas box becomes `width: 100vw; height: 100dvh` with `aspect-ratio: 16/9` + `object-fit: contain` so the game fills the viewport, letterboxed only where the phone isn't 16:9.
-- Render touch controls as **absolutely-positioned overlays on top of the canvas** in the bottom-left (D-pad: ◀ ▶) and bottom-right (⟳ small, JUMP large). They use `env(safe-area-inset-*)` padding so they clear iPhone notch/home indicator.
-- Overlay controls only appear when `isTouch` — desktop fullscreen stays keyboard-only and clean.
-- Exit (✕) stays top-right; add a small ⛶ toggle only in non-fullscreen mode (unchanged).
+- HTML `<audio loop>` element mounted at canvas root, autoplays after the first user gesture (title's Start button counts, satisfying iOS autoplay policy).
+- 🔊 / 🔇 toggle button in the top-left of the game HUD row (mirrors the ✕ and ⛶ buttons). Persist preference in `localStorage` (`btc:music`).
+- Music plays across explainer, trail map, and gameplay. Paused on Exit.
 
-### 3. Buttons that look like game buttons
+## 3. Zone-by-zone changes (`src/components/game/game-scenes.ts`)
 
-Rework `LabeledTouch` for the overlay use case:
+**Zone 1 — Learn how to apply**
 
-- Chunky rounded-square (not circle) with a 3-4px cream border, gold inner ring, and a `box-shadow` "chiselled" bevel that inverts on `:active` — reads as a physical SNES-style button.
-- Semi-transparent MN-blue fill (`bg-mn-blue/70` + `backdrop-blur-sm`) so gameplay is still faintly visible behind them.
-- Jump: ~92×92 px, bold "JUMP" text with orange accent. D-pad arrows: ~72×72 px, grouped tight (4px gap) so they read as a pair. Restart: ~56×56 px, dimmer.
-- Labels: keep the tiny pixel-font caption *inside* the button (top-left corner mini badge), not below, so they don't add vertical space.
+- Convert the 4 method sign plaques into `?`-style **brick blocks** floating at jump height (mail / phone / in-person / online). Hitting a brick from below pops out a collectible icon (existing method icons repurposed / new `brick-block.png` sheet with idle + hit frames). Collecting the icon sets the chosen method and unlocks the door.
+- Door starts **locked** with a visible padlock overlay until an icon is collected.
+- Add **2 additional gaps** in the ground between the bricks and the door, positioned so no brick sits over a gap (player can always reach every brick without a risky jump; the gaps only affect traversal toward the door).
 
-### 4. Small polish
+**Zone 2 — Create your account**
 
-- Portrait overlay listens to `orientationchange` / `resize` (already in `useOrientation`) — verify it clears the moment the user rotates.
-- Reduce the "faux-fullscreen bottom padding" leftover (no longer needed).
-- Keep `touch-action: none` on canvas and buttons so scrolling never fights the game.
+- Add **2 extra form-monster villains** on the left side of the river gap. Both patrol short overlapping ranges moving in opposite directions (one left→right, one right→left), so they cross and overlap visually.
 
-## Out of scope
+**Zone 3 — River of Paperwork**
 
-- No changes to `game-scenes.ts`, physics, art, Supabase, or voting.
-- No layout changes to the non-game parts of the page.
+- Each floating platform gets a pixel label baked on top ("ABOUT YOU", "HOUSEHOLD", "INCOME", "SIGNATURE"). Rendered via `pixelHudText` with the same shadow/legibility treatment used elsewhere.
 
-## Verification
+**Zone 5 — Respond to Requests for Info**
 
-- Playwright at 402×852 (portrait): rotate overlay visible on page load, no title card fighting for space.
-- Playwright at 852×402 (landscape, touch emulation): title → Start → game fills the viewport, D-pad + JUMP overlaid at the bottom corners, canvas is ~vh tall (not `vh − 96px`).
-- Playwright at desktop 1280×800: no overlay controls, keyboard hint present.
+- Replace current villain sprite with a zone-appropriate one: an **"Envelope Gremlin"** (a hostile letter with legs). New asset `src/assets/game/envelope-gremlin-sheet.png` (imagegen, SNES 16-bit, 2–3 walk frames, transparent bg). Same collision/AI as the existing villain — pure art swap plus new sprite key.
+
+**Zone 6 — Awaiting a Decision**
+
+- Falling calendar pages: randomize spawn X across the full zone width and randomize spawn interval within a range each cycle, so no two runs have the same drop pattern.
+
+**Zone 7 — Choose a Health Plan**
+
+- Rename plan cards to **Blue Cross/Blue Shield**, **HealthPartners**, **Medica**. Regenerate `src/assets/game/plan-cards-sheet.png` with new labels and updated color coding, and refresh any background signage referencing plan names.
+- After selecting a plan, spawn a **zone boss** ("Paperwork Ogre" themed to insurance bureaucracy — new asset `boss-sheet.png` with idle, hurt, and defeat frames). Boss has a 3-heart health bar rendered top-center. Player must jump-stomp the boss 3 times; each stomp plays hurt anim + brief i-frames + knockback, then boss respawns from a random side. After the 3rd stomp, boss plays defeat anim and vanishes, and the door unlocks. Gold key path from before is replaced by this boss gate.
+
+**Zone 8 — Coverage Begins**
+
+- Widen platform spacing so several jumps require max jump distance. Introduce 2–3 actual bottomless gaps between platforms; falling into one costs a life (respawn at zone start via existing `loseLife`).
+
+## 4. Asset generation plan (imagegen)
+
+New PNGs to generate before wiring:
+
+- `trail-map-bg.png` (1280×720, SNES overworld map)
+- `brick-block.png` (32×32, idle + hit, transparent)
+- `envelope-gremlin-sheet.png` (walk frames, transparent)
+- `plan-cards-sheet.png` (regen with new insurer names)
+- `boss-sheet.png` (idle / hurt / defeat frames, transparent)
+- Padlock icon overlay for locked doors (`door-lock.png`)
+
+Music: one royalty-free CC0 chiptune loop (~20s) sourced from Pixabay/OpenGameArt, saved as `music-loop.mp3`. Source URL logged in commit notes.
+
+## 5. Out of scope
+
+- No changes to Supabase schema, voting logic, admin panel, leaderboard, site chrome, or router.
+- No changes to zones not listed (Zone 4 unchanged).
+- Physics constants (speed, jump height, coyote/buffer) unchanged unless a Zone 8 gap requires a tiny tuning pass.
+
+## 6. Verification
+
+- Playwright desktop (1280×800) and mobile landscape (852×402): full run through Title → Explainer → Trail Map → Zone 1..8 → Win.
+- Confirm: music toggle persists, bricks pop icons, door stays locked without an icon, Zone 2 has 4 villains total with overlap, Zone 3 platform labels legible, Zone 5 uses new gremlin, Zone 6 calendar spawns vary run-to-run, Zone 7 boss takes exactly 3 hits, Zone 8 has at least one lethal gap.

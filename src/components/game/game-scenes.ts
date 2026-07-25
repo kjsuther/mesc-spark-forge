@@ -810,20 +810,22 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         "door",
         { zoneIdx, unlocked: false },
       ]) as AnyObj;
-      // Solid barrier centered on door — blocks passage while locked. Height
-      // is a full playfield so players can't jump over (peak jump ≈ 144 px
-      // with JUMP_VEL 720 / gravity 1800, which used to clear the old 120 px
-      // wall). Anchor "bot" keeps its base flush with GROUND_Y.
+      // Solid barrier centered on door — blocks passage while locked. Kaplay's
+      // default k.area() shape is anchored top-left of the rect regardless of
+      // k.anchor(...), so we place the rect at top-left explicitly and give
+      // it an explicit shape to be safe. Height 560 keeps its top above the
+      // player's peak jump (GROUND_Y - 144).
+      const BAR_W = 14, BAR_H = 560;
       const bar = k.add([
-        k.rect(14, 560),
-        k.pos(dx, GROUND_Y),
-        k.anchor("bot"),
+        k.rect(BAR_W, BAR_H),
+        k.pos(dx - BAR_W / 2, GROUND_Y - BAR_H),
         k.color(60, 40, 20),
         k.opacity(0),
-        k.area(),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), BAR_W, BAR_H) }),
         k.body({ isStatic: true }),
         k.z(LAYERS.PROP),
       ]);
+
 
       return { obj: doorObj, barrier: bar, unlocked: false, playedAnim: false };
     }
@@ -1291,6 +1293,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         walkFrame: 0,
       },
     ]);
+    // Debug hook so QA/Playwright can inspect live game state.
+    if (typeof window !== "undefined") {
+      (window as unknown as { __gameDebug?: unknown }).__gameDebug = {
+        player, doors, zoneState, zoneObjectives,
+        BIOME_W, GROUND_Y, ZONES_LEN: ZONES.length,
+      };
+    }
+
 
     // Manual animation: swap sprite per state. All hero frames share size
     // (grouped in the trim step), so swapping never causes horizontal jitter.
@@ -2049,7 +2059,28 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       } else if (p.opacity !== 1) {
         p.opacity = 1;
       }
+      // Belt-and-suspenders: hard-clamp player X so no jump/collision-resolution
+      // edge case can smuggle them past a locked door. Applied while the player
+      // is still on the "wrong" side of the nearest locked door — anywhere
+      // before the door itself or within the door's own zone boundary if they
+      // tunneled through in one frame.
+      const HITBOX_HALF = 12;
+      for (let i = 0; i < doors.length; i++) {
+        const d = doors[i];
+        if (!d || d.unlocked) continue;
+        const dx = (i + 1) * BIOME_W - 60;
+        const clampX = dx - 4 - HITBOX_HALF;
+        // Only clamp if player has not YET beaten this door's zone (they should
+        // still be in zone i or earlier). Never clamp backwards from a later zone.
+        if (player.farthestZone <= i && player.pos.x > clampX) {
+          player.pos.x = clampX;
+          if (p.vel && p.vel.x > 0) p.vel.x = 0;
+        }
+        break; // nearest locked door only
+      }
     });
+
+
     k.onUpdate(() => {
       if (!player.dead) updateHud();
     });

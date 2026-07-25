@@ -1456,7 +1456,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.outline(2, k.rgb(90, 90, 110)),
         k.area(), k.body({ isStatic: true }),
         k.z(LAYERS.PLATFORM), "platform",
-        { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(sxi, syi), width: 72, height: 14 },
+        { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(sxi, syi) },
       ]);
     }
     // Top landing + medical ID card. Landing width kept short so it ends

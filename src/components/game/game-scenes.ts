@@ -541,9 +541,9 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "backpack", frame: 4 },
     { name: "bridge", frame: 5 },
     { name: "boulder", frame: 9 },
-    { name: "form-monster", frame: 10 },
     { name: "denied", frame: 11 },
   ];
+  const formMonsterFrames: FrameSpec[] = [{ name: "form-monster", frame: 0 }];
   const docIdFrames: FrameSpec[] = [{ name: "id", frame: 0 }];
   const docPaystubFrames: FrameSpec[] = [{ name: "paystub", frame: 0 }];
   const docEnvelopeFrames: FrameSpec[] = [{ name: "envelope", frame: 0 }];

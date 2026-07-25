@@ -1262,16 +1262,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.anchor("bot"),
       k.z(LAYERS.PLAYER),
       "player",
-    ]);
-    // Debug hook so QA/Playwright can inspect live game state.
-    if (typeof window !== "undefined") {
-      (window as unknown as { __gameDebug?: unknown }).__gameDebug = {
-        player, doors, zoneState, zoneObjectives,
-        BIOME_W, GROUND_Y, ZONES_LEN: ZONES.length,
-      };
-    }
-    player.use(
-
       {
         docs: new Set<string>(),
         checkpointX,
@@ -1301,6 +1291,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         walkFrame: 0,
       },
     ]);
+    // Debug hook so QA/Playwright can inspect live game state.
+    if (typeof window !== "undefined") {
+      (window as unknown as { __gameDebug?: unknown }).__gameDebug = {
+        player, doors, zoneState, zoneObjectives,
+        BIOME_W, GROUND_Y, ZONES_LEN: ZONES.length,
+      };
+    }
+
 
     // Manual animation: swap sprite per state. All hero frames share size
     // (grouped in the trim step), so swapping never causes horizontal jitter.

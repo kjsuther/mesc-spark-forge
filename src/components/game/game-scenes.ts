@@ -547,6 +547,8 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "plan-orange", frame: 2 },
   ];
   const idFrames: FrameSpec[] = [{ name: "medical-id", frame: 0 }];
+  const calendarFrames: FrameSpec[] = [{ name: "calendar-page", frame: 0 }];
+  const airplaneFrames: FrameSpec[] = [{ name: "paper-airplane", frame: 0 }];
 
   const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes] = await Promise.all([
     safeLoadSheet(k, {

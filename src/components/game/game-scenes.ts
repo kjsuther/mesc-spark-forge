@@ -1487,7 +1487,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const topLandingX = STEP_START_X + stepCount * STEP_GAP_X + 20;
     const topLandingY = stairY0 - 60 - stepCount * 45;
     const topLanding = k.add([
-      k.rect(120, 14), k.pos(topLandingX, topLandingY),
+      k.rect(72, 14), k.pos(topLandingX, topLandingY),
       k.color(200, 195, 210), k.outline(2, k.rgb(90, 90, 110)),
       k.area(), k.body({ isStatic: true }),
       k.z(LAYERS.PLATFORM), "platform",
@@ -1497,7 +1497,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     {
       const idW = displaySize("medical-id", sizes).w;
       const idH = DISPLAY_H["medical-id"];
-      const idX = topLandingX + 40;
+      const idX = topLandingX + 30;
       const idY = topLandingY - idH / 2 - 8;
       const idItem = k.add([
         k.sprite("medical-id", { width: idW, height: idH }),
@@ -1510,17 +1510,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]) as AnyObj;
       idItem.onUpdate(() => { idItem.pos.y = idItem.basY + Math.sin(k.time() * 2.5) * 4; });
       addSpeech(k, idX, idY - idH / 2 - 14, "MEDICAL ID", [200, 40, 60]);
-      addSpeech(k, topLandingX + 40, topLandingY - 42, "GRAB THE ID →", [220, 30, 60]);
+      addSpeech(k, idX, topLandingY - 42, "GRAB THE ID →", [220, 30, 60]);
     }
 
-    // Fire pole — placed PAST the top landing so nothing blocks the slide.
-    // Must stay inside LEVEL_END or the camera clamp hides it and the finale never fires.
-    const poleX = topLandingX + 120;
+    // Fire pole — offset from top landing with a visible air gap so the pole
+    // reads as a separate grabbable target and the slide can't be interrupted
+    // by re-landing on the landing's static body.
+    const poleX = topLandingX + 96;
     if (poleX > LEVEL_END - 40) {
-      // Loud dev-time warning if this ever regresses.
       console.warn("[game] Zone 8 fire pole placed past LEVEL_END", { poleX, LEVEL_END });
     }
-    const poleTop = topLandingY - 40;
+    const poleTop = topLandingY - 60;
     const poleBaseY = GROUND_Y - 4;
     k.add([
       k.rect(6, poleBaseY - poleTop),

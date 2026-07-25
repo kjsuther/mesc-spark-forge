@@ -1296,12 +1296,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     {
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
-      const baseSpeed = active.plain_language ? 24 : 40;
+      const baseSpeed = active.plain_language ? 30 : 52;
       const monsterSpots: Array<{ x: number; speed: number; range: number }> = [
-        { x: tx0 + 380,  speed: active.plain_language ? 20 : 34, range: 90 },
-        { x: tx0 + 720,  speed: baseSpeed,                        range: 90 },
-        { x: tx0 + 1000, speed: active.plain_language ? 20 : 34, range: 90 },
+        { x: tx0 + 340,  speed: active.plain_language ? 26 : 46, range: 110 },
+        { x: tx0 + 620,  speed: baseSpeed,                        range: 130 },
+        { x: tx0 + 820,  speed: active.plain_language ? 28 : 50, range: 100 },
+        { x: tx0 + 1020, speed: active.plain_language ? 26 : 44, range: 120 },
       ];
+
       for (const s of monsterSpots) {
         const m = spawnGrounded(k, "form-monster", sizes, {
           x: s.x, z: LAYERS.ACTOR, tag: "monster",

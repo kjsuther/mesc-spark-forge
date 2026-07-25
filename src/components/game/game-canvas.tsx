@@ -733,13 +733,14 @@ function TrailMap({ onContinue, onBack }: { onContinue: () => void; onBack: () =
     <div className="w-full max-w-3xl text-center" style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}>
       <p className="mb-4 text-[10px] tracking-widest text-accent-gold sm:text-[12px]">★ THE TRAIL AHEAD ★</p>
       <div
-        className="relative mx-auto mb-5 aspect-[2/1] w-full overflow-hidden border-[6px] border-cream bg-[#3a5a34]"
+        className="relative mx-auto mb-5 aspect-[2/1] w-full overflow-hidden border-[6px] border-cream"
         style={{
           imageRendering: "pixelated",
           boxShadow:
             "0 0 0 6px var(--color-mn-blue), 0 0 0 12px var(--color-accent-gold)",
-          backgroundImage:
-            "repeating-linear-gradient(0deg,#3a5a34 0 12px,#456b3a 12px 24px), radial-gradient(circle at 20% 30%, #6f9455 0 30px, transparent 31px), radial-gradient(circle at 70% 80%, #6f9455 0 40px, transparent 41px)",
+          backgroundImage: `url(${trailMapBg.url})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
         }}
       >
         <svg viewBox="0 0 800 400" className="absolute inset-0 h-full w-full">

@@ -18,6 +18,7 @@
 import type { KAPLAYCtx } from "kaplay";
 import type { ImprovementKey } from "@/lib/game.functions";
 import charSheetUrl from "@/assets/game/character-sheet.png";
+import heroSlideSheetUrl from "@/assets/game/hero-slide-sheet.png";
 import propsSheetUrl from "@/assets/game/props-sheet.png";
 import propsSheet2Url from "@/assets/game/props-sheet-2.png";
 import bgForestUrl from "@/assets/game/bg-forest.png";
@@ -191,6 +192,15 @@ const DISPLAY_H: Record<string, number> = {
   "hero-walk-2": 66,
   "hero-walk-3": 66,
   "hero-jump": 66,
+  "hero-slide-0": 66,
+  "hero-slide-1": 66,
+  // Mirrored left-facing frames registered post-load in registerLeftMirrors().
+  "hero-idle-left": 66,
+  "hero-walk-0-left": 66,
+  "hero-walk-1-left": 66,
+  "hero-walk-2-left": 66,
+  "hero-walk-3-left": 66,
+  "hero-jump-left": 66,
   signpost: 46,
   ranger: 60,
   map: 40,
@@ -491,6 +501,10 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "hero-walk-3", frame: 4 },
     { name: "hero-jump", frame: 5 },
   ];
+  const slideFrames: FrameSpec[] = [
+    { name: "hero-slide-0", frame: 0 },
+    { name: "hero-slide-1", frame: 1 },
+  ];
   const propFrames: FrameSpec[] = [
     { name: "signpost", frame: 0 },
     { name: "ranger", frame: 1 },
@@ -530,7 +544,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
   ];
   const idFrames: FrameSpec[] = [{ name: "medical-id", frame: 0 }];
 
-  const [heroSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes] = await Promise.all([
+  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes] = await Promise.all([
     safeLoadSheet(k, {
       url: charSheetUrl,
       cols: 3,
@@ -538,6 +552,14 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
       frames: heroFrames,
       groups: [heroFrames.map((f) => f.name)],
       label: "character-sheet.png",
+    }),
+    safeLoadSheet(k, {
+      url: heroSlideSheetUrl,
+      cols: 2,
+      rows: 1,
+      frames: slideFrames,
+      groups: [slideFrames.map((f) => f.name)],
+      label: "hero-slide-sheet.png",
     }),
     safeLoadSheet(k, { url: propsSheetUrl,  cols: 4, rows: 3, frames: propFrames,  label: "props-sheet.png" }),
     safeLoadSheet(k, { url: propsSheet2Url, cols: 3, rows: 2, frames: propFrames2, label: "props-sheet-2.png" }),
@@ -547,6 +569,13 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadSheet(k, { url: planCardsSheetUrl,   cols: 3, rows: 1, frames: planFrames, label: "plan-cards-sheet.png" }),
     safeLoadSheet(k, { url: medicalIdUrl,        cols: 1, rows: 1, frames: idFrames,   label: "medical-id.png" }),
   ]);
+
+  // Register horizontally-mirrored copies of the hero walk/idle/jump frames
+  // so the character has a true set of left-facing sprites (rather than
+  // relying on render-time flipX, which can subtly misalign the hitbox
+  // against decorative asymmetric details).
+  const leftSizes = await registerLeftMirrors(k, heroFrames.map((f) => f.name), heroSizes);
+
 
   // Backgrounds don't need trimming but still get load-status tracking + a
   // magenta fallback so a missing PNG doesn't crash the scene.
@@ -566,7 +595,57 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     (window as unknown as { __gameAssetReport?: AssetReport }).__gameAssetReport = ASSET_REPORT;
   }
 
-  return { ...heroSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes };
+  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes };
+}
+
+/** Load already-registered sprites' backing images from the sheets by pulling
+ *  their PNG data URLs via the browser, flipping horizontally on a canvas,
+ *  and re-registering as `${name}-left`. Because we start from the trimmed
+ *  bitmap the mirrored copy has identical trim + unified size — nothing else
+ *  in the pipeline needs to change. */
+async function registerLeftMirrors(
+  k: Ctx,
+  names: string[],
+  sizes: SpriteSizes,
+): Promise<SpriteSizes> {
+  const out: SpriteSizes = {};
+  // Reload the source hero sheet once and re-slice using the trim bboxes we
+  // already recorded on ASSET_REPORT.entries.
+  for (const name of names) {
+    const entry = ASSET_REPORT.entries[name];
+    const src = sizes[name];
+    if (!entry || !entry.sheetUrl || !entry.sheetRect || !entry.trimBBox || !src) continue;
+    try {
+      const img = await loadImageEl(entry.sheetUrl);
+      const { fx, fy } = entry.sheetRect;
+      const bb = entry.trimBBox;
+      const cvs = document.createElement("canvas");
+      cvs.width = src.w;
+      cvs.height = src.h;
+      const cx = cvs.getContext("2d");
+      if (!cx) continue;
+      cx.imageSmoothingEnabled = false;
+      const dx = Math.floor((src.w - bb.w) / 2);
+      const dy = src.h - bb.h;
+      cx.save();
+      cx.translate(src.w, 0);
+      cx.scale(-1, 1);
+      cx.drawImage(img, fx + bb.x, fy + bb.y, bb.w, bb.h, src.w - dx - bb.w, dy, bb.w, bb.h);
+      cx.restore();
+      const leftName = `${name}-left`;
+      await k.loadSprite(leftName, cvs.toDataURL("image/png"));
+      out[leftName] = { w: src.w, h: src.h };
+      ASSET_REPORT.entries[leftName] = {
+        ...entry,
+        name: leftName,
+        sheetLabel: `${entry.sheetLabel ?? ""} (mirror)`,
+        status: "loaded",
+      };
+    } catch (err) {
+      console.warn(`[assets] mirror failed: ${name}`, err);
+    }
+  }
+  return out;
 }
 
 
@@ -1288,9 +1367,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         passedMonsters: new Set<unknown>(),
         visitedZones: new Set<number>([Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)))]),
         riding: null as null | { pos: { x: number; y: number }; platformSpeed: { x: number; y: number }; width: number; height: number },
-        animState: "idle" as "idle" | "walk" | "jump",
+        animState: "idle" as "idle" | "walk" | "jump" | "slide",
         animTick: 0,
         walkFrame: 0,
+        slideFrame: 0,
       },
     ]);
     // Debug hook so QA/Playwright can inspect live game state.
@@ -1304,19 +1384,31 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // Manual animation: swap sprite per state. All hero frames share size
     // (grouped in the trim step), so swapping never causes horizontal jitter.
+    let currentSpriteName = "hero-idle";
     function setSprite(name: string) {
+      if (currentSpriteName === name) return;
+      currentSpriteName = name;
       const ds = displaySize(name, sizes);
       player.use(k.sprite(name, { width: ds.w, height: DISPLAY_H[name] }));
     }
-    function setAnim(next: "idle" | "walk" | "jump") {
+    /** Returns "-left" when the player currently faces left AND a mirrored
+     *  variant is registered for the sprite; otherwise returns "". */
+    function facingSuffix(baseName: string): string {
+      if (player.facing >= 0) return "";
+      return sizes[`${baseName}-left`] ? "-left" : "";
+    }
+    function setAnim(next: "idle" | "walk" | "jump" | "slide") {
       if (player.animState === next) return;
       player.animState = next;
       player.animTick = 0;
       player.walkFrame = 0;
-      if (next === "idle") setSprite("hero-idle");
-      else if (next === "jump") setSprite("hero-jump");
-      else setSprite("hero-walk-0");
+      player.slideFrame = 0;
+      if (next === "idle") setSprite(`hero-idle${facingSuffix("hero-idle")}`);
+      else if (next === "jump") setSprite(`hero-jump${facingSuffix("hero-jump")}`);
+      else if (next === "slide") setSprite("hero-slide-0");
+      else setSprite(`hero-walk-0${facingSuffix("hero-walk-0")}`);
     }
+
 
     type PlatformRide = {
       pos: { x: number; y: number };
@@ -1399,21 +1491,54 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     // ================= HUD =================
-    k.add([
-      k.text(opts.mode === "after" ? "AFTER FEEDBACK" : "BEFORE FEEDBACK", { size: 14, font: "sans-serif" }),
-      k.pos(12, 12),
-      k.color(opts.mode === "after" ? k.rgb(30, 160, 60) : k.rgb(220, 60, 60)),
-      k.fixed(),
-      k.z(LAYERS.HUD),
-    ]);
+    // pixelHudText: HUD label with a 1-px black drop shadow so pixel text
+    // stays legible over bright biome backgrounds (previously HUD text
+    // could wash out over the sky/snow/market palettes).
+    type HudTextOpts = {
+      x: number;
+      y: number;
+      size: number;
+      color: [number, number, number];
+      anchor?: "topleft" | "topright" | "center" | "top";
+      width?: number;
+      align?: "left" | "center" | "right";
+      initial?: string;
+      opacity?: number;
+    };
+    function pixelHudText(o: HudTextOpts) {
+      const textOpts: Record<string, unknown> = { size: o.size, font: "sans-serif" };
+      if (o.width !== undefined) textOpts.width = o.width;
+      if (o.align !== undefined) textOpts.align = o.align;
+      const initial = o.initial ?? "";
+      const mkNode = (dx: number, dy: number, rgb: [number, number, number], z: number) => {
+        const parts: unknown[] = [
+          k.text(initial, textOpts as never),
+          k.pos(o.x + dx, o.y + dy),
+          k.color(...rgb),
+          k.opacity(o.opacity ?? 1),
+          k.fixed(),
+          k.z(z),
+        ];
+        if (o.anchor) parts.push(k.anchor(o.anchor));
+        return k.add(parts as never) as AnyObj;
+      };
+      const shadow = mkNode(1, 1, [0, 0, 0], LAYERS.HUD);
+      const main = mkNode(0, 0, o.color, LAYERS.HUD + 1);
+      return {
+        get text() { return main.text as string; },
+        set text(v: string) { main.text = v; shadow.text = v; },
+        get opacity() { return main.opacity as number; },
+        set opacity(v: number) { main.opacity = v; shadow.opacity = v; },
+      };
+    }
+
+    pixelHudText({
+      x: 12, y: 12, size: 14,
+      color: opts.mode === "after" ? [30, 160, 60] : [220, 60, 60],
+      initial: opts.mode === "after" ? "AFTER FEEDBACK" : "BEFORE FEEDBACK",
+    });
     // Score row (above the applications-as-lives row).
-    const scoreHud = k.add([
-      k.text("SCORE 0", { size: 16, font: "sans-serif" }),
-      k.pos(12, 34),
-      k.color(255, 235, 120),
-      k.fixed(),
-      k.z(LAYERS.HUD),
-    ]);
+    const scoreHud = pixelHudText({ x: 12, y: 34, size: 16, color: [255, 235, 120], initial: "SCORE 0" });
     // Applications row: little application icons that represent lives.
     // Each icon is a paper card with three horizontal "form field" lines.
     const APP_ICON_W = 18;
@@ -1453,39 +1578,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]);
       appIcons.push({ card, line1, line2, line3 });
     }
-    const docsHud = k.add([
-      k.text("", { size: 14, font: "sans-serif" }),
-      k.pos(k.width() - 12, 12),
-      k.anchor("topright"),
-      k.color(255, 255, 255),
-      k.fixed(),
-      k.z(LAYERS.HUD),
-    ]);
+    const docsHud = pixelHudText({
+      x: k.width() - 12, y: 12, size: 14, color: [255, 255, 255], anchor: "topright",
+    });
     // Per-zone objective badge, top-right under the "AFTER FEEDBACK" chip.
-    const objectiveHud = k.add([
-      k.text("", { size: 14, font: "sans-serif" }),
-      k.pos(k.width() - 12, 34),
-      k.anchor("topright"),
-      k.color(255, 220, 90),
-      k.fixed(),
-      k.z(LAYERS.HUD),
-    ]);
+    const objectiveHud = pixelHudText({
+      x: k.width() - 12, y: 34, size: 14, color: [255, 220, 90], anchor: "topright",
+    });
     // Hint bubble that pops up when player bumps a locked door.
     let hintUntil = 0;
-    const hintHud = k.add([
-      k.text("", { size: 14, font: "sans-serif", width: 460, align: "center" }),
-      k.pos(k.width() / 2, k.height() - 60),
-      k.anchor("center"),
-      k.color(255, 255, 255),
-      k.opacity(0),
-      k.fixed(),
-      k.z(LAYERS.HUD + 1),
-    ]);
+    const hintHud = pixelHudText({
+      x: k.width() / 2, y: k.height() - 60, size: 14, color: [255, 255, 255],
+      anchor: "center", width: 460, align: "center", opacity: 0,
+    });
     function showHint(msg: string) {
       hintHud.text = msg;
       hintHud.opacity = 1;
       hintUntil = k.time() + 1.8;
     }
+
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
       appIcons.forEach((g, i) => {
@@ -2006,26 +2117,41 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // ---- Animation state machine ----
       if (dir !== 0) {
         player.facing = dir as 1 | -1;
-        player.flipX = dir < 0;
       }
-      if (!groundedNow) {
+      // Fire-pole slide takes over the sprite until the base is reached.
+      if (zoneState.firePoleAttached && !zoneState.firePoleDone) {
+        setAnim("slide");
+        player.animTick += k.dt();
+        const nextFrame = Math.floor(player.animTick * 6) % 2;
+        if (player.slideFrame !== nextFrame) {
+          player.slideFrame = nextFrame;
+          setSprite(`hero-slide-${nextFrame}`);
+        }
+      } else if (!groundedNow) {
         setAnim("jump");
+        // Re-apply facing-correct sprite if facing changed mid-air.
+        const want = `hero-jump${facingSuffix("hero-jump")}`;
+        setSprite(want);
       } else if (dir !== 0) {
         setAnim("walk");
         // Distance-based cycle: legs advance in lockstep with real movement.
-        // Tighter stride + a subtle squash/stretch per frame makes the run
-        // read clearly even when trimmed frames look similar.
+        // STRIDE_PX doubled from 9 → 18 so the leg swap reads clearly at
+        // full run speed instead of blurring into a strobe.
         const CYCLE = [0, 1, 2, 3];
-        const STRIDE_PX = 9;
+        const STRIDE_PX = 18;
         const idx = Math.floor(Math.abs(player.pos.x) / STRIDE_PX) % CYCLE.length;
         const target = CYCLE[idx];
-        if (player.walkFrame !== target) {
+        const want = `hero-walk-${target}${facingSuffix(`hero-walk-${target}`)}`;
+        if (player.walkFrame !== target || player.animState !== "walk") {
           player.walkFrame = target;
-          setSprite(`hero-walk-${target}`);
+          setSprite(want);
         }
       } else {
         setAnim("idle");
+        // Ensure facing-correct idle sprite on facing flip while stationary.
+        setSprite(`hero-idle${facingSuffix("hero-idle")}`);
       }
+
 
       if (w?.__gameInput?.jumpReq) {
         w.__gameInput.jumpReq = false;
@@ -2245,12 +2371,20 @@ function addSignPlaque(
     k.outline(2, k.rgb(20, 25, 40)),
     k.z(LAYERS.EFFECT),
   ]);
+  const badgeTextY = cy - totalH / 2 + badgeH / 2 + 1;
   k.add([
     k.text(badge, { size: 10, font: "sans-serif" }),
-    k.pos(x, cy - totalH / 2 + badgeH / 2 + 1),
+    k.pos(x + 1, badgeTextY + 1),
+    k.anchor("center"),
+    k.color(0, 0, 0),
+    k.z(LAYERS.EFFECT + 1),
+  ]);
+  k.add([
+    k.text(badge, { size: 10, font: "sans-serif" }),
+    k.pos(x, badgeTextY),
     k.anchor("center"),
     k.color(255, 235, 150),
-    k.z(LAYERS.EFFECT + 1),
+    k.z(LAYERS.EFFECT + 2),
   ]);
   // Label plaque (bottom)
   k.add([
@@ -2261,12 +2395,20 @@ function addSignPlaque(
     k.outline(2, k.rgb(80, 55, 25)),
     k.z(LAYERS.EFFECT),
   ]);
+  const labelTextY = cy + totalH / 2 - labelH / 2 + 1;
   k.add([
     k.text(label, { size: 11, font: "sans-serif" }),
-    k.pos(x, cy + totalH / 2 - labelH / 2 + 1),
+    k.pos(x + 1, labelTextY + 1),
     k.anchor("center"),
-    k.color(50, 30, 15),
+    k.color(255, 240, 220),
     k.z(LAYERS.EFFECT + 1),
+  ]);
+  k.add([
+    k.text(label, { size: 11, font: "sans-serif" }),
+    k.pos(x, labelTextY),
+    k.anchor("center"),
+    k.color(30, 20, 10),
+    k.z(LAYERS.EFFECT + 2),
   ]);
 }
 
@@ -2279,10 +2421,17 @@ function addSpeech(
 ) {
   k.add([
     k.text(text, { size: 11, font: "sans-serif", align: "center" }),
+    k.pos(x + 1, y + 1),
+    k.anchor("center"),
+    k.color(0, 0, 0),
+    k.z(LAYERS.EFFECT),
+  ]);
+  k.add([
+    k.text(text, { size: 11, font: "sans-serif", align: "center" }),
     k.pos(x, y),
     k.anchor("center"),
     k.color(...rgb),
-    k.z(LAYERS.EFFECT),
+    k.z(LAYERS.EFFECT + 1),
   ]);
 }
 

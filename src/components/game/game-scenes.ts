@@ -36,7 +36,7 @@ export type WinResult = {
   docs: number;
   lives: number;
   mode: "before" | "after";
-  farthestZone: number; // 0..4
+  farthestZone: number; // 0..7
   won: boolean;
   score: number;
   distancePx: number;

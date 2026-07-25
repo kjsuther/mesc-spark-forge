@@ -1367,9 +1367,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         passedMonsters: new Set<unknown>(),
         visitedZones: new Set<number>([Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)))]),
         riding: null as null | { pos: { x: number; y: number }; platformSpeed: { x: number; y: number }; width: number; height: number },
-        animState: "idle" as "idle" | "walk" | "jump",
+        animState: "idle" as "idle" | "walk" | "jump" | "slide",
         animTick: 0,
         walkFrame: 0,
+        slideFrame: 0,
       },
     ]);
     // Debug hook so QA/Playwright can inspect live game state.
@@ -1387,15 +1388,24 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const ds = displaySize(name, sizes);
       player.use(k.sprite(name, { width: ds.w, height: DISPLAY_H[name] }));
     }
-    function setAnim(next: "idle" | "walk" | "jump") {
+    /** Returns "-left" when the player currently faces left AND a mirrored
+     *  variant is registered for the sprite; otherwise returns "". */
+    function facingSuffix(baseName: string): string {
+      if (player.facing >= 0) return "";
+      return sizes[`${baseName}-left`] ? "-left" : "";
+    }
+    function setAnim(next: "idle" | "walk" | "jump" | "slide") {
       if (player.animState === next) return;
       player.animState = next;
       player.animTick = 0;
       player.walkFrame = 0;
-      if (next === "idle") setSprite("hero-idle");
-      else if (next === "jump") setSprite("hero-jump");
-      else setSprite("hero-walk-0");
+      player.slideFrame = 0;
+      if (next === "idle") setSprite(`hero-idle${facingSuffix("hero-idle")}`);
+      else if (next === "jump") setSprite(`hero-jump${facingSuffix("hero-jump")}`);
+      else if (next === "slide") setSprite("hero-slide-0");
+      else setSprite(`hero-walk-0${facingSuffix("hero-walk-0")}`);
     }
+
 
     type PlatformRide = {
       pos: { x: number; y: number };
@@ -2085,26 +2095,41 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // ---- Animation state machine ----
       if (dir !== 0) {
         player.facing = dir as 1 | -1;
-        player.flipX = dir < 0;
       }
-      if (!groundedNow) {
+      // Fire-pole slide takes over the sprite until the base is reached.
+      if (zoneState.firePoleAttached && !zoneState.firePoleDone) {
+        setAnim("slide");
+        player.animTick += k.dt();
+        const nextFrame = Math.floor(player.animTick * 6) % 2;
+        if (player.slideFrame !== nextFrame) {
+          player.slideFrame = nextFrame;
+          setSprite(`hero-slide-${nextFrame}`);
+        }
+      } else if (!groundedNow) {
         setAnim("jump");
+        // Re-apply facing-correct sprite if facing changed mid-air.
+        const want = `hero-jump${facingSuffix("hero-jump")}`;
+        setSprite(want);
       } else if (dir !== 0) {
         setAnim("walk");
         // Distance-based cycle: legs advance in lockstep with real movement.
-        // Tighter stride + a subtle squash/stretch per frame makes the run
-        // read clearly even when trimmed frames look similar.
+        // STRIDE_PX doubled from 9 → 18 so the leg swap reads clearly at
+        // full run speed instead of blurring into a strobe.
         const CYCLE = [0, 1, 2, 3];
-        const STRIDE_PX = 9;
+        const STRIDE_PX = 18;
         const idx = Math.floor(Math.abs(player.pos.x) / STRIDE_PX) % CYCLE.length;
         const target = CYCLE[idx];
-        if (player.walkFrame !== target) {
+        const want = `hero-walk-${target}${facingSuffix(`hero-walk-${target}`)}`;
+        if (player.walkFrame !== target || player.animState !== "walk") {
           player.walkFrame = target;
-          setSprite(`hero-walk-${target}`);
+          setSprite(want);
         }
       } else {
         setAnim("idle");
+        // Ensure facing-correct idle sprite on facing flip while stationary.
+        setSprite(`hero-idle${facingSuffix("hero-idle")}`);
       }
+
 
       if (w?.__gameInput?.jumpReq) {
         w.__gameInput.jumpReq = false;

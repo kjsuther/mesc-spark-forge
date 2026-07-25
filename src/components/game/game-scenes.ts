@@ -1153,8 +1153,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
       const spots: Array<{ x: number; dir: 1 | -1; speed: number; range: number }> = [
-        { x: sx0 + 470, dir:  1, speed: 90, range: 220 },
-        { x: sx0 + 510, dir: -1, speed: 90, range: 220 },
+        { x: sx0 + 470, dir:  1, speed: 130, range: 300 },
+        { x: sx0 + 510, dir: -1, speed: 130, range: 300 },
+        // Fourth padlock guarding the approach to the door on the right.
+        { x: sx0 + 1000, dir: -1, speed: 120, range: 160 },
       ];
       for (const s of spots) {
         const m = spawnGrounded(k, "padlock", sizes, {
@@ -1170,6 +1172,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         });
       }
     }
+
 
     zoneObjectives[1] = {
       hudLabel: () => `USER ${zoneState.userGot ? "✓" : "☐"}  PASS ${zoneState.passGot ? "✓" : "☐"}`,

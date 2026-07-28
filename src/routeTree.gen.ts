@@ -20,6 +20,7 @@ import { Route as AdminPosterRouteImport } from './routes/admin.poster'
 import { Route as AdminNowBuildingRouteImport } from './routes/admin.now-building'
 import { Route as AdminLockRouteImport } from './routes/admin.lock'
 import { Route as AdminGameRouteImport } from './routes/admin.game'
+import { Route as AdminFeedbackRouteImport } from './routes/admin.feedback'
 import { Route as ActionsSlugRouteImport } from './routes/actions.$slug'
 import { Route as ActionsReportAChangeStartRouteImport } from './routes/actions.report-a-change.start'
 import { Route as ActionsCheckDocumentsStartRouteImport } from './routes/actions.check-documents.start'
@@ -79,6 +80,11 @@ const AdminGameRoute = AdminGameRouteImport.update({
   path: '/game',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminFeedbackRoute = AdminFeedbackRouteImport.update({
+  id: '/feedback',
+  path: '/feedback',
+  getParentRoute: () => AdminRoute,
+} as any)
 const ActionsSlugRoute = ActionsSlugRouteImport.update({
   id: '/actions/$slug',
   path: '/actions/$slug',
@@ -104,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/embed': typeof EmbedRoute
   '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
+  '/admin/feedback': typeof AdminFeedbackRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
@@ -119,6 +126,7 @@ export interface FileRoutesByTo {
   '/embed': typeof EmbedRoute
   '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
+  '/admin/feedback': typeof AdminFeedbackRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
@@ -136,6 +144,7 @@ export interface FileRoutesById {
   '/embed': typeof EmbedRoute
   '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
+  '/admin/feedback': typeof AdminFeedbackRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
@@ -154,6 +163,7 @@ export interface FileRouteTypes {
     | '/embed'
     | '/tool'
     | '/actions/$slug'
+    | '/admin/feedback'
     | '/admin/game'
     | '/admin/lock'
     | '/admin/now-building'
@@ -169,6 +179,7 @@ export interface FileRouteTypes {
     | '/embed'
     | '/tool'
     | '/actions/$slug'
+    | '/admin/feedback'
     | '/admin/game'
     | '/admin/lock'
     | '/admin/now-building'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/embed'
     | '/tool'
     | '/actions/$slug'
+    | '/admin/feedback'
     | '/admin/game'
     | '/admin/lock'
     | '/admin/now-building'
@@ -285,6 +297,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminGameRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/feedback': {
+      id: '/admin/feedback'
+      path: '/feedback'
+      fullPath: '/admin/feedback'
+      preLoaderRoute: typeof AdminFeedbackRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/actions/$slug': {
       id: '/actions/$slug'
       path: '/actions/$slug'
@@ -310,6 +329,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AdminRouteChildren {
+  AdminFeedbackRoute: typeof AdminFeedbackRoute
   AdminGameRoute: typeof AdminGameRoute
   AdminLockRoute: typeof AdminLockRoute
   AdminNowBuildingRoute: typeof AdminNowBuildingRoute
@@ -319,6 +339,7 @@ interface AdminRouteChildren {
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminFeedbackRoute: AdminFeedbackRoute,
   AdminGameRoute: AdminGameRoute,
   AdminLockRoute: AdminLockRoute,
   AdminNowBuildingRoute: AdminNowBuildingRoute,
@@ -342,13 +363,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

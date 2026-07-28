@@ -1,50 +1,55 @@
-## Goal
+## What changes
 
-When a vote round ends, the audience sees what looks like Lovable building the winning upgrade in real time — prompt typing, code streaming, files changing, deploy — and at the end the upgrade "goes live" in the game. Under the hood nothing is being built: the upgrade already exists and we simply flip its feature flag when the animation finishes.
+Out: the 5 preset enhancements + toggles, live vote rounds (vote panel, in-game vote overlay, poster vote chart), and the live-coding "Build Theater" animation.
 
-## How it behaves
+In: a real feedback backlog that players write to, admins rank and ship, and both the public site and Poster View display.
 
-1. Admin clicks **End round & apply winner** (unchanged button).
-2. Instead of enabling the winner immediately, the app records a *pending build*: the winning upgrade key plus a start timestamp.
-3. Every connected screen — the Poster View and every attendee on `/tool` — receives that over realtime and plays the same ~30s sequence, in sync, since it's driven off the shared start timestamp.
-4. When the sequence finishes, the winning improvement is enabled for real, the game switches to "After feedback" mode as it does today, and the overlay resolves into a short "Shipped — <Upgrade name> is live" card before fading out.
+## 1. Feedback backlog (new data)
 
-## The build sequence (~30 seconds, 5 beats)
+New table `game_feedback`:
+- `description` (short text, required)
+- `submitter_name` (first name + last initial, e.g. "Kevin S.")
+- `status`: `backlog` | `implemented`
+- `rank` (admin-controlled ordering)
+- `implemented_at`, `created_at`, `updated_at`
+- Public may read all rows (nothing sensitive stored) and insert new ones; only the admin session can update, reorder, delete.
 
-Styled as a Lovable session, not as the retro game UI — that contrast is the point.
+The existing site-feedback table stays untouched.
 
-```text
-[ 0-4s  ] Prompt beat   "The audience voted: Self-Service Portal (42 votes).
-                         Ship it." typed character-by-character into a chat box.
-[ 4-9s  ] Thinking beat Streaming reasoning lines: reading the feature flag store,
-                         locating the lives manager, planning the change.
-[ 9-20s ] Code beat     Split view: file list on the left with edited files
-                         ticking to "modified", a code pane on the right
-                         streaming a real diff for that upgrade (green +
-                         lines, syntax-highlighted, auto-scrolling).
-[20-27s ] Build beat    Progress steps: Typecheck OK → Build OK → Deploying →
-                         Live, each with a check as it lands.
-[27-30s ] Shipped card  Upgrade name, its description, "Now live in the game."
-```
+## 2. Player-facing (tool page)
 
-Each of the five upgrades gets its own scripted content — its own prompt line, file list, and diff snippet — written to reference the actual files and flags for that upgrade so it reads as genuine to anyone who looks closely.
+- **Submit form** below the game: short description + first name + last initial, with a thank-you confirmation. Light rate/length validation.
+- **Feedback board** below the form, in two columns:
+  - *In the backlog* — ordered by the admin's rank.
+  - *Implemented* — newest first, with a count badge.
+- **Before / After tabs**:
+  - "After Feedback" is now the **default**.
+  - "Before Feedback (Original Version)" is a manual click and runs the frozen original game.
+  - The counter next to the tabs becomes "N player suggestions implemented" (no longer capped at 5), and the After view lists the implemented items.
+- Remove the vote panel, the in-game vote overlay, and the Build Theater from this page.
 
-## Where it appears
+## 3. Frozen original build
 
-- **Poster View**: full-bleed overlay across the whole poster layout (game, leaderboard, votes dim behind it), since this is the screen you narrate.
-- **/tool**: the same overlay, scaled down, over the page content so phone viewers see it too.
-- Overlay is dismissible on `/tool` (small ✕) so a player mid-run isn't trapped; the poster screen plays it through.
+Today's game code is copied once into `src/components/game/original/` and wired to the "before" tab. That copy is never edited again; all future feedback changes go into the live game used by "After Feedback". The feature-flag plumbing (`game-features.ts`, flags props) is deleted from both.
 
-## Admin controls
+## 4. Admin site
 
-On the Game & Voting admin page:
-- **Replay build sequence** — replays it for the last applied upgrade without changing any flags. Useful for rehearsal or a second showing.
-- **Skip / finish now** — ends the sequence immediately and applies the flag, in case you're short on time.
-- A small status line: "Building <Upgrade> — 12s remaining" while it's running.
+New **Feedback** admin page (and a card on the admin index):
+- Backlog list with drag-or-arrow reordering that writes `rank` — this order is exactly what players and the Poster View see.
+- Per item: edit description/name, **Mark Implemented**, **Move back to Backlog**, delete.
+- Implemented list with the date shipped.
+- Counts at the top (backlog / implemented).
+- The old Game admin page loses the upgrade toggles, round controls, and build-run controls; it keeps the leaderboard/settings pieces.
+
+## 5. Poster View
+
+- Vote chart and build animation removed.
+- Shows the ranked backlog and the implemented list side by side with the leaderboard, live-updating.
 
 ## Technical notes
 
-- New `game_build_runs` table (or equivalent columns on `game_settings`): winner key, started_at, duration, status. Realtime-subscribed by both routes, so all screens play the same beat at the same second and a late-joining phone jumps in at the correct point.
-- Flag application moves from "immediately at round end" to a server function called when the timer completes (with the admin skip path calling the same function), so the game state and the theater can never disagree. Existing manual per-upgrade toggles in admin are untouched.
-- New component `src/components/build-theater.tsx` plus a per-upgrade script file with the prompt/file/diff content; mounted in `src/routes/admin.poster.tsx` and `src/routes/tool.tsx`.
-- Purely additive to the game engine — `src/lib/game-features.ts`, `managers.ts`, and `game-scenes.ts` are not modified.
+- Data access follows the existing pattern: public reads via the browser client with RLS + grants; all admin writes through `createServerFn` in a new `src/lib/feedback.functions.ts` guarded by `requireAdmin()`.
+- Realtime subscription on `game_feedback` so the tool page and Poster View update instantly when an admin ships an item.
+- Files removed: `src/components/game/vote-panel.tsx`, `vote-overlay.tsx`, `src/components/build-theater.tsx`, `src/lib/build-scripts.ts`, `src/lib/game-features.ts`, plus the vote/build server functions and queries.
+- Old tables (`game_improvements`, `game_improvement_votes`, `game_vote_rounds`, `game_round_candidates`, `game_improvement_pool`, `game_build_runs`) are dropped in the same migration once the code no longer reads them.
+- `embed.tsx` follows the same default-to-After behavior.

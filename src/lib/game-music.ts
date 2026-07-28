@@ -8,7 +8,32 @@
 
 type NoteEvt = [number, number]; // [midi-note (0 = rest), beats]
 
-export type MusicTheme = "adventure" | "boss" | "victory";
+export type MusicTheme =
+  | "adventure"
+  | "town"
+  | "river"
+  | "waiting"
+  | "boss"
+  | "victory";
+
+/** Exploration themes that may be shuffled between runs. */
+export const EXPLORATION_THEMES: MusicTheme[] = ["adventure", "town", "river"];
+
+/**
+ * Which theme plays in each zone (0-based). Zones share a small rotation so
+ * the trail keeps changing mood without whiplash; the caller may rotate the
+ * exploration set so repeat runs don't start on the same tune.
+ */
+export const ZONE_THEMES: MusicTheme[] = [
+  "adventure", // 1 Finding the Trail
+  "town",      // 2 Setting Up Camp
+  "river",     // 3 Crossing the River of Paperwork
+  "town",      // 4 Gathering Supplies
+  "adventure", // 5 Answering the Call
+  "waiting",   // 6 Waiting Mountain
+  "boss",      // 7 Choosing Your Path (boss arena sets this itself)
+  "victory",   // 8 Coverage Begins
+];
 
 type ThemeDef = {
   melody: NoteEvt[];
@@ -133,6 +158,85 @@ const VICTORY_HARMONY: NoteEvt[] = [
   [81, 2], [81, 2],
 ];
 
+// ---------------------------------------------------------------------------
+// TOWN — bouncy G-major market tune. Faster, brighter, staccato triangle bass.
+// ---------------------------------------------------------------------------
+const TOWN_MELODY: NoteEvt[] = [
+  [79, 0.5], [83, 0.5], [86, 0.5], [83, 0.5], [88, 1], [86, 1],
+  [84, 0.5], [86, 0.5], [88, 0.5], [91, 0.5], [90, 1], [88, 1],
+  [86, 0.5], [83, 0.5], [79, 0.5], [83, 0.5], [86, 1], [88, 1],
+  [90, 0.5], [88, 0.5], [86, 0.5], [83, 0.5], [79, 2],
+  [81, 0.5], [84, 0.5], [88, 0.5], [84, 0.5], [86, 1], [83, 1],
+  [79, 0.5], [81, 0.5], [83, 0.5], [86, 0.5], [88, 2],
+  [86, 0.5], [84, 0.5], [83, 0.5], [81, 0.5], [79, 1], [78, 1],
+  [79, 0.5], [83, 0.5], [86, 0.5], [83, 0.5], [79, 2],
+];
+const TOWN_BASS: NoteEvt[] = [
+  [43, 0.5], [55, 0.5], [43, 0.5], [55, 0.5], [43, 0.5], [55, 0.5], [43, 0.5], [55, 0.5],
+  [48, 0.5], [60, 0.5], [48, 0.5], [60, 0.5], [48, 0.5], [60, 0.5], [48, 0.5], [60, 0.5],
+  [45, 0.5], [57, 0.5], [45, 0.5], [57, 0.5], [45, 0.5], [57, 0.5], [45, 0.5], [57, 0.5],
+  [50, 0.5], [62, 0.5], [50, 0.5], [62, 0.5], [50, 0.5], [62, 0.5], [50, 0.5], [62, 0.5],
+  [43, 0.5], [55, 0.5], [43, 0.5], [55, 0.5], [47, 0.5], [59, 0.5], [47, 0.5], [59, 0.5],
+  [48, 0.5], [60, 0.5], [48, 0.5], [60, 0.5], [45, 0.5], [57, 0.5], [45, 0.5], [57, 0.5],
+  [50, 1], [50, 1], [45, 1], [45, 1],
+  [43, 1], [43, 1], [50, 1], [50, 1],
+];
+
+// ---------------------------------------------------------------------------
+// RIVER — flowing A-major travelling theme, lilting swung arpeggios.
+// ---------------------------------------------------------------------------
+const RIVER_MELODY: NoteEvt[] = [
+  [69, 0.75], [73, 0.25], [76, 0.5], [81, 0.5], [80, 1], [76, 1],
+  [74, 0.75], [76, 0.25], [78, 0.5], [81, 0.5], [83, 1.5], [0, 0.5],
+  [81, 0.5], [78, 0.5], [76, 0.5], [74, 0.5], [73, 1], [76, 1],
+  [78, 0.75], [76, 0.25], [73, 0.5], [69, 0.5], [71, 2],
+  [76, 0.5], [81, 0.5], [85, 0.5], [88, 0.5], [86, 1], [83, 1],
+  [81, 0.75], [80, 0.25], [78, 0.5], [76, 0.5], [74, 2],
+  [73, 0.5], [76, 0.5], [78, 0.5], [80, 0.5], [81, 1], [78, 1],
+  [76, 0.5], [73, 0.5], [69, 0.5], [73, 0.5], [69, 2],
+];
+const RIVER_BASS: NoteEvt[] = [
+  [45, 1], [57, 1], [52, 1], [57, 1],
+  [50, 1], [62, 1], [57, 1], [62, 1],
+  [42, 1], [54, 1], [49, 1], [54, 1],
+  [47, 1], [59, 1], [54, 1], [59, 1],
+  [45, 1], [57, 1], [52, 1], [57, 1],
+  [50, 1], [62, 1], [57, 1], [62, 1],
+  [52, 1], [64, 1], [59, 1], [64, 1],
+  [45, 1], [52, 1], [45, 1], [45, 1],
+];
+const RIVER_HARMONY: NoteEvt[] = [
+  [64, 2], [61, 2], [66, 2], [64, 2],
+  [61, 2], [57, 2], [59, 2], [57, 2],
+  [64, 2], [61, 2], [66, 2], [64, 2],
+  [59, 2], [61, 2], [64, 2], [57, 2],
+];
+
+// ---------------------------------------------------------------------------
+// WAITING — patient, slightly anxious B-minor pulse for the decision zone.
+// Tense but not the boss theme: soft lead, no heavy drums.
+// ---------------------------------------------------------------------------
+const WAITING_MELODY: NoteEvt[] = [
+  [71, 1], [74, 1], [78, 1], [76, 1],
+  [74, 1], [71, 1], [69, 2],
+  [71, 1], [76, 1], [81, 1], [78, 1],
+  [76, 1], [74, 1], [71, 2],
+  [78, 0.5], [76, 0.5], [74, 1], [71, 1], [69, 1],
+  [71, 1], [74, 1], [78, 2],
+  [76, 1], [74, 1], [73, 1], [71, 1],
+  [69, 1], [71, 1], [71, 2],
+];
+const WAITING_BASS: NoteEvt[] = [
+  [47, 2], [47, 2], [54, 2], [54, 2],
+  [43, 2], [43, 2], [45, 2], [45, 2],
+  [47, 2], [47, 2], [52, 2], [52, 2],
+  [50, 2], [50, 2], [45, 2], [45, 2],
+  [47, 2], [47, 2], [54, 2], [54, 2],
+  [43, 2], [43, 2], [45, 2], [45, 2],
+  [47, 2], [47, 2], [50, 2], [50, 2],
+  [45, 2], [45, 2], [47, 2], [47, 2],
+];
+
 const THEMES: Record<MusicTheme, ThemeDef> = {
   adventure: {
     melody: ADVENTURE_MELODY,
@@ -144,6 +248,40 @@ const THEMES: Record<MusicTheme, ThemeDef> = {
     bassWave: "triangle",
     bassGain: 0.22,
     percussion: "offbeat",
+  },
+  town: {
+    melody: TOWN_MELODY,
+    bass: TOWN_BASS,
+    bpm: 168,
+    volume: 0.19,
+    leadWave: "square",
+    leadGain: 0.12,
+    bassWave: "triangle",
+    bassGain: 0.2,
+    percussion: "offbeat",
+  },
+  river: {
+    melody: RIVER_MELODY,
+    bass: RIVER_BASS,
+    harmony: RIVER_HARMONY,
+    bpm: 138,
+    volume: 0.2,
+    leadWave: "triangle",
+    leadGain: 0.16,
+    bassWave: "triangle",
+    bassGain: 0.2,
+    percussion: "offbeat",
+  },
+  waiting: {
+    melody: WAITING_MELODY,
+    bass: WAITING_BASS,
+    bpm: 112,
+    volume: 0.18,
+    leadWave: "triangle",
+    leadGain: 0.14,
+    bassWave: "sine",
+    bassGain: 0.22,
+    percussion: "none",
   },
   boss: {
     melody: BOSS_MELODY,
@@ -180,6 +318,8 @@ export class GameMusic {
   private timer: number | null = null;
   private enabled = false;
   private theme: MusicTheme = "adventure";
+  /** Counts loop repeats so alternating passes can vary the arrangement. */
+  private pass = 0;
   /** Nodes scheduled by the current loop, so a theme swap can silence them. */
   private scheduled: { osc: OscillatorNode | AudioBufferSourceNode; gain: GainNode }[] = [];
 
@@ -260,6 +400,7 @@ export class GameMusic {
   /** Mute + reset to the default theme (used when a run ends / menu returns). */
   reset() {
     this.theme = "adventure";
+    this.pass = 0;
   }
 
   private clearScheduled(at: number) {
@@ -334,6 +475,10 @@ export class GameMusic {
     const def = THEMES[this.theme];
     const beat = 60 / def.bpm;
     const now = ctx.currentTime + 0.05;
+    // Every other pass through the loop gets a light variation so the repeat
+    // point is less obvious: an octave-up echo lead and thinner hats.
+    this.pass += 1;
+    const varied = this.pass % 2 === 0;
 
     // Drop references to the previous bar's (already finished) nodes.
     this.scheduled = [];
@@ -347,6 +492,10 @@ export class GameMusic {
         // Slightly detuned twin gives the boss lead a snarling, unstable edge.
         if (def.detuneLead) {
           this.playNote(midiToFreq(n), t, d * 0.92, def.leadWave, def.leadGain * 0.7, 14);
+        }
+        if (varied && def.percussion !== "downbeat") {
+          // Soft octave-up echo, a half-beat late.
+          this.playNote(midiToFreq(n + 12), t + beat * 0.5, d * 0.5, "triangle", def.leadGain * 0.28);
         }
       }
       t += d;
@@ -376,7 +525,7 @@ export class GameMusic {
     if (def.percussion === "offbeat") {
       for (let i = 0; i < totalBeats * 2; i++) {
         // Off-beats: skip beat 0, 1, 2… — hit on the "&".
-        if (i % 2 === 1) this.playHat(now + i * (beat / 2));
+        if (varied ? i % 4 === 1 : i % 2 === 1) this.playHat(now + i * (beat / 2));
       }
     } else if (def.percussion === "downbeat") {
       for (let i = 0; i < totalBeats; i++) {

@@ -1,70 +1,54 @@
-# Improve "Blazing the Trail to Coverage"
+## Polish pass: alignment, clutter, Zone 6, music, mobile UAT
 
-Targeted improvements to the existing Kaplay engine. No architecture rewrite; all art, sprites, music, HUD, achievements, feedback system and scoring stay as-is. Changes land in **both** engines — the current build (`src/components/game/game-scenes.ts`) and the frozen original (`src/components/game/original/game-scenes.ts`) — plus the shared React shell.
+All gameplay changes land in **both** engines — `src/components/game/game-scenes.ts` (current) and `src/components/game/original/game-scenes.ts` (frozen "before" build) — so the two versions stay comparable. No mechanics, art, levels, or progression are removed.
 
-## 1. Auto-run fix
+### 1. Sprite depth / collision alignment (audit first)
 
-Cause to eliminate: the shared `window.__gameInput` object (`left/right/jumpReq`) persists across scene restarts, so a held touch button or a stale flag keeps `dir = +1` on the next run, and keys held during `R`/restart still read as down.
+The engine already places grounded actors with `spawnGrounded(...)` → `anchor("bot")` at the shared `GROUND_Y = 470`, so the misalignment in the video is not a single obvious constant; it needs measuring before fixing. Step one is instrumentation, not a guess:
 
-- Clear `__gameInput` at the start of every `trail` scene entry (and on win/lose/thanks scene entry).
-- Add an "input arm" gate: after a scene starts, movement stays at zero until a fresh press is observed (a key-down transition or a touch button press that began after the scene loaded). Held-over input is ignored until released.
-- The React shell already resets `__gameInput` on launch; also reset it on pointerup/pointercancel/blur/visibilitychange so a finger sliding off the D-pad can never latch.
-- Verify after: reset button, `R` restart, lose-all-lives, win → thanks → replay, and return to title.
+- Add a temporary debug overlay (`area` outlines + a ground guideline) and walk each zone in the browser at desktop and mobile sizes, capturing the player's feet Y against every enemy, hazard, collectible, projectile, and moving obstacle.
+- Record where the drawn sprite bottom differs from `GROUND_Y`, and where the `hitboxScale` rect is taller/shorter/wider than the visible pixels.
 
-## 2. Full Screen button on the title screen
+Then fix what the audit finds, expected to be some mix of:
+- Sprites whose trimmed bounding box still carries transparent padding, so they render floating or sunk — corrected in the trim/`DISPLAY_H` table rather than by nudging positions.
+- Hitboxes drawn from `DISPLAY_H` rather than the actual rendered width/height, which makes the hurt box overshoot the art.
+- Airborne hazards (paper airplanes, falling calendars, boss projectiles) sitting at heights that read as "background" — raised or lowered so anything at player height is unmistakably dangerous and anything decorative sits clearly above/behind.
+- Any actor drawn on a different z-layer than the plane it collides on.
 
-- Add a retro pixel-styled **FULL SCREEN** button to the title menu in `game-canvas.tsx`, sized for comfortable tapping (min ~48px tall) and visible on both layouts.
-- Uses the existing `requestNativeFullscreen` helper with the existing faux-fullscreen fallback for iOS Safari.
+Deliverable: for every interactive object, drawn silhouette and collision box match, ground actors' feet touch the same grass line as the hero, and the debug overlay is removed before finishing.
 
-## 3. Universal continue input
+### 2. Remove instructional text painted into the levels
 
-Introduce one shared helper (`awaitContinue`) used by every paused screen: title, story/explainer, tutorial, zone step screens, win, lose, credits/thanks.
+The pre-zone pause screens now carry all of this. Removing the redundant in-world speech plaques (`addSpeech` calls) in both engines:
 
-- Desktop: Enter, Space, or mouse click.
-- Mobile/touch: tap anywhere on the canvas or overlay.
-- Prompt text adapts: `Press Enter, Space, or Click to Continue` vs `Tap Anywhere to Continue`.
-- Removes any remaining Enter-only path.
+- "Smash a brick and collect application", "Create an account", "Collect Username and Password and avoid account locks", "Use platforms to get to other side", "Gather 3 docs and avoid evil clipboards", "Collect all notice mailboxes and avoid confusing letters", "Avoid falling dates", "Pick your plan and defeat the boss", "Climb stairs and collect your medical card".
 
-## 4. Interactive step screens replace fading title cards
+Keeping: item labels that identify a pickup (`USERNAME`, `PASSWORD`, plan pedestal names, `MEDICAL ID`, `GRAB THE ID →`), flavour text ("Awaiting a decision…", "Pick ONE plan", "★ COVERED! ★"), signposts, decorations, and all background art.
 
-Replace `showTitleCard` on zone entry with a true pause panel:
+### 3. Zone 6 rebalance ("Awaiting Decision")
 
-- Freeze player movement, enemy updates, timers (including the Zone 6 countdown), and projectiles while shown.
-- Centered pixel panel: step number, step name, subtitle, instruction lines, sprite thumbnails of the enemies/collectibles named, and the continue prompt.
-- Sprites are drawn from the already-loaded atlas frames (application, username/password, account lock, platform, three documents, evil clipboard, mailbox, monster envelope, calendar, plan pedestals, boss, "+" projectile, stairs, medical ID card).
-- Shown the **first time per run** for each zone; respawns re-enter without interruption.
-- Content per zone exactly as specified in Steps 1–8.
-- The end-of-game "STEP 8 · ENROLLED" flourish card stays as a celebration card.
+Objective stays "survive 10 seconds". Tuning only:
+- Fewer falling calendar pages in flight at once, with a longer minimum interval between drops.
+- Spawn X chosen from a shuffled bag with a minimum separation, so drops never stack into an unavoidable wall and repeats feel random rather than clustered.
+- Guarantee a safe lane: no spawn within a set radius of the player's current column on consecutive drops.
+- Modest fall-speed reduction and a slightly longer telegraph before each page starts falling.
+- Verify by playing the zone repeatedly and confirming a clean run is reliably achievable.
 
-## 5. Difficulty rebalance (~20–30% easier, same pace)
+### 4. Music variety
 
-Data-only edits to spawn tables — movement speed, jump velocity, and gravity untouched:
+Extend the existing procedural chiptune engine in `src/lib/game-music.ts`:
+- Add several new upbeat 16-bit themes alongside `adventure` (trail, town, forest/office, waiting-tension variant), each with its own melody, bass, harmony, tempo, and percussion style.
+- Rotate themes by zone, with the starting theme picked at random from the exploration set so repeat runs differ.
+- Add a short gain crossfade on theme change instead of a hard restart, and light per-loop variation (alternate turnaround bar / harmony voice) so the loop point is less obvious.
+- `boss` and `victory` themes keep their current roles.
 
-- Remove roughly a quarter of enemy placements per zone, preferring duplicates and clustered pairs.
-- Widen minimum spacing between consecutive hazards so each requires a single clean jump.
-- Slightly widen the tightest gap/platform windows so jump timing is forgiving.
-- Eliminate overlaps where a falling hazard and a ground enemy occupy the same landing spot.
+### 5. Mobile UAT and regression pass
 
-## 6. Boss fight redesign (Zone 7)
+Playwright run at common mobile sizes (390×844, 414×896, 360×800) plus desktop, covering: title → story → tutorial → each zone step screen → all 8 zones → boss → win → thanks → replay, plus death/restart, fullscreen, score entry, leaderboard, feedback form, admin feedback board, and Poster View.
 
-Replace the stomp mechanic entirely.
+Checks: no overlapping or invisible buttons, D-pad never covers gameplay, text does not clip, pause panels fit, safe-area insets respected, touch continue works on every paused screen, no soft locks, and no console errors. Defects found get fixed and re-verified in the same pass.
 
-- **Boss**: patrols back and forth, occasional hop, and fires themed projectiles on a timer (paperwork / denial letter / bill sprites drawn from existing art, tinted variants where needed). Projectiles travel horizontally at moderate speed at a height clearable by a normal jump, with a guaranteed minimum gap between shots so nothing is unavoidable.
-- **Player**: selecting a managed care plan grants an automatic power-up — the player continuously auto-fires `+` cross projectiles toward the boss. No fire button.
-- **Health**: exactly 3 hits. Each hit flashes the boss, grants brief invulnerability, then it resumes attacking. Heart HUD above the boss shows 3.
-- **Defeat**: defeat animation, boss disappears, gold key drops, exit door unlocks and the player proceeds.
-- Body contact with the boss and being hit by a boss projectile cost a life as usual; the Navigator auto-defeat path is preserved in the original build where that upgrade exists.
+### Technical notes
 
-## 7. Leaderboards show top 3 only
-
-- `src/components/game/leaderboard.tsx`: limit 3, ordered by score descending then earliest `created_at`; columns show rank, name, score only.
-- Same top-3 treatment in the in-game high-score display and the Poster View leaderboard.
-
-## 8. Regression pass
-
-Playwright run against the preview at desktop and mobile viewports covering: launch → title → step screen → zone 1 clear, death/restart with no auto-run, boss defeat, win → thanks → replay, high-score entry, feedback form, and the admin feedback board.
-
-## Technical notes
-
-- Touched files: `src/components/game/game-scenes.ts`, `src/components/game/original/game-scenes.ts`, `src/components/game/game-canvas.tsx`, `src/components/game/leaderboard.tsx`, `src/routes/admin.poster.tsx` (leaderboard limit), plus a small shared `step-screens` data module for the eight panels.
-- No database migrations and no changes to the feedback backlog system.
+- Touched files: `src/components/game/game-scenes.ts`, `src/components/game/original/game-scenes.ts`, `src/lib/game-music.ts`, and `src/components/game/game-canvas.tsx` only if the mobile UAT surfaces layout defects.
+- No database changes, no changes to the feedback backlog system, leaderboard queries, or feature/achievement logic.

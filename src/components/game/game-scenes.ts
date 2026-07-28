@@ -58,6 +58,7 @@ import heroPortraitUrl from "@/assets/game/hero-portrait.png";
 import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
 
 import docIdAsset from "@/assets/game/doc-id.png.asset.json";
+import { EXPLORATION_THEMES, ZONE_THEMES, type MusicTheme } from "@/lib/game-music";
 import docPaystubAsset from "@/assets/game/doc-paystub.png.asset.json";
 import docEnvelopeAsset from "@/assets/game/doc-envelope.png.asset.json";
 import formMonsterV2Asset from "@/assets/game/form-monster-v2.png.asset.json";
@@ -89,7 +90,7 @@ export type StartGameOpts = {
   onWin?: (result: WinResult) => void;
   onLose?: (result: WinResult) => void;
   /** Lets the scene ask the host for a different music theme. */
-  onMusicTheme?: (theme: "adventure" | "boss" | "victory") => void;
+  onMusicTheme?: (theme: MusicTheme) => void;
 };
 
 type Ctx = KAPLAYCtx;
@@ -782,7 +783,7 @@ function spawnGrounded(
     const hx = opts.hitboxScale;
     comps.push(
       k.area({
-        shape: new k.Rect(k.vec2(hx.x, -hx.h + 0), hx.w, hx.h),
+        shape: new k.Rect(k.vec2(0, 0), hx.w, hx.h),
       }),
     );
   }
@@ -813,7 +814,7 @@ function spawnAirborne(
     k.pos(px(opts.x), px(opts.y)),
     k.anchor("center"),
     k.z(opts.z ?? LAYERS.PROP),
-    k.area({ shape: new k.Rect(k.vec2(-r, -r), r * 2, r * 2) }),
+    k.area({ shape: new k.Rect(k.vec2(0, 0), r * 2, r * 2) }),
   ];
   if (opts.tag) comps.push(opts.tag);
   if (opts.props) comps.push(opts.props);
@@ -865,11 +866,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   // ----- Music direction -----
   // The scene doesn't own the audio engine (the React host does), it just
   // asks for a mood. Guarded so we only emit on an actual change.
-  let musicTheme: "adventure" | "boss" | "victory" = "adventure";
-  const setMusic = (theme: "adventure" | "boss" | "victory") => {
+  let musicTheme: MusicTheme = "adventure";
+  const setMusic = (theme: MusicTheme) => {
     if (musicTheme === theme) return;
     musicTheme = theme;
     opts.onMusicTheme?.(theme);
+  };
+  // Rotate the exploration tunes by a random offset per run so the same zone
+  // doesn't always play the same song across repeat plays.
+  const musicRotation = Math.floor(Math.random() * EXPLORATION_THEMES.length);
+  /** The tune that belongs to a zone, after this run's rotation. */
+  const zoneMusic = (zoneIdx: number): MusicTheme => {
+    const base = ZONE_THEMES[Math.max(0, Math.min(ZONE_THEMES.length - 1, zoneIdx))] ?? "adventure";
+    const at = EXPLORATION_THEMES.indexOf(base);
+    if (at < 0) return base; // boss / victory / waiting stay put
+    return EXPLORATION_THEMES[(at + musicRotation) % EXPLORATION_THEMES.length];
   };
 
 
@@ -1042,7 +1053,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.sprite("door-closed", { width: disp.w, height: DISPLAY_H["door-closed"] }),
         k.pos(dx, GROUND_Y),
         k.anchor("bot"),
-        k.area({ shape: new k.Rect(k.vec2(-disp.w / 2, -DISPLAY_H["door-closed"]), disp.w, DISPLAY_H["door-closed"]) }),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), disp.w, DISPLAY_H["door-closed"]) }),
         k.z(LAYERS.PROP + 2),
         "door",
         { zoneIdx, unlocked: false },
@@ -1135,7 +1146,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.sprite("brick-idle", { width: bw, height: bh }),
         k.pos(px(m.x), px(BRICK_Y)),
         k.anchor("center"),
-        k.area({ shape: new k.Rect(k.vec2(-bw / 2, -bh / 2), bw, bh) }),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), bw, bh) }),
         k.z(LAYERS.PROP),
         "brick",
         { methodLabel: m.label, methodIcon: m.icon, hit: false, basY: BRICK_Y, bumpT: 0 },
@@ -1150,7 +1161,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Floating label above the brick so player knows what each represents.
       addSignPlaque(k, m.x, BRICK_Y - 42, m.label, m.icon);
     }
-    addSpeech(k, 180, BRICK_Y - 90, "Smash a brick and collect application", [40, 60, 120]);
     zoneObjectives[0] = {
       hudLabel: () => `METHOD ${zoneState.methodTouched ? "✓" : "☐"}`,
       met: () => zoneState.methodTouched,
@@ -1162,8 +1172,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     for (const lx of laptopSpots) {
       spawnDecor(k, "laptop", sizes, { x: lx, z: LAYERS.PROP });
     }
-    addSpeech(k, sx0 + 380, GROUND_Y - DISPLAY_H["laptop"] - 30, "Create an account", [40, 60, 120]);
-    addSpeech(k, sx0 + 300, 110, "Collect Username and Password and avoid account locks", [40, 60, 120]);
     // Username collectible — floats above ground
     {
       const ux = sx0 + 300;
@@ -1173,7 +1181,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.sprite("username", { width: disp.w, height: DISPLAY_H["username"] }),
         k.pos(ux, uy),
         k.anchor("center"),
-        k.area({ shape: new k.Rect(k.vec2(-disp.w / 2, -DISPLAY_H["username"] / 2), disp.w, DISPLAY_H["username"]) }),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), disp.w, DISPLAY_H["username"]) }),
         k.z(LAYERS.PROP),
         "credential",
         { credKind: "user", basY: uy, phase: 0 },
@@ -1190,7 +1198,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.sprite("password", { width: disp.w, height: DISPLAY_H["password"] }),
         k.pos(px, py),
         k.anchor("center"),
-        k.area({ shape: new k.Rect(k.vec2(-disp.w / 2, -DISPLAY_H["password"] / 2), disp.w, DISPLAY_H["password"]) }),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), disp.w, DISPLAY_H["password"]) }),
         k.z(LAYERS.PROP),
         "credential",
         { credKind: "pass", basY: py, phase: 1 },
@@ -1251,7 +1259,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= ZONE 2: Crossing River of Paperwork =================
     const rx0 = RIVER_GAP_X0;
     const rx1 = RIVER_GAP_X1;
-    addSpeech(k, rx0 - 40, GROUND_Y - 250, "Use platforms to get to other side", [40, 60, 120]);
     if (active.bridge) {
       k.add([
         k.rect(rx1 - rx0, 14),
@@ -1366,7 +1373,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         hitboxScale: { x: -dh / 2, w: dh, h: dh },
       });
     }
-    addSpeech(k, tx0 + 200, GROUND_Y - 80, "Gather 3 docs and avoid evil clipboards", [40, 60, 120]);
     {
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
@@ -1471,7 +1477,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     }
 
-    addSpeech(k, relayBase + 100, GROUND_Y - DISPLAY_H["mailbox"] - 40, "Collect all notice mailboxes and avoid confusing letters", [40, 80, 130]);
     // Decorative paper airplanes drifting across the sky — ties into the
     // "letters back and forth with the agency" theme. No collision.
     {
@@ -1509,46 +1514,95 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= ZONE 5: Waiting Mountain — 10-second countdown =================
     const mx0 = BIOME_W * 5;
     // Falling calendar pages — days peeling off the calendar while you wait.
-    // Difficulty pass: 14 pages (was 20), slower fall and gentler drift so a
-    // dodge you commit to actually works. A hit still resets the countdown.
-    const CAL_COUNT = 14;
+    // Rebalance pass: a small pool (8) of pages that drop one at a time on a
+    // scheduler instead of raining continuously. Every drop is telegraphed,
+    // never lands on the column the player is standing in, and keeps a minimum
+    // horizontal gap from the previous drop, so there is always a safe lane.
+    const CAL_COUNT = 8;
+    const CAL_L = mx0 + 80;
+    const CAL_R = mx0 + BIOME_W - 80;
+    const CAL_MIN_GAP = 0.85; // seconds between two pages starting to fall
+    const CAL_TELEGRAPH = 0.5; // seconds a warning marker shows before the drop
+    let calNextDropAt = 0;
+    let calLastX = (CAL_L + CAL_R) / 2;
+    /** Pick a drop column: away from the player and from the previous drop. */
+    function pickCalX(): number {
+      let best = CAL_L + Math.random() * (CAL_R - CAL_L);
+      let bestScore = -1;
+      for (let i = 0; i < 8; i++) {
+        const cand = CAL_L + Math.random() * (CAL_R - CAL_L);
+        const dPlayer = Math.abs(cand - player.pos.x);
+        const dPrev = Math.abs(cand - calLastX);
+        if (dPlayer < 120) continue; // never right on top of the player
+        const score = Math.min(dPlayer, dPrev * 1.4);
+        if (score > bestScore) { bestScore = score; best = cand; }
+      }
+      calLastX = best;
+      return best;
+    }
     for (let i = 0; i < CAL_COUNT; i++) {
-      const initialX = mx0 + 80 + Math.random() * (BIOME_W - 160);
       const b = spawnAirborne(k, "calendar-page", sizes, {
-        x: initialX, y: -80 - Math.random() * 300, z: LAYERS.ACTOR,
+        x: (CAL_L + CAL_R) / 2, y: -400, z: LAYERS.ACTOR,
         tag: "boulder",
         props: {
-          spd: 290 + Math.random() * 170,
-          spin: (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 60),
-          driftAmp: 14 + Math.random() * 26,
-          driftSpd: 0.9 + Math.random() * 1.1,
+          spd: 230,
+          spin: 40,
+          driftAmp: 10,
+          driftSpd: 1,
           driftPhase: Math.random() * Math.PI * 2,
-          baseX: initialX,
-          zoneL: mx0 + 60,
-          zoneR: mx0 + BIOME_W - 60,
+          baseX: (CAL_L + CAL_R) / 2,
+          armAt: 0,
+          falling: false,
+          marker: null as null | { pos: { x: number; y: number }; destroy: () => void; opacity: number },
         },
       });
       b.use(k.rotate(0));
+      /** Park the page off-screen and schedule its next telegraphed drop. */
+      const rearm = () => {
+        b.falling = false;
+        b.pos = k.vec2((CAL_L + CAL_R) / 2, -600);
+        b.armAt = k.time() + 0.2 + Math.random() * 1.6;
+      };
+      rearm();
       b.onUpdate(() => {
-        b.pos.y += b.spd * k.dt();
-        b.pos.x = b.baseX + Math.sin(k.time() * b.driftSpd + b.driftPhase) * b.driftAmp;
-        b.angle = (b.angle ?? 0) + b.spin * k.dt();
-        if (b.pos.y > 700) {
-          const nx = b.zoneL + Math.random() * (b.zoneR - b.zoneL);
+        const now = k.time();
+        if (!b.falling) {
+          // Only rain while the player is actually in the waiting zone.
+          if (player.pos.x < mx0 - 200 || player.pos.x > mx0 + BIOME_W + 200) return;
+          // Wait for this page's turn AND for the global spacing gap.
+          if (now < b.armAt || now < calNextDropAt) return;
+          calNextDropAt = now + CAL_MIN_GAP;
+          const nx = pickCalX();
           b.baseX = nx;
-          b.pos = k.vec2(nx, -80 - Math.random() * 100);
-          b.spd = 380 + Math.random() * 240;
-          b.spin = (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 60);
-          b.driftAmp = 20 + Math.random() * 40;
-          b.driftSpd = 1.2 + Math.random() * 1.6;
+          b.pos = k.vec2(nx, -80);
+          b.spd = 210 + Math.random() * 70; // slower than before (was 290-460)
+          b.spin = (Math.random() < 0.5 ? -1 : 1) * (25 + Math.random() * 35);
+          b.driftAmp = 8 + Math.random() * 12;
+          b.driftSpd = 0.7 + Math.random() * 0.6;
           b.driftPhase = Math.random() * Math.PI * 2;
           b.angle = 0;
+          b.falling = true;
+          // Telegraph: a shadow marker on the ground under the drop column.
+          const marker = k.add([
+            k.rect(30, 6, { radius: 3 }),
+            k.pos(nx, GROUND_Y - 4),
+            k.anchor("center"),
+            k.color(60, 45, 90),
+            k.opacity(0.75),
+            k.z(LAYERS.GROUND_TOP + 2),
+          ]) as unknown as { destroy: () => void; opacity: number };
+          b.marker = marker;
+          k.wait(CAL_TELEGRAPH + 1.2, () => marker.destroy());
+          return;
         }
+        b.pos.y += b.spd * k.dt();
+        b.pos.x = b.baseX + Math.sin(now * b.driftSpd + b.driftPhase) * b.driftAmp;
+        b.angle = (b.angle ?? 0) + b.spin * k.dt();
+        if (b.pos.y > 700) rearm();
       });
     }
 
     addSpeech(k, mx0 + 500, 90, "Awaiting a decision…", [50, 40, 80]);
-    addSpeech(k, mx0 + 220, 140, "Avoid falling dates", [50, 40, 80]);
     zoneObjectives[5] = {
       hudLabel: () => {
         if (zoneState.waitStart === 0) return "WAIT 0:10";
@@ -1581,7 +1635,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.sprite(p.sprite, { width: dw, height: dh }),
         k.pos(p.x, GROUND_Y - 10),
         k.anchor("bot"),
-        k.area({ shape: new k.Rect(k.vec2(-dw / 2, -dh), dw, dh) }),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), dw, dh) }),
         k.z(LAYERS.PROP),
         "plan-pick",
         { planLabel: p.label, bonus: 800 },
@@ -1590,7 +1644,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       addSpeech(k, p.x, GROUND_Y - dh - 26, p.label, [30, 30, 60]);
     }
     addSpeech(k, kx0 + 560, GROUND_Y - 220, "Pick ONE plan", [30, 60, 120]);
-    addSpeech(k, kx0 + 200, 110, "Pick your plan and defeat the boss", [30, 60, 120]);
     zoneObjectives[6] = {
       hudLabel: () =>
         zoneState.hasKey
@@ -1608,7 +1661,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Staircase platforms rising, wider spacing so jumps between steps are
     // committed (bottomless kill plane below the whole staircase). Steps sit
     // over a lethal gap in the ground so a missed jump costs a life.
-    addSpeech(k, cx0 + 150, 110, "Climb stairs and collect your medical card", [30, 60, 120]);
     const stairY0 = GROUND_Y;
     const stepCount = 6;
     const STEP_GAP_X = 110;   // matches Z7_GAP1 above so the pole lands on ground
@@ -1647,7 +1699,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.sprite("medical-id", { width: idW, height: idH }),
         k.pos(idX, idY),
         k.anchor("center"),
-        k.area({ shape: new k.Rect(k.vec2(-idW / 2, -idH / 2), idW, idH) }),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), idW, idH) }),
         k.z(LAYERS.PROP),
         "id-card",
         { basY: idY },
@@ -1763,7 +1815,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const player = k.add([
       k.sprite("hero-idle", { width: displaySize("hero-idle", sizes).w, height: DISPLAY_H["hero-idle"] }),
       k.pos(spawnX, GROUND_Y - 20),
-      k.area({ shape: new k.Rect(k.vec2(PLAYER_HITBOX.x, PLAYER_HITBOX.y), PLAYER_HITBOX.w, PLAYER_HITBOX.h) }),
+      k.area({ shape: new k.Rect(k.vec2(0, 0), PLAYER_HITBOX.w, PLAYER_HITBOX.h) }),
       k.body(),
       k.anchor("bot"),
       k.z(LAYERS.PLAYER),
@@ -1917,7 +1969,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.anchor("center"),
         k.color(...style.fill),
         k.outline(3, k.rgb(255, 255, 255)),
-        k.area({ shape: new k.Rect(k.vec2(-W / 2, -H / 2), W, H) }),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), W, H) }),
         k.z(LAYERS.EFFECT),
         "powerup",
         { kind, baseY: y },
@@ -2702,7 +2754,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.pos(brick.pos.x, brick.pos.y - 18),
         k.anchor("center"),
         k.color(255, 210, 60), k.outline(2, k.rgb(90, 60, 10)),
-        k.area({ shape: new k.Rect(k.vec2(-iw / 2, -ih / 2), iw, ih) }),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), iw, ih) }),
         k.z(LAYERS.PROP + 1),
         "method",
         { methodLabel: brick.methodLabel, vy: -180, landed: false },
@@ -2774,7 +2826,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.sprite("gold-key", { width: kw, height: kh }),
         k.pos(kx, ky),
         k.anchor("center"),
-        k.area({ shape: new k.Rect(k.vec2(-kw / 2, -kh / 2), kw, kh) }),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), kw, kh) }),
         k.z(LAYERS.EFFECT),
         "gold-key",
       ]);
@@ -2811,7 +2863,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.sprite("denied", { width: sw, height: sh }),
         k.pos(x, y),
         k.anchor("center"),
-        k.area({ shape: new k.Rect(k.vec2(-sw / 2 + 4, -sh / 2 + 4), sw - 8, sh - 8) }),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), sw - 8, sh - 8) }),
         k.z(LAYERS.EFFECT),
         "boss-shot",
         { vx: dirX * 210, born: k.time() },
@@ -2833,7 +2885,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.anchor("center"),
         k.color(60, 210, 120),
         k.outline(2, k.rgb(255, 255, 255)),
-        k.area({ shape: new k.Rect(k.vec2(-size / 2, -size / 2), size, size) }),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), size, size) }),
         k.z(LAYERS.EFFECT),
         "plus-shot",
         { vx: dirX * 430, born: k.time() },
@@ -2910,7 +2962,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       function defeatBoss() {
         boss.dead = true;
         zoneState.bossDefeated = true;
-        setMusic("adventure");
+        setMusic(zoneMusic(currentZone));
         setGameObjSprite(boss, "boss-defeat");
         hearts.destroy();
         k.get("boss-shot").forEach((o) => (o as unknown as { destroy: () => void }).destroy());
@@ -3139,7 +3191,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         player.dead = true;
         checkpointMgr.clear();
         // Run over — the battle theme should never linger on the score screen.
-        setMusic("adventure");
+        setMusic(zoneMusic(currentZone));
         showEnd(false, cause);
         return;
       }
@@ -3271,6 +3323,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     let rightArmed = false;
 
     let currentZone = Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)));
+    // Start the run on this zone's tune (rotated for variety per run).
+    setMusic(zoneMusic(currentZone));
     showStepScreen(currentZone);
 
 
@@ -3311,7 +3365,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         w.__gameInput.resetReq = false;
         checkpointMgr.clear();
         powerUps.reset();
-        setMusic("adventure");
+        setMusic(zoneMusic(currentZone));
         k.go("trail", 40, 1);
         return;
       }
@@ -3344,8 +3398,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           // Start the wait clock only once the player has read the briefing.
           if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
         });
-        // Never let the battle theme follow the player out of the boss zone.
-        if (musicTheme === "boss" && z !== 6) setMusic("adventure");
+        // Each zone gets its own tune; the boss arena overrides this itself.
+        if (z !== 6) setMusic(zoneMusic(z));
       }
 
 

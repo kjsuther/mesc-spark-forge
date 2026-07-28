@@ -819,7 +819,24 @@ function spawnDecor(
 
 export async function startGame(opts: StartGameOpts): Promise<() => void> {
   const kaplay = (await import("kaplay")).default;
-  const active: Record<string, boolean | undefined> = opts.mode === "after" ? { ...opts.flags } : {};
+
+  // Seed the shared flag store with whatever the caller knows right now. From
+  // here on the engine reads the store live, so an admin toggle changes
+  // gameplay without restarting the run.
+  FeatureFlags.setFromDbFlags(opts.flags as Record<string, boolean>);
+
+  // Centralized systems — the only consumers of the feature flags.
+  const playerMgr = new PlayerManager();
+  const powerUps = new PowerUpManager();
+  const enemyMgr = new EnemyManager(powerUps);
+  const bossMgr = new BossManager(powerUps);
+  const checkpointMgr = new CheckpointManager();
+
+  /** Legacy read-only view: `active.extra_lives` now resolves LIVE. */
+  const active = new Proxy(
+    {},
+    { get: (_t, prop) => FeatureFlags.isDbKeyOn(String(prop)) },
+  ) as Record<string, boolean>;
 
   const k: Ctx = kaplay({
     canvas: opts.canvas,

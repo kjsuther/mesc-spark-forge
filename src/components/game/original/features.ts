@@ -11,7 +11,12 @@
 // manager that consumes it.
 // ============================================================================
 
-import type { ImprovementKey } from "./game.functions";
+export type ImprovementKey =
+  | "extra_lives"
+  | "navigator_helper"
+  | "chat_invincible"
+  | "email_umbrella"
+  | "resume_checkpoint";
 
 /** Friendly, product-level names for the five upgrades. */
 export interface GameFeatures {

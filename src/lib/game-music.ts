@@ -318,6 +318,8 @@ export class GameMusic {
   private timer: number | null = null;
   private enabled = false;
   private theme: MusicTheme = "adventure";
+  /** Counts loop repeats so alternating passes can vary the arrangement. */
+  private pass = 0;
   /** Nodes scheduled by the current loop, so a theme swap can silence them. */
   private scheduled: { osc: OscillatorNode | AudioBufferSourceNode; gain: GainNode }[] = [];
 
@@ -398,6 +400,7 @@ export class GameMusic {
   /** Mute + reset to the default theme (used when a run ends / menu returns). */
   reset() {
     this.theme = "adventure";
+    this.pass = 0;
   }
 
   private clearScheduled(at: number) {
@@ -472,6 +475,10 @@ export class GameMusic {
     const def = THEMES[this.theme];
     const beat = 60 / def.bpm;
     const now = ctx.currentTime + 0.05;
+    // Every other pass through the loop gets a light variation so the repeat
+    // point is less obvious: an octave-up echo lead and thinner hats.
+    this.pass += 1;
+    const varied = this.pass % 2 === 0;
 
     // Drop references to the previous bar's (already finished) nodes.
     this.scheduled = [];
@@ -485,6 +492,10 @@ export class GameMusic {
         // Slightly detuned twin gives the boss lead a snarling, unstable edge.
         if (def.detuneLead) {
           this.playNote(midiToFreq(n), t, d * 0.92, def.leadWave, def.leadGain * 0.7, 14);
+        }
+        if (varied && def.percussion !== "downbeat") {
+          // Soft octave-up echo, a half-beat late.
+          this.playNote(midiToFreq(n + 12), t + beat * 0.5, d * 0.5, "triangle", def.leadGain * 0.28);
         }
       }
       t += d;
@@ -514,7 +525,7 @@ export class GameMusic {
     if (def.percussion === "offbeat") {
       for (let i = 0; i < totalBeats * 2; i++) {
         // Off-beats: skip beat 0, 1, 2… — hit on the "&".
-        if (i % 2 === 1) this.playHat(now + i * (beat / 2));
+        if (varied ? i % 4 === 1 : i % 2 === 1) this.playHat(now + i * (beat / 2));
       }
     } else if (def.percussion === "downbeat") {
       for (let i = 0; i < totalBeats; i++) {

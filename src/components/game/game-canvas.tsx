@@ -413,13 +413,14 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
         />
 
 
-        {/* In-window SNES name entry the moment a run ends, then the vote panel */}
+        {/* In-window SNES name entry the moment a run ends, then the vote panel
+            (only when a voting round is actually live) */}
         {endResult && !presentation && launchMode && (
           <ScoreEntryOverlay
             result={endResult}
             onClose={() => {
               setEndResult(null);
-              setShowVote(true);
+              setShowVote(voteLiveRef.current);
             }}
           />
         )}

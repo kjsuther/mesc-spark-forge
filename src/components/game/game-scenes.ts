@@ -2145,12 +2145,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       anchor: "top", initial: "0:30", opacity: 0,
     });
 
-    // ===== ACTIVE UPGRADES panel (bottom-left, grows/shrinks with flags) =====
+    // ===== ACTIVE UPGRADES panel =====
+    // Sits to the RIGHT of the score/lives block in the top-left HUD cluster so
+    // it never covers the player or the playfield floor.
     const UPG_ROWS = 5;
+    const UPG_X = 150;   // just right of the 5 application-life icons
+    const UPG_Y = 30;    // aligned with the SCORE row
+    const UPG_W = 158;
+    const UPG_ROW_H = 13;
     const upgPanel = k.add([
-      k.rect(190, 24 + UPG_ROWS * 16, { radius: 6 }),
-      k.pos(12, k.height() - 12),
-      k.anchor("botleft"),
+      k.rect(UPG_W, 20 + UPG_ROWS * UPG_ROW_H, { radius: 5 }),
+      k.pos(UPG_X, UPG_Y),
+      k.anchor("topleft"),
       k.color(15, 15, 30),
       k.outline(2, k.rgb(255, 220, 90)),
       k.opacity(0),
@@ -2158,21 +2164,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(LAYERS.HUD),
     ]) as AnyObj;
     const upgTitle = pixelHudText({
-      x: 22, y: 0, size: 10, color: [255, 220, 90], anchor: "topleft",
+      x: UPG_X + 6, y: UPG_Y + 5, size: 8, color: [255, 220, 90], anchor: "topleft",
       initial: "ACTIVE UPGRADES", opacity: 0,
     });
     const upgRows = Array.from({ length: UPG_ROWS }, () =>
-      pixelHudText({ x: 22, y: 0, size: 10, color: [255, 255, 255], anchor: "topleft", opacity: 0 }),
+      pixelHudText({ x: UPG_X + 6, y: 0, size: 8, color: [255, 255, 255], anchor: "topleft", opacity: 0 }),
     );
 
     function updateUpgradePanel() {
       const rows = activeUpgradeRows(FeatureFlags.get(), powerUps);
-      const h = rows.length === 0 ? 0 : 26 + rows.length * 16;
+      const h = rows.length === 0 ? 0 : 20 + rows.length * UPG_ROW_H;
       upgPanel.height = h;
-      upgPanel.opacity = rows.length === 0 ? 0 : 0.85;
-      const top = k.height() - 12 - h;
+      upgPanel.opacity = rows.length === 0 ? 0 : 0.8;
       upgTitle.opacity = rows.length === 0 ? 0 : 1;
-      upgTitle.setPos(22, top + 6);
+      upgTitle.setPos(UPG_X + 6, UPG_Y + 4);
       upgRows.forEach((t, i) => {
         const row = rows[i];
         if (!row) {
@@ -2181,9 +2186,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
         t.opacity = 1;
         t.text = `${row.carried ? "✓" : "○"} ${row.label}`;
-        t.setPos(22, top + 22 + i * 16);
+        t.setPos(UPG_X + 6, UPG_Y + 17 + i * UPG_ROW_H);
       });
     }
+
 
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;

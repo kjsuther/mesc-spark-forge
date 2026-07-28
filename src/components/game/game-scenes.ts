@@ -1137,7 +1137,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Floating label above the brick so player knows what each represents.
       addSignPlaque(k, m.x, BRICK_Y - 42, m.label, m.icon);
     }
-    addSignPlaque(k, 1080, GROUND_Y - 180, "Smash a brick →", "!");
+    addSpeech(k, 90, BRICK_Y - 90, "Smash a brick and collect application", [40, 60, 120]);
     zoneObjectives[0] = {
       hudLabel: () => `METHOD ${zoneState.methodTouched ? "✓" : "☐"}`,
       met: () => zoneState.methodTouched,
@@ -1150,6 +1150,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       spawnDecor(k, "laptop", sizes, { x: lx, z: LAYERS.PROP });
     }
     addSpeech(k, sx0 + 380, GROUND_Y - DISPLAY_H["laptop"] - 30, "Create an account", [40, 60, 120]);
+    addSpeech(k, sx0 + 300, 110, "Collect Username and Password and avoid account locks", [40, 60, 120]);
     // Username collectible — floats above ground
     {
       const ux = sx0 + 300;
@@ -1238,6 +1239,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= ZONE 2: Crossing River of Paperwork =================
     const rx0 = RIVER_GAP_X0;
     const rx1 = RIVER_GAP_X1;
+    addSpeech(k, rx0 - 40, GROUND_Y - 250, "Use platforms to get to other side", [40, 60, 120]);
     if (active.bridge) {
       k.add([
         k.rect(rx1 - rx0, 14),
@@ -1350,7 +1352,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         hitboxScale: { x: -dh / 2, w: dh, h: dh },
       });
     }
-    addSpeech(k, tx0 + 120, GROUND_Y - 80, "GATHER 3 DOCS", [40, 60, 120]);
+    addSpeech(k, tx0 + 120, GROUND_Y - 80, "Gather 3 docs and avoid evil clipboards", [40, 60, 120]);
     {
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
@@ -1454,7 +1456,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     }
 
-    addSpeech(k, relayBase + 100, GROUND_Y - DISPLAY_H["mailbox"] - 40, "Answer every request!", [40, 80, 130]);
+    addSpeech(k, relayBase + 100, GROUND_Y - DISPLAY_H["mailbox"] - 40, "Collect all notice mailboxes and avoid confusing letters", [40, 80, 130]);
     // Decorative paper airplanes drifting across the sky — ties into the
     // "letters back and forth with the agency" theme. No collision.
     {
@@ -1531,6 +1533,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     addSpeech(k, mx0 + 500, 90, "Awaiting a decision…", [50, 40, 80]);
+    addSpeech(k, mx0 + 220, 140, "Avoid falling dates", [50, 40, 80]);
     zoneObjectives[5] = {
       hudLabel: () => {
         if (zoneState.waitStart === 0) return "WAIT 0:10";
@@ -1572,6 +1575,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       addSpeech(k, p.x, GROUND_Y - dh - 26, p.label, [30, 30, 60]);
     }
     addSpeech(k, kx0 + 560, GROUND_Y - 220, "Pick ONE plan", [30, 60, 120]);
+    addSpeech(k, kx0 + 200, 110, "Pick your plan and defeat the boss", [30, 60, 120]);
     zoneObjectives[6] = {
       hudLabel: () =>
         zoneState.hasKey
@@ -1589,6 +1593,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Staircase platforms rising, wider spacing so jumps between steps are
     // committed (bottomless kill plane below the whole staircase). Steps sit
     // over a lethal gap in the ground so a missed jump costs a life.
+    addSpeech(k, cx0 + 150, 110, "Climb stairs and collect your medical card", [30, 60, 120]);
     const stairY0 = GROUND_Y;
     const stepCount = 6;
     const STEP_GAP_X = 110;   // matches Z7_GAP1 above so the pole lands on ground

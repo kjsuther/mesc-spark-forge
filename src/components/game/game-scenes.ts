@@ -2858,6 +2858,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         w.__gameInput.resetReq = false;
         checkpointMgr.clear();
         powerUps.reset();
+        setMusic("adventure");
         k.go("trail", 40, 1);
         return;
       }
@@ -2886,7 +2887,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         showTitleCard(k, ZONES[z].phase.toUpperCase(), ZONES[z].label.toUpperCase(), [255, 220, 90], 1.4);
         // Start the 30-second wait when the player enters Waiting Mountain.
         if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
+        // Never let the battle theme follow the player out of the boss zone.
+        if (musicTheme === "boss" && z !== 6) setMusic("adventure");
       }
+
 
       // Check each zone's objective and unlock its door when met.
       for (let i = 0; i < doors.length; i++) {

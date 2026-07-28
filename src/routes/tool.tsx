@@ -8,7 +8,6 @@ import { SectionHeading } from "@/components/trail/section-heading";
 import { GameCanvas } from "@/components/game/game-canvas";
 import { VotePanel } from "@/components/game/vote-panel";
 import { Leaderboard } from "@/components/game/leaderboard";
-import { ScoreSubmit } from "@/components/game/score-submit";
 import type { WinResult } from "@/components/game/game-scenes";
 import { improvementsQuery, gameSettingsQuery, activeRoundQuery } from "@/lib/game.queries";
 import { nowBuildingQuery } from "@/lib/queries";
@@ -163,13 +162,6 @@ function ToolPage() {
             setWinResult(r);
           }}
         />
-
-        {winResult && (
-          <ScoreSubmit
-            key={`${winResult.won}-${winResult.durationMs}`}
-            result={winResult}
-          />
-        )}
 
         <VotePanel highlight={gameEnded} />
 

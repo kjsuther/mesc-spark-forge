@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Leaderboard } from "./leaderboard";
+import { ScoreEntryOverlay } from "./score-entry-overlay";
 import { GameMusic, type MusicTheme } from "@/lib/game-music";
 import { FeatureFlags } from "@/lib/game-features";
 import type { GameFlags, WinResult } from "./game-scenes";
@@ -52,6 +53,7 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
   const [menuScreen, setMenuScreen] = useState<MenuScreen>("title");
   const [showHint, setShowHint] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [endResult, setEndResult] = useState<WinResult | null>(null);
   const { portrait } = useOrientation();
   const [isTouch] = useState(() => isCoarsePointer());
   const music = useMemo(() => new GameMusic(), []);
@@ -90,6 +92,7 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
 
     let cancelled = false;
     let destroy: (() => void) | null = null;
+    setEndResult(null);
     setError(null);
     setLoading(true);
 
@@ -100,7 +103,10 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
         const { startGame } = await import("./game-scenes");
         if (cancelled) return;
         destroy = await startGame({
-          canvas, flags, mode, onWin, onLose, onMusicTheme: handleMusicTheme,
+          canvas, flags, mode,
+          onWin: (r) => { setEndResult(r); onWin?.(r); },
+          onLose: (r) => { setEndResult(r); onLose?.(r); },
+          onMusicTheme: handleMusicTheme,
         });
         if (!cancelled) setLoading(false);
       } catch (err) {
@@ -403,6 +409,11 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
           aria-label="Blazing the Trail to Coverage game"
         />
 
+
+        {/* In-window SNES name entry the moment a run ends */}
+        {endResult && !presentation && launchMode && (
+          <ScoreEntryOverlay result={endResult} onClose={() => setEndResult(null)} />
+        )}
 
         {/* SNES-style title / launch / high-score screen */}
         {!launchMode && !error && (

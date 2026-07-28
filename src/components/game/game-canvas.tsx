@@ -520,12 +520,19 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
             toggleFullscreen();
           }}
           onContextMenu={(e) => e.preventDefault()}
-          className="absolute right-2 top-2 z-40 rounded bg-mn-blue/80 px-3 py-1.5 text-xs font-black uppercase tracking-widest text-cream shadow-lg touch-none"
-          style={{ touchAction: "none", paddingTop: "calc(env(safe-area-inset-top, 0px) + 6px)" }}
+          className="absolute z-40 rounded bg-mn-blue/80 px-3 py-2 text-xs font-black uppercase tracking-widest text-cream shadow-lg touch-none"
+          style={{
+            touchAction: "none",
+            // Clear of notches, Dynamic Island, and rounded corners.
+            top: "calc(env(safe-area-inset-top, 0px) + 8px)",
+            right: "calc(env(safe-area-inset-right, 0px) + 8px)",
+            minHeight: 40,
+          }}
         >
           ✕ Exit
         </button>
       )}
+
 
       <div
         className={

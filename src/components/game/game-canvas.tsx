@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Leaderboard } from "./leaderboard";
 import { ScoreEntryOverlay } from "./score-entry-overlay";
+import { VoteOverlay } from "./vote-overlay";
 import { GameMusic, type MusicTheme } from "@/lib/game-music";
 import { FeatureFlags } from "@/lib/game-features";
 import type { GameFlags, WinResult } from "./game-scenes";
@@ -54,6 +55,7 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
   const [showHint, setShowHint] = useState(true);
   const [loading, setLoading] = useState(false);
   const [endResult, setEndResult] = useState<WinResult | null>(null);
+  const [showVote, setShowVote] = useState(false);
   const { portrait } = useOrientation();
   const [isTouch] = useState(() => isCoarsePointer());
   const music = useMemo(() => new GameMusic(), []);
@@ -93,6 +95,7 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
     let cancelled = false;
     let destroy: (() => void) | null = null;
     setEndResult(null);
+    setShowVote(false);
     setError(null);
     setLoading(true);
 

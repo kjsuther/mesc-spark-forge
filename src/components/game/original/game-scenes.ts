@@ -2962,7 +2962,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       function defeatBoss() {
         boss.dead = true;
         zoneState.bossDefeated = true;
-        setMusic("adventure");
+        setMusic(zoneMusic(currentZone));
         setGameObjSprite(boss, "boss-defeat");
         hearts.destroy();
         k.get("boss-shot").forEach((o) => (o as unknown as { destroy: () => void }).destroy());
@@ -3191,7 +3191,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         player.dead = true;
         checkpointMgr.clear();
         // Run over — the battle theme should never linger on the score screen.
-        setMusic("adventure");
+        setMusic(zoneMusic(currentZone));
         showEnd(false, cause);
         return;
       }
@@ -3363,7 +3363,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         w.__gameInput.resetReq = false;
         checkpointMgr.clear();
         powerUps.reset();
-        setMusic("adventure");
+        setMusic(zoneMusic(currentZone));
         k.go("trail", 40, 1);
         return;
       }

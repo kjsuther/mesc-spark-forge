@@ -43,29 +43,29 @@ export const FEATURE_META: Record<
   { adminLabel: string; hudLabel: string; description: string }
 > = {
   moreWaysToReachCaseWorker: {
-    adminLabel: "More Ways to Reach Your Case Worker",
-    hudLabel: "5 Lives",
-    description: "Start every run with 5 lives instead of 3.",
+    adminLabel: "Self-Service Portal",
+    hudLabel: "Portal",
+    description: "Start game with 5 tries instead of 3.",
   },
   navigatorHelp: {
-    adminLabel: "Get Help from a Navigator",
+    adminLabel: "Navigator Locator",
     hudLabel: "Navigator",
-    description: "Pick up the Navigator power-up to have Navigator appear and assist with the boss.",
+    description: "Pick up the Navigator power-up to have Navigator appear to assist.",
   },
   liveChatAssistant: {
-    adminLabel: "Live Chat Assistant",
-    hudLabel: "Live Chat",
+    adminLabel: "Live Chat Bot",
+    hudLabel: "Chat Bot",
     description: "Pick up the Chat power-up and become invincible to all enemies.",
   },
   emailCaseWorker: {
-    adminLabel: "Email Your Case Worker",
-    hudLabel: "Email Shield",
-    description: "Pick up the Email power-up to receive an umbrella which protects you from falling obstacles.",
+    adminLabel: "Email Communication",
+    hudLabel: "Email",
+    description: "Pick up the Email power-up for an umbrella to protect you.",
   },
   checkStatusAnytime: {
-    adminLabel: "Check Your Status Anytime",
-    hudLabel: "Checkpoint Resume",
-    description: "Losing a life resumes from your last checkpoint with progress intact.",
+    adminLabel: "Case Status Checker",
+    hudLabel: "Status Check",
+    description: "If you're hit, restart right where you left off.",
   },
 };
 

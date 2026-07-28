@@ -52,7 +52,6 @@ function ToolPage() {
   const qc = useQueryClient();
   const [localMode, setLocalMode] = useState<"before" | "after" | null>(null);
   const [gameEnded, setGameEnded] = useState(false);
-  const [winResult, setWinResult] = useState<WinResult | null>(null);
 
   
 
@@ -153,14 +152,8 @@ function ToolPage() {
         <ClientGameCanvas
           flags={flags}
           mode={mode}
-          onWin={(r) => {
-            setGameEnded(true);
-            setWinResult(r);
-          }}
-          onLose={(r) => {
-            setGameEnded(true);
-            setWinResult(r);
-          }}
+          onWin={() => setGameEnded(true)}
+          onLose={() => setGameEnded(true)}
         />
 
         <VotePanel highlight={gameEnded} />

@@ -607,8 +607,9 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
             {/* One scale factor for every menu card: keeps text legible on
                 big screens and stops short landscape phones from clipping. */}
             <div
-              className="grid w-full place-items-center"
+              className="grid h-full w-full place-items-center"
               style={{ transform: `scale(${uiScale})`, transformOrigin: "center" }}
+
             >
 
 

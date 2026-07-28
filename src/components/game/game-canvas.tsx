@@ -49,6 +49,48 @@ function useOrientation() {
   return { portrait };
 }
 
+/** The real, currently-visible viewport. `visualViewport` is the only value
+ *  that is accurate on iOS Safari while the URL bar animates in and out, so
+ *  it wins over `innerWidth/innerHeight` whenever it exists. */
+function useViewportSize() {
+  const [size, setSize] = useState(() => {
+    if (typeof window === "undefined") return { vw: 960, vh: 540 };
+    return { vw: window.innerWidth, vh: window.innerHeight };
+  });
+  useEffect(() => {
+    let raf = 0;
+    const read = () => {
+      const vv = window.visualViewport;
+      const vw = Math.round(vv?.width ?? window.innerWidth);
+      const vh = Math.round(vv?.height ?? window.innerHeight);
+      setSize((prev) => (prev.vw === vw && prev.vh === vh ? prev : { vw, vh }));
+    };
+    // Coalesce bursts (rotation fires resize several times) into one frame.
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(read);
+    };
+    read();
+    window.addEventListener("resize", schedule);
+    window.addEventListener("orientationchange", schedule);
+    document.addEventListener("fullscreenchange", schedule);
+    document.addEventListener("webkitfullscreenchange", schedule as EventListener);
+    window.visualViewport?.addEventListener("resize", schedule);
+    window.visualViewport?.addEventListener("scroll", schedule);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("orientationchange", schedule);
+      document.removeEventListener("fullscreenchange", schedule);
+      document.removeEventListener("webkitfullscreenchange", schedule as EventListener);
+      window.visualViewport?.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("scroll", schedule);
+    };
+  }, []);
+  return size;
+}
+
+
 export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -61,7 +103,11 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const [loading, setLoading] = useState(false);
   const [endResult, setEndResult] = useState<WinResult | null>(null);
   const { portrait } = useOrientation();
+  const { vw, vh } = useViewportSize();
   const [isTouch] = useState(() => isCoarsePointer());
+  /** The player asked for fullscreen; keep them there across browser hiccups. */
+  const fsIntentRef = useRef(false);
+
   const music = useMemo(() => new GameMusic(), []);
   const [musicOn, setMusicOn] = useState(false);
   useEffect(() => () => { music.stop(); }, [music]);
@@ -140,13 +186,17 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     return () => clearTimeout(t);
   }, [showHint]);
 
-  // Native fullscreen tracking
+  // Native fullscreen tracking. If the browser drops out of fullscreen on its
+  // own (rotation on some Android builds, an OS gesture, a tab switch) but the
+  // player never asked to leave, fall back to the in-page fullscreen overlay
+  // instead of dumping them back into the small page layout.
   useEffect(() => {
     const onFsChange = () => {
       const fsElement =
         document.fullscreenElement ||
         (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement;
       setIsFullscreen(!!fsElement);
+      if (!fsElement && fsIntentRef.current) setFauxFullscreen(true);
     };
     document.addEventListener("fullscreenchange", onFsChange);
     document.addEventListener("webkitfullscreenchange", onFsChange as EventListener);
@@ -156,15 +206,48 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     };
   }, []);
 
-  // Lock body scroll while in faux-fullscreen (iOS Safari fallback)
+  // Lock the page behind the game while any fullscreen mode is active so the
+  // document can never scroll a few pixels and reveal browser chrome.
   useEffect(() => {
     if (!fauxFullscreen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const body = document.body.style;
+    const html = document.documentElement.style;
+    const prev = { overflow: body.overflow, htmlOverflow: html.overflow, overscroll: body.overscrollBehavior };
+    body.overflow = "hidden";
+    html.overflow = "hidden";
+    body.overscrollBehavior = "none";
     return () => {
-      document.body.style.overflow = prev;
+      body.overflow = prev.overflow;
+      html.overflow = prev.htmlOverflow;
+      body.overscrollBehavior = prev.overscroll;
     };
   }, [fauxFullscreen]);
+
+  // Keep the engine's backing buffer in step with the CSS box after every
+  // layout-changing event. Kaplay watches the canvas with a ResizeObserver, so
+  // all we have to do is make sure a real layout pass happens on the frames
+  // right after a rotation / fullscreen transition — iOS Safari reports stale
+  // sizes for a beat or two after both.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    let raf = 0;
+    const timers: number[] = [];
+    const nudge = () => {
+      // Reading a layout property forces the pending reflow to resolve.
+      void canvas.offsetWidth;
+      void canvas.offsetHeight;
+    };
+    raf = requestAnimationFrame(nudge);
+    for (const delay of [120, 400, 900]) {
+      timers.push(window.setTimeout(nudge, delay));
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      timers.forEach((t) => clearTimeout(t));
+    };
+  }, [vw, vh, isFullscreen, fauxFullscreen, launchMode]);
+
 
   // Block context menu and pull-to-refresh on the game surface
   useEffect(() => {
@@ -219,11 +302,25 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
   const toggleFullscreen = useCallback(async () => {
     if (isFullscreen) {
+      fsIntentRef.current = false;
       await exitNativeFullscreen();
       return;
     }
     if (fauxFullscreen) {
+      fsIntentRef.current = false;
       setFauxFullscreen(false);
+      return;
+    }
+    fsIntentRef.current = true;
+    // On touch devices the in-page overlay is the better fullscreen: iOS
+    // Safari refuses element fullscreen entirely, and on Android the native
+    // one is dropped by rotation. The overlay is stable everywhere and the
+    // engine resizes into it normally.
+    if (isCoarsePointer()) {
+      setFauxFullscreen(true);
+      // Android Chrome supports it too — take the extra chrome-free pixels
+      // when they're on offer, and keep the overlay underneath as a fallback.
+      if (nativeFullscreenSupported()) void requestNativeFullscreen();
       return;
     }
     if (!nativeFullscreenSupported()) {
@@ -240,15 +337,18 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     nativeFullscreenSupported,
   ]);
 
-  // User picked a mode. On mobile / touch devices we skip native fullscreen
-  // (unsupported on iOS Safari for divs, and awaiting the promise loses the
-  // user gesture) and go straight to faux-fullscreen so the launch is
-  // instantaneous and the canvas gets the whole viewport.
+  // User picked a mode. On mobile / touch devices we go straight to the
+  // in-page fullscreen overlay so the launch is instantaneous and the canvas
+  // gets the whole viewport without waiting on a fullscreen promise.
   const pickMode = useCallback(
     (m: LaunchMode) => {
       const coarse = isCoarsePointer();
       if (m === "fullscreen" || coarse) {
-        if (!coarse && nativeFullscreenSupported()) {
+        fsIntentRef.current = true;
+        if (coarse) {
+          setFauxFullscreen(true);
+          if (nativeFullscreenSupported()) void requestNativeFullscreen();
+        } else if (nativeFullscreenSupported()) {
           // Fire-and-forget; do not await so setLaunchMode is synchronous.
           void requestNativeFullscreen().then((ok) => {
             if (!ok) setFauxFullscreen(true);
@@ -260,6 +360,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       setLaunchMode(m);
     },
     [requestNativeFullscreen, nativeFullscreenSupported],
+
   );
 
   // Every paused menu screen advances the same way: Enter, Space, mouse click,
@@ -313,13 +414,32 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
   const overlayFs = isFullscreen || fauxFullscreen;
 
+  // Exact pixel sizing beats 100vh/100dvh on mobile: `visualViewport` is the
+  // only number that matches what the player can actually see while iOS
+  // Safari's URL bar is mid-animation.
+  const fsWidth = overlayFs ? `${vw}px` : undefined;
+  const fsHeight = overlayFs ? `${vh}px` : undefined;
+
+  // Menus, pause cards, and instruction screens are plain HTML, so they scale
+  // independently of the canvas. Anchor them to the same 960x540 design box
+  // the game uses: short landscape phones shrink slightly (nothing clips),
+  // large tablets and desktops scale up (nothing is squint-small).
+  const uiScale = overlayFs
+    ? Math.max(0.82, Math.min(1.85, Math.min(vw / 960, vh / 540) * 1.12))
+    : 1;
+
+
   const containerStyle: React.CSSProperties = overlayFs
     ? {
         position: fauxFullscreen ? "fixed" : "relative",
         inset: fauxFullscreen ? 0 : undefined,
-        width: fauxFullscreen ? "100vw" : "100vw",
-        height: fauxFullscreen ? "100dvh" : "100vh",
-        background: "var(--color-mn-blue)",
+        width: fsWidth,
+        height: fsHeight,
+        maxWidth: "100%",
+        margin: 0,
+        padding: 0,
+        // Black behind the canvas so any residual letterbox reads as a bezel.
+        background: "#000",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -328,7 +448,8 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         userSelect: "none",
         WebkitUserSelect: "none",
         WebkitTouchCallout: "none",
-        overscrollBehavior: "contain",
+        overscrollBehavior: "none",
+        overflow: "hidden",
         zIndex: fauxFullscreen ? 9999 : undefined,
       }
     : {
@@ -343,6 +464,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       };
 
   const showRotatePrompt = isTouch && portrait;
+
 
   return (
     <div ref={containerRef} className="relative w-full" style={containerStyle}>
@@ -397,17 +519,24 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
             toggleFullscreen();
           }}
           onContextMenu={(e) => e.preventDefault()}
-          className="absolute right-2 top-2 z-40 rounded bg-mn-blue/80 px-3 py-1.5 text-xs font-black uppercase tracking-widest text-cream shadow-lg touch-none"
-          style={{ touchAction: "none", paddingTop: "calc(env(safe-area-inset-top, 0px) + 6px)" }}
+          className="absolute z-40 rounded bg-mn-blue/80 px-3 py-2 text-xs font-black uppercase tracking-widest text-cream shadow-lg touch-none"
+          style={{
+            touchAction: "none",
+            // Clear of notches, Dynamic Island, and rounded corners.
+            top: "calc(env(safe-area-inset-top, 0px) + 8px)",
+            right: "calc(env(safe-area-inset-right, 0px) + 8px)",
+            minHeight: 40,
+          }}
         >
           ✕ Exit
         </button>
       )}
 
+
       <div
         className={
           overlayFs
-            ? "relative overflow-hidden bg-mn-blue"
+            ? "relative overflow-hidden bg-black"
             : presentation
               ? "relative w-full flex-1 min-h-0 overflow-hidden bg-mn-blue"
               : "relative w-full overflow-hidden rounded-lg bg-mn-blue ring-2 ring-mn-blue/60 shadow-lg"
@@ -415,9 +544,12 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         style={
           overlayFs
             ? {
-                // Fill the full viewport; canvas itself letterboxes via object-fit.
-                width: "100vw",
-                height: "100dvh",
+                // Edge-to-edge: the engine's logical viewport already matches
+                // the device aspect, so there is nothing left to letterbox.
+                width: fsWidth,
+                height: fsHeight,
+                margin: 0,
+                padding: 0,
               }
             : presentation
               ? { width: "100%", height: "100%" }
@@ -430,12 +562,13 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
           onContextMenu={(e) => e.preventDefault()}
           className="block w-full h-full touch-none select-none"
           style={{
-            ...(presentation ? {} : { aspectRatio: "16 / 9" }),
+            // NOTE: the engine rewrites this element's cssText on boot
+            // (width/height 100% + pixelated), so the wrapper above is the
+            // real source of truth for size. Only the pre-boot placeholder
+            // shape is declared here.
+            ...(presentation || overlayFs ? {} : { aspectRatio: "16 / 9" }),
             width: "100%",
             height: "100%",
-            maxWidth: "100%",
-            maxHeight: "100%",
-            objectFit: "contain",
             imageRendering: "pixelated",
             touchAction: "none",
             display: "block",
@@ -443,6 +576,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
           tabIndex={0}
           aria-label="Blazing the Trail to Coverage game"
         />
+
 
 
         {/* In-window SNES name entry the moment a run ends */}
@@ -453,7 +587,15 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         {/* SNES-style title / launch / high-score screen */}
         {!launchMode && !error && (
           <div
-            className="absolute inset-0 z-30 grid place-items-center bg-mn-blue p-4 text-cream"
+            className="absolute inset-0 z-30 grid place-items-center overflow-hidden bg-mn-blue text-cream"
+            style={{
+              padding: [
+                "calc(env(safe-area-inset-top, 0px) + 8px)",
+                "calc(env(safe-area-inset-right, 0px) + 12px)",
+                "calc(env(safe-area-inset-bottom, 0px) + 8px)",
+                "calc(env(safe-area-inset-left, 0px) + 12px)",
+              ].join(" "),
+            }}
             onClick={(e) => {
               // Tap/click anywhere continues — except on the menu buttons
               // themselves, which already have their own action.
@@ -461,6 +603,14 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
               advanceMenu();
             }}
           >
+            {/* One scale factor for every menu card: keeps text legible on
+                big screens and stops short landscape phones from clipping. */}
+            <div
+              className="grid h-full w-full place-items-center"
+              style={{ transform: `scale(${uiScale})`, transformOrigin: "center" }}
+
+            >
+
 
             {menuScreen === "title" && (
               <div className="w-full max-w-lg text-center">
@@ -572,8 +722,10 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                 </div>
               </div>
             )}
+            </div>
           </div>
         )}
+
 
         {/* Music toggle (visible whenever a game is running) */}
         {launchMode && (

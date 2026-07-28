@@ -50,17 +50,17 @@ export const FEATURE_META: Record<
   navigatorHelp: {
     adminLabel: "Get Help from a Navigator",
     hudLabel: "Navigator",
-    description: "A navigator power-up appears and clears the Zone 7 boss for you (single use).",
+    description: "Pick up the Navigator power-up to have Navigator appear and assist with the boss.",
   },
   liveChatAssistant: {
     adminLabel: "Live Chat Assistant",
     hudLabel: "Live Chat",
-    description: "A chat power-up in Zone 4 makes you invincible while you stay in that zone.",
+    description: "Pick up the Chat power-up and become invincible to all enemies.",
   },
   emailCaseWorker: {
     adminLabel: "Email Your Case Worker",
     hudLabel: "Email Shield",
-    description: "An email power-up in Zone 6 grants an umbrella that blocks falling calendar dates.",
+    description: "Pick up the Email power-up to receive an umbrella which protects you from falling obstacles.",
   },
   checkStatusAnytime: {
     adminLabel: "Check Your Status Anytime",

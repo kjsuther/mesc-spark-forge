@@ -134,6 +134,39 @@ export type Database = {
         }
         Relationships: []
       }
+      game_feedback: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          implemented_at: string | null
+          rank: number
+          status: string
+          submitter_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          implemented_at?: string | null
+          rank?: number
+          status?: string
+          submitter_name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          implemented_at?: string | null
+          rank?: number
+          status?: string
+          submitter_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       game_improvement_pool: {
         Row: {
           baseline_pain: string

@@ -5,7 +5,7 @@ import { GameCanvas } from "@/components/game/game-canvas";
 import { improvementsQuery, gameSettingsQuery } from "@/lib/game.queries";
 import { IMPROVEMENT_KEYS, type ImprovementKey } from "@/lib/game.functions";
 
-export const Route = createFileRoute("/tool/embed")({
+export const Route = createFileRoute("/embed")({
   head: () => ({
     meta: [
       { title: "Blazing the Trail — Embed" },

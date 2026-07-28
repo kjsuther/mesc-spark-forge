@@ -103,7 +103,7 @@ function PosterView() {
         <section className="rounded-lg overflow-hidden bg-black ring-2 ring-accent-gold/60 flex flex-col min-h-0">
           <div className="flex-1 min-h-0">
             <iframe
-              src="/tool/embed"
+              src="/embed"
               title="Live game"
               className="w-full h-full block bg-black"
               allow="autoplay; fullscreen"

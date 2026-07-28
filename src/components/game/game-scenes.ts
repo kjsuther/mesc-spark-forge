@@ -2703,6 +2703,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (player.lives <= 0) {
         player.dead = true;
         checkpointMgr.clear();
+        // Run over — the battle theme should never linger on the score screen.
+        setMusic("adventure");
         showEnd(false, cause);
         return;
       }

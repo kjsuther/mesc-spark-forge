@@ -885,7 +885,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     const RIVER_BASE = BIOME_W * 2;
     const RIVER_GAP_X0 = RIVER_BASE + 320;
-    const RIVER_GAP_X1 = RIVER_BASE + 800;
+    const RIVER_GAP_X1 = RIVER_BASE + 1010;
     addGround(k, RIVER_BASE, RIVER_GAP_X0, GROUND_Y, ZONES[2].ground, ZONES[2].soil);
     addGround(k, RIVER_GAP_X1, BIOME_W * 3, GROUND_Y, ZONES[2].ground, ZONES[2].soil);
 

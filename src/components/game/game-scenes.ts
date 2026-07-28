@@ -2621,25 +2621,47 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     player.onCollide("monster", () => {
-      // Live Chat Assistant: invincible to all enemies in Zone 4 (Gathering Documents).
-      const inGatherZone = Math.floor(player.pos.x / BIOME_W) === 3;
-      if (active.chat_invincible && inGatherZone) return;
+      const zoneNow = Math.floor(player.pos.x / BIOME_W);
+      if (enemyMgr.blocksDamage("monster", zoneNow)) return;
       loseLife("monster");
     });
-    player.onCollide("boulder", () => {
+    player.onCollide("boulder", (b) => {
       // In the Awaiting-Decision zone, a calendar hit also resets the countdown
       // to the full 10 seconds — feels like the clock starting over.
-      const inWaitZone = Math.floor(player.pos.x / BIOME_W) === 5;
-      // Email Your Case Worker: umbrella blocks falling calendar dates in Zone 6.
-      if (active.email_umbrella && inWaitZone) return;
+      const zoneNow = Math.floor(player.pos.x / BIOME_W);
+      if (enemyMgr.blocksDamage("boulder", zoneNow)) {
+        // Umbrella: the calendar bounces away instead of hurting.
+        const obj = b as unknown as { pos: { x: number; y: number }; spd?: number; baseX?: number };
+        obj.pos.y = -80;
+        if (typeof obj.baseX === "number") {
+          obj.baseX = obj.pos.x + (Math.random() - 0.5) * 200;
+        }
+        sparkleBurst(player.pos.x, player.pos.y - 60, [255, 255, 255]);
+        return;
+      }
       const alive = !player.dead && !player.won && k.time() >= player.invulnUntil;
-      if (inWaitZone && alive && zoneState.waitStart > 0) {
+      if (zoneNow === ZONE_INDEX.awaitDecision && alive && zoneState.waitStart > 0) {
         zoneState.waitStart = k.time();
       }
       loseLife("boulder");
     });
     player.onCollide("water", () => loseLife("water"));
 
+
+    function buildCheckpoint(): CheckpointSnapshot {
+      return {
+        x: player.pos.x,
+        y: player.pos.y,
+        lives: player.lives,
+        maxLives: player.maxLives,
+        score: player.score,
+        docs: [...player.docs],
+        farthestZone: player.farthestZone,
+        powerups: powerUps.snapshot(),
+        zoneState: { ...zoneState },
+        doorsUnlocked: doors.map((d) => !!d?.unlocked),
+      };
+    }
 
     function loseLife(cause: FailCause) {
       if (player.dead || player.won) return;
@@ -2649,18 +2671,31 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.deaths += 1;
       if (player.lives <= 0) {
         player.dead = true;
+        checkpointMgr.clear();
         showEnd(false, cause);
         return;
       }
-      // Resume at the entry of the zone the player already reached — never
-      // start the whole trail over. Save-point campfire still wins if active.
-      const zoneEntryX = Math.max(40, player.farthestZone * BIOME_W + 40);
-      const rx = active.resume_checkpoint ? player.checkpointX : zoneEntryX;
-      player.pos = k.vec2(rx, GROUND_Y - 40);
+      // Check Your Status Anytime: resume exactly where you were, keeping
+      // documents, power-ups and unlocked doors. Otherwise fall back to the
+      // entry of the furthest zone reached.
+      const snap = checkpointMgr.get();
+      if (snap) {
+        player.pos = k.vec2(snap.x, snap.y - 20);
+        player.docs = new Set(snap.docs);
+        powerUps.restore(snap.powerups);
+        syncPowerUps();
+        syncCompanion();
+        sparkleBurst(player.pos.x, player.pos.y - 40, [120, 255, 170]);
+        showHint("Resumed from your saved checkpoint.");
+      } else {
+        const zoneEntryX = Math.max(40, player.farthestZone * BIOME_W + 40);
+        player.pos = k.vec2(zoneEntryX, GROUND_Y - 40);
+      }
       player.vel = k.vec2(0, 0);
       player.riding = null;
       updateHud();
     }
+
 
     function buildResult(won: boolean): WinResult {
       const durationMs = Math.round((k.time() - startTime) * 1000);

@@ -89,13 +89,16 @@ function ToolPage() {
 
   const mode: "before" | "after" = localMode ?? settings?.before_after ?? "before";
 
+  // Upgrades only ever apply to the "After feedback" version of the game.
+  // The "Before feedback" run is always the raw, un-upgraded experience.
   const flags = useMemo(() => {
     const base = Object.fromEntries(
       IMPROVEMENT_KEYS.map((k) => [k, false]),
     ) as Record<ImprovementKey, boolean>;
+    if (mode !== "after") return base;
     for (const imp of improvements) base[imp.key] = imp.enabled;
     return base;
-  }, [improvements]);
+  }, [improvements, mode]);
 
   const enabledCount = improvements.filter((i) => i.enabled).length;
 

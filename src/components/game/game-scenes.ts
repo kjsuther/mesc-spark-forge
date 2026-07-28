@@ -3095,6 +3095,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   return () => {
     try {
+      unsubscribeFeatures?.();
+      unsubscribeFeatures = null;
       k.quit();
     } catch {
       // ignore teardown errors

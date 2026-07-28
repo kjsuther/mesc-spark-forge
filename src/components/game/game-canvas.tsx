@@ -85,6 +85,9 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
     const w = window as unknown as { __gameInput?: TouchInput };
     w.__gameInput = { left: false, right: false, jumpReq: false, resetReq: false };
 
+    // Start a fresh run on the default theme.
+    music.reset();
+
     let cancelled = false;
     let destroy: (() => void) | null = null;
     setError(null);
@@ -96,7 +99,9 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
         if (!canvas) return;
         const { startGame } = await import("./game-scenes");
         if (cancelled) return;
-        destroy = await startGame({ canvas, flags, mode, onWin, onLose });
+        destroy = await startGame({
+          canvas, flags, mode, onWin, onLose, onMusicTheme: handleMusicTheme,
+        });
         if (!cancelled) setLoading(false);
       } catch (err) {
         console.error("[game] failed to start", err);

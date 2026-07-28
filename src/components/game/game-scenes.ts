@@ -660,7 +660,10 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadBackground(k, "bg-mountain", bgMountainUrl),
     safeLoadBackground(k, "bg-market",   bgMarketUrl),
     safeLoadBackground(k, "bg-clinic",   bgClinicUrl),
+    safeLoadBackground(k, "hero-portrait", heroPortraitUrl),
+    safeLoadBackground(k, "mesc-logo-16bit", mescLogo16Url),
   ]);
+
 
   ASSET_REPORT.ready = true;
   if (typeof window !== "undefined") {

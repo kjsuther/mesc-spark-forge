@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Leaderboard } from "./leaderboard";
-import { GameMusic } from "@/lib/game-music";
+import { GameMusic, type MusicTheme } from "@/lib/game-music";
 import { FeatureFlags } from "@/lib/game-features";
 import type { GameFlags, WinResult } from "./game-scenes";
 import trailMapBg from "@/assets/game/trail-map-bg-v2.png.asset.json";

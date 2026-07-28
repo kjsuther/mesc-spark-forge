@@ -87,7 +87,12 @@ function ToolPage() {
     };
   }, [qc]);
 
-  const mode: "before" | "after" = localMode ?? settings?.before_after ?? "before";
+  // Once at least one upgrade has shipped, default to the "After feedback"
+  // version; before that, default to the raw "Before feedback" run. A manual
+  // tab click (localMode) always wins.
+  const anyEnabled = improvements.some((i) => i.enabled);
+  const mode: "before" | "after" =
+    localMode ?? settings?.before_after ?? (anyEnabled ? "after" : "before");
 
   // Upgrades only ever apply to the "After feedback" version of the game.
   // The "Before feedback" run is always the raw, un-upgraded experience.

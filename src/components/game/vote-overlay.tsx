@@ -90,6 +90,14 @@ export function VoteOverlay({ onClose }: { onClose: () => void }) {
 
   const noRound = !roundLoading && (!round || options.length === 0);
 
+  // The overlay only opens during a live round; if the round ends (or every
+  // candidate ships) while it's open, get out of the player's way.
+  useEffect(() => {
+    if (roundLoading || myVote) return;
+    const ended = !round || !round.endsAt || new Date(round.endsAt).getTime() <= Date.now();
+    if (ended || options.length === 0) closeRef.current();
+  }, [roundLoading, round, options.length, myVote]);
+
   return (
     <div
       className="absolute inset-0 z-50 grid place-items-center overflow-y-auto p-3"

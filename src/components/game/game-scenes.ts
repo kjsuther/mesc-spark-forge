@@ -1556,6 +1556,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       b.onUpdate(() => {
         const now = k.time();
         if (!b.falling) {
+          // Only rain while the player is actually in the waiting zone.
+          if (player.pos.x < mx0 - 200 || player.pos.x > mx0 + BIOME_W + 200) return;
           // Wait for this page's turn AND for the global spacing gap.
           if (now < b.armAt || now < calNextDropAt) return;
           calNextDropAt = now + CAL_MIN_GAP;

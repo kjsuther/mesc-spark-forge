@@ -2536,6 +2536,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       const W = k.width();
       const H = k.height();
+      // Wide phones stretch the logical viewport past 960; scale the panel
+      // and its type by the same factor so text keeps a constant on-screen size.
+      const S = W / LOGICAL_W;
+      const px = (n: number) => Math.round(n * S);
       const nodes: AnyObj[] = [];
       const put = (parts: unknown[]) => {
         const o = k.add(parts as never) as AnyObj;
@@ -2544,8 +2548,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       };
 
       put([k.rect(W, H), k.pos(0, 0), k.color(0, 0, 0), k.opacity(0.86), k.fixed(), k.z(300)]);
-      const panelW = Math.min(780, W - 32);
-      const panelH = Math.min(360, H - 28);
+      const panelW = Math.min(px(780), W - px(32));
+      const panelH = Math.min(px(360), H - px(28));
       const panelX = Math.floor(W / 2 - panelW / 2);
       const panelY = Math.floor(H / 2 - panelH / 2);
       put([
@@ -2554,28 +2558,29 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]);
 
       const cx = Math.floor(W / 2);
-      let y = panelY + 26;
+      let y = panelY + px(26);
       const label = (text: string, size: number, rgb: [number, number, number], width?: number) => {
+        const fs = px(size);
         put([
-          k.text(text, { size, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
+          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
           k.pos(cx + 1, y + 1), k.anchor("top"), k.color(0, 0, 0), k.fixed(), k.z(302),
         ]);
         const main = put([
-          k.text(text, { size, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
+          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
           k.pos(cx, y), k.anchor("top"), k.color(...rgb), k.fixed(), k.z(303),
         ]);
-        y += (main.height ?? size) + 8;
+        y += (main.height ?? fs) + px(8);
       };
 
-      label(data.title, 15, [255, 220, 90], panelW - 48);
-      label(data.subtitle, 12, [180, 205, 255], panelW - 48);
-      y += 4;
-      label(data.lines.map((l) => `• ${l}`).join("\n"), 14, [245, 245, 245], panelW - 60);
+      label(data.title, 17, [255, 220, 90], panelW - px(48));
+      label(data.subtitle, 13, [180, 205, 255], panelW - px(48));
+      y += px(4);
+      label(data.lines.map((l) => `• ${l}`).join("\n"), 15, [245, 245, 245], panelW - px(60));
 
       // Sprite strip: what you'll meet in this zone.
-      const iconTop = Math.min(y + 6, panelY + panelH - 118);
-      const iconBox = 52;
-      const gap = 26;
+      const iconTop = Math.min(y + px(6), panelY + panelH - px(118));
+      const iconBox = px(52);
+      const gap = px(26);
       const totalW = data.icons.length * iconBox + (data.icons.length - 1) * gap;
       let ix = cx - totalW / 2 + iconBox / 2;
       for (const icon of data.icons) {
@@ -2589,31 +2594,32 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             k.pos(ix, centerY), k.anchor("center"), k.fixed(), k.z(303),
           ]);
         } else if (icon.glyph) {
-          put([k.rect(30, 9), k.pos(ix, centerY), k.anchor("center"), k.color(60, 210, 120), k.outline(2, k.rgb(255, 255, 255)), k.fixed(), k.z(303)]);
-          put([k.rect(9, 30), k.pos(ix, centerY), k.anchor("center"), k.color(60, 210, 120), k.outline(2, k.rgb(255, 255, 255)), k.fixed(), k.z(303)]);
+          put([k.rect(px(30), px(9)), k.pos(ix, centerY), k.anchor("center"), k.color(60, 210, 120), k.outline(2, k.rgb(255, 255, 255)), k.fixed(), k.z(303)]);
+          put([k.rect(px(9), px(30)), k.pos(ix, centerY), k.anchor("center"), k.color(60, 210, 120), k.outline(2, k.rgb(255, 255, 255)), k.fixed(), k.z(303)]);
         } else if (icon.shape === "platform") {
-          put([k.rect(54, 14), k.pos(ix, centerY), k.anchor("center"), k.color(240, 230, 200), k.outline(2, k.rgb(60, 45, 25)), k.fixed(), k.z(303)]);
+          put([k.rect(px(54), px(14)), k.pos(ix, centerY), k.anchor("center"), k.color(240, 230, 200), k.outline(2, k.rgb(60, 45, 25)), k.fixed(), k.z(303)]);
         } else {
           for (let s = 0; s < 3; s++) {
             put([
-              k.rect(18, 10), k.pos(ix - 18 + s * 18, centerY + 16 - s * 10),
+              k.rect(px(18), px(10)), k.pos(ix - px(18) + s * px(18), centerY + px(16) - s * px(10)),
               k.anchor("center"), k.color(200, 195, 210), k.outline(2, k.rgb(90, 90, 110)),
               k.fixed(), k.z(303),
             ]);
           }
         }
         put([
-          k.text(icon.label, { size: 8, font: "sans-serif", width: iconBox + gap - 4, align: "center" }),
-          k.pos(ix, centerY + iconBox / 2 + 6), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
+          k.text(icon.label, { size: px(9), font: "sans-serif", width: iconBox + gap - px(4), align: "center" }),
+          k.pos(ix, centerY + iconBox / 2 + px(6)), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
         ]);
         ix += iconBox + gap;
       }
 
       const promptNode = put([
-        k.text(CONTINUE_PROMPT(), { size: 12, font: "sans-serif" }),
-        k.pos(cx, panelY + panelH - 26), k.anchor("center"), k.opacity(1),
+        k.text(CONTINUE_PROMPT(), { size: px(13), font: "sans-serif" }),
+        k.pos(cx, panelY + panelH - px(26)), k.anchor("center"), k.opacity(1),
         k.color(255, 235, 120), k.fixed(), k.z(303),
       ]);
+
 
       // Continue: Enter / Space / click on desktop, tap anywhere on mobile.
       const hitArea = put([

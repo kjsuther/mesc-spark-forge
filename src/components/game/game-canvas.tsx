@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Leaderboard } from "./leaderboard";
-import { GameMusic } from "@/lib/game-music";
+import { GameMusic, type MusicTheme } from "@/lib/game-music";
 import { FeatureFlags } from "@/lib/game-features";
 import type { GameFlags, WinResult } from "./game-scenes";
 import trailMapBg from "@/assets/game/trail-map-bg-v2.png.asset.json";
@@ -60,6 +60,11 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
   const toggleMusic = useCallback(() => {
     setMusicOn(music.toggle());
   }, [music]);
+  // The scene drives the mood: boss battle in Zone 7, fanfare on the finale.
+  const handleMusicTheme = useCallback(
+    (theme: MusicTheme) => { music.setTheme(theme); },
+    [music],
+  );
   // Upgrade flags are NOT part of the restart key: they stream into the
   // shared feature-flag store instead, so an admin toggle changes gameplay
   // live without restarting the player's run.
@@ -80,6 +85,9 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
     const w = window as unknown as { __gameInput?: TouchInput };
     w.__gameInput = { left: false, right: false, jumpReq: false, resetReq: false };
 
+    // Start a fresh run on the default theme.
+    music.reset();
+
     let cancelled = false;
     let destroy: (() => void) | null = null;
     setError(null);
@@ -91,7 +99,9 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
         if (!canvas) return;
         const { startGame } = await import("./game-scenes");
         if (cancelled) return;
-        destroy = await startGame({ canvas, flags, mode, onWin, onLose });
+        destroy = await startGame({
+          canvas, flags, mode, onWin, onLose, onMusicTheme: handleMusicTheme,
+        });
         if (!cancelled) setLoading(false);
       } catch (err) {
         console.error("[game] failed to start", err);
@@ -108,6 +118,12 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, launchMode]);
+
+  // Back at the menus, drop the music mood back to the default theme.
+  useEffect(() => {
+    if (!launchMode) music.setTheme("adventure");
+  }, [launchMode, music]);
+
 
   // Auto-hide the mobile hint after 6s
   useEffect(() => {

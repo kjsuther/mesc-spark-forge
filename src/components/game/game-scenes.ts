@@ -85,6 +85,8 @@ export type StartGameOpts = {
   mode: "before" | "after";
   onWin?: (result: WinResult) => void;
   onLose?: (result: WinResult) => void;
+  /** Lets the scene ask the host for a different music theme. */
+  onMusicTheme?: (theme: "adventure" | "boss" | "victory") => void;
 };
 
 type Ctx = KAPLAYCtx;
@@ -840,6 +842,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   /** Live subscription to the flag store; re-created whenever a scene starts. */
   let unsubscribeFeatures: (() => void) | null = null;
+
+  // ----- Music direction -----
+  // The scene doesn't own the audio engine (the React host does), it just
+  // asks for a mood. Guarded so we only emit on an actual change.
+  let musicTheme: "adventure" | "boss" | "victory" = "adventure";
+  const setMusic = (theme: "adventure" | "boss" | "victory") => {
+    if (musicTheme === theme) return;
+    musicTheme = theme;
+    opts.onMusicTheme?.(theme);
+  };
+
+
 
 
 
@@ -2442,6 +2456,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function spawnPlanBoss() {
       if (zoneState.bossSpawned) return;
       zoneState.bossSpawned = true;
+      // The ogre is here — drop into the tense battle theme.
+      setMusic("boss");
       const bx = BIOME_W * 6 + 1050;
       const bh = DISPLAY_H["boss-idle"];
       const bw = displaySize("boss-idle", sizes).w;
@@ -2485,6 +2501,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           player.score += 600;
           boss.dead = true;
           zoneState.bossDefeated = true;
+          setMusic("adventure");
           setGameObjSprite(boss, "boss-defeat");
           hearts.destroy();
           const kx = boss.pos.x;
@@ -2520,6 +2537,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           if (boss.hits >= 2) {
             boss.dead = true;
             zoneState.bossDefeated = true;
+            setMusic("adventure");
             setGameObjSprite(boss, "boss-defeat");
             hearts.destroy();
             const kx = boss.pos.x;
@@ -2580,9 +2598,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const pole = poleEnts[0];
       if (!pole) {
         // Extremely defensive: without a pole we can't slide, so just win.
+        setMusic("victory");
         showHint("You got your Medical ID!");
         return;
       }
+      // Coverage is secured — triumphant fanfare carries the pole slide
+      // straight through to the WIN screen.
+      setMusic("victory");
       zoneState.cutscene = true;
       zoneState.cutscenePhase = "walk-to-pole";
       zoneState.cutscenePoleX = pole.poleX;
@@ -2681,6 +2703,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (player.lives <= 0) {
         player.dead = true;
         checkpointMgr.clear();
+        // Run over — the battle theme should never linger on the score screen.
+        setMusic("adventure");
         showEnd(false, cause);
         return;
       }
@@ -2834,6 +2858,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         w.__gameInput.resetReq = false;
         checkpointMgr.clear();
         powerUps.reset();
+        setMusic("adventure");
         k.go("trail", 40, 1);
         return;
       }
@@ -2862,7 +2887,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         showTitleCard(k, ZONES[z].phase.toUpperCase(), ZONES[z].label.toUpperCase(), [255, 220, 90], 1.4);
         // Start the 30-second wait when the player enters Waiting Mountain.
         if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
+        // Never let the battle theme follow the player out of the boss zone.
+        if (musicTheme === "boss" && z !== 6) setMusic("adventure");
       }
+
 
       // Check each zone's objective and unlock its door when met.
       for (let i = 0; i < doors.length; i++) {

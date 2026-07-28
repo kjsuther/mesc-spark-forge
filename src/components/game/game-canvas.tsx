@@ -722,8 +722,10 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                 </div>
               </div>
             )}
+            </div>
           </div>
         )}
+
 
         {/* Music toggle (visible whenever a game is running) */}
         {launchMode && (

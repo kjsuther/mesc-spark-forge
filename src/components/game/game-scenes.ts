@@ -1204,10 +1204,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // All four sit fully over the water gap (gap is 690px wide, platforms are
       // 108px wide and end ~40px short of the far bank).
       const platforms = [
-        { x: rx0 + 30,  y: GROUND_Y - 56, amp: 72, spd: 4.4, label: "ABOUT YOU" },
-        { x: rx0 + 200, y: GROUND_Y - 86, amp: 90, spd: 3.9, label: "HOUSEHOLD" },
-        { x: rx0 + 370, y: GROUND_Y - 70, amp: 82, spd: 4.8, label: "INCOME" },
-        { x: rx0 + 540, y: GROUND_Y - 56, amp: 72, spd: 4.2, label: "SIGNATURE" },
+        { x: rx0 + 30,  y: GROUND_Y - 76,  amp: 70, spd: 4.4, label: "ABOUT YOU" },
+        { x: rx0 + 200, y: GROUND_Y - 100, amp: 94, spd: 3.9, label: "HOUSEHOLD" },
+        { x: rx0 + 370, y: GROUND_Y - 92,  amp: 86, spd: 4.8, label: "INCOME" },
+        { x: rx0 + 540, y: GROUND_Y - 76,  amp: 70, spd: 4.2, label: "SIGNATURE" },
       ];
 
       for (const p of platforms) {

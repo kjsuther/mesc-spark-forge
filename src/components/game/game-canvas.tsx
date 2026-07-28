@@ -262,6 +262,38 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     [requestNativeFullscreen, nativeFullscreenSupported],
   );
 
+  // Every paused menu screen advances the same way: Enter, Space, mouse click,
+  // or a tap anywhere on touch devices.
+  const advanceMenu = useCallback(() => {
+    setMenuScreen((screen) => {
+      if (screen === "title") {
+        music.start();
+        setMusicOn(true);
+        return "explainer";
+      }
+      if (screen === "explainer") return "trailmap";
+      if (screen === "trailmap") {
+        pickMode("standard");
+        return screen;
+      }
+      // High scores: continue means "get going".
+      return "explainer";
+    });
+  }, [pickMode]);
+
+  useEffect(() => {
+    if (launchMode || error) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+      // Let the focused button handle its own activation.
+      if ((e.target as HTMLElement | null)?.closest?.("button, input, textarea")) return;
+      e.preventDefault();
+      advanceMenu();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [launchMode, error, advanceMenu]);
+
 
   function setBtn(k: "left" | "right", v: boolean) {
     const w = window as unknown as { __gameInput?: TouchInput };
@@ -419,7 +451,16 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
         {/* SNES-style title / launch / high-score screen */}
         {!launchMode && !error && (
-          <div className="absolute inset-0 z-30 grid place-items-center bg-mn-blue p-4 text-cream">
+          <div
+            className="absolute inset-0 z-30 grid place-items-center bg-mn-blue p-4 text-cream"
+            onClick={(e) => {
+              // Tap/click anywhere continues — except on the menu buttons
+              // themselves, which already have their own action.
+              if ((e.target as HTMLElement).closest("button")) return;
+              advanceMenu();
+            }}
+          >
+
             {menuScreen === "title" && (
               <div className="w-full max-w-lg text-center">
                 <div
@@ -457,6 +498,12 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                 >
                   <MenuButton onClick={() => { music.start(); setMusicOn(true); setMenuScreen("explainer"); }}>▶ Start Game</MenuButton>
                   <MenuButton onClick={() => setMenuScreen("scores")}>★ High Scores</MenuButton>
+                  {/* Full screen is a first-class title-screen option, not a
+                      hidden control that only appears mid-run. */}
+                  <MenuButton onClick={() => { void toggleFullscreen(); }}>
+                    {isFullscreen || fauxFullscreen ? "⤡ Exit Full Screen" : "⛶ Full Screen"}
+                  </MenuButton>
+
                 </div>
               </div>
             )}
@@ -482,14 +529,15 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                   </p>
                   <p className="mt-4 text-[9px] leading-[1.9] text-cream sm:text-[11px]">
                     Go as far as you can down the trail. When your run ends,
-                    VOTE on a tool that could help along the way. The winning
-                    tool gets added to the trail after the timer.
+                    tell us what would have made the journey easier &mdash; the
+                    team builds that feedback into the next version.
                   </p>
                 </div>
                 <div className="mx-auto flex max-w-xs flex-col gap-3">
                   <MenuButton onClick={() => setMenuScreen("trailmap")}>▶ Continue</MenuButton>
                   <MenuButton onClick={() => setMenuScreen("title")}>Back</MenuButton>
                 </div>
+
               </div>
             )}
 

@@ -118,6 +118,17 @@ const PIXEL_DENSITY = 1;
  *  toggle a sprite between two adjacent integer positions. */
 const px = (n: number): number => Math.floor(n);
 
+/** Touch-first device? Drives the wording of every "continue" prompt. */
+const isCoarsePointer = (): boolean =>
+  typeof window !== "undefined" &&
+  typeof window.matchMedia === "function" &&
+  window.matchMedia("(pointer: coarse)").matches;
+
+/** One shared continue prompt string for every paused screen. */
+const CONTINUE_PROMPT = (): string =>
+  isCoarsePointer() ? "Tap Anywhere to Continue" : "Press Enter, Space, or Click to Continue";
+
+
 const BIOME_W = 1200;
 
 const ZONES = [
@@ -135,9 +146,11 @@ const GROUND_Y = 470;
 const LEVEL_END = ZONES.length * BIOME_W;
 const MOVE_SPEED = 260;
 const JUMP_VEL = 720;
-const COYOTE_S = 0.14;
-const JUMP_BUFFER_S = 0.18;
-const INVULN_S = 2.0;
+// Forgiving jump windows: you can still jump shortly after walking off an
+// edge, and a jump pressed just before landing still fires.
+const COYOTE_S = 0.2;
+const JUMP_BUFFER_S = 0.24;
+const INVULN_S = 2.4;
 const PLATFORM_SNAP_TOLERANCE = 26;
 const PLATFORM_EDGE_TOLERANCE = 22;
 
@@ -1203,17 +1216,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (m.pos.x < m.home - m.range) { m.pos.x = m.home - m.range; m.dir = 1; }
       });
     }
-    // Two more padlocks LEFT of the Z1 gap, overlapping ranges, moving in
-    // opposite directions so they cross paths and force the player to time
-    // their jump. Zone 1 = "create an account" — extra login guards.
+    // Two more padlocks LEFT of the Z1 gap. Difficulty pass: they no longer
+    // cross paths at high speed — one crossing pair became a single slower
+    // guard, and the door guard slowed down too.
     {
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
       const spots: Array<{ x: number; dir: 1 | -1; speed: number; range: number }> = [
-        { x: sx0 + 470, dir:  1, speed: 130, range: 300 },
-        { x: sx0 + 510, dir: -1, speed: 130, range: 300 },
-        // Fourth padlock guarding the approach to the door on the right.
-        { x: sx0 + 1000, dir: -1, speed: 120, range: 160 },
+        { x: sx0 + 490, dir:  1, speed: 95, range: 240 },
+        // Padlock guarding the approach to the door on the right.
+        { x: sx0 + 1000, dir: -1, speed: 90, range: 140 },
       ];
       for (const s of spots) {
         const m = spawnGrounded(k, "padlock", sizes, {
@@ -1261,11 +1273,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // "Income", "Signature" to cross the river.
       // All four sit fully over the water gap (gap is 690px wide, platforms are
       // 108px wide and end ~40px short of the far bank).
+      // Difficulty pass: slower, shallower bobbing gives a wider landing
+      // window on every crossing platform (~25% gentler than before).
       const platforms = [
-        { x: rx0 + 30,  y: GROUND_Y - 76,  amp: 70, spd: 4.4, label: "ABOUT YOU" },
-        { x: rx0 + 200, y: GROUND_Y - 100, amp: 94, spd: 3.9, label: "HOUSEHOLD" },
-        { x: rx0 + 370, y: GROUND_Y - 92,  amp: 86, spd: 4.8, label: "INCOME" },
-        { x: rx0 + 540, y: GROUND_Y - 76,  amp: 70, spd: 4.2, label: "SIGNATURE" },
+        { x: rx0 + 30,  y: GROUND_Y - 72,  amp: 50, spd: 3.3, label: "ABOUT YOU" },
+        { x: rx0 + 200, y: GROUND_Y - 92,  amp: 68, spd: 2.9, label: "HOUSEHOLD" },
+        { x: rx0 + 370, y: GROUND_Y - 86,  amp: 62, spd: 3.6, label: "INCOME" },
+        { x: rx0 + 540, y: GROUND_Y - 72,  amp: 50, spd: 3.2, label: "SIGNATURE" },
       ];
 
       for (const p of platforms) {
@@ -1356,12 +1370,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     {
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
-      const baseSpeed = active.plain_language ? 30 : 52;
+      // Difficulty pass: three clipboards instead of four, spaced further
+      // apart and patrolling slower so gaps between them stay walkable.
+      const baseSpeed = active.plain_language ? 26 : 42;
       const monsterSpots: Array<{ x: number; speed: number; range: number }> = [
-        { x: tx0 + 340,  speed: active.plain_language ? 26 : 46, range: 110 },
-        { x: tx0 + 620,  speed: baseSpeed,                        range: 130 },
-        { x: tx0 + 820,  speed: active.plain_language ? 28 : 50, range: 100 },
-        { x: tx0 + 1020, speed: active.plain_language ? 26 : 44, range: 120 },
+        { x: tx0 + 360,  speed: active.plain_language ? 22 : 38, range: 90 },
+        { x: tx0 + 700,  speed: baseSpeed,                        range: 105 },
+        { x: tx0 + 1040, speed: active.plain_language ? 22 : 36, range: 95 },
       ];
 
       for (const s of monsterSpots) {
@@ -1396,20 +1411,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
     {
-      // Three Envelope-Gremlins wandering the FULL zone with unpredictable
-      // re-rolls and occasional "dive" bursts toward the player.
+      // Difficulty pass: two Envelope-Gremlins (was three), starting further
+      // apart and roaming a little slower.
       const mh = DISPLAY_H["envelope-gremlin-0"];
       const mw = displaySize("envelope-gremlin-0", sizes).w;
       const zoneL = relayBase + 80;
       const zoneR = relayBase + BIOME_W - 80;
-      const startXs = [relayBase + 260, relayBase + 620, relayBase + 960];
+      const startXs = [relayBase + 340, relayBase + 940];
       for (let gi = 0; gi < startXs.length; gi++) {
         const sx = startXs[gi];
         const m = spawnGrounded(k, "envelope-gremlin-0", sizes, {
           x: sx, z: LAYERS.ACTOR, tag: "monster",
           props: {
             dir: (Math.random() < 0.5 ? -1 : 1) as 1 | -1,
-            speed: 55 + Math.random() * 55,
+            speed: 42 + Math.random() * 40,
             targetX: zoneL + Math.random() * (zoneR - zoneL),
             nextRoll: 0.7 + Math.random() * 0.6,
             rollT: 0,
@@ -1494,19 +1509,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= ZONE 5: Waiting Mountain — 10-second countdown =================
     const mx0 = BIOME_W * 5;
     // Falling calendar pages — days peeling off the calendar while you wait.
-    // Very dense rain: 20 pages, faster fall, horizontal drift so straight-line
-    // dodging fails. Getting hit also resets the countdown (see loseLife).
-    const CAL_COUNT = 20;
+    // Difficulty pass: 14 pages (was 20), slower fall and gentler drift so a
+    // dodge you commit to actually works. A hit still resets the countdown.
+    const CAL_COUNT = 14;
     for (let i = 0; i < CAL_COUNT; i++) {
       const initialX = mx0 + 80 + Math.random() * (BIOME_W - 160);
       const b = spawnAirborne(k, "calendar-page", sizes, {
         x: initialX, y: -80 - Math.random() * 300, z: LAYERS.ACTOR,
         tag: "boulder",
         props: {
-          spd: 380 + Math.random() * 240,
+          spd: 290 + Math.random() * 170,
           spin: (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 60),
-          driftAmp: 20 + Math.random() * 40,
-          driftSpd: 1.2 + Math.random() * 1.6,
+          driftAmp: 14 + Math.random() * 26,
+          driftSpd: 0.9 + Math.random() * 1.1,
           driftPhase: Math.random() * Math.PI * 2,
           baseX: initialX,
           zoneL: mx0 + 60,
@@ -1583,7 +1598,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           : zoneState.bossDefeated
             ? "GRAB KEY →"
             : zoneState.planPicked
-              ? `BOSS ${zoneState.bossHits}/2`
+              ? `BOSS ${zoneState.bossHits}/3`
               : "PLAN ☐",
       met: () => zoneState.hasKey,
     };
@@ -2298,6 +2313,266 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     updateHud();
 
 
+    // ================= Pause + interactive step screens =================
+    // A step screen is a true pause: every game object stops updating, the
+    // wait timer stops counting, and nothing resumes until the player says so.
+    let pausedNow = false;
+    let pausedObjs: AnyObj[] = [];
+    let pauseStartedAt = 0;
+    const isPaused = () => pausedNow;
+
+    function pauseGameplay() {
+      if (pausedNow) return;
+      pausedNow = true;
+      pauseStartedAt = k.time();
+      pausedObjs = (k.get("*", { recursive: true }) as unknown as AnyObj[]).filter((o) => !o.paused);
+      for (const o of pausedObjs) o.paused = true;
+    }
+
+    function resumeGameplay() {
+      if (!pausedNow) return;
+      const frozenFor = k.time() - pauseStartedAt;
+      pausedNow = false;
+      for (const o of pausedObjs) {
+        try { o.paused = false; } catch { /* destroyed while paused */ }
+      }
+      pausedObjs = [];
+      // Shift every wall-clock deadline forward so the pause costs no time.
+      if (zoneState.waitStart > 0) zoneState.waitStart += frozenFor;
+      player.invulnUntil += frozenFor;
+      player.lastGroundedAt += frozenFor;
+      if (hintUntil > 0) hintUntil += frozenFor;
+    }
+
+    type StepIcon = { sprite?: string; glyph?: string; shape?: "platform" | "stairs"; label: string };
+    type StepScreen = { title: string; subtitle: string; lines: string[]; icons: StepIcon[] };
+    const STEP_SCREENS: StepScreen[] = [
+      {
+        title: "STEP 1 · SELECTING YOUR APPLICATION TYPE",
+        subtitle: "Finding the Trail",
+        lines: [
+          "Jump (Up Arrow or Space) to hit the brick and collect your application.",
+          "Bring the application to the exit door.",
+        ],
+        icons: [{ sprite: "brick-idle", label: "APPLICATION" }],
+      },
+      {
+        title: "STEP 2 · CREATING YOUR ACCOUNT",
+        subtitle: "Setting Up Camp",
+        lines: [
+          "Collect the Username item.",
+          "Collect the Password item.",
+          "Jump over the Account Locks.",
+        ],
+        icons: [
+          { sprite: "username", label: "USERNAME" },
+          { sprite: "password", label: "PASSWORD" },
+          { sprite: "padlock", label: "ACCOUNT LOCK" },
+        ],
+      },
+      {
+        title: "STEP 3 · COMPLETING YOUR APPLICATION",
+        subtitle: "Crossing the River of Paperwork",
+        lines: [
+          "Use the platforms to safely cross the level.",
+          "Reaching the other side unlocks the exit door.",
+        ],
+        icons: [{ shape: "platform", label: "PLATFORM" }],
+      },
+      {
+        title: "STEP 4 · GATHER YOUR DOCUMENTS",
+        subtitle: "Gathering Supplies",
+        lines: [
+          "Collect all 3 required documents.",
+          "Jump over the Evil Clipboards.",
+        ],
+        icons: [
+          { sprite: "id", label: "ID" },
+          { sprite: "paystub", label: "INCOME" },
+          { sprite: "envelope", label: "HOUSEHOLD" },
+          { sprite: "form-monster", label: "EVIL CLIPBOARD" },
+        ],
+      },
+      {
+        title: "STEP 5 · RESPOND TO REQUEST",
+        subtitle: "Answering the Call",
+        lines: [
+          "Collect all 4 mailboxes.",
+          "Jump over the Monster Envelopes.",
+        ],
+        icons: [
+          { sprite: "mailbox", label: "MAILBOX" },
+          { sprite: "envelope-gremlin-0", label: "MONSTER ENVELOPE" },
+        ],
+      },
+      {
+        title: "STEP 6 · AWAITING DECISION",
+        subtitle: "Waiting Mountain",
+        lines: [
+          "Avoid the falling calendar dates.",
+          "Survive for 10 seconds without being hit.",
+          "The exit door unlocks automatically.",
+        ],
+        icons: [{ sprite: "calendar-page", label: "FALLING DATE" }],
+      },
+      {
+        title: "STEP 7 · SELECTING YOUR MANAGED CARE PLAN",
+        subtitle: "Choosing Your Path",
+        lines: [
+          "Select one of the three managed care plans.",
+          "Selecting a plan causes the boss to appear.",
+          "Dodge the boss's attacks.",
+          "Defeat the boss by hitting it three times with \"+\" projectiles.",
+        ],
+        icons: [
+          { sprite: "plan-blue", label: "PLAN" },
+          { sprite: "plan-green", label: "PLAN" },
+          { sprite: "plan-orange", label: "PLAN" },
+          { sprite: "boss-idle", label: "BOSS" },
+          { glyph: "+", label: "YOUR SHOT" },
+        ],
+      },
+      {
+        title: "STEP 8 · USING YOUR COVERAGE",
+        subtitle: "Coverage Begins",
+        lines: [
+          "Climb the staircase.",
+          "Collect your Medical ID Card.",
+        ],
+        icons: [
+          { shape: "stairs", label: "STAIRS" },
+          { sprite: "medical-id", label: "MEDICAL ID CARD" },
+        ],
+      },
+    ];
+
+    const stepScreensShown = new Set<number>();
+    let stepScreenOpen = false;
+
+    /** Pause the run and show the briefing for `z` — once per run per zone. */
+    function showStepScreen(z: number, onDone?: () => void) {
+      const data = STEP_SCREENS[z];
+      if (!data || stepScreenOpen || stepScreensShown.has(z) || player.dead || player.won) {
+        onDone?.();
+        return;
+      }
+      stepScreensShown.add(z);
+      stepScreenOpen = true;
+      pauseGameplay();
+
+      const W = k.width();
+      const H = k.height();
+      const nodes: AnyObj[] = [];
+      const put = (parts: unknown[]) => {
+        const o = k.add(parts as never) as AnyObj;
+        nodes.push(o);
+        return o;
+      };
+
+      put([k.rect(W, H), k.pos(0, 0), k.color(0, 0, 0), k.opacity(0.86), k.fixed(), k.z(300)]);
+      const panelW = Math.min(780, W - 32);
+      const panelH = Math.min(360, H - 28);
+      const panelX = Math.floor(W / 2 - panelW / 2);
+      const panelY = Math.floor(H / 2 - panelH / 2);
+      put([
+        k.rect(panelW, panelH, { radius: 6 }), k.pos(panelX, panelY),
+        k.color(16, 22, 52), k.outline(4, k.rgb(255, 220, 90)), k.fixed(), k.z(301),
+      ]);
+
+      const cx = Math.floor(W / 2);
+      let y = panelY + 26;
+      const label = (text: string, size: number, rgb: [number, number, number], width?: number) => {
+        put([
+          k.text(text, { size, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
+          k.pos(cx + 1, y + 1), k.anchor("top"), k.color(0, 0, 0), k.fixed(), k.z(302),
+        ]);
+        const main = put([
+          k.text(text, { size, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
+          k.pos(cx, y), k.anchor("top"), k.color(...rgb), k.fixed(), k.z(303),
+        ]);
+        y += (main.height ?? size) + 8;
+      };
+
+      label(data.title, 15, [255, 220, 90], panelW - 48);
+      label(data.subtitle, 12, [180, 205, 255], panelW - 48);
+      y += 4;
+      label(data.lines.map((l) => `• ${l}`).join("\n"), 14, [245, 245, 245], panelW - 60);
+
+      // Sprite strip: what you'll meet in this zone.
+      const iconTop = Math.min(y + 6, panelY + panelH - 118);
+      const iconBox = 52;
+      const gap = 26;
+      const totalW = data.icons.length * iconBox + (data.icons.length - 1) * gap;
+      let ix = cx - totalW / 2 + iconBox / 2;
+      for (const icon of data.icons) {
+        const centerY = iconTop + iconBox / 2;
+        if (icon.sprite) {
+          const disp = displaySize(icon.sprite, sizes);
+          const nativeH = DISPLAY_H[icon.sprite] ?? iconBox;
+          const scale = Math.min(iconBox / Math.max(1, disp.w), iconBox / Math.max(1, nativeH));
+          put([
+            k.sprite(icon.sprite, { width: Math.max(8, disp.w * scale), height: Math.max(8, nativeH * scale) }),
+            k.pos(ix, centerY), k.anchor("center"), k.fixed(), k.z(303),
+          ]);
+        } else if (icon.glyph) {
+          put([k.rect(30, 9), k.pos(ix, centerY), k.anchor("center"), k.color(60, 210, 120), k.outline(2, k.rgb(255, 255, 255)), k.fixed(), k.z(303)]);
+          put([k.rect(9, 30), k.pos(ix, centerY), k.anchor("center"), k.color(60, 210, 120), k.outline(2, k.rgb(255, 255, 255)), k.fixed(), k.z(303)]);
+        } else if (icon.shape === "platform") {
+          put([k.rect(54, 14), k.pos(ix, centerY), k.anchor("center"), k.color(240, 230, 200), k.outline(2, k.rgb(60, 45, 25)), k.fixed(), k.z(303)]);
+        } else {
+          for (let s = 0; s < 3; s++) {
+            put([
+              k.rect(18, 10), k.pos(ix - 18 + s * 18, centerY + 16 - s * 10),
+              k.anchor("center"), k.color(200, 195, 210), k.outline(2, k.rgb(90, 90, 110)),
+              k.fixed(), k.z(303),
+            ]);
+          }
+        }
+        put([
+          k.text(icon.label, { size: 8, font: "sans-serif", width: iconBox + gap - 4, align: "center" }),
+          k.pos(ix, centerY + iconBox / 2 + 6), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
+        ]);
+        ix += iconBox + gap;
+      }
+
+      const promptNode = put([
+        k.text(CONTINUE_PROMPT(), { size: 12, font: "sans-serif" }),
+        k.pos(cx, panelY + panelH - 26), k.anchor("center"), k.opacity(1),
+        k.color(255, 235, 120), k.fixed(), k.z(303),
+      ]);
+
+      // Continue: Enter / Space / click on desktop, tap anywhere on mobile.
+      const hitArea = put([
+        k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305),
+      ]);
+      const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
+        k.onKeyPress(key as never, () => close()),
+      );
+      const blink = k.onUpdate(() => {
+        promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.3;
+      });
+      let closed = false;
+      function close() {
+        if (closed) return;
+        closed = true;
+        for (const h of keyHandlers) { try { h.cancel(); } catch { /* ignore */ } }
+        try { blink.cancel(); } catch { /* ignore */ }
+        for (const n of nodes) { try { n.destroy(); } catch { /* ignore */ } }
+        stepScreenOpen = false;
+        resumeGameplay();
+        // Movement must be re-armed: a finger already on the D-pad when the
+        // panel was dismissed should not launch the hero.
+        leftArmed = false;
+        rightArmed = false;
+        if (w?.__gameInput) w.__gameInput.jumpReq = false;
+        onDone?.();
+      }
+      hitArea.onClick(() => close());
+    }
+
+
+
+
     // ================= Asset debug overlay =================
     // Toggle with the "D" key or by loading the page with ?debug=assets.
     // Shows every asset the current zone depends on, its sheet coordinates,
@@ -2518,12 +2793,94 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.score += item.bonus ?? 800;
       // Remove every plan pedestal (including the collided one).
       k.get("plan-pick").forEach((o) => (o as { destroy: () => void }).destroy());
-      // Spawn the paperwork-ogre boss — must be stomped 3x before the key drops.
+      // Spawn the paperwork-ogre boss — 3 "+" hits before the key drops.
       spawnPlanBoss();
-      showHint(`Picked ${label} — a claims-denial boss appeared! Stomp it 3×.`);
+      showHint(`Picked ${label} — a claims-denial boss appeared! You're firing + now.`);
     });
 
-    // ----- Zone 6 boss: stomp 3x for the key -----
+    // ----- Zone 7 boss battle: dodge the paperwork, land 3 "+" hits -----
+    // Set once the boss exists so the auto-fire loop can report a hit without
+    // reaching into the spawner's closure.
+    let registerBossHit: ((shotX: number, shotY: number) => void) | null = null;
+
+    /** Denial letters / bills the boss throws. Horizontal, jumpable, spaced. */
+    function spawnBossShot(x: number, y: number, dirX: 1 | -1) {
+      const sw = displaySize("denied", sizes).w;
+      const sh = DISPLAY_H["denied"];
+      const shot = k.add([
+        k.sprite("denied", { width: sw, height: sh }),
+        k.pos(x, y),
+        k.anchor("center"),
+        k.area({ shape: new k.Rect(k.vec2(-sw / 2 + 4, -sh / 2 + 4), sw - 8, sh - 8) }),
+        k.z(LAYERS.EFFECT),
+        "boss-shot",
+        { vx: dirX * 210, born: k.time() },
+      ]) as AnyObj;
+      shot.onUpdate(() => {
+        shot.pos.x += shot.vx * k.dt();
+        shot.pos.y += Math.sin(k.time() * 6) * 0.6;
+        if (k.time() - shot.born > 6) shot.destroy();
+      });
+    }
+
+    /** The player's healing "+" — auto-fired once a plan has been chosen. */
+    function spawnPlusShot() {
+      const size = 22;
+      const dirX = player.facing >= 0 ? 1 : -1;
+      const shot = k.add([
+        k.rect(size, 6),
+        k.pos(player.pos.x + dirX * 20, player.pos.y - DISPLAY_H["hero-idle"] * 0.55),
+        k.anchor("center"),
+        k.color(60, 210, 120),
+        k.outline(2, k.rgb(255, 255, 255)),
+        k.area({ shape: new k.Rect(k.vec2(-size / 2, -size / 2), size, size) }),
+        k.z(LAYERS.EFFECT),
+        "plus-shot",
+        { vx: dirX * 430, born: k.time() },
+      ]) as AnyObj;
+      const stem = k.add([
+        k.rect(6, size),
+        k.pos(shot.pos.x, shot.pos.y),
+        k.anchor("center"),
+        k.color(60, 210, 120),
+        k.outline(2, k.rgb(255, 255, 255)),
+        k.z(LAYERS.EFFECT),
+      ]) as AnyObj;
+      shot.onUpdate(() => {
+        shot.pos.x += shot.vx * k.dt();
+        stem.pos = k.vec2(shot.pos.x, shot.pos.y);
+        if (k.time() - shot.born > 2) { stem.destroy(); shot.destroy(); }
+      });
+      shot.onDestroy(() => { try { stem.destroy(); } catch { /* already gone */ } });
+      shot.onCollide("boss", () => {
+        registerBossHit?.(shot.pos.x, shot.pos.y);
+        shot.destroy();
+      });
+      // A well-aimed "+" also knocks incoming paperwork out of the air.
+      shot.onCollide("boss-shot", (o: unknown) => {
+        (o as unknown as { destroy: () => void }).destroy();
+        shot.destroy();
+      });
+    }
+
+    // Auto-fire loop: no fire button, the power-up comes with the plan choice.
+    let nextPlusShot = 0;
+    k.onUpdate(() => {
+      if (isPaused() || player.dead || player.won) return;
+      if (!zoneState.planPicked || zoneState.bossDefeated) return;
+      const now = k.time();
+      if (now < nextPlusShot) return;
+      nextPlusShot = now + 0.5;
+      spawnPlusShot();
+    });
+
+    // Incoming paperwork hurts on contact.
+    player.onCollide("boss-shot", (o) => {
+      (o as unknown as { destroy: () => void }).destroy();
+      if (k.time() < player.invulnUntil) return;
+      loseLife("monster");
+    });
+
     function spawnPlanBoss() {
       if (zoneState.bossSpawned) return;
       zoneState.bossSpawned = true;
@@ -2534,98 +2891,105 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const bw = displaySize("boss-idle", sizes).w;
       const boss = spawnGrounded(k, "boss-idle", sizes, {
         x: bx, z: LAYERS.ACTOR, tag: "boss",
-        props: { dir: 1, home: bx, range: 90, hits: 0, hurtUntil: 0, dead: false },
+        props: {
+          dir: -1, home: bx, range: 150, hits: 0, hurtUntil: 0, dead: false,
+          vy: 0, nextShot: 0, nextHop: 0,
+        },
         hitboxScale: { x: -bw / 2, w: bw, h: bh },
       });
-      // Hearts HUD above the boss (2 hits to defeat).
+      const BOSS_MAX_HITS = 3;
+      // Hearts HUD above the boss (3 hits to defeat).
       const hearts = k.add([
-        k.text("♥♥", { size: 16, font: "sans-serif" }),
+        k.text("♥♥♥", { size: 16, font: "sans-serif" }),
         k.pos(bx, GROUND_Y - bh - 40),
         k.anchor("center"), k.color(230, 60, 80), k.z(LAYERS.HUD - 1),
       ]) as AnyObj;
+      boss.nextShot = k.time() + 1.4;
+      boss.nextHop = k.time() + 2.2;
+
+      function defeatBoss() {
+        boss.dead = true;
+        zoneState.bossDefeated = true;
+        setMusic("adventure");
+        setGameObjSprite(boss, "boss-defeat");
+        hearts.destroy();
+        k.get("boss-shot").forEach((o) => (o as unknown as { destroy: () => void }).destroy());
+        const kx = boss.pos.x;
+        const ky = GROUND_Y - 40;
+        sparkleBurst(boss.pos.x, GROUND_Y - bh / 2, [255, 235, 140]);
+        k.wait(0.7, () => {
+          boss.destroy();
+          spawnGoldKey(kx, ky);
+          showHint("Boss defeated! Grab the key.");
+        });
+      }
+
+      registerBossHit = (sx: number, sy: number) => {
+        if (boss.dead) return;
+        const now = k.time();
+        // Brief invulnerability window after every hit.
+        if (now < boss.hurtUntil) return;
+        boss.hits += 1;
+        boss.hurtUntil = now + 0.9;
+        zoneState.bossHits = boss.hits;
+        player.score += 400;
+        hearts.text = "♥".repeat(Math.max(0, BOSS_MAX_HITS - boss.hits));
+        sparkleBurst(sx, sy, [120, 255, 180]);
+        if (boss.hits >= BOSS_MAX_HITS) defeatBoss();
+        else showHint(`Boss hit! ${BOSS_MAX_HITS - boss.hits} to go.`);
+      };
+
       boss.onUpdate(() => {
         if (boss.dead) return;
-        const speed = 55;
-        boss.pos.x += boss.dir * speed * k.dt();
-        boss.pos.y = GROUND_Y;
+        const dt = k.dt();
+        const now = k.time();
+        const speed = 70;
+        boss.pos.x += boss.dir * speed * dt;
         if (boss.pos.x > boss.home + boss.range) { boss.pos.x = boss.home + boss.range; boss.dir = -1; boss.flipX = true; }
         if (boss.pos.x < boss.home - boss.range) { boss.pos.x = boss.home - boss.range; boss.dir = 1; boss.flipX = false; }
+        // Occasional hop.
+        if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
+          boss.vy = -430;
+          boss.nextHop = now + 3.2 + Math.random() * 1.8;
+        }
+        boss.vy += 1300 * dt;
+        boss.pos.y = Math.min(GROUND_Y, boss.pos.y + boss.vy * dt);
+        if (boss.pos.y >= GROUND_Y) { boss.pos.y = GROUND_Y; boss.vy = 0; }
         hearts.pos.x = boss.pos.x;
-        // Swap to hurt frame briefly after each stomp.
-        const wantHurt = k.time() < boss.hurtUntil;
+        hearts.pos.y = boss.pos.y - bh - 40;
+        // Throw paperwork toward the player, never while flashing.
+        if (now >= boss.nextShot && now >= boss.hurtUntil) {
+          const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
+          spawnBossShot(boss.pos.x + toward * (bw / 2), GROUND_Y - 34, toward);
+          boss.nextShot = now + 2.1 + Math.random() * 0.7;
+        }
+        // Flash while invulnerable.
+        const wantHurt = now < boss.hurtUntil;
         const nextBossSprite = wantHurt ? "boss-hurt" : "boss-idle";
         if (boss.sprite !== nextBossSprite) setGameObjSprite(boss, nextBossSprite);
+        (boss as AnyObj).opacity = wantHurt && Math.floor(now * 12) % 2 === 0 ? 0.4 : 1;
       });
+
+      // Walking into the boss still costs a life; the Navigator upgrade (when
+      // enabled) clears the fight on first contact as before.
       player.onCollide("boss", () => {
         if (boss.dead) return;
         if (k.time() < player.invulnUntil) return;
-        if (k.time() < boss.hurtUntil) return;
-        // Navigator power-up: the helper takes the boss out on first contact
-        // and is consumed (single use).
         if (bossMgr.shouldAutoDefeat()) {
           bossMgr.consumeNavigator();
           syncCompanion();
-          boss.hits = 2;
-          boss.hurtUntil = k.time() + 0.4;
-          zoneState.bossHits = 2;
+          boss.hits = BOSS_MAX_HITS;
+          zoneState.bossHits = BOSS_MAX_HITS;
           player.invulnUntil = k.time() + 0.5;
           player.score += 600;
-          boss.dead = true;
-          zoneState.bossDefeated = true;
-          setMusic("adventure");
-          setGameObjSprite(boss, "boss-defeat");
-          hearts.destroy();
-          const kx = boss.pos.x;
-          const ky = GROUND_Y - 40;
-          sparkleBurst(boss.pos.x, GROUND_Y - bh / 2, [255, 235, 140]);
-          k.wait(0.6, () => {
-            boss.destroy();
-            spawnGoldKey(kx, ky);
-            showHint("Navigator handled the boss — grab the key!");
-          });
+          defeatBoss();
           return;
         }
-        // Both actors anchored "bot": pos.y = feet. Boss top is bh above its feet.
-        const bossTop = boss.pos.y - bh;
-        const playerFoot = player.pos.y;
-        const playerFootPrev = (player as AnyObj).lastY ?? playerFoot;
-        const vy = player.vel?.y ?? 0;
-        // Stomp if the player was clearly above the boss on the previous frame
-        // (fast-fall grace) OR their feet are in the top ~55% of the boss and
-        // they are not moving upward. Otherwise it's side/underside contact.
-        const stomp =
-          playerFootPrev <= bossTop + 8 ||
-          (playerFoot <= bossTop + bh * 0.75 && vy >= -80);
-        if (stomp) {
-          boss.hits += 1;
-          boss.hurtUntil = k.time() + 0.4;
-          zoneState.bossHits = boss.hits;
-          player.vel.y = -260;
-          player.pos.y = bossTop - 2;
-          player.invulnUntil = k.time() + 0.5;
-          player.score += 300;
-          hearts.text = "♥".repeat(Math.max(0, 2 - boss.hits));
-          if (boss.hits >= 2) {
-            boss.dead = true;
-            zoneState.bossDefeated = true;
-            setMusic("adventure");
-            setGameObjSprite(boss, "boss-defeat");
-            hearts.destroy();
-            const kx = boss.pos.x;
-            const ky = GROUND_Y - 40;
-            k.wait(0.6, () => {
-              boss.destroy();
-              spawnGoldKey(kx, ky);
-              showHint("Boss defeated! Grab the key.");
-            });
-          } else {
-            showHint(`Boss hit! ${2 - boss.hits} to go.`);
-          }
-        } else {
-          loseLife("monster");
-        }
+        loseLife("monster");
       });
     }
+
+
 
 
     player.onCollide("gold-key", (kk) => {
@@ -2843,7 +3207,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         : (OVERLAY_TITLES[zone] ?? OVERLAY_TITLES[0]);
       const body = win
         ? "You navigated every step and enrolled in Medicaid coverage."
-        : `${pickFailureMessage(zone, cause ?? "fell")}\n\nVote on a UX improvement below to make the next attempt easier.`;
+        : `${pickFailureMessage(zone, cause ?? "fell")}\n\nTell us what would make the next attempt easier — the form is below the game.`;
       const overlay = k.add([
         k.rect(k.width(), k.height()),
         k.pos(0, 0),
@@ -2895,9 +3259,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
     const w = typeof window !== "undefined" ? (window as unknown as { __gameInput?: TouchInput }) : undefined;
+    // Wipe anything left over from the previous run (a held D-pad button, a
+    // queued jump/reset) so a restart always begins from a standstill.
+    if (w?.__gameInput) {
+      w.__gameInput.left = false;
+      w.__gameInput.right = false;
+      w.__gameInput.jumpReq = false;
+      w.__gameInput.resetReq = false;
+    }
+    let leftArmed = false;
+    let rightArmed = false;
 
     let currentZone = Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)));
-    showTitleCard(k, ZONES[currentZone].phase.toUpperCase(), ZONES[currentZone].label.toUpperCase(), [255, 220, 90], 1.8);
+    showStepScreen(currentZone);
+
 
     function tryJump() {
       if (player.dead || player.won) return;
@@ -2940,6 +3315,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.go("trail", 40, 1);
         return;
       }
+      // A step screen (or any other pause) freezes the whole simulation.
+      if (isPaused()) return;
       if (player.dead || player.won) return;
 
       const now = k.time();
@@ -2962,12 +3339,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           player.visitedZones.add(z);
           player.score += 1000;
         }
-        showTitleCard(k, ZONES[z].phase.toUpperCase(), ZONES[z].label.toUpperCase(), [255, 220, 90], 1.4);
-        // Start the 30-second wait when the player enters Waiting Mountain.
-        if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
+        // Interactive step briefing instead of a fading title card.
+        showStepScreen(z, () => {
+          // Start the wait clock only once the player has read the briefing.
+          if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
+        });
         // Never let the battle theme follow the player out of the boss zone.
         if (musicTheme === "boss" && z !== 6) setMusic("adventure");
       }
+
 
 
       // Check each zone's objective and unlock its door when met.
@@ -3060,12 +3440,23 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           dir = 0;
         }
       } else {
-        for (const key of leftKeys) if (k.isKeyDown(key as never)) dir -= 1;
-        for (const key of rightKeys) if (k.isKeyDown(key as never)) dir += 1;
-        if (w?.__gameInput?.left) dir -= 1;
-        if (w?.__gameInput?.right) dir += 1;
+        // Fresh-input gate: a direction only counts once it has been released
+        // at least one frame since this run started. Without it, a key or an
+        // on-screen button still held when the scene restarts makes the hero
+        // auto-run the moment the new run begins.
+        let rawLeft = false;
+        let rawRight = false;
+        for (const key of leftKeys) if (k.isKeyDown(key as never)) rawLeft = true;
+        for (const key of rightKeys) if (k.isKeyDown(key as never)) rawRight = true;
+        if (w?.__gameInput?.left) rawLeft = true;
+        if (w?.__gameInput?.right) rawRight = true;
+        if (!rawLeft) leftArmed = true;
+        if (!rawRight) rightArmed = true;
+        if (rawLeft && leftArmed) dir -= 1;
+        if (rawRight && rightArmed) dir += 1;
         dir = Math.sign(dir);
       }
+
       player.move(dir * MOVE_SPEED, 0);
       if (dir > 0 && !zoneState.cutscene) player.score += 1;
 
@@ -3264,7 +3655,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.add([k.rect(bw, bh), k.pos(bx, by), k.color(252, 250, 235), k.fixed(), k.z(9)]);
     k.add([
       k.text(
-        "Thank you for helping make my journey easier.\nEvery fix you voted on is one less barrier\nfor a real person applying for coverage.\n\nHave a great time at MESC 2026!",
+        "Thank you for helping make my journey easier.\nEvery fix you suggest is one less barrier\nfor a real person applying for coverage.\n\nHave a great time at MESC 2026!",
         { size: 15, font: "sans-serif", width: bw - 28, align: "center", lineSpacing: 4 },
       ),
       k.pos(Math.floor(W / 2), by + Math.floor(bh / 2)),
@@ -3285,7 +3676,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // Blinking restart prompt.
     const prompt = k.add([
-      k.text("Tap screen or press R to try again", { size: 16, font: "sans-serif" }),
+      k.text(isCoarsePointer() ? "Tap Anywhere to Continue" : "Press Enter, Space, or Click to Continue", { size: 16, font: "sans-serif" }),
       k.pos(Math.floor(W / 2), H - 26),
       k.anchor("center"),
       k.color(255, 235, 120),
@@ -3295,8 +3686,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ]);
     const winReset =
       typeof window !== "undefined"
-        ? (window as unknown as { __gameInput?: { resetReq: boolean } })
+        ? (window as unknown as { __gameInput?: { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean } })
         : undefined;
+    // Any input held when the run ended must not carry into the next run.
+    if (winReset?.__gameInput) {
+      winReset.__gameInput.left = false;
+      winReset.__gameInput.right = false;
+      winReset.__gameInput.jumpReq = false;
+      winReset.__gameInput.resetReq = false;
+    }
     k.onUpdate(() => {
       (prompt as AnyObj).opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.15;
       if (winReset?.__gameInput?.resetReq) {
@@ -3315,8 +3713,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(20),
     ]);
     hit.onClick(() => k.go("trail", 40, 1));
-    k.onKeyPress("r", () => k.go("trail", 40, 1));
-    k.onKeyPress("space", () => k.go("trail", 40, 1));
+    for (const key of ["r", "space", "enter"]) {
+      k.onKeyPress(key as never, () => k.go("trail", 40, 1));
+    }
+
   });
 
   k.go("trail", 40, 1);

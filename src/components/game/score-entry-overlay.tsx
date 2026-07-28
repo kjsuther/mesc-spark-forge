@@ -16,7 +16,7 @@ const topScoresQuery = {
       .from("game_scores")
       .select("score")
       .order("score", { ascending: false })
-      .limit(10);
+      .limit(3);
     if (error) throw error;
     return (data ?? []) as { score: number }[];
   },

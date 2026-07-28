@@ -9,6 +9,8 @@ type Props = {
   mode: "before" | "after";
   onWin?: (result: WinResult) => void;
   onLose?: (result: WinResult) => void;
+  /** Poster/projection mode: fill the parent, no hint text, no fullscreen button. */
+  presentation?: boolean;
 };
 
 type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
@@ -39,7 +41,7 @@ function useOrientation() {
   return { portrait };
 }
 
-export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
+export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -268,6 +270,9 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
         WebkitUserSelect: "none",
         WebkitTouchCallout: "none",
         overscrollBehavior: "contain",
+        ...(presentation
+          ? { width: "100%", height: "100%", display: "flex", flexDirection: "column" as const }
+          : {}),
       };
 
   const showRotatePrompt = isTouch && portrait;
@@ -336,7 +341,9 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
         className={
           overlayFs
             ? "relative overflow-hidden bg-mn-blue"
-            : "relative w-full overflow-hidden rounded-lg bg-mn-blue ring-2 ring-mn-blue/60 shadow-lg"
+            : presentation
+              ? "relative w-full flex-1 min-h-0 overflow-hidden bg-mn-blue"
+              : "relative w-full overflow-hidden rounded-lg bg-mn-blue ring-2 ring-mn-blue/60 shadow-lg"
         }
         style={
           overlayFs
@@ -345,7 +352,9 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
                 width: "100vw",
                 height: "100dvh",
               }
-            : undefined
+            : presentation
+              ? { width: "100%", height: "100%" }
+              : undefined
         }
       >
         <canvas
@@ -354,7 +363,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
           onContextMenu={(e) => e.preventDefault()}
           className="block w-full h-full touch-none select-none"
           style={{
-            aspectRatio: "16 / 9",
+            ...(presentation ? {} : { aspectRatio: "16 / 9" }),
             width: "100%",
             height: "100%",
             maxWidth: "100%",
@@ -502,7 +511,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
         )}
 
         {/* Fullscreen toggle overlay button (only while game is running, non-fs) */}
-        {launchMode && !overlayFs && (
+        {launchMode && !overlayFs && !presentation && (
           <button
             type="button"
             aria-label="Enter fullscreen"
@@ -561,7 +570,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
       </div>
 
       {/* Inline touch controls (non-fullscreen mobile) */}
-      {launchMode && !overlayFs && (
+      {launchMode && !overlayFs && !presentation && (
         <>
           {showHint && (
             <p className="mt-2 text-center text-[11px] font-semibold text-mn-blue md:hidden">
@@ -583,7 +592,7 @@ export function GameCanvas({ flags, mode, onWin, onLose }: Props) {
         </>
       )}
 
-      {launchMode && !overlayFs && (
+      {launchMode && !overlayFs && !presentation && (
         <p className="mt-2 text-xs text-dark-gray/60 text-center hidden md:block">
           ← → to move · Space / ↑ to jump · R to reset · ⛶ for fullscreen
         </p>

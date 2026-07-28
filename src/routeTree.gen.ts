@@ -10,11 +10,11 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ToolRouteImport } from './routes/tool'
+import { Route as EmbedRouteImport } from './routes/embed'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
-import { Route as ToolEmbedRouteImport } from './routes/tool.embed'
 import { Route as AdminUnlockRouteImport } from './routes/admin.unlock'
 import { Route as AdminPosterRouteImport } from './routes/admin.poster'
 import { Route as AdminNowBuildingRouteImport } from './routes/admin.now-building'
@@ -27,6 +27,11 @@ import { Route as ActionsCheckDocumentsStartRouteImport } from './routes/actions
 const ToolRoute = ToolRouteImport.update({
   id: '/tool',
   path: '/tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmbedRoute = EmbedRouteImport.update({
+  id: '/embed',
+  path: '/embed',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -48,11 +53,6 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRoute,
-} as any)
-const ToolEmbedRoute = ToolEmbedRouteImport.update({
-  id: '/embed',
-  path: '/embed',
-  getParentRoute: () => ToolRoute,
 } as any)
 const AdminUnlockRoute = AdminUnlockRouteImport.update({
   id: '/unlock',
@@ -101,14 +101,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
-  '/tool': typeof ToolRouteWithChildren
+  '/embed': typeof EmbedRoute
+  '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
   '/admin/unlock': typeof AdminUnlockRoute
-  '/tool/embed': typeof ToolEmbedRoute
   '/admin/': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
   '/actions/report-a-change/start': typeof ActionsReportAChangeStartRoute
@@ -116,14 +116,14 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/tool': typeof ToolRouteWithChildren
+  '/embed': typeof EmbedRoute
+  '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
   '/admin/unlock': typeof AdminUnlockRoute
-  '/tool/embed': typeof ToolEmbedRoute
   '/admin': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
   '/actions/report-a-change/start': typeof ActionsReportAChangeStartRoute
@@ -133,14 +133,14 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
-  '/tool': typeof ToolRouteWithChildren
+  '/embed': typeof EmbedRoute
+  '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
   '/admin/unlock': typeof AdminUnlockRoute
-  '/tool/embed': typeof ToolEmbedRoute
   '/admin/': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
   '/actions/report-a-change/start': typeof ActionsReportAChangeStartRoute
@@ -151,6 +151,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
+    | '/embed'
     | '/tool'
     | '/actions/$slug'
     | '/admin/game'
@@ -158,7 +159,6 @@ export interface FileRouteTypes {
     | '/admin/now-building'
     | '/admin/poster'
     | '/admin/unlock'
-    | '/tool/embed'
     | '/admin/'
     | '/actions/check-documents/start'
     | '/actions/report-a-change/start'
@@ -166,6 +166,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/embed'
     | '/tool'
     | '/actions/$slug'
     | '/admin/game'
@@ -173,7 +174,6 @@ export interface FileRouteTypes {
     | '/admin/now-building'
     | '/admin/poster'
     | '/admin/unlock'
-    | '/tool/embed'
     | '/admin'
     | '/actions/check-documents/start'
     | '/actions/report-a-change/start'
@@ -182,6 +182,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
+    | '/embed'
     | '/tool'
     | '/actions/$slug'
     | '/admin/game'
@@ -189,7 +190,6 @@ export interface FileRouteTypes {
     | '/admin/now-building'
     | '/admin/poster'
     | '/admin/unlock'
-    | '/tool/embed'
     | '/admin/'
     | '/actions/check-documents/start'
     | '/actions/report-a-change/start'
@@ -199,7 +199,8 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   AdminRoute: typeof AdminRouteWithChildren
-  ToolRoute: typeof ToolRouteWithChildren
+  EmbedRoute: typeof EmbedRoute
+  ToolRoute: typeof ToolRoute
   ActionsSlugRoute: typeof ActionsSlugRoute
   ActionsCheckDocumentsStartRoute: typeof ActionsCheckDocumentsStartRoute
   ActionsReportAChangeStartRoute: typeof ActionsReportAChangeStartRoute
@@ -212,6 +213,13 @@ declare module '@tanstack/react-router' {
       path: '/tool'
       fullPath: '/tool'
       preLoaderRoute: typeof ToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/embed': {
+      id: '/embed'
+      path: '/embed'
+      fullPath: '/embed'
+      preLoaderRoute: typeof EmbedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -241,13 +249,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
-    }
-    '/tool/embed': {
-      id: '/tool/embed'
-      path: '/embed'
-      fullPath: '/tool/embed'
-      preLoaderRoute: typeof ToolEmbedRouteImport
-      parentRoute: typeof ToolRoute
     }
     '/admin/unlock': {
       id: '/admin/unlock'
@@ -328,21 +329,12 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
-interface ToolRouteChildren {
-  ToolEmbedRoute: typeof ToolEmbedRoute
-}
-
-const ToolRouteChildren: ToolRouteChildren = {
-  ToolEmbedRoute: ToolEmbedRoute,
-}
-
-const ToolRouteWithChildren = ToolRoute._addFileChildren(ToolRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   AdminRoute: AdminRouteWithChildren,
-  ToolRoute: ToolRouteWithChildren,
+  EmbedRoute: EmbedRoute,
+  ToolRoute: ToolRoute,
   ActionsSlugRoute: ActionsSlugRoute,
   ActionsCheckDocumentsStartRoute: ActionsCheckDocumentsStartRoute,
   ActionsReportAChangeStartRoute: ActionsReportAChangeStartRoute,

@@ -2809,15 +2809,41 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     }
 
+    // ===== Feature-flag reconciliation =====
+    // One place where a live toggle is applied to a run in progress. Called
+    // once at boot, on every store change, and defensively each second.
+    function applyFeatures() {
+      if (playerMgr.reconcileLives(player)) updateHud();
+      syncCheckpointMarkers();
+      syncPowerUps();
+      syncCompanion();
+      updateHud();
+    }
+    const unsubscribeFeatures = FeatureFlags.subscribe(() => applyFeatures());
+    applyFeatures();
+    let lastFeatureSweep = 0;
+
     k.onUpdate(() => {
       if (w?.__gameInput?.resetReq) {
         w.__gameInput.resetReq = false;
+        checkpointMgr.clear();
+        powerUps.reset();
         k.go("trail", 40, 1);
         return;
       }
       if (player.dead || player.won) return;
 
       const now = k.time();
+
+      // Defensive sweep (covers any missed store notification) + checkpoint save.
+      if (now - lastFeatureSweep > 1) {
+        lastFeatureSweep = now;
+        applyFeatures();
+        const grounded = player.isGrounded?.() || !!player.riding;
+        const safe = grounded && now >= player.invulnUntil && !zoneState.cutscene;
+        checkpointMgr.maybeSave(now, safe, buildCheckpoint);
+      }
+
 
       const z = Math.min(ZONES.length - 1, Math.max(0, Math.floor(player.pos.x / BIOME_W)));
       if (z > player.farthestZone) player.farthestZone = z;

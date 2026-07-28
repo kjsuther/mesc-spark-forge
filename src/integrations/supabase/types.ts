@@ -92,48 +92,6 @@ export type Database = {
         }
         Relationships: []
       }
-      game_build_runs: {
-        Row: {
-          applies_flag: boolean
-          completed_at: string | null
-          created_at: string
-          duration_sec: number
-          id: string
-          improvement_key: string
-          round_id: string | null
-          started_at: string
-          status: string
-          updated_at: string
-          votes: number
-        }
-        Insert: {
-          applies_flag?: boolean
-          completed_at?: string | null
-          created_at?: string
-          duration_sec?: number
-          id?: string
-          improvement_key: string
-          round_id?: string | null
-          started_at?: string
-          status?: string
-          updated_at?: string
-          votes?: number
-        }
-        Update: {
-          applies_flag?: boolean
-          completed_at?: string | null
-          created_at?: string
-          duration_sec?: number
-          id?: string
-          improvement_key?: string
-          round_id?: string | null
-          started_at?: string
-          status?: string
-          updated_at?: string
-          votes?: number
-        }
-        Relationships: []
-      }
       game_feedback: {
         Row: {
           created_at: string
@@ -194,95 +152,6 @@ export type Database = {
         }
         Relationships: []
       }
-      game_improvement_votes: {
-        Row: {
-          created_at: string
-          id: string
-          improvement_key: string
-          round_id: string | null
-          voter_fingerprint: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          improvement_key: string
-          round_id?: string | null
-          voter_fingerprint: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          improvement_key?: string
-          round_id?: string | null
-          voter_fingerprint?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "game_improvement_votes_improvement_key_fkey"
-            columns: ["improvement_key"]
-            isOneToOne: false
-            referencedRelation: "game_improvements"
-            referencedColumns: ["key"]
-          },
-          {
-            foreignKeyName: "game_improvement_votes_round_id_fkey"
-            columns: ["round_id"]
-            isOneToOne: false
-            referencedRelation: "game_vote_rounds"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      game_improvements: {
-        Row: {
-          description: string
-          enabled: boolean
-          key: string
-          label: string
-          sort_order: number
-          updated_at: string
-        }
-        Insert: {
-          description: string
-          enabled?: boolean
-          key: string
-          label: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Update: {
-          description?: string
-          enabled?: boolean
-          key?: string
-          label?: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      game_round_candidates: {
-        Row: {
-          improvement_key: string
-          round_id: string
-        }
-        Insert: {
-          improvement_key: string
-          round_id: string
-        }
-        Update: {
-          improvement_key?: string
-          round_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "game_round_candidates_round_id_fkey"
-            columns: ["round_id"]
-            isOneToOne: false
-            referencedRelation: "game_vote_rounds"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       game_scores: {
         Row: {
           created_at: string
@@ -307,51 +176,6 @@ export type Database = {
           id?: string
           mode?: string
           score?: number
-        }
-        Relationships: []
-      }
-      game_settings: {
-        Row: {
-          before_after: string
-          id: number
-          updated_at: string
-        }
-        Insert: {
-          before_after?: string
-          id?: number
-          updated_at?: string
-        }
-        Update: {
-          before_after?: string
-          id?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      game_vote_rounds: {
-        Row: {
-          applied_at: string | null
-          ends_at: string
-          id: string
-          started_at: string
-          status: string
-          winner_key: string | null
-        }
-        Insert: {
-          applied_at?: string | null
-          ends_at: string
-          id?: string
-          started_at?: string
-          status?: string
-          winner_key?: string | null
-        }
-        Update: {
-          applied_at?: string | null
-          ends_at?: string
-          id?: string
-          started_at?: string
-          status?: string
-          winner_key?: string | null
         }
         Relationships: []
       }
@@ -422,14 +246,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      cast_round_vote: {
-        Args: { _improvement_key: string; _voter_fingerprint: string }
-        Returns: {
-          message: string
-          new_count: number
-          ok: boolean
-        }[]
-      }
       get_my_votes: {
         Args: { _voter_fingerprint: string }
         Returns: {

@@ -3207,7 +3207,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         : (OVERLAY_TITLES[zone] ?? OVERLAY_TITLES[0]);
       const body = win
         ? "You navigated every step and enrolled in Medicaid coverage."
-        : `${pickFailureMessage(zone, cause ?? "fell")}\n\nVote on a UX improvement below to make the next attempt easier.`;
+        : `${pickFailureMessage(zone, cause ?? "fell")}\n\nTell us what would make the next attempt easier — the form is below the game.`;
       const overlay = k.add([
         k.rect(k.width(), k.height()),
         k.pos(0, 0),
@@ -3655,7 +3655,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.add([k.rect(bw, bh), k.pos(bx, by), k.color(252, 250, 235), k.fixed(), k.z(9)]);
     k.add([
       k.text(
-        "Thank you for helping make my journey easier.\nEvery fix you voted on is one less barrier\nfor a real person applying for coverage.\n\nHave a great time at MESC 2026!",
+        "Thank you for helping make my journey easier.\nEvery fix you suggest is one less barrier\nfor a real person applying for coverage.\n\nHave a great time at MESC 2026!",
         { size: 15, font: "sans-serif", width: bw - 28, align: "center", lineSpacing: 4 },
       ),
       k.pos(Math.floor(W / 2), by + Math.floor(bh / 2)),

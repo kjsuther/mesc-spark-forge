@@ -54,6 +54,9 @@ import brickBlockSheetUrl from "@/assets/game/brick-block-sheet.png";
 import envelopeGremlinSheetUrl from "@/assets/game/envelope-gremlin-sheet.png";
 import bossSheetUrl from "@/assets/game/boss-sheet.png";
 import doorLockUrl from "@/assets/game/door-lock.png";
+import heroPortraitUrl from "@/assets/game/hero-portrait.png";
+import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
+
 import docIdAsset from "@/assets/game/doc-id.png.asset.json";
 import docPaystubAsset from "@/assets/game/doc-paystub.png.asset.json";
 import docEnvelopeAsset from "@/assets/game/doc-envelope.png.asset.json";

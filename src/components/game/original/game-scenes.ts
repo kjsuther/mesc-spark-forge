@@ -108,6 +108,26 @@ type Ctx = KAPLAYCtx;
 // backgrounds cannot clip, misalign, or shift when the screen resizes.
 const LOGICAL_W = 960;
 const LOGICAL_H = 540;
+// The logical HEIGHT is locked at 540 so ground plane, sprite scale, and every
+// vertical layout constant stay byte-identical across devices. The logical
+// WIDTH adapts once, at engine start, to the aspect ratio of the CSS box the
+// canvas occupies. On a 16:9 desktop it resolves to exactly 960 (no change);
+// on a 19.5:9 phone in landscape fullscreen it widens toward 1200 so the
+// device fills edge to edge with more trail visible instead of black
+// letterbox bars. Gameplay physics are untouched — only how much of the
+// horizontally-scrolling world is on screen.
+const VIEW_W_MIN = 960;
+const VIEW_W_MAX = 1200;
+let VIEW_W = LOGICAL_W;
+/** Pick the logical width that best matches the canvas's on-screen aspect. */
+function computeViewW(canvas: HTMLCanvasElement): number {
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width || canvas.offsetWidth || LOGICAL_W;
+  const h = rect.height || canvas.offsetHeight || LOGICAL_H;
+  if (w <= 0 || h <= 0) return LOGICAL_W;
+  const target = Math.round((LOGICAL_H * w) / h);
+  return Math.max(VIEW_W_MIN, Math.min(VIEW_W_MAX, target));
+}
 // Constant pixel density of 1 keeps GPU texture memory low on mobile
 // (iOS Safari kills the WebGL context around ~64MB of backing store).
 // Combined with `imageRendering: pixelated` on the canvas, this is
@@ -842,6 +862,9 @@ function spawnDecor(
 export async function startGame(opts: StartGameOpts): Promise<() => void> {
   const kaplay = (await import("kaplay")).default;
 
+  // Match the logical viewport to the real on-screen aspect before boot.
+  VIEW_W = computeViewW(opts.canvas);
+
   // Seed the shared flag store with whatever the caller knows right now. From
   // here on the engine reads the store live, so an admin toggle changes
   // gameplay without restarting the run.
@@ -892,7 +915,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Fixed logical resolution. Kaplay's letterbox mode scales this buffer to
     // whatever CSS box the canvas has while preserving 16:9, so gameplay
     // coordinates never depend on the physical viewport.
-    width: LOGICAL_W,
+    width: VIEW_W,
     height: LOGICAL_H,
     background: [20, 20, 30],
     letterbox: true,
@@ -3612,7 +3635,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       // Camera follow with integer pixel snap (uses LOGICAL_* so it never
       // drifts when the CSS box or DPR changes).
-      const camX = Math.max(LOGICAL_W / 2, Math.min(player.pos.x, LEVEL_END - LOGICAL_W / 2));
+      const camX = Math.max(VIEW_W / 2, Math.min(player.pos.x, LEVEL_END - VIEW_W / 2));
       k.setCamPos(px(camX), px(LOGICAL_H / 2));
 
     });

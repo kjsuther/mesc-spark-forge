@@ -2536,6 +2536,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       const W = k.width();
       const H = k.height();
+      // On wide phones the logical viewport stretches past 960, which would
+      // shrink every glyph on screen. Scale the panel and its type by the
+      // same factor so text keeps a constant physical size.
+      const S = W / LOGICAL_W;
+      const px = (n: number) => Math.round(n * S);
       const nodes: AnyObj[] = [];
       const put = (parts: unknown[]) => {
         const o = k.add(parts as never) as AnyObj;
@@ -2544,8 +2549,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       };
 
       put([k.rect(W, H), k.pos(0, 0), k.color(0, 0, 0), k.opacity(0.86), k.fixed(), k.z(300)]);
-      const panelW = Math.min(780, W - 32);
-      const panelH = Math.min(360, H - 28);
+      const panelW = Math.min(px(780), W - px(32));
+      const panelH = Math.min(px(360), H - px(28));
       const panelX = Math.floor(W / 2 - panelW / 2);
       const panelY = Math.floor(H / 2 - panelH / 2);
       put([
@@ -2554,23 +2559,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]);
 
       const cx = Math.floor(W / 2);
-      let y = panelY + 26;
+      let y = panelY + px(26);
       const label = (text: string, size: number, rgb: [number, number, number], width?: number) => {
+        const fs = px(size);
         put([
-          k.text(text, { size, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
+          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
           k.pos(cx + 1, y + 1), k.anchor("top"), k.color(0, 0, 0), k.fixed(), k.z(302),
         ]);
         const main = put([
-          k.text(text, { size, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
+          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
           k.pos(cx, y), k.anchor("top"), k.color(...rgb), k.fixed(), k.z(303),
         ]);
-        y += (main.height ?? size) + 8;
+        y += (main.height ?? fs) + px(8);
       };
 
-      label(data.title, 15, [255, 220, 90], panelW - 48);
-      label(data.subtitle, 12, [180, 205, 255], panelW - 48);
-      y += 4;
-      label(data.lines.map((l) => `• ${l}`).join("\n"), 14, [245, 245, 245], panelW - 60);
+      label(data.title, 17, [255, 220, 90], panelW - px(48));
+      label(data.subtitle, 13, [180, 205, 255], panelW - px(48));
+      y += px(4);
+      label(data.lines.map((l) => `• ${l}`).join("\n"), 15, [245, 245, 245], panelW - px(60));
+
 
       // Sprite strip: what you'll meet in this zone.
       const iconTop = Math.min(y + 6, panelY + panelH - 118);

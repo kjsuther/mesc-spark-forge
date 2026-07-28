@@ -2471,7 +2471,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       put([k.rect(W, H), k.pos(0, 0), k.color(0, 0, 0), k.opacity(0.86), k.fixed(), k.z(300)]);
       const panelW = Math.min(780, W - 32);
-      const panelH = Math.min(430, H - 28);
+      const panelH = Math.min(360, H - 28);
       const panelX = Math.floor(W / 2 - panelW / 2);
       const panelY = Math.floor(H / 2 - panelH / 2);
       put([

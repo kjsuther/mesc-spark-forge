@@ -1,28 +1,38 @@
-## Goal
+## 1. Upgrades only apply in "After feedback"
 
-Move score-name entry out of the page below the game and into the game window itself, styled like an SNES name-entry screen.
+Today the flags come straight from the database in `src/routes/tool.tsx` and are pushed into the feature store in `src/components/game/game-canvas.tsx` regardless of the Before/After tab, so both versions get live upgrades.
 
-## New in-window name entry
+- In `src/routes/tool.tsx`, build the flags map as all-`false` when `mode === "before"`, and from the enabled improvements only when `mode === "after"`.
+- In `game-canvas.tsx`, the effect that calls `FeatureFlags.setFromDbFlags(...)` (and the realtime re-apply path) will pass an all-false map while in `before` mode, so a live vote landing mid-run never upgrades the "before" run.
+- Same gating for the `/embed` route so the poster view matches.
+- The "N of 5 improvements applied" counter stays as-is; the before tab keeps showing "Raw experience".
 
-Add a `ScoreEntryOverlay` rendered by `src/components/game/game-canvas.tsx`, absolutely positioned over the canvas (inside the same wrapper that already handles fullscreen/faux-fullscreen), so it appears in normal, fullscreen, and mobile layouts alike. Never shown in `presentation` (poster) mode.
+## 2. "Best on desktop" notice
 
-Look and behavior:
-- Full-bleed dark translucent backdrop with a chunky pixel panel: thick double border, navy fill, gold "Press Start 2P" text with 1-px shadows — matching the existing title screen.
-- Header line: `★ NEW HIGH SCORE ★` when the run lands in the current top 10, otherwise `RUN COMPLETE`; then the score, and a one-line stat row (zone reached, docs, time).
-- Two retro fields: `FIRST NAME` (max 12 chars) and `LAST INITIAL` (1 char), auto-uppercased, drawn as pixel character slots with a blinking cursor. Standard hidden text inputs power them so phone keyboards and desktop typing both work.
-- Buttons: `SAVE` and `SKIP`, styled as SNES pad buttons like the existing touch controls. Enter submits, Escape skips.
-- Prefills from the existing `trailGame.name.v1` localStorage entry.
-- While the overlay is open, game input is swallowed: `R`, taps, and the reset button can't restart underneath it. Closing it (save or skip) returns to normal restart behavior.
-- After a successful save: brief `SCORE SAVED` confirmation inside the panel, then it closes on its own.
+On `/tool`, add a short high-contrast note near the game (above the canvas, visible on all screen sizes): best experienced on a desktop or laptop; mobile is playable but controls are cramped and the phone should be rotated to landscape. Also surface a compact version of that line inside the pre-game title screen area on touch devices.
 
-## Wiring
+## 3. Touch-enable the in-canvas high-score entry
 
-- Game canvas receives the end-of-run `WinResult` it already forwards through `onWin`/`onLose`, holds it in local state, and opens the overlay.
-- Submission logic (insert into `game_scores`, localStorage persist, query invalidation) is lifted out of `score-submit.tsx` into a small shared hook/function so the leaderboard still refreshes live.
-- "Is this a high score?" is decided from the already-cached top-10 leaderboard query.
-- `src/routes/tool.tsx`: remove the `<ScoreSubmit>` block below the canvas. The leaderboard and vote panel stay where they are.
-- `score-submit.tsx`: keep `computeScore` (used by the result), drop the now-unused form UI.
+`src/components/game/score-entry-overlay.tsx` currently relies on hidden inputs focused by taps, which is unreliable on iOS.
 
-## Verification
+- Make the name/initial slot rows real tappable buttons that focus the hidden input (larger hit areas, `touchAction: manipulation`).
+- Add visible SAVE and SKIP buttons sized for touch (min 44px tall) rather than keyboard-only flow.
+- Ensure the overlay's pointer handlers don't swallow taps on its own controls, and that the on-screen keyboard doesn't push the panel out of the canvas (scrollable panel, centered).
 
-In a headless browser at desktop and mobile viewports, force a run end, and confirm: the panel renders over the canvas, typing works, saving inserts and updates the leaderboard, skip closes cleanly, no restart fires while the overlay is up, and nothing renders below the game window anymore.
+## 4. Vote from inside the game canvas after a run ends
+
+After the score entry step (save or skip), show a 16-bit vote panel inside the canvas whenever a voting round is active:
+
+- Lists only round candidates whose improvement is not yet enabled (already-implemented upgrades are filtered out).
+- Desktop: Up/Down (or Left/Right) arrows move a highlighted selection, Enter casts the vote; on-screen instruction line reads "Use ↑ ↓ to highlight · press ENTER to vote". Mouse click also votes.
+- Mobile: each option is a large tappable row.
+- Votes go through the existing `castRoundVote` server function with the same `getVoterId()` fingerprint used by the page-level panel, so a person gets one vote per round no matter where they cast it, and all votes are tallied together in the leaderboard/poster views.
+- If the player already voted this round, show "YOU VOTED: <label>" instead of the picker; if no round is active, show a short "no vote open right now" line and skip straight to restart.
+- After voting (or skipping), the normal "tap screen or press R to try again" flow resumes.
+- The existing vote panel below the game (`src/components/game/vote-panel.tsx`) stays unchanged; both surfaces invalidate the same queries so counts update live in both places.
+
+### Technical notes
+
+- New component `src/components/game/vote-overlay.tsx`, rendered by `game-canvas.tsx` in the same overlay slot as `ScoreEntryOverlay`, sequenced: run ends → score entry → vote overlay → restart prompt. Disabled in `presentation` mode.
+- Reuses `activeRoundQuery`, `improvementsQuery`, `myRoundVoteQuery`, and `castRoundVote`; no database or schema changes needed.
+- Keyboard handling is scoped to the overlay and swallows the game's `R` restart key while open.

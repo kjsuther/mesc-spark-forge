@@ -414,13 +414,33 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
   const overlayFs = isFullscreen || fauxFullscreen;
 
+  // Exact pixel sizing beats 100vh/100dvh on mobile: `visualViewport` is the
+  // only number that matches what the player can actually see while iOS
+  // Safari's URL bar is mid-animation.
+  const fsWidth = overlayFs ? `${vw}px` : undefined;
+  const fsHeight = overlayFs ? `${vh}px` : undefined;
+
+  // Menus, pause cards, and instruction screens are plain HTML, so they scale
+  // independently of the canvas. Anchor them to the same 960x540 design box
+  // the game uses: short landscape phones shrink slightly (nothing clips),
+  // large tablets and desktops scale up (nothing is squint-small).
+  const uiScale = overlayFs
+    ? Math.max(0.82, Math.min(1.85, Math.min(vw / 960, vh / 540) * 1.12))
+    : 1;
+  // Touch targets follow the viewport height so they stay thumb-sized.
+  const padScale = Math.max(0.85, Math.min(1.35, vh / 430));
+
   const containerStyle: React.CSSProperties = overlayFs
     ? {
         position: fauxFullscreen ? "fixed" : "relative",
         inset: fauxFullscreen ? 0 : undefined,
-        width: fauxFullscreen ? "100vw" : "100vw",
-        height: fauxFullscreen ? "100dvh" : "100vh",
-        background: "var(--color-mn-blue)",
+        width: fsWidth,
+        height: fsHeight,
+        maxWidth: "100%",
+        margin: 0,
+        padding: 0,
+        // Black behind the canvas so any residual letterbox reads as a bezel.
+        background: "#000",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -429,7 +449,8 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         userSelect: "none",
         WebkitUserSelect: "none",
         WebkitTouchCallout: "none",
-        overscrollBehavior: "contain",
+        overscrollBehavior: "none",
+        overflow: "hidden",
         zIndex: fauxFullscreen ? 9999 : undefined,
       }
     : {
@@ -444,6 +465,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       };
 
   const showRotatePrompt = isTouch && portrait;
+
 
   return (
     <div ref={containerRef} className="relative w-full" style={containerStyle}>

@@ -8,6 +8,7 @@ import {
   improvementsQuery,
   gameSettingsQuery,
   activeRoundQuery,
+  activeBuildRunQuery,
 } from "@/lib/game.queries";
 import {
   setImprovementEnabled,
@@ -16,6 +17,9 @@ import {
   resetLeaderboard,
   startVoteRound,
   endAndApplyRound,
+  finalizeBuildRun,
+  replayBuildRun,
+  cancelBuildRun,
   IMPROVEMENT_KEYS,
   type ImprovementKey,
 } from "@/lib/game.functions";

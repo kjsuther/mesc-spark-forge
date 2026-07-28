@@ -150,7 +150,7 @@ export function ScoreEntryOverlay({
 
   return (
     <div
-      className="absolute inset-0 z-50 grid place-items-center p-3"
+      className="absolute inset-0 z-50 grid place-items-center overflow-y-auto p-3"
       style={{ background: "rgba(6,12,28,0.86)", touchAction: "manipulation" }}
       onPointerDown={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
@@ -199,7 +199,13 @@ export function ScoreEntryOverlay({
                 <span className="text-[7px] tracking-widest" style={{ color: "var(--color-accent-gold)" }}>
                   FIRST NAME
                 </span>
-                <div onPointerUp={() => firstRef.current?.focus()}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  className="min-h-[44px] px-2 py-2"
+                  style={{ touchAction: "manipulation" }}
+                  onPointerUp={() => firstRef.current?.focus()}
+                >
                   <Slots value={first} len={12} focused={field === "first"} />
                 </div>
               </div>
@@ -207,7 +213,13 @@ export function ScoreEntryOverlay({
                 <span className="text-[7px] tracking-widest" style={{ color: "var(--color-accent-gold)" }}>
                   LAST INITIAL
                 </span>
-                <div onPointerUp={() => initialRef.current?.focus()}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  className="min-h-[44px] px-2 py-2"
+                  style={{ touchAction: "manipulation" }}
+                  onPointerUp={() => initialRef.current?.focus()}
+                >
                   <Slots value={initial} len={1} focused={field === "initial"} />
                 </div>
               </div>
@@ -263,7 +275,7 @@ export function ScoreEntryOverlay({
                   e.preventDefault();
                   void save();
                 }}
-                className="border-4 px-4 py-2 text-[9px] tracking-widest disabled:opacity-60"
+                className="min-h-[44px] border-4 px-5 py-3 text-[9px] tracking-widest disabled:opacity-60"
                 style={{
                   fontFamily: PIXEL_FONT,
                   color: "var(--color-cream)",
@@ -281,7 +293,7 @@ export function ScoreEntryOverlay({
                   e.preventDefault();
                   onClose();
                 }}
-                className="border-4 px-4 py-2 text-[9px] tracking-widest"
+                className="min-h-[44px] border-4 px-5 py-3 text-[9px] tracking-widest"
                 style={{
                   fontFamily: PIXEL_FONT,
                   color: "var(--color-cream)",

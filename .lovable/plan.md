@@ -1,31 +1,28 @@
-## Zone hint text
+## Goal
 
-All in `src/components/game/game-scenes.ts`, using the existing gold-on-navy `addSpeech` plaque so every label matches and stays legible.
+Move score-name entry out of the page below the game and into the game window itself, styled like an SNES name-entry screen.
 
-- **Zone 1** — move the "Smash a brick →" plaque from x 1080 (far right, past the last brick) to the left of the first "Apply by Mail" brick (~x 90, at brick height), reworded "Smash a brick and collect application".
-- **Zone 2** — new plaque near the account area: "Collect Username and Password and avoid account locks".
-- **Zone 3** — new plaque at the near edge of the river gap: "Use platforms to get to other side".
-- **Zone 4** — existing "GATHER 3 DOCS" becomes "Gather 3 docs and avoid evil clipboards".
-- **Zone 5** — existing "Answer every request!" becomes "Collect all notice mailboxes and avoid confusing letters".
-- **Zone 6** — new plaque: "Avoid falling dates".
-- **Zone 7** — new plaque: "Pick your plan and defeat the boss".
-- **Zone 8** — new plaque: "Climb stairs and collect your medical card".
+## New in-window name entry
 
-Each new plaque sits above head height near the start of its zone so it never overlaps enemies, doors, or platforms, and is placed within the zone's own screen width so it scrolls into view with the stage.
+Add a `ScoreEntryOverlay` rendered by `src/components/game/game-canvas.tsx`, absolutely positioned over the canvas (inside the same wrapper that already handles fullscreen/faux-fullscreen), so it appears in normal, fullscreen, and mobile layouts alike. Never shown in `presentation` (poster) mode.
 
-## Navigator name card
+Look and behavior:
+- Full-bleed dark translucent backdrop with a chunky pixel panel: thick double border, navy fill, gold "Press Start 2P" text with 1-px shadows — matching the existing title screen.
+- Header line: `★ NEW HIGH SCORE ★` when the run lands in the current top 10, otherwise `RUN COMPLETE`; then the score, and a one-line stat row (zone reached, docs, time).
+- Two retro fields: `FIRST NAME` (max 12 chars) and `LAST INITIAL` (1 char), auto-uppercased, drawn as pixel character slots with a blinking cursor. Standard hidden text inputs power them so phone keyboards and desktop typing both work.
+- Buttons: `SAVE` and `SKIP`, styled as SNES pad buttons like the existing touch controls. Enter submits, Escape skips.
+- Prefills from the existing `trailGame.name.v1` localStorage entry.
+- While the overlay is open, game input is swallowed: `R`, taps, and the reset button can't restart underneath it. Closing it (save or skip) returns to normal restart behavior.
+- After a successful save: brief `SCORE SAVED` confirmation inside the panel, then it closes on its own.
 
-The companion's "I'll help!" label is currently plain white text with no backdrop, so it disappears against bright skies. Replace it with the same navy plaque + gold text treatment used elsewhere (a small floating version that tracks the companion each frame), labeled "Navigator — I'll help!".
+## Wiring
 
-## Campfire cleanup
-
-The campfires are the "Check Your Status Anytime" checkpoint markers, spawned at the start of zones 2 through 8. Keeping the zone 2 one and simply deleting the others would also delete those checkpoints, so instead:
-
-- Zone 2 keeps the campfire sprite exactly as-is.
-- Zones 3–8 keep working checkpoints, but the marker is drawn as a slim navy/gold checkpoint flag (simple rect + pole primitives, no new art) placed flush to the ground — small and unobtrusive rather than a repeated campfire.
-
-If you'd rather the other zones have no checkpoint at all, say so and I'll remove those markers entirely instead.
+- Game canvas receives the end-of-run `WinResult` it already forwards through `onWin`/`onLose`, holds it in local state, and opens the overlay.
+- Submission logic (insert into `game_scores`, localStorage persist, query invalidation) is lifted out of `score-submit.tsx` into a small shared hook/function so the leaderboard still refreshes live.
+- "Is this a high score?" is decided from the already-cached top-10 leaderboard query.
+- `src/routes/tool.tsx`: remove the `<ScoreSubmit>` block below the canvas. The leaderboard and vote panel stay where they are.
+- `score-submit.tsx`: keep `computeScore` (used by the result), drop the now-unused form UI.
 
 ## Verification
 
-Load each zone in a headless browser at both desktop and mobile viewports, screenshot the zone entry, and confirm: each hint plaque is on-screen and readable, the Navigator card is readable while walking, and only zone 2 shows a campfire.
+In a headless browser at desktop and mobile viewports, force a run end, and confirm: the panel renders over the canvas, typing works, saving inserts and updates the leaderboard, skip closes cleanly, no restart fires while the overlay is up, and nothing renders below the game window anymore.

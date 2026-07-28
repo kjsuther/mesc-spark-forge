@@ -843,6 +843,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   /** Live subscription to the flag store; re-created whenever a scene starts. */
   let unsubscribeFeatures: (() => void) | null = null;
 
+  // ----- Music direction -----
+  // The scene doesn't own the audio engine (the React host does), it just
+  // asks for a mood. Guarded so we only emit on an actual change.
+  let musicTheme: "adventure" | "boss" | "victory" = "adventure";
+  const setMusic = (theme: "adventure" | "boss" | "victory") => {
+    if (musicTheme === theme) return;
+    musicTheme = theme;
+    opts.onMusicTheme?.(theme);
+  };
+
+
+
 
 
   const k: Ctx = kaplay({

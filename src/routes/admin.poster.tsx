@@ -101,9 +101,6 @@ function PosterView() {
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,7fr)_minmax(320px,3fr)] gap-3 p-3 min-h-0">
         {/* Live game */}
         <section className="rounded-lg overflow-hidden bg-black ring-2 ring-accent-gold/60 flex flex-col min-h-0">
-          <div className="bg-accent-orange text-white px-4 py-2 font-display uppercase tracking-widest text-sm">
-            ★ Live gameplay
-          </div>
           <div className="flex-1 min-h-0">
             <iframe
               src="/tool/embed"
@@ -113,6 +110,7 @@ function PosterView() {
             />
           </div>
         </section>
+
 
         {/* Sidebar: leaderboard + votes */}
         <aside className="grid grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-3 min-h-0">

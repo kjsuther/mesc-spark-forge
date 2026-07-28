@@ -24,7 +24,7 @@ const EMPTY_FLAGS: GameFlags = {
 type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
 
 type LaunchMode = "standard" | "fullscreen";
-type MenuScreen = "title" | "explainer" | "trailmap" | "scores";
+type MenuScreen = "title" | "explainer" | "trailmap" | "controls" | "scores";
 
 const isCoarsePointer = () =>
   typeof window !== "undefined" &&
@@ -272,7 +272,8 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         return "explainer";
       }
       if (screen === "explainer") return "trailmap";
-      if (screen === "trailmap") {
+      if (screen === "trailmap") return "controls";
+      if (screen === "controls") {
         pickMode("standard");
         return screen;
       }
@@ -542,7 +543,14 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
             )}
 
             {menuScreen === "trailmap" && (
-              <TrailMap onContinue={() => pickMode("standard")} onBack={() => setMenuScreen("explainer")} />
+              <TrailMap onContinue={() => setMenuScreen("controls")} onBack={() => setMenuScreen("explainer")} />
+            )}
+
+            {menuScreen === "controls" && (
+              <ControlsScreen
+                onContinue={() => pickMode("standard")}
+                onBack={() => setMenuScreen("trailmap")}
+              />
             )}
 
             {menuScreen === "scores" && (

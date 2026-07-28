@@ -17,6 +17,20 @@
 
 import type { KAPLAYCtx } from "kaplay";
 import type { ImprovementKey } from "@/lib/game.functions";
+import { FeatureFlags } from "@/lib/game-features";
+import {
+  PlayerManager,
+  PowerUpManager,
+  EnemyManager,
+  BossManager,
+  CheckpointManager,
+  activeUpgradeRows,
+  POWERUP_DEFS,
+  POWERUP_KINDS,
+  ZONE_INDEX,
+  type PowerUpKind,
+  type CheckpointSnapshot,
+} from "./managers";
 import charSheetUrl from "@/assets/game/character-sheet.png";
 import heroSlideSheetUrl from "@/assets/game/hero-slide-sheet.png";
 import propsSheetUrl from "@/assets/game/props-sheet.png";

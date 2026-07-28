@@ -262,6 +262,38 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     [requestNativeFullscreen, nativeFullscreenSupported],
   );
 
+  // Every paused menu screen advances the same way: Enter, Space, mouse click,
+  // or a tap anywhere on touch devices.
+  const advanceMenu = useCallback(() => {
+    setMenuScreen((screen) => {
+      if (screen === "title") {
+        music.start();
+        setMusicOn(true);
+        return "explainer";
+      }
+      if (screen === "explainer") return "trailmap";
+      if (screen === "trailmap") {
+        pickMode("standard");
+        return screen;
+      }
+      // High scores: continue means "get going".
+      return "explainer";
+    });
+  }, [pickMode]);
+
+  useEffect(() => {
+    if (launchMode || error) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+      // Let the focused button handle its own activation.
+      if ((e.target as HTMLElement | null)?.closest?.("button, input, textarea")) return;
+      e.preventDefault();
+      advanceMenu();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [launchMode, error, advanceMenu]);
+
 
   function setBtn(k: "left" | "right", v: boolean) {
     const w = window as unknown as { __gameInput?: TouchInput };

@@ -85,6 +85,8 @@ export type StartGameOpts = {
   mode: "before" | "after";
   onWin?: (result: WinResult) => void;
   onLose?: (result: WinResult) => void;
+  /** Lets the scene ask the host for a different music theme. */
+  onMusicTheme?: (theme: "adventure" | "boss" | "victory") => void;
 };
 
 type Ctx = KAPLAYCtx;

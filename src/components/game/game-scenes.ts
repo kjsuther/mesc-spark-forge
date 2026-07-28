@@ -3034,8 +3034,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // Occasional hop.
         if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
           boss.vy = -430;
-          boss.nextHop = now + 1.5 + Math.random() * 0.9;
+          boss.nextHop = now + 0.85 + Math.random() * 0.55;
         }
+
         boss.vy += 1300 * dt;
         boss.pos.y = Math.min(GROUND_Y, boss.pos.y + boss.vy * dt);
         if (boss.pos.y >= GROUND_Y) { boss.pos.y = GROUND_Y; boss.vy = 0; }

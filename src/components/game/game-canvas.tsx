@@ -60,6 +60,11 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
   const toggleMusic = useCallback(() => {
     setMusicOn(music.toggle());
   }, [music]);
+  // The scene drives the mood: boss battle in Zone 7, fanfare on the finale.
+  const handleMusicTheme = useCallback(
+    (theme: MusicTheme) => { music.setTheme(theme); },
+    [music],
+  );
   // Upgrade flags are NOT part of the restart key: they stream into the
   // shared feature-flag store instead, so an admin toggle changes gameplay
   // live without restarting the player's run.

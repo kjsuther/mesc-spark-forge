@@ -718,27 +718,77 @@ function PadButton({
   );
 }
 
-// SNES-style top-down trail map. Draws 8 zone nodes connected by animated
-// dashed segments that "reveal" left-to-right, then invites the player to
-// start the run.
+// SNES-style top-down trail map. The overlay traces the trail painted on the
+// map artwork: waypoints below are measured marker centers of the printed
+// 1-8 stops in the image's own 800x400 coordinate space.
+const TRAIL_STOPS: { x: number; y: number; label: string }[] = [
+  { x: 92, y: 275, label: "1. Find the Trail" },
+  { x: 163, y: 192, label: "2. Create Account" },
+  { x: 261, y: 213, label: "3. River of Paperwork" },
+  { x: 383, y: 138, label: "4. Gather Documents" },
+  { x: 333, y: 268, label: "5. Answer the Mail" },
+  { x: 570, y: 299, label: "6. Await a Decision" },
+  { x: 638, y: 193, label: "7. Choose a Plan" },
+  { x: 726, y: 193, label: "8. Coverage Begins!" },
+];
+
+// Cubic beziers hand-tuned to hug the painted dashed trail between stops.
+const TRAIL_PATH_D = [
+  "M 92 275",
+  "C 104 240, 128 208, 163 192",
+  "C 196 178, 232 190, 261 213",
+  "C 296 200, 330 150, 383 138",
+  "C 400 172, 378 236, 333 268",
+  "C 400 300, 480 312, 570 299",
+  "C 604 288, 626 240, 638 193",
+  "C 664 182, 700 182, 726 193",
+].join(" ");
+
 function TrailMap({ onContinue, onBack }: { onContinue: () => void; onBack: () => void }) {
-  const nodes = [
-    { label: "1. Find the Trail", color: "#8FCB6B" },
-    { label: "2. Create Account", color: "#F2C14E" },
-    { label: "3. River of Paperwork", color: "#6FB1D8" },
-    { label: "4. Gather Documents", color: "#D68B4E" },
-    { label: "5. Answer the Mail", color: "#B078D4" },
-    { label: "6. Await a Decision", color: "#9AA0B4" },
-    { label: "7. Choose a Plan", color: "#E15A5A" },
-    { label: "8. Coverage Begins!", color: "#F5C243" },
-  ];
-  const [tick, setTick] = useState(0);
+  const pathRef = useRef<SVGPathElement | null>(null);
+  const [len, setLen] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [marker, setMarker] = useState<{ x: number; y: number }>(TRAIL_STOPS[0]);
+
   useEffect(() => {
-    const t = setInterval(() => setTick((v) => (v + 1) % 200), 60);
-    return () => clearInterval(t);
+    const el = pathRef.current;
+    if (!el) return;
+    setLen(el.getTotalLength());
   }, []);
-  // Reveal one segment every ~250ms.
-  const revealed = Math.min(nodes.length, Math.floor(tick / 4) + 1);
+
+  useEffect(() => {
+    if (!len) return;
+    const reduced =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduced) {
+      setProgress(1);
+      setMarker(TRAIL_STOPS[TRAIL_STOPS.length - 1]);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const DURATION = 3400;
+    const step = (now: number) => {
+      const p = Math.min(1, (now - start) / DURATION);
+      setProgress(p);
+      const el = pathRef.current;
+      if (el) {
+        const pt = el.getPointAtLength(p * len);
+        setMarker({ x: pt.x, y: pt.y });
+      }
+      if (p < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [len]);
+
+  // Which stops the line has reached (stops are ~evenly spaced along the path).
+  const reached = Math.max(
+    1,
+    Math.min(TRAIL_STOPS.length, Math.round(progress * (TRAIL_STOPS.length - 1)) + 1),
+  );
+
   return (
     <div className="w-full max-w-3xl text-center" style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}>
       <p className="mb-4 text-[10px] tracking-widest text-accent-gold sm:text-[12px]">★ THE TRAIL AHEAD ★</p>
@@ -749,39 +799,89 @@ function TrailMap({ onContinue, onBack }: { onContinue: () => void; onBack: () =
           boxShadow:
             "0 0 0 6px var(--color-mn-blue), 0 0 0 12px var(--color-accent-gold)",
           backgroundImage: `url(${trailMapBg.url})`,
-          backgroundSize: "cover",
+          backgroundSize: "100% 100%",
+          backgroundRepeat: "no-repeat",
           backgroundPosition: "center",
         }}
       >
-        <svg viewBox="0 0 800 400" className="absolute inset-0 h-full w-full">
-          {nodes.map((n, i) => {
-            const x = 50 + (i * 700) / (nodes.length - 1);
-            const y = 200 + Math.sin(i * 1.3) * 90;
-            const next = nodes[i + 1];
-            const nx = next ? 50 + ((i + 1) * 700) / (nodes.length - 1) : x;
-            const ny = next ? 200 + Math.sin((i + 1) * 1.3) * 90 : y;
-            const segShown = i < revealed - 1;
+        <svg
+          viewBox="0 0 800 400"
+          preserveAspectRatio="none"
+          className="absolute inset-0 h-full w-full"
+        >
+          {/* Faint full route so the destination is always readable */}
+          <path
+            ref={pathRef}
+            d={TRAIL_PATH_D}
+            fill="none"
+            stroke="rgba(43,30,16,0.35)"
+            strokeWidth={7}
+            strokeLinecap="round"
+          />
+          {/* Animated highlight drawn along the painted trail */}
+          {len > 0 && (
+            <>
+              <path
+                d={TRAIL_PATH_D}
+                fill="none"
+                stroke="rgba(20,14,6,0.55)"
+                strokeWidth={9}
+                strokeLinecap="round"
+                strokeDasharray={len}
+                strokeDashoffset={len * (1 - progress)}
+              />
+              <path
+                d={TRAIL_PATH_D}
+                fill="none"
+                stroke="#F5C243"
+                strokeWidth={5}
+                strokeLinecap="round"
+                strokeDasharray={len}
+                strokeDashoffset={len * (1 - progress)}
+              />
+            </>
+          )}
+
+          {/* Stop highlights centered on the printed markers */}
+          {TRAIL_STOPS.map((s, i) => {
+            const on = i < reached;
             return (
-              <g key={i}>
-                {next && (
-                  <line
-                    x1={x} y1={y} x2={nx} y2={ny}
-                    stroke={segShown ? "#F5E8C7" : "rgba(245,232,199,0.25)"}
-                    strokeWidth={6}
-                    strokeDasharray="10 8"
-                    strokeLinecap="round"
-                  />
-                )}
-                <circle cx={x} cy={y} r={14} fill={n.color} stroke="#2a2a2a" strokeWidth={3} />
-                <text x={x} y={y + 30} textAnchor="middle" fontSize={10} fill="#F5E8C7" style={{ fontFamily: '"Press Start 2P", monospace' }}>
-                  {i + 1}
-                </text>
+              <g key={s.label}>
+                <circle
+                  cx={s.x}
+                  cy={s.y}
+                  r={on ? 17 : 14}
+                  fill="none"
+                  stroke={on ? "#F5C243" : "rgba(43,30,16,0.35)"}
+                  strokeWidth={on ? 4 : 2}
+                  opacity={on ? 1 : 0.6}
+                >
+                  {on && (
+                    <animate
+                      attributeName="r"
+                      values="15;19;15"
+                      dur="1.4s"
+                      repeatCount="indefinite"
+                    />
+                  )}
+                </circle>
               </g>
             );
           })}
+
+          {/* Traveling marker */}
+          {len > 0 && progress < 1 && (
+            <>
+              <circle cx={marker.x} cy={marker.y} r={9} fill="#2a1c0c" />
+              <circle cx={marker.x} cy={marker.y} r={6} fill="#F5E8C7" />
+            </>
+          )}
         </svg>
-        <div className="pointer-events-none absolute bottom-1 left-2 right-2 text-[7px] leading-relaxed text-cream sm:text-[9px]">
-          {nodes[Math.max(0, revealed - 1)].label}
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-1.5">
+          <span className="rounded-sm border-2 border-accent-gold bg-mn-blue/90 px-2 py-1 text-[7px] leading-relaxed text-accent-gold shadow-[2px_2px_0_rgba(0,0,0,0.6)] sm:text-[9px]">
+            {TRAIL_STOPS[reached - 1].label}
+          </span>
         </div>
       </div>
       <div className="mx-auto flex max-w-xs flex-col gap-3">
@@ -791,5 +891,6 @@ function TrailMap({ onContinue, onBack }: { onContinue: () => void; onBack: () =
     </div>
   );
 }
+
 
 

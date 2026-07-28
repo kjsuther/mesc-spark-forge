@@ -410,9 +410,18 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
         />
 
 
-        {/* In-window SNES name entry the moment a run ends */}
+        {/* In-window SNES name entry the moment a run ends, then the vote panel */}
         {endResult && !presentation && launchMode && (
-          <ScoreEntryOverlay result={endResult} onClose={() => setEndResult(null)} />
+          <ScoreEntryOverlay
+            result={endResult}
+            onClose={() => {
+              setEndResult(null);
+              setShowVote(true);
+            }}
+          />
+        )}
+        {showVote && !endResult && !presentation && launchMode && (
+          <VoteOverlay onClose={() => setShowVote(false)} />
         )}
 
         {/* SNES-style title / launch / high-score screen */}

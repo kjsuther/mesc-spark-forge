@@ -36,11 +36,11 @@ function EmbedPage() {
   }, [improvements]);
 
   return (
-    <div className="w-screen h-screen bg-black grid place-items-center overflow-hidden">
+    <div className="w-screen h-[100dvh] bg-black overflow-hidden">
       {mounted ? (
-        <GameCanvas flags={flags} mode={mode} />
+        <GameCanvas flags={flags} mode={mode} presentation />
       ) : (
-        <div className="text-white text-sm">Loading game…</div>
+        <div className="grid h-full w-full place-items-center text-white text-sm">Loading game…</div>
       )}
     </div>
   );

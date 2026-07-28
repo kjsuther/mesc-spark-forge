@@ -2026,6 +2026,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         set text(v: string) { main.text = v; shadow.text = v; },
         get opacity() { return main.opacity as number; },
         set opacity(v: number) { main.opacity = v; shadow.opacity = v; },
+        setPos(x: number, y: number) {
+          main.pos = k.vec2(x, y);
+          shadow.pos = k.vec2(x + 1, y + 1);
+        },
       };
     }
 

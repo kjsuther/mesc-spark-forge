@@ -78,7 +78,7 @@ export function Leaderboard({ variant = "panel" }: { variant?: "panel" | "poster
                   s.mode === "after" ? "bg-mn-green/80 text-white" : "bg-accent-orange/80 text-white"
                 }`}
               >
-                {s.mode}
+                {s.mode === "after" ? "current" : "original"}
               </span>
               <span className="text-cream/70 text-[10px] tabular-nums shrink-0 w-10 text-right">
                 {fmtDuration(s.duration_ms)}
@@ -139,7 +139,7 @@ export function Leaderboard({ variant = "panel" }: { variant?: "panel" | "poster
                   : "bg-accent-orange/15 text-accent-orange"
               }`}
             >
-              {s.mode}
+              {s.mode === "after" ? "current" : "original"}
             </span>
             <span className="text-dark-gray/60 text-xs tabular-nums w-10 text-right">
               {fmtDuration(s.duration_ms)}

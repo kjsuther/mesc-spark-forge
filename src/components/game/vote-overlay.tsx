@@ -146,7 +146,7 @@ export function VoteOverlay({ onClose }: { onClose: () => void }) {
                         setCursor(i);
                         void cast(o.key);
                       }}
-                      className="flex min-h-[46px] w-full items-center gap-2 border-4 px-2 py-2 text-left disabled:opacity-60"
+                      className="flex min-h-[46px] w-full items-start gap-2 border-4 px-2 py-2 text-left disabled:opacity-60"
                       style={{
                         borderColor: active ? "var(--color-accent-gold)" : "rgba(255,255,255,0.35)",
                         background: active ? "rgba(255,220,90,0.18)" : "rgba(0,0,0,0.3)",
@@ -159,11 +159,21 @@ export function VoteOverlay({ onClose }: { onClose: () => void }) {
                       >
                         {active ? "▶" : " "}
                       </span>
-                      <span
-                        className="flex-1 text-[8px] leading-relaxed"
-                        style={{ color: "var(--color-cream)", textShadow: "1px 1px 0 #000" }}
-                      >
-                        {o.label.toUpperCase()}
+                      <span className="flex-1">
+                        <span
+                          className="block text-[8px] leading-relaxed"
+                          style={{ color: "var(--color-cream)", textShadow: "1px 1px 0 #000" }}
+                        >
+                          {o.label.toUpperCase()}
+                        </span>
+                        {o.description && (
+                          <span
+                            className="mt-1 block text-[7px] leading-relaxed"
+                            style={{ color: "rgba(255,255,255,0.8)", textShadow: "1px 1px 0 #000" }}
+                          >
+                            {o.description.toUpperCase()}
+                          </span>
+                        )}
                       </span>
                       <span
                         className="text-[9px] tabular-nums"
@@ -171,6 +181,7 @@ export function VoteOverlay({ onClose }: { onClose: () => void }) {
                       >
                         {o.votes}
                       </span>
+
                     </button>
                   </li>
                 );

@@ -1,52 +1,46 @@
 ## Goal
 
-Rebuild the five upgrades as a clean feature-flag system: admin toggles change gameplay live, every mechanic reads flags from one place, and any combination of the five works safely.
+The soundtrack should react to what's happening on the trail:
 
-## Current state (verified in code)
+- **Zone 7 boss appears** → switch to a darker, tense "boss battle" theme.
+- **Boss defeated** (or the player leaves/dies) → return to the normal adventure theme.
+- **Zone 8 pole slide + WIN screen** → switch to a triumphant victory fanfare.
 
-- Five flags already exist in the database and admin UI (`extra_lives`, `navigator_helper`, `chat_invincible`, `email_umbrella`, `resume_checkpoint`), and the player page already subscribes to realtime changes on `game_improvements`.
-- But the game only honors flags when the admin broadcast mode is "after" (`game-scenes.ts` line 808: `const active = opts.mode === "after" ? {...opts.flags} : {}`).
-- Flags are snapshotted once at scene start, and any toggle change remounts the canvas via a `key` string in `game-canvas.tsx` — which restarts the run instead of updating it live.
-- Upgrade logic is scattered as inline `active.x ? … : …` checks in ~8 places; there are no collectible power-ups for Navigator/Chat/Email, no active-upgrades HUD panel, and checkpoint resume is just a campfire prop with a saved X coordinate (no inventory/door/boss state).
+Yes, this is very doable — the music is generated procedurally in code, so new themes are just new note data plus a way for the game to request a theme change.
 
-## What we'll build
+## What changes
 
-### 1. Feature-flag core (`src/lib/game-features.ts`)
+### 1. Multi-theme music engine (`src/lib/game-music.ts`)
 
-- `GameFeatures` interface with the five friendly names (`moreWaysToReachCaseWorker`, `navigatorHelp`, `liveChatAssistant`, `emailCaseWorker`, `checkStatusAnytime`) plus a mapping to the existing database keys, so no migration is needed.
-- A `FeatureFlags` singleton store: `get()`, `subscribe()`, `set(partial)`. The React layer pushes updates into it; the game engine reads from it every frame. Adding a sixth upgrade later = one entry in the map.
-- Realtime: keep the existing `postgres_changes` subscription and add a 5s polling fallback, both feeding the store.
-- Flags apply regardless of the Before/After broadcast switch (Before/After stays only as a visual/presentation mode), so an admin toggle is always immediately felt.
+Today the file hardcodes one melody/bass pair and loops it. Restructure it into a small theme table:
 
-### 2. Remove the remount
+- `adventure` — the current upbeat D-major quest theme (unchanged).
+- `boss` — tense battle theme: D minor, slower/heavier feel, driving low triangle bass on eighth notes, dissonant square lead with a snarling detuned second oscillator, noise hits on the downbeat instead of light off-beat hats.
+- `victory` — triumphant fanfare: bright major, held brass-like square chords, ascending run resolving on a big sustained tonic; loops as a short celebratory vamp so the WIN screen keeps playing.
 
-`game-canvas.tsx` drops flags from its restart `key` and instead pushes flag changes into the store. The running game reacts live; no reload, no lost progress.
+Add to the `GameMusic` class:
 
-### 3. Centralized managers (inside `src/components/game/`)
+- `setTheme(name)` — cancels the pending loop timer, briefly ramps the master gain down and back up (~150 ms) so the swap doesn't click, then restarts the loop with the new theme. No-ops when muted or when the theme is already active.
+- `getTheme()` and a per-theme `bpm`/`volume` so the boss theme can sit slightly louder and the fanfare brighter.
+- The mute toggle keeps working exactly as it does now, and the currently selected theme is remembered across mute/unmute.
 
-Each consults `FeatureFlags` and owns all logic for its area — no flag checks anywhere else:
+### 2. Let the game scene request themes
 
-- **PlayerManager** — lives (3 vs 5, HUD updates immediately when toggled mid-run, clamped so an OFF toggle never kills the player), invulnerability, respawn.
-- **PowerUpManager** — spawning/collection of the Navigator, Live Chat and Email pickups; despawns them instantly if a flag goes OFF, spawns them on the fly if it goes ON while the player is in the right zone.
-- **EnemyManager** — damage arbitration: Chat shield ignores enemy contact inside Zone 4 only; Email umbrella blocks only falling calendars in Zone 6; ground enemies still hurt.
-- **BossManager** — Zone 7. Normal 3-hit fight by default; with a collected Navigator, a single-use scripted takedown (helper animation, boss defeat, exit unlock into Zone 8), after which the Navigator is consumed.
-- **CheckpointManager** — full save state: position, lives, docs/inventory, active power-ups, boss defeated, doors unlocked, objectives met. Saved continuously at safe intervals; restored on death when Check Status is ON; cleared on New Game, admin reset, or game over.
+`startGame` currently has no way to talk to the music (music lives in the React canvas). Add an optional callback to `StartGameOpts`:
 
-### 4. Power-up behavior and effects
+```ts
+onMusicTheme?: (theme: "adventure" | "boss" | "victory") => void;
+```
 
-- **Navigator** — spawns late in Zone 6/early Zone 7, helper sprite trails the player with sparkles, HUD shows it, single-use boss skip.
-- **Live Chat** — spawns in Zone 4, blue shield + glowing/flashing player, effect expires the moment the player leaves Zone 4.
-- **Email** — spawns in Zone 6, umbrella opens over the player, calendars bounce away instead of damaging, umbrella icon in HUD.
-- **Checkpoint** — checkpoint flag animation at save points, brief resume flash on respawn.
+`src/components/game/game-canvas.tsx` passes a handler that calls `music.setTheme(theme)`, and resets to `adventure` whenever a run restarts or the player returns to the title screen.
 
-### 5. HUD "ACTIVE UPGRADES" panel
+### 3. Trigger points in `src/components/game/game-scenes.ts`
 
-Compact pixel panel listing the enabled upgrades (5 Lives / Navigator / Live Chat / Email Shield / Checkpoint Resume), appearing and disappearing as toggles flip, plus per-run state (e.g. Navigator "carried" vs "used").
-
-### 6. Admin dashboard
-
-`/admin/game` keeps its five independent switches, relabeled to the exact wording requested (More Ways to Reach Your Case Worker, Get Help from a Navigator, Live Chat Assistant, Email Your Case Worker, Check Your Status Anytime), all defaulting OFF, plus the existing reset control which also clears saved checkpoints.
+- **Boss on** — when the Zone 7 ogre is spawned / first becomes active: `→ "boss"`.
+- **Boss off** — on `zoneState.bossDefeated = true` (both the stomp path and the Navigator auto-defeat path): `→ "adventure"`. Also revert if the player loses a life during the fight or walks back out of Zone 7, so the tense music never gets stuck on.
+- **Victory** — the moment the medical ID is collected and the Zone 8 cutscene starts (the pole slide): `→ "victory"`. The theme carries straight through the slide into the WIN screen, so there is no second switch.
+- **Game over (lose)** — returns to `adventure` behind the high-score screen (no change in feel from today).
 
 ## Verification
 
-Playwright pass on desktop and mobile viewports: all five OFF (baseline difficulty intact), each one ON individually, and all five ON simultaneously — toggling live mid-run each time to confirm the game updates without a refresh and never crashes.
+Play through in a headless browser: confirm no console errors, the boss theme starts when the ogre spawns, reverts on defeat, and the fanfare kicks in at the pole slide and continues on the WIN screen. Audio itself can't be heard in the harness, so I'll also assert the theme-change calls fire at the right moments via instrumentation.

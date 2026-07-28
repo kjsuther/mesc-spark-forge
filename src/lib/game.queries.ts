@@ -111,14 +111,11 @@ export function myRoundVoteQuery(voterId: string, roundId: string | null) {
     queryKey: ["game_round", "my-vote", roundId, voterId],
     queryFn: async (): Promise<string | null> => {
       if (!voterId || !roundId) return null;
-      const { data } = await supabase
-        .from("game_improvement_votes")
-        .select("improvement_key")
-        .eq("round_id", roundId)
-        .eq("voter_fingerprint", voterId)
-        .maybeSingle();
-      return data?.improvement_key ?? null;
+      // Server-side lookup: the browser has no read access to voter fingerprints.
+      const res = await getMyRoundVote({ data: { roundId, voterFingerprint: voterId } });
+      return res.improvementKey;
     },
+
     enabled: !!voterId && !!roundId,
   });
 }

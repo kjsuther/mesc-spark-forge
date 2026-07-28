@@ -1,6 +1,8 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { ImprovementKey } from "./game.functions";
+import { getMyRoundVote } from "./game.functions";
+
 
 export type Improvement = {
   key: ImprovementKey;
@@ -35,21 +37,8 @@ export const improvementsQuery = queryOptions({
   },
 });
 
-export function myGameVotesQuery(voterId: string) {
-  return queryOptions({
-    queryKey: ["game_votes", "mine", voterId],
-    queryFn: async (): Promise<string[]> => {
-      if (!voterId) return [];
-      const { data, error } = await supabase
-        .from("game_improvement_votes")
-        .select("improvement_key")
-        .eq("voter_fingerprint", voterId);
-      if (error) throw error;
-      return (data ?? []).map((r) => r.improvement_key);
-    },
-    enabled: !!voterId,
-  });
-}
+
+
 
 export const gameSettingsQuery = queryOptions({
   queryKey: ["game_settings"],

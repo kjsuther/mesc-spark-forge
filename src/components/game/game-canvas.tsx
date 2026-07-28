@@ -119,6 +119,12 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, launchMode]);
 
+  // Back at the menus, drop the music mood back to the default theme.
+  useEffect(() => {
+    if (!launchMode) music.setTheme("adventure");
+  }, [launchMode, music]);
+
+
   // Auto-hide the mobile hint after 6s
   useEffect(() => {
     if (!showHint) return;

@@ -2456,6 +2456,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function spawnPlanBoss() {
       if (zoneState.bossSpawned) return;
       zoneState.bossSpawned = true;
+      // The ogre is here — drop into the tense battle theme.
+      setMusic("boss");
       const bx = BIOME_W * 6 + 1050;
       const bh = DISPLAY_H["boss-idle"];
       const bw = displaySize("boss-idle", sizes).w;

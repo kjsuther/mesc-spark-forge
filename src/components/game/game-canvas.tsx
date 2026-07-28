@@ -1,21 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { activeRoundQuery, improvementsQuery } from "@/lib/game.queries";
 import { Leaderboard } from "./leaderboard";
 import { ScoreEntryOverlay } from "./score-entry-overlay";
-import { VoteOverlay } from "./vote-overlay";
 import { GameMusic, type MusicTheme } from "@/lib/game-music";
-import { FeatureFlags } from "@/lib/game-features";
 import type { GameFlags, WinResult } from "./game-scenes";
 import trailMapBg from "@/assets/game/trail-map-bg-v2.png.asset.json";
 
 type Props = {
-  flags: GameFlags;
   mode: "before" | "after";
   onWin?: (result: WinResult) => void;
   onLose?: (result: WinResult) => void;
   /** Poster/projection mode: fill the parent, no hint text, no fullscreen button. */
   presentation?: boolean;
+};
+
+const EMPTY_FLAGS: GameFlags = {
+  extra_lives: false,
+  navigator_helper: false,
+  chat_invincible: false,
+  email_umbrella: false,
+  resume_checkpoint: false,
 };
 
 type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
@@ -46,7 +49,7 @@ function useOrientation() {
   return { portrait };
 }
 
-export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }: Props) {
+export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,21 +60,6 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
   const [showHint, setShowHint] = useState(true);
   const [loading, setLoading] = useState(false);
   const [endResult, setEndResult] = useState<WinResult | null>(null);
-  const [showVote, setShowVote] = useState(false);
-  // A vote panel only appears if a round is live and has options left to vote on.
-  const { data: liveRound } = useQuery({ ...activeRoundQuery, enabled: !presentation });
-  const { data: liveImprovements = [] } = useQuery({
-    ...improvementsQuery,
-    enabled: !presentation,
-  });
-  const voteLive = useMemo(() => {
-    if (!liveRound?.endsAt) return false;
-    if (new Date(liveRound.endsAt).getTime() <= Date.now()) return false;
-    const enabled = new Set(liveImprovements.filter((i) => i.enabled).map((i) => i.key));
-    return liveRound.candidates.some((c) => !enabled.has(c.key as never));
-  }, [liveRound, liveImprovements]);
-  const voteLiveRef = useRef(voteLive);
-  voteLiveRef.current = voteLive;
   const { portrait } = useOrientation();
   const [isTouch] = useState(() => isCoarsePointer());
   const music = useMemo(() => new GameMusic(), []);
@@ -85,19 +73,9 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
     (theme: MusicTheme) => { music.setTheme(theme); },
     [music],
   );
-  // Upgrade flags are NOT part of the restart key: they stream into the
-  // shared feature-flag store instead, so an admin toggle changes gameplay
-  // live without restarting the player's run.
+  // Switching between the frozen original build and the current build is a
+  // full restart of the engine.
   const key = mode;
-
-  const flagSignature = Object.entries(flags)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([k, v]) => `${k}:${v ? 1 : 0}`)
-    .join(",");
-  useEffect(() => {
-    FeatureFlags.setFromDbFlags(flags as Record<string, boolean>);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flagSignature]);
 
   // Start the game only after the user picks a launch mode
   useEffect(() => {
@@ -111,7 +89,6 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
     let cancelled = false;
     let destroy: (() => void) | null = null;
     setEndResult(null);
-    setShowVote(false);
     setError(null);
     setLoading(true);
 
@@ -119,8 +96,14 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
       try {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        const { startGame } = await import("./game-scenes");
+        // "before" runs the frozen original build; "after" runs the current
+        // build that carries every implemented piece of player feedback.
+        const { startGame } =
+          mode === "before"
+            ? await import("./original/game-scenes")
+            : await import("./game-scenes");
         if (cancelled) return;
+        const flags = EMPTY_FLAGS;
         destroy = await startGame({
           canvas, flags, mode,
           onWin: (r) => { setEndResult(r); onWin?.(r); },
@@ -429,19 +412,9 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
         />
 
 
-        {/* In-window SNES name entry the moment a run ends, then the vote panel
-            (only when a voting round is actually live) */}
+        {/* In-window SNES name entry the moment a run ends */}
         {endResult && !presentation && launchMode && (
-          <ScoreEntryOverlay
-            result={endResult}
-            onClose={() => {
-              setEndResult(null);
-              setShowVote(voteLiveRef.current);
-            }}
-          />
-        )}
-        {showVote && !endResult && !presentation && launchMode && (
-          <VoteOverlay onClose={() => setShowVote(false)} />
+          <ScoreEntryOverlay result={endResult} onClose={() => setEndResult(null)} />
         )}
 
         {/* SNES-style title / launch / high-score screen */}

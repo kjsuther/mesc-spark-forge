@@ -1705,8 +1705,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { basY: idY },
       ]) as AnyObj;
       idItem.onUpdate(() => { idItem.pos.y = idItem.basY + Math.sin(k.time() * 2.5) * 4; });
-      addSpeech(k, idX, idY - idH / 2 - 14, "MEDICAL ID", [200, 40, 60]);
-      addSpeech(k, idX, topLandingY - 42, "GRAB THE ID →", [220, 30, 60]);
+      // (No floating labels here — the paused Step 8 briefing covers the ID card.)
     }
 
     // Fire pole — offset from top landing with a visible air gap so the pole
@@ -3108,12 +3107,26 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
 
 
-    player.onCollide("pole-base", () => {
+    // Single owner of "the slide just finished". Both the pole-base collider
+    // and the update-loop safety net funnel through here — previously the
+    // collider set firePoleDone without advancing the cutscene, which stranded
+    // the finale in the "slide" phase forever and the WIN screen never fired.
+    let slideDoneAt = 0;
+    function completeSlide() {
       if (zoneState.firePoleDone || player.won) return;
-      if (!zoneState.firePoleAttached) return;
       zoneState.firePoleDone = true;
-      // Fireworks
+      slideDoneAt = k.time();
       startFireworks(k, player.pos.x + 100, GROUND_Y - 240);
+      if (zoneState.cutscene && zoneState.cutscenePhase === "slide") {
+        zoneState.cutscenePhase = "walk-to-office";
+        zoneState.cutsceneTargetX = LEVEL_END - 140;
+        player.facing = 1;
+      }
+    }
+
+    player.onCollide("pole-base", () => {
+      if (!zoneState.firePoleAttached) return;
+      completeSlide();
     });
 
     // Door collision — unlocked door lets player pass; locked door bumps them back
@@ -3418,15 +3431,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (zoneState.firePoleAttached && !zoneState.firePoleDone) {
         player.vel = k.vec2(0, 0);
         player.pos.y = Math.min(GROUND_Y, player.pos.y + 220 * k.dt());
-        if (player.pos.y >= GROUND_Y) {
-          zoneState.firePoleDone = true;
-          startFireworks(k, player.pos.x + 100, GROUND_Y - 240);
-          if (zoneState.cutscene && zoneState.cutscenePhase === "slide") {
-            zoneState.cutscenePhase = "walk-to-office";
-            zoneState.cutsceneTargetX = LEVEL_END - 140;
-            player.facing = 1;
-          }
-        }
+        if (player.pos.y >= GROUND_Y) completeSlide();
+      }
+
+      // Backstop: the WIN overlay can never be blocked by a missed cutscene
+      // transition — force the finale to finish a few seconds after landing.
+      if (
+        zoneState.firePoleDone &&
+        zoneState.cutscene &&
+        zoneState.cutscenePhase !== "done" &&
+        slideDoneAt > 0 &&
+        k.time() - slideDoneAt > 4
+      ) {
+        zoneState.cutscenePhase = "done";
+        zoneState.cutscene = false;
       }
 
 
@@ -3563,10 +3581,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       } else if (dir !== 0) {
         setAnim("walk");
         // Distance-based cycle: legs advance in lockstep with real movement.
-        // STRIDE_PX doubled from 9 → 18 so the leg swap reads clearly at
-        // full run speed instead of blurring into a strobe.
+        // Contact / passing / contact / passing at a 12px stride turns the legs
+        // over fast enough that the run reads as steps, not a glide.
         const CYCLE = [0, 1, 2, 3];
-        const STRIDE_PX = 18;
+        const STRIDE_PX = 12;
         const idx = Math.floor(Math.abs(player.pos.x) / STRIDE_PX) % CYCLE.length;
         const target = CYCLE[idx];
         const want = `hero-walk-${target}${facingSuffix(`hero-walk-${target}`)}`;
@@ -3574,6 +3592,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           player.walkFrame = target;
           setSprite(want);
         }
+        // Footfall weight: squash 2px on the contact frames, full height on the
+        // passing frames. Anchor is "bot" so the feet stay planted, and the
+        // explicit area rect is untouched — purely visual.
+        const baseH = DISPLAY_H[`hero-walk-${target}`] ?? player.height;
+        player.height = baseH - (idx % 2 === 0 ? 2 : 0);
       } else {
         setAnim("idle");
         // Ensure facing-correct idle sprite on facing flip while stationary.

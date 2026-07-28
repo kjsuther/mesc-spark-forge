@@ -1,54 +1,53 @@
-## Polish pass: alignment, clutter, Zone 6, music, mobile UAT
+## 1. WIN screen and Thank-you screen never appear (root cause confirmed)
 
-All gameplay changes land in **both** engines — `src/components/game/game-scenes.ts` (current) and `src/components/game/original/game-scenes.ts` (frozen "before" build) — so the two versions stay comparable. No mechanics, art, levels, or progression are removed.
+The finale is a scripted cutscene: walk to the fire pole → slide down → walk to the medical office → WIN overlay.
 
-### 1. Sprite depth / collision alignment (audit first)
+There are two places that mark the slide finished:
 
-The engine already places grounded actors with `spawnGrounded(...)` → `anchor("bot")` at the shared `GROUND_Y = 470`, so the misalignment in the video is not a single obvious constant; it needs measuring before fixing. Step one is instrumentation, not a guess:
+- the fire-pole *base collider* handler (`game-scenes.ts` ~line 3112) sets `firePoleDone = true` and nothing else;
+- the update-loop safety net (~line 3418) sets `firePoleDone = true` **and** advances `cutscenePhase` from `"slide"` to `"walk-to-office"`.
 
-- Add a temporary debug overlay (`area` outlines + a ground guideline) and walk each zone in the browser at desktop and mobile sizes, capturing the player's feet Y against every enemy, hazard, collectible, projectile, and moving obstacle.
-- Record where the drawn sprite bottom differs from `GROUND_Y`, and where the `hitboxScale` rect is taller/shorter/wider than the visible pixels.
+In a normal run the base collider fires first. Because it doesn't advance the phase, the update-loop branch is then skipped forever (`!firePoleDone` is false), so `cutscenePhase` stays `"slide"` and `cutscene` stays `true`. The win check requires `cutscenePhase === "done"`, so `tryWin()` is never called — the hero just stands at the bottom of the pole indefinitely, exactly as in the video.
 
-Then fix what the audit finds, expected to be some mix of:
-- Sprites whose trimmed bounding box still carries transparent padding, so they render floating or sunk — corrected in the trim/`DISPLAY_H` table rather than by nudging positions.
-- Hitboxes drawn from `DISPLAY_H` rather than the actual rendered width/height, which makes the hurt box overshoot the art.
-- Airborne hazards (paper airplanes, falling calendars, boss projectiles) sitting at heights that read as "background" — raised or lowered so anything at player height is unmistakably dangerous and anything decorative sits clearly above/behind.
-- Any actor drawn on a different z-layer than the plane it collides on.
+Fix: extract one `completeSlide()` routine that sets `firePoleDone`, starts the fireworks, advances the phase to `walk-to-office`, sets the walk target and facing. Call it from both the collider and the update-loop safety net, guarded so it only runs once. Add a final backstop: if `firePoleDone` is true and the phase hasn't reached `done` within ~4 seconds, force `done` so the WIN overlay can never be blocked by a missed transition.
 
-Deliverable: for every interactive object, drawn silhouette and collision box match, ground actors' feet touch the same grass line as the hero, and the debug overlay is removed before finishing.
+Same fix mirrored into the frozen original build (`src/components/game/original/game-scenes.ts`), which shares this defect.
 
-### 2. Remove instructional text painted into the levels
+## 2. Remove leftover Zone 8 background text
 
-The pre-zone pause screens now carry all of this. Removing the redundant in-world speech plaques (`addSpeech` calls) in both engines:
+Delete the two floating labels next to the ID card in Zone 8 — "MEDICAL ID" and "GRAB THE ID →" — now that the paused Step 8 briefing screen covers it. Mirror in the original build.
 
-- "Smash a brick and collect application", "Create an account", "Collect Username and Password and avoid account locks", "Use platforms to get to other side", "Gather 3 docs and avoid evil clipboards", "Collect all notice mailboxes and avoid confusing letters", "Avoid falling dates", "Pick your plan and defeat the boss", "Climb stairs and collect your medical card".
+## 3. Walking looks like gliding
 
-Keeping: item labels that identify a pickup (`USERNAME`, `PASSWORD`, plan pedestal names, `MEDICAL ID`, `GRAB THE ID →`), flavour text ("Awaiting a decision…", "Pick ONE plan", "★ COVERED! ★"), signposts, decorations, and all background art.
+The walk cycle currently advances one frame per 18 travelled pixels and the sprite has no vertical movement, so the body slides along a perfectly flat line.
 
-### 3. Zone 6 rebalance ("Awaiting Decision")
+Changes:
+- Shorten the stride to ~12px so the legs turn over at a run-appropriate rate.
+- Add a small distance-driven vertical bob (1–2px, peaking on the passing frames) and reset it to zero when idle, jumping, or sliding, so footfalls read as weight.
+- Keep the contact/passing frame order alternating so the two contact poses never play back-to-back.
+- Bob is visual only — it does not touch the collider or the ground line fixed earlier.
 
-Objective stays "survive 10 seconds". Tuning only:
-- Fewer falling calendar pages in flight at once, with a longer minimum interval between drops.
-- Spawn X chosen from a shuffled bag with a minimum separation, so drops never stack into an unavoidable wall and repeats feel random rather than clustered.
-- Guarantee a safe lane: no spawn within a set radius of the player's current column on consecutive drops.
-- Modest fall-speed reduction and a slightly longer telegraph before each page starts falling.
-- Verify by playing the zone repeatedly and confirming a clean run is reliably achievable.
+Mirror in the original build.
 
-### 4. Music variety
+## 4. New Controls screen
 
-Extend the existing procedural chiptune engine in `src/lib/game-music.ts`:
-- Add several new upbeat 16-bit themes alongside `adventure` (trail, town, forest/office, waiting-tension variant), each with its own melody, bass, harmony, tempo, and percussion style.
-- Rotate themes by zone, with the starting theme picked at random from the exploration set so repeat runs differ.
-- Add a short gain crossfade on theme change instead of a hard restart, and light per-loop variation (alternate turnaround bar / harmony voice) so the loop point is less obvious.
-- `boss` and `victory` themes keep their current roles.
+Insert a "controls" step in the pre-game flow in `game-canvas.tsx`, after the Journey Map and before the run starts:
 
-### 5. Mobile UAT and regression pass
+`title → explainer → trailmap → controls → game`
 
-Playwright run at common mobile sizes (390×844, 414×896, 360×800) plus desktop, covering: title → story → tutorial → each zone step screen → all 8 zones → boss → win → thanks → replay, plus death/restart, fullscreen, score entry, leaderboard, feedback form, admin feedback board, and Poster View.
+Content, in the same 16-bit panel style as the other menu screens:
 
-Checks: no overlapping or invisible buttons, D-pad never covers gameplay, text does not clip, pause panels fit, safe-area insets respected, touch continue works on every paused screen, no soft locks, and no console errors. Defects found get fixed and re-verified in the same pass.
+```text
+        HOW TO PLAY
+  Desktop            Mobile
+  ← →  Move          ◀ ▶ buttons
+  Space / ↑  Jump    ⤒ Jump button
+  R  Restart run     Tap Full Screen
+  Esc  Pause
+```
 
-### Technical notes
+It detects a touch device and highlights the matching column. Continue works with Enter, Space, click, or tap anywhere (same handler the other pause screens use), plus a Back button to the Journey Map. `pickMode("standard")` moves from the Journey Map's Continue to this screen's Continue.
 
-- Touched files: `src/components/game/game-scenes.ts`, `src/components/game/original/game-scenes.ts`, `src/lib/game-music.ts`, and `src/components/game/game-canvas.tsx` only if the mobile UAT surfaces layout defects.
-- No database changes, no changes to the feedback backlog system, leaderboard queries, or feature/achievement logic.
+## Verification
+
+Play a full run in the preview to the ID card and confirm: slide completes, hero walks to the office, WIN overlay appears, then the Thank-you screen. Also confirm Zone 8 has no leftover floating text, the walk reads as steps, and the Controls screen appears once before every run on both desktop and touch layouts.

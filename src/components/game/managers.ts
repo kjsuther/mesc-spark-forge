@@ -208,10 +208,10 @@ export function activeUpgradeRows(
   const push = (name: FeatureName, label: string, carried: boolean) => {
     if (features[name]) rows.push({ name, label, carried });
   };
-  push("moreWaysToReachCaseWorker", "5 Lives", true);
+  push("moreWaysToReachCaseWorker", "Portal", true);
   push("navigatorHelp", "Navigator", powerups.has("navigator"));
-  push("liveChatAssistant", "Live Chat", powerups.has("chat"));
-  push("emailCaseWorker", "Email Shield", powerups.has("email"));
-  push("checkStatusAnytime", "Checkpoint Resume", true);
+  push("liveChatAssistant", "Chat Bot", powerups.has("chat"));
+  push("emailCaseWorker", "Email", powerups.has("email"));
+  push("checkStatusAnytime", "Status Check", true);
   return rows;
 }

@@ -1664,19 +1664,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     };
 
 
-    // Save-point campfire near town start (existing improvement).
+    // ===== Checkpoint flags (Check Your Status Anytime) =====
+    // Managed live: markers appear the moment the upgrade is switched on and
+    // vanish the moment it is switched off.
     const checkpointX = spawnX > 1000 ? spawnX : 40;
-    if (active.resume_checkpoint) {
-      const fx = BIOME_W * 3 + 40;
-      const ch = DISPLAY_H["campfire"];
-      spawnGrounded(k, "campfire", sizes, {
-        x: fx, z: LAYERS.PROP, tag: "checkpoint",
-        props: { atX: fx },
-        hitboxScale: { x: -ch / 2, w: ch, h: ch },
-      });
-    }
-    if (active.documents_earlier) {
-      spawnDecor(k, "backpack", sizes, { x: 80, z: LAYERS.PROP });
+    function syncCheckpointMarkers() {
+      const existing = k.get("checkpoint");
+      if (checkpointMgr.enabled()) {
+        if (existing.length > 0) return;
+        for (let z = 1; z < ZONES.length; z++) {
+          const fx = BIOME_W * z + 60;
+          const ch = DISPLAY_H["campfire"];
+          spawnGrounded(k, "campfire", sizes, {
+            x: fx, z: LAYERS.PROP, tag: "checkpoint",
+            props: { atX: fx },
+            hitboxScale: { x: -ch / 2, w: ch, h: ch },
+          });
+        }
+      } else {
+        existing.forEach((o) => (o as unknown as { destroy: () => void }).destroy());
+        checkpointMgr.clear();
+      }
     }
 
 

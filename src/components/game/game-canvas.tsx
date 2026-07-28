@@ -103,7 +103,11 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const [loading, setLoading] = useState(false);
   const [endResult, setEndResult] = useState<WinResult | null>(null);
   const { portrait } = useOrientation();
+  const { vw, vh } = useViewportSize();
   const [isTouch] = useState(() => isCoarsePointer());
+  /** The player asked for fullscreen; keep them there across browser hiccups. */
+  const fsIntentRef = useRef(false);
+
   const music = useMemo(() => new GameMusic(), []);
   const [musicOn, setMusicOn] = useState(false);
   useEffect(() => () => { music.stop(); }, [music]);

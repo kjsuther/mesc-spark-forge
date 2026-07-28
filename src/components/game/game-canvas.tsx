@@ -186,13 +186,17 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     return () => clearTimeout(t);
   }, [showHint]);
 
-  // Native fullscreen tracking
+  // Native fullscreen tracking. If the browser drops out of fullscreen on its
+  // own (rotation on some Android builds, an OS gesture, a tab switch) but the
+  // player never asked to leave, fall back to the in-page fullscreen overlay
+  // instead of dumping them back into the small page layout.
   useEffect(() => {
     const onFsChange = () => {
       const fsElement =
         document.fullscreenElement ||
         (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement;
       setIsFullscreen(!!fsElement);
+      if (!fsElement && fsIntentRef.current) setFauxFullscreen(true);
     };
     document.addEventListener("fullscreenchange", onFsChange);
     document.addEventListener("webkitfullscreenchange", onFsChange as EventListener);
@@ -202,15 +206,48 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     };
   }, []);
 
-  // Lock body scroll while in faux-fullscreen (iOS Safari fallback)
+  // Lock the page behind the game while any fullscreen mode is active so the
+  // document can never scroll a few pixels and reveal browser chrome.
   useEffect(() => {
     if (!fauxFullscreen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const body = document.body.style;
+    const html = document.documentElement.style;
+    const prev = { overflow: body.overflow, htmlOverflow: html.overflow, overscroll: body.overscrollBehavior };
+    body.overflow = "hidden";
+    html.overflow = "hidden";
+    body.overscrollBehavior = "none";
     return () => {
-      document.body.style.overflow = prev;
+      body.overflow = prev.overflow;
+      html.overflow = prev.htmlOverflow;
+      body.overscrollBehavior = prev.overscroll;
     };
   }, [fauxFullscreen]);
+
+  // Keep the engine's backing buffer in step with the CSS box after every
+  // layout-changing event. Kaplay watches the canvas with a ResizeObserver, so
+  // all we have to do is make sure a real layout pass happens on the frames
+  // right after a rotation / fullscreen transition — iOS Safari reports stale
+  // sizes for a beat or two after both.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    let raf = 0;
+    const timers: number[] = [];
+    const nudge = () => {
+      // Reading a layout property forces the pending reflow to resolve.
+      void canvas.offsetWidth;
+      void canvas.offsetHeight;
+    };
+    raf = requestAnimationFrame(nudge);
+    for (const delay of [120, 400, 900]) {
+      timers.push(window.setTimeout(nudge, delay));
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      timers.forEach((t) => clearTimeout(t));
+    };
+  }, [vw, vh, isFullscreen, fauxFullscreen, launchMode]);
+
 
   // Block context menu and pull-to-refresh on the game surface
   useEffect(() => {

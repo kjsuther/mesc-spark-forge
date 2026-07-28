@@ -2468,8 +2468,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.dead) return;
         if (k.time() < player.invulnUntil) return;
         if (k.time() < boss.hurtUntil) return;
-        // Navigator power-up: helper takes the boss out on first contact.
-        if (active.navigator_helper) {
+        // Navigator power-up: the helper takes the boss out on first contact
+        // and is consumed (single use).
+        if (bossMgr.shouldAutoDefeat()) {
+          bossMgr.consumeNavigator();
+          syncCompanion();
           boss.hits = 2;
           boss.hurtUntil = k.time() + 0.4;
           zoneState.bossHits = 2;
@@ -2481,6 +2484,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           hearts.destroy();
           const kx = boss.pos.x;
           const ky = GROUND_Y - 40;
+          sparkleBurst(boss.pos.x, GROUND_Y - bh / 2, [255, 235, 140]);
           k.wait(0.6, () => {
             boss.destroy();
             spawnGoldKey(kx, ky);

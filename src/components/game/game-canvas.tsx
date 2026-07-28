@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { activeRoundQuery, improvementsQuery } from "@/lib/game.queries";
 import { Leaderboard } from "./leaderboard";
 import { ScoreEntryOverlay } from "./score-entry-overlay";
 import { VoteOverlay } from "./vote-overlay";

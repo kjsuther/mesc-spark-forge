@@ -2537,6 +2537,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           if (boss.hits >= 2) {
             boss.dead = true;
             zoneState.bossDefeated = true;
+            setMusic("adventure");
             setGameObjSprite(boss, "boss-defeat");
             hearts.destroy();
             const kx = boss.pos.x;

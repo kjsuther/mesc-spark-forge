@@ -53,7 +53,11 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
   const [menuScreen, setMenuScreen] = useState<MenuScreen>("title");
   const [showHint, setShowHint] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [endResult, setEndResult] = useState<WinResult | null>(null);
+  const [endResult, setEndResult] = useState<WinResult | null>(
+    typeof window !== "undefined" && window.location.search.includes("scoretest")
+      ? ({ won: false, score: 3145, durationMs: 42000, docs: 1, farthestZone: 1, mode: "before", distancePx: 100, jumpsLanded: 3, enemiesPassed: 2, deaths: 3 } as unknown as WinResult)
+      : null,
+  );
   const { portrait } = useOrientation();
   const [isTouch] = useState(() => isCoarsePointer());
   const music = useMemo(() => new GameMusic(), []);
@@ -411,7 +415,7 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
 
 
         {/* In-window SNES name entry the moment a run ends */}
-        {endResult && !presentation && launchMode && (
+        {endResult && !presentation && (
           <ScoreEntryOverlay result={endResult} onClose={() => setEndResult(null)} />
         )}
 

@@ -166,17 +166,122 @@ async function applyRound(
   const winner = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
   if (!winner) return { ok: true as const, winner: null };
 
-  await supabaseAdmin
-    .from("game_improvements")
-    .update({ enabled: true, updated_at: new Date().toISOString() })
-    .eq("key", winner[0]);
+  // The winning upgrade is NOT enabled here. Instead we open a "build run":
+  // every screen plays the ~30s live-build sequence off the shared timestamp,
+  // and the flag is flipped by finalizeBuildRun when the sequence completes.
   await supabaseAdmin
     .from("game_vote_rounds")
     .update({ status: "applied", winner_key: winner[0], applied_at: new Date().toISOString() })
     .eq("id", roundId);
 
-  return { ok: true as const, winner: { key: winner[0], votes: winner[1] } };
+  await supabaseAdmin
+    .from("game_build_runs")
+    .update({ status: "cancelled", completed_at: new Date().toISOString() })
+    .eq("status", "running");
+
+  const { data: run } = await supabaseAdmin
+    .from("game_build_runs")
+    .insert({
+      improvement_key: winner[0],
+      round_id: roundId,
+      votes: winner[1],
+      duration_sec: 30,
+      status: "running",
+      applies_flag: true,
+      started_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+
+  return { ok: true as const, winner: { key: winner[0], votes: winner[1] }, runId: run?.id ?? null };
 }
+
+// ---------------- Live "build" theatre ----------------
+
+/**
+ * Completes a build run: flips the winning upgrade's feature flag on.
+ * Callable without an admin session (attendee screens finish the run when the
+ * timer elapses) but only ever *after* the scripted duration has passed —
+ * unless an admin forces it from the dashboard.
+ */
+export const finalizeBuildRun = createServerFn({ method: "POST" })
+  .inputValidator((data: { id: string; force?: boolean }) => data)
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: run } = await supabaseAdmin
+      .from("game_build_runs")
+      .select("id, improvement_key, started_at, duration_sec, status, applies_flag")
+      .eq("id", data.id)
+      .maybeSingle();
+    if (!run) return { ok: false as const, reason: "not_found" as const };
+    if (run.status !== "running") return { ok: true as const, alreadyDone: true as const };
+
+    if (data.force) {
+      await requireAdmin();
+    } else {
+      const endsAt = new Date(run.started_at).getTime() + run.duration_sec * 1000;
+      if (Date.now() < endsAt - 1000) {
+        return { ok: false as const, reason: "too_early" as const };
+      }
+    }
+
+    if (run.applies_flag) {
+      await supabaseAdmin
+        .from("game_improvements")
+        .update({ enabled: true, updated_at: new Date().toISOString() })
+        .eq("key", run.improvement_key);
+      await supabaseAdmin
+        .from("game_settings")
+        .update({ before_after: "after", updated_at: new Date().toISOString() })
+        .eq("id", 1);
+    }
+
+    await supabaseAdmin
+      .from("game_build_runs")
+      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .eq("id", run.id);
+
+    return { ok: true as const, improvementKey: run.improvement_key };
+  });
+
+/** Admin: replay the sequence for an upgrade without changing any flags. */
+export const replayBuildRun = createServerFn({ method: "POST" })
+  .inputValidator((data: { key: ImprovementKey; votes?: number }) => data)
+  .handler(async ({ data }) => {
+    await requireAdmin();
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin
+      .from("game_build_runs")
+      .update({ status: "cancelled", completed_at: new Date().toISOString() })
+      .eq("status", "running");
+    const { data: run, error } = await supabaseAdmin
+      .from("game_build_runs")
+      .insert({
+        improvement_key: data.key,
+        votes: data.votes ?? 0,
+        duration_sec: 30,
+        status: "running",
+        applies_flag: false,
+        started_at: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    if (error) throw error;
+    return { ok: true as const, runId: run.id };
+  });
+
+/** Admin: stop the current sequence without applying anything. */
+export const cancelBuildRun = createServerFn({ method: "POST" }).handler(async () => {
+  await requireAdmin();
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { error } = await supabaseAdmin
+    .from("game_build_runs")
+    .update({ status: "cancelled", completed_at: new Date().toISOString() })
+    .eq("status", "running");
+  if (error) throw error;
+  return { ok: true as const };
+});
+
 
 // ===== Public (unauthenticated) attendee voting =====
 // These run server-side with the service-role client so the browser never

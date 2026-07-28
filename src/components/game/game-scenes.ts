@@ -3084,7 +3084,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     for (const key of jumpKeys) k.onKeyPress(key as never, () => tryJump());
-    k.onKeyPress("r", () => k.go("trail", 40, 1));
+    k.onKeyPress("r", () => {
+      // While the win sequence is playing the player must watch the
+      // thank-you cutscene before restarting.
+      if (player.won) return;
+      k.go("trail", 40, 1);
+    });
+
 
     (player as AnyObj).use(k.opacity(1));
     player.onUpdate(() => {

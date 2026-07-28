@@ -588,7 +588,15 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         {/* SNES-style title / launch / high-score screen */}
         {!launchMode && !error && (
           <div
-            className="absolute inset-0 z-30 grid place-items-center bg-mn-blue p-4 text-cream"
+            className="absolute inset-0 z-30 grid place-items-center overflow-hidden bg-mn-blue text-cream"
+            style={{
+              padding: [
+                "calc(env(safe-area-inset-top, 0px) + 8px)",
+                "calc(env(safe-area-inset-right, 0px) + 12px)",
+                "calc(env(safe-area-inset-bottom, 0px) + 8px)",
+                "calc(env(safe-area-inset-left, 0px) + 12px)",
+              ].join(" "),
+            }}
             onClick={(e) => {
               // Tap/click anywhere continues — except on the menu buttons
               // themselves, which already have their own action.
@@ -596,6 +604,13 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
               advanceMenu();
             }}
           >
+            {/* One scale factor for every menu card: keeps text legible on
+                big screens and stops short landscape phones from clipping. */}
+            <div
+              className="grid w-full place-items-center"
+              style={{ transform: `scale(${uiScale})`, transformOrigin: "center" }}
+            >
+
 
             {menuScreen === "title" && (
               <div className="w-full max-w-lg text-center">

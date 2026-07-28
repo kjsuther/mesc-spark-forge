@@ -838,6 +838,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     { get: (_t, prop) => FeatureFlags.isDbKeyOn(String(prop)) },
   ) as Record<string, boolean>;
 
+  /** Live subscription to the flag store; re-created whenever a scene starts. */
+  let unsubscribeFeatures: (() => void) | null = null;
+
+
+
   const k: Ctx = kaplay({
     canvas: opts.canvas,
     // Fixed logical resolution. Kaplay's letterbox mode scales this buffer to

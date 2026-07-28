@@ -1,32 +1,23 @@
 ## Goal
 
-Keep the current map artwork exactly as is. Rework the animated overlay in the "THE TRAIL AHEAD" screen so the animated line traces the trail actually painted on that image and its stops land on the printed 1–8 markers.
+In Stage 3 (Crossing the River of Paperwork), make the water gap wide enough that all four moving platforms — including "SIGNATURE" — sit fully over the gap, then increase difficulty: longer jumps between platforms, and platforms that travel higher and move faster.
 
-## Current problem
+## What's wrong today
 
-The overlay in `TrailMap` (`src/components/game/game-canvas.tsx`) places 8 nodes on a math-generated sine wave evenly spread left→right, then draws straight dashed lines between them. That geometry has nothing to do with the artwork, so colored dots land in trees/water and the lines cut across the map.
+The river gap spans 480px (`RIVER_GAP_X0` = base+320 to `RIVER_GAP_X1` = base+800). The four platforms start at +20, +165, +310, +455 relative to the gap start and are 108px wide, so the last one ("SIGNATURE") ends 83px past the far bank — it visually overhangs solid ground, which is what the video shows.
 
-## Approach
+## Changes (all in `src/components/game/game-scenes.ts`)
 
-1. **Measure the artwork once.** The background is 1280×640 (2:1), and the SVG overlay already uses a `0 0 800 400` viewBox with `background-size: cover` on a fixed `aspect-[2/1]` frame, so image pixels map 1:1 to viewBox units. Traced marker centers (viewBox units):
+1. **Widen the water gap** — move `RIVER_GAP_X1` from base+800 to roughly base+1010, giving a ~690px gap. The ground segments and the water rectangle already derive from these constants, so the bank art and the drown zone follow automatically. The bridge upgrade path (`active.bridge`) also derives its width from the same constants and stays correct.
 
-   ```text
-   1 (92,275)  2 (163,192)  3 (261,213)  4 (383,138)
-   5 (333,268) 6 (570,299)  7 (638,193)  8 (726,193)
-   ```
+2. **Respace the four platforms so every one floats over water** — positions become about gap start +30, +200, +370, +540. With a 108px platform, the last platform's right edge lands ~40px short of the far bank, so all four are clearly over the river.
 
-2. **Hand-author the path.** Replace the generated line segments with a single SVG `<path>` of cubic bezier segments running 1→2→3→4→5→6→7→8, with control points tuned to hug the painted dashed trail (dips around the bridge at 3, the loop up to the farmhouse at 4 and back down to 5, the long curve past the mountain tunnel to 6).
+3. **Longer jumps** — edge-to-edge spacing rises from ~37px to ~62px, so each hop demands real commitment while staying inside the hero's jump arc (verified against the existing jump height/run speed, plus coyote time and jump buffering).
 
-3. **Animate the draw, not the dots.** Use `getTotalLength()` on the path with `stroke-dasharray`/`stroke-dashoffset` so the highlight line draws smoothly along the trail. A small traveling marker (hero-colored dot with pixel outline) rides the path via `getPointAtLength()`.
+4. **Higher, faster oscillation** — bump each platform's vertical amplitude from 46-62 up to roughly 70-90, and increase the speeds by about 20-25% (e.g. 3.6 → 4.4, 3.1 → 3.9, 4.0 → 4.8, 3.4 → 4.2). Base Y positions get nudged up slightly so the taller swing never dips a platform below the bank line or pushes it off the top of the view.
 
-4. **Stops read as highlights, not new pins.** Instead of drawing opaque colored circles over the printed numbers, each stop gets a pulsing gold ring + soft glow centered on the printed marker, activated as the line reaches it. Numbers stay legible.
+5. **Keep the labels glued on** — the plaque, shadow, and gold text already track `plat.pos.y` each frame; they move with the new amplitudes with no extra work.
 
-5. **Caption sync.** The existing bottom caption keeps updating to the current stop's label; add a dark plaque behind it for the same readability treatment used elsewhere in the game.
+## Verification
 
-6. **Scaling safety.** Frame stays `aspect-[2/1]` with `background-size: 100% 100%` (instead of `cover`) so the image can never crop and de-sync from the overlay at any container width; the SVG keeps `preserveAspectRatio="none"` matched to that.
-
-## Technical notes
-
-- Only `src/components/game/game-canvas.tsx` (the `TrailMap` component) changes. No asset changes; `trail-map-terrain.png` is not used.
-- Animation driven by a `requestAnimationFrame` progress value (0→1) rather than the current 60ms interval tick, for a smooth draw; respects reduced-motion by snapping to full path.
-- Verification: run the intro flow in the preview at desktop and mobile widths and screenshot the map screen to confirm the animated line sits on the painted trail and rings land on stops 1–8.
+Run the game through Stage 3 in the preview at desktop and mobile widths, screenshot the crossing, and confirm: no platform overlaps a bank, the swing stays fully on screen, and the crossing is completable (harder, not impossible) with the current jump tuning.

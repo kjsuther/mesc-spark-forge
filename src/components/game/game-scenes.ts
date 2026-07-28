@@ -885,7 +885,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     const RIVER_BASE = BIOME_W * 2;
     const RIVER_GAP_X0 = RIVER_BASE + 320;
-    const RIVER_GAP_X1 = RIVER_BASE + 800;
+    const RIVER_GAP_X1 = RIVER_BASE + 1010;
     addGround(k, RIVER_BASE, RIVER_GAP_X0, GROUND_Y, ZONES[2].ground, ZONES[2].soil);
     addGround(k, RIVER_GAP_X1, BIOME_W * 3, GROUND_Y, ZONES[2].ground, ZONES[2].soil);
 
@@ -1194,18 +1194,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(rx0, GROUND_Y - 6) },
       ]);
       const bridgeH = DISPLAY_H["bridge"];
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 7; i++) {
         spawnDecor(k, "bridge", sizes, { x: rx0 + i * 100 + 50, groundY: GROUND_Y - 6 + bridgeH, z: LAYERS.PLATFORM - 1 });
       }
     } else {
       // Each platform represents an application section. Label baked into the
       // platform surface so the player literally steps on "About You", "Household",
       // "Income", "Signature" to cross the river.
+      // All four sit fully over the water gap (gap is 690px wide, platforms are
+      // 108px wide and end ~40px short of the far bank).
       const platforms = [
-        { x: rx0 + 20,  y: GROUND_Y - 44, amp: 46, spd: 3.6, label: "ABOUT YOU" },
-        { x: rx0 + 165, y: GROUND_Y - 76, amp: 62, spd: 3.1, label: "HOUSEHOLD" },
-        { x: rx0 + 310, y: GROUND_Y - 58, amp: 52, spd: 4.0, label: "INCOME" },
-        { x: rx0 + 455, y: GROUND_Y - 44, amp: 46, spd: 3.4, label: "SIGNATURE" },
+        { x: rx0 + 30,  y: GROUND_Y - 76,  amp: 70, spd: 4.4, label: "ABOUT YOU" },
+        { x: rx0 + 200, y: GROUND_Y - 100, amp: 94, spd: 3.9, label: "HOUSEHOLD" },
+        { x: rx0 + 370, y: GROUND_Y - 92,  amp: 86, spd: 4.8, label: "INCOME" },
+        { x: rx0 + 540, y: GROUND_Y - 76,  amp: 70, spd: 4.2, label: "SIGNATURE" },
       ];
 
       for (const p of platforms) {

@@ -39,15 +39,20 @@ function AdminGamePage() {
   const { data: improvements = [] } = useQuery(improvementsQuery);
   const { data: settings } = useQuery(gameSettingsQuery);
   const { data: round } = useQuery(activeRoundQuery);
+  const { data: buildRun } = useQuery(activeBuildRunQuery);
   const toggle = useServerFn(setImprovementEnabled);
   const setMode = useServerFn(setBeforeAfter);
   const reset = useServerFn(resetImprovements);
   const startRound = useServerFn(startVoteRound);
   const endRound = useServerFn(endAndApplyRound);
   const wipeScores = useServerFn(resetLeaderboard);
+  const finishBuild = useServerFn(finalizeBuildRun);
+  const replayBuild = useServerFn(replayBuildRun);
+  const stopBuild = useServerFn(cancelBuildRun);
 
   const [selected, setSelected] = useState<Set<ImprovementKey>>(new Set());
   const [durationMin, setDurationMin] = useState(10);
+  const [replayKey, setReplayKey] = useState<ImprovementKey>(IMPROVEMENT_KEYS[0]);
 
   useEffect(() => {
     const ch = supabase

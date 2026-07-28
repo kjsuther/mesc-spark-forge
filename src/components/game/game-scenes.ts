@@ -3323,6 +3323,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     let rightArmed = false;
 
     let currentZone = Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)));
+    // Start the run on this zone's tune (rotated for variety per run).
+    setMusic(zoneMusic(currentZone));
     showStepScreen(currentZone);
 
 

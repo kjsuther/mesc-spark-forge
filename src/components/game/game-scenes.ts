@@ -2147,7 +2147,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       upgPanel.opacity = rows.length === 0 ? 0 : 0.85;
       const top = k.height() - 12 - h;
       upgTitle.opacity = rows.length === 0 ? 0 : 1;
-      upgTitle.pos = k.vec2(22, top + 6);
+      upgTitle.setPos(22, top + 6);
       upgRows.forEach((t, i) => {
         const row = rows[i];
         if (!row) {
@@ -2156,7 +2156,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
         t.opacity = 1;
         t.text = `${row.carried ? "✓" : "○"} ${row.label}`;
-        t.pos = k.vec2(22, top + 22 + i * 16);
+        t.setPos(22, top + 22 + i * 16);
       });
     }
 

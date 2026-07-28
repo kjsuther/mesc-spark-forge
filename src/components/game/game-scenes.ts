@@ -3222,13 +3222,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.fixed(),
       k.z(12),
     ]);
+    const winReset =
+      typeof window !== "undefined"
+        ? (window as unknown as { __gameInput?: { resetReq: boolean } })
+        : undefined;
     k.onUpdate(() => {
       (prompt as AnyObj).opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.15;
-      if (w?.__gameInput?.resetReq) {
-        w.__gameInput.resetReq = false;
+      if (winReset?.__gameInput?.resetReq) {
+        winReset.__gameInput.resetReq = false;
         k.go("trail", 40, 1);
       }
     });
+
 
     const hit = k.add([
       k.rect(W, H),

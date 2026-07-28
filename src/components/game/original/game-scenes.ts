@@ -1503,41 +1503,89 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= ZONE 5: Waiting Mountain — 10-second countdown =================
     const mx0 = BIOME_W * 5;
     // Falling calendar pages — days peeling off the calendar while you wait.
-    // Difficulty pass: 14 pages (was 20), slower fall and gentler drift so a
-    // dodge you commit to actually works. A hit still resets the countdown.
-    const CAL_COUNT = 14;
+    // Rebalance pass: a small pool (8) of pages that drop one at a time on a
+    // scheduler instead of raining continuously. Every drop is telegraphed,
+    // never lands on the column the player is standing in, and keeps a minimum
+    // horizontal gap from the previous drop, so there is always a safe lane.
+    const CAL_COUNT = 8;
+    const CAL_L = mx0 + 80;
+    const CAL_R = mx0 + BIOME_W - 80;
+    const CAL_MIN_GAP = 0.85; // seconds between two pages starting to fall
+    const CAL_TELEGRAPH = 0.5; // seconds a warning marker shows before the drop
+    let calNextDropAt = 0;
+    let calLastX = (CAL_L + CAL_R) / 2;
+    /** Pick a drop column: away from the player and from the previous drop. */
+    function pickCalX(): number {
+      let best = CAL_L + Math.random() * (CAL_R - CAL_L);
+      let bestScore = -1;
+      for (let i = 0; i < 8; i++) {
+        const cand = CAL_L + Math.random() * (CAL_R - CAL_L);
+        const dPlayer = Math.abs(cand - player.pos.x);
+        const dPrev = Math.abs(cand - calLastX);
+        if (dPlayer < 120) continue; // never right on top of the player
+        const score = Math.min(dPlayer, dPrev * 1.4);
+        if (score > bestScore) { bestScore = score; best = cand; }
+      }
+      calLastX = best;
+      return best;
+    }
     for (let i = 0; i < CAL_COUNT; i++) {
-      const initialX = mx0 + 80 + Math.random() * (BIOME_W - 160);
       const b = spawnAirborne(k, "calendar-page", sizes, {
-        x: initialX, y: -80 - Math.random() * 300, z: LAYERS.ACTOR,
+        x: (CAL_L + CAL_R) / 2, y: -400, z: LAYERS.ACTOR,
         tag: "boulder",
         props: {
-          spd: 290 + Math.random() * 170,
-          spin: (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 60),
-          driftAmp: 14 + Math.random() * 26,
-          driftSpd: 0.9 + Math.random() * 1.1,
+          spd: 230,
+          spin: 40,
+          driftAmp: 10,
+          driftSpd: 1,
           driftPhase: Math.random() * Math.PI * 2,
-          baseX: initialX,
-          zoneL: mx0 + 60,
-          zoneR: mx0 + BIOME_W - 60,
+          baseX: (CAL_L + CAL_R) / 2,
+          armAt: 0,
+          falling: false,
+          marker: null as null | { pos: { x: number; y: number }; destroy: () => void; opacity: number },
         },
       });
       b.use(k.rotate(0));
+      /** Park the page off-screen and schedule its next telegraphed drop. */
+      const rearm = () => {
+        b.falling = false;
+        b.pos = k.vec2((CAL_L + CAL_R) / 2, -600);
+        b.armAt = k.time() + 0.2 + Math.random() * 1.6;
+      };
+      rearm();
       b.onUpdate(() => {
-        b.pos.y += b.spd * k.dt();
-        b.pos.x = b.baseX + Math.sin(k.time() * b.driftSpd + b.driftPhase) * b.driftAmp;
-        b.angle = (b.angle ?? 0) + b.spin * k.dt();
-        if (b.pos.y > 700) {
-          const nx = b.zoneL + Math.random() * (b.zoneR - b.zoneL);
+        const now = k.time();
+        if (!b.falling) {
+          // Wait for this page's turn AND for the global spacing gap.
+          if (now < b.armAt || now < calNextDropAt) return;
+          calNextDropAt = now + CAL_MIN_GAP;
+          const nx = pickCalX();
           b.baseX = nx;
-          b.pos = k.vec2(nx, -80 - Math.random() * 100);
-          b.spd = 380 + Math.random() * 240;
-          b.spin = (Math.random() < 0.5 ? -1 : 1) * (30 + Math.random() * 60);
-          b.driftAmp = 20 + Math.random() * 40;
-          b.driftSpd = 1.2 + Math.random() * 1.6;
+          b.pos = k.vec2(nx, -80);
+          b.spd = 210 + Math.random() * 70; // slower than before (was 290-460)
+          b.spin = (Math.random() < 0.5 ? -1 : 1) * (25 + Math.random() * 35);
+          b.driftAmp = 8 + Math.random() * 12;
+          b.driftSpd = 0.7 + Math.random() * 0.6;
           b.driftPhase = Math.random() * Math.PI * 2;
           b.angle = 0;
+          b.falling = true;
+          // Telegraph: a shadow marker on the ground under the drop column.
+          const marker = k.add([
+            k.rect(30, 6, { radius: 3 }),
+            k.pos(nx, GROUND_Y - 4),
+            k.anchor("center"),
+            k.color(60, 45, 90),
+            k.opacity(0.75),
+            k.z(LAYERS.GROUND_TOP + 2),
+          ]) as unknown as { destroy: () => void; opacity: number };
+          b.marker = marker;
+          k.wait(CAL_TELEGRAPH + 1.2, () => marker.destroy());
+          return;
         }
+        b.pos.y += b.spd * k.dt();
+        b.pos.x = b.baseX + Math.sin(now * b.driftSpd + b.driftPhase) * b.driftAmp;
+        b.angle = (b.angle ?? 0) + b.spin * k.dt();
+        if (b.pos.y > 700) rearm();
       });
     }
 

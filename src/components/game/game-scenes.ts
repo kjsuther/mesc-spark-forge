@@ -1823,27 +1823,169 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (nearTop || col?.isBottom()) snapToPlatform(plat);
     });
 
-    // ================= Ranger helper =================
-    if (active.navigator_helper) {
-      const ranger = spawnGrounded(k, "ranger", sizes, {
-        x: spawnX + 60,
-        z: LAYERS.ACTOR,
-      });
-      const bubble = k.add([
-        k.text("Follow me!", { size: 12, font: "sans-serif" }),
-        k.pos(0, 0),
-        k.color(30, 30, 30),
-        k.z(LAYERS.EFFECT),
+    // ================= Power-ups (Navigator / Live Chat / Email) =================
+    // Every pickup is driven by PowerUpManager, which is driven by the flags.
+    // Nothing here asks about a flag directly.
+    const POWERUP_STYLE: Record<
+      PowerUpKind,
+      { fill: [number, number, number]; glyph: string }
+    > = {
+      navigator: { fill: [60, 150, 90], glyph: "NAV" },
+      chat: { fill: [50, 110, 210], glyph: "CHAT" },
+      email: { fill: [200, 130, 40], glyph: "MAIL" },
+    };
+    const powerUpObjs = new Map<PowerUpKind, AnyObj>();
+
+    function spawnPowerUp(kind: PowerUpKind) {
+      const def = POWERUP_DEFS[kind];
+      const style = POWERUP_STYLE[kind];
+      const x = def.zone * BIOME_W + def.offsetX;
+      const y = GROUND_Y - def.y;
+      const W = 54, H = 30;
+      const box = k.add([
+        k.rect(W, H, { radius: 6 }),
+        k.pos(x, y),
         k.anchor("center"),
-      ]);
-      ranger.onUpdate(() => {
-        const target = Math.min(player.pos.x + 90, LEVEL_END - 100);
-        const dx = target - ranger.pos.x;
-        ranger.pos.x += Math.sign(dx) * Math.min(Math.abs(dx), 3);
-        ranger.pos.y = GROUND_Y;
-        bubble.pos = k.vec2(ranger.pos.x, ranger.pos.y - DISPLAY_H["ranger"] - 12);
+        k.color(...style.fill),
+        k.outline(3, k.rgb(255, 255, 255)),
+        k.area({ shape: new k.Rect(k.vec2(-W / 2, -H / 2), W, H) }),
+        k.z(LAYERS.EFFECT),
+        "powerup",
+        { kind, baseY: y },
+      ]) as AnyObj;
+      const label = k.add([
+        k.text(style.glyph, { size: 13, font: "sans-serif" }),
+        k.pos(x, y),
+        k.anchor("center"),
+        k.color(255, 255, 255),
+        k.z(LAYERS.EFFECT + 1),
+      ]) as AnyObj;
+      box.onUpdate(() => {
+        box.pos.y = box.baseY + Math.sin(k.time() * 2.4) * 6;
+        label.pos = k.vec2(box.pos.x, box.pos.y);
       });
+      box.onDestroy(() => label.destroy());
+      powerUpObjs.set(kind, box);
     }
+
+    function syncPowerUps() {
+      powerUps.revokeDisabled();
+      for (const kind of POWERUP_KINDS) {
+        const present = powerUpObjs.get(kind);
+        if (powerUps.shouldSpawn(kind)) {
+          if (!present) spawnPowerUp(kind);
+        } else if (present) {
+          present.destroy();
+          powerUpObjs.delete(kind);
+        }
+      }
+    }
+
+    function sparkleBurst(x: number, y: number, color: [number, number, number]) {
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        const sp = k.add([
+          k.rect(4, 4),
+          k.pos(x, y),
+          k.color(...color),
+          k.anchor("center"),
+          k.opacity(1),
+          k.z(LAYERS.EFFECT + 2),
+          { vx: Math.cos(a) * 110, vy: Math.sin(a) * 110, life: 0 },
+        ]) as AnyObj;
+        sp.onUpdate(() => {
+          sp.pos.x += sp.vx * k.dt();
+          sp.pos.y += sp.vy * k.dt();
+          sp.life += k.dt();
+          sp.opacity = Math.max(0, 1 - sp.life * 1.4);
+          if (sp.life > 0.8) sp.destroy();
+        });
+      }
+    }
+
+    player.onCollide("powerup", (p) => {
+      const obj = p as unknown as { kind: PowerUpKind; pos: { x: number; y: number }; destroy: () => void };
+      const kind = obj.kind;
+      powerUps.collect(kind);
+      player.score += 300;
+      sparkleBurst(obj.pos.x, obj.pos.y, POWERUP_STYLE[kind].fill);
+      obj.destroy();
+      powerUpObjs.delete(kind);
+      showHint(
+        kind === "navigator"
+          ? "Navigator joined you — they'll handle the boss!"
+          : kind === "chat"
+            ? "Live chat open — you're shielded in this zone!"
+            : "Emailed your case worker — umbrella up!",
+      );
+    });
+
+    // ----- Navigator companion: walks beside the player while carried -----
+    let companion: AnyObj | null = null;
+    let companionBubble: AnyObj | null = null;
+    function syncCompanion() {
+      const want = powerUps.navigatorReady();
+      if (want && !companion) {
+        companion = spawnGrounded(k, "ranger", sizes, {
+          x: player.pos.x - 60,
+          z: LAYERS.ACTOR,
+        }) as AnyObj;
+        companionBubble = k.add([
+          k.text("I'll help!", { size: 12, font: "sans-serif" }),
+          k.pos(0, 0),
+          k.color(255, 255, 255),
+          k.z(LAYERS.EFFECT),
+          k.anchor("center"),
+        ]) as AnyObj;
+      } else if (!want && companion) {
+        companion.destroy();
+        companionBubble?.destroy();
+        companion = null;
+        companionBubble = null;
+      }
+    }
+    k.onUpdate(() => {
+      if (!companion) return;
+      const target = player.pos.x - 62 * player.facing;
+      const dx = target - companion.pos.x;
+      companion.pos.x += Math.sign(dx) * Math.min(Math.abs(dx), 4);
+      companion.pos.y = GROUND_Y;
+      if (companionBubble) {
+        companionBubble.pos = k.vec2(companion.pos.x, companion.pos.y - DISPLAY_H["ranger"] - 12);
+      }
+      if (Math.random() < 0.06) {
+        sparkleBurst(companion.pos.x, companion.pos.y - DISPLAY_H["ranger"] / 2, [255, 235, 140]);
+      }
+    });
+
+    // ----- Chat shield ring + Email umbrella, purely reactive visuals -----
+    const shieldRing = k.add([
+      k.circle(34),
+      k.pos(0, 0),
+      k.anchor("center"),
+      k.color(90, 170, 255),
+      k.opacity(0),
+      k.z(LAYERS.PLAYER - 1),
+    ]) as AnyObj;
+    const umbrella = k.add([
+      k.rect(64, 12, { radius: 6 }),
+      k.pos(0, 0),
+      k.anchor("center"),
+      k.color(220, 90, 90),
+      k.outline(2, k.rgb(40, 40, 60)),
+      k.opacity(0),
+      k.z(LAYERS.PLAYER + 1),
+    ]) as AnyObj;
+    k.onUpdate(() => {
+      const zoneNow = Math.floor(player.pos.x / BIOME_W);
+      const shielded = powerUps.shieldActive(zoneNow);
+      shieldRing.opacity = shielded ? 0.35 + Math.sin(k.time() * 8) * 0.15 : 0;
+      shieldRing.pos = k.vec2(player.pos.x, player.pos.y - 26);
+      const umb = powerUps.umbrellaActive(zoneNow);
+      umbrella.opacity = umb ? 1 : 0;
+      umbrella.pos = k.vec2(player.pos.x, player.pos.y - DISPLAY_H["hero-idle"] - 10);
+    });
+
 
     // ================= HUD =================
     // pixelHudText: HUD label with a 1-px black drop shadow so pixel text

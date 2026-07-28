@@ -213,6 +213,65 @@ function AdminGamePage() {
         </div>
       </section>
 
+      {/* Live build sequence */}
+      <section className="mb-6 bg-[#11131c] text-white border-2 border-emerald-400/40 rounded-lg p-4">
+        <h2 className="font-bold uppercase tracking-wide text-sm mb-3 text-emerald-300">
+          Live Build Sequence
+        </h2>
+        {buildRun ? (
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <span className="text-sm">
+              Building <b>{buildLabel}</b> — {buildSecondsLeft}s remaining
+              {buildRun.appliesFlag ? "" : " (replay — no flags change)"}
+            </span>
+            <div className="flex gap-2">
+              {buildRun.appliesFlag && (
+                <button
+                  onClick={handleFinishBuild}
+                  className="bg-emerald-500 text-white font-bold text-sm px-4 py-2 rounded hover:brightness-110"
+                >
+                  Skip / finish now
+                </button>
+              )}
+              <button
+                onClick={handleCancelBuild}
+                className="border border-white/30 text-white/80 font-bold text-sm px-4 py-2 rounded hover:bg-white/10"
+              >
+                Stop
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <p className="text-xs text-white/60 max-w-md">
+              Ending a round plays a 30-second "Lovable is building it" sequence on the poster
+              screen and every attendee phone, then switches the upgrade on. You can also replay
+              the sequence for rehearsal — a replay changes nothing.
+            </p>
+            <div className="flex gap-2">
+              <select
+                value={replayKey}
+                onChange={(e) => setReplayKey(e.target.value as ImprovementKey)}
+                className="bg-[#0e1119] border border-white/20 rounded px-2 py-2 text-sm"
+              >
+                {improvements.map((i) => (
+                  <option key={i.key} value={i.key}>
+                    {i.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleReplayBuild}
+                className="bg-white/10 border border-white/25 font-bold text-sm px-4 py-2 rounded hover:bg-white/20"
+              >
+                Replay build sequence
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
+
       {/* Voting round */}
       <section className="mb-6 bg-white border-2 border-accent-orange/60 rounded-lg p-4">
         <h2 className="font-bold text-mn-blue uppercase tracking-wide text-sm mb-3">

@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Leaderboard } from "@/components/game/leaderboard";
+import { BuildTheater } from "@/components/build-theater";
 import { activeRoundQuery, improvementsQuery } from "@/lib/game.queries";
 
 export const Route = createFileRoute("/admin/poster")({

@@ -127,9 +127,33 @@ function AdminGamePage() {
   }
   async function handleEndRound() {
     const res = await endRound();
-    if (res.winner) toast.success(`Applied winner: ${res.winner.key} (${res.winner.votes} votes)`);
+    if (res.winner)
+      toast.success(
+        `Winner: ${res.winner.key} (${res.winner.votes} votes) — build sequence playing on all screens`,
+      );
     else toast.info("No winner to apply");
+    qc.invalidateQueries({ queryKey: ["game_build_run"] });
   }
+  async function handleFinishBuild() {
+    if (!buildRun) return;
+    await finishBuild({ data: { id: buildRun.id, force: true } });
+    toast.success("Build finished — upgrade applied");
+    qc.invalidateQueries({ queryKey: ["game_build_run"] });
+    qc.invalidateQueries({ queryKey: ["game_improvements"] });
+    qc.invalidateQueries({ queryKey: ["game_settings"] });
+  }
+  async function handleCancelBuild() {
+    await stopBuild();
+    toast.info("Build sequence stopped — no flags changed");
+    qc.invalidateQueries({ queryKey: ["game_build_run"] });
+  }
+  async function handleReplayBuild() {
+    const votes = improvements.find((i) => i.key === replayKey)?.votes ?? 0;
+    await replayBuild({ data: { key: replayKey, votes } });
+    toast.success("Replaying build sequence (no flags change)");
+    qc.invalidateQueries({ queryKey: ["game_build_run"] });
+  }
+
   async function handleResetScores() {
     if (!confirm("Wipe the entire High Scores leaderboard? This cannot be undone.")) return;
     try {

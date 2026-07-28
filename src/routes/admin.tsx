@@ -80,7 +80,10 @@ function AdminLayout() {
               Admin
             </span>
             <Link to="/admin/game" activeProps={navActive} inactiveProps={navInactive}>
-              Game & Voting
+              Game
+            </Link>
+            <Link to="/admin/feedback" activeProps={navActive} inactiveProps={navInactive}>
+              Player Feedback
             </Link>
             <Link to="/admin/poster" activeProps={navActive} inactiveProps={navInactive}>
               Poster View

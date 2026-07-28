@@ -427,8 +427,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const uiScale = overlayFs
     ? Math.max(0.82, Math.min(1.85, Math.min(vw / 960, vh / 540) * 1.12))
     : 1;
-  // Touch targets follow the viewport height so they stay thumb-sized.
-  const padScale = Math.max(0.85, Math.min(1.35, vh / 430));
+
 
   const containerStyle: React.CSSProperties = overlayFs
     ? {

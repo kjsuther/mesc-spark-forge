@@ -2782,7 +2782,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.fixed(),
         k.z(LAYERS.OVERLAY),
       ]);
-      overlay.onClick(() => k.go("trail", 40, 1));
+      if (!win) overlay.onClick(() => k.go("trail", 40, 1));
       k.add([
         k.text(title, { size: 30, font: "sans-serif" }),
         k.pos(k.width() / 2, k.height() / 2 - 78),
@@ -2799,16 +2799,23 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.fixed(),
         k.z(LAYERS.OVERLAY_TEXT),
       ]);
-      k.add([
-        k.text("Tap screen or press R to try again", { size: 14, font: "sans-serif" }),
-        k.pos(k.width() / 2, k.height() / 2 + 100),
-        k.anchor("center"),
-        k.color(220, 220, 220),
-        k.fixed(),
-        k.z(LAYERS.OVERLAY_TEXT),
-      ]);
-      if (!win) opts.onLose?.(buildResult(false));
+      if (win) {
+        // The WIN screen holds for 5s, then hands off to the thank-you
+        // cutscene — that scene owns the restart prompt.
+        k.wait(5, () => k.go("thanks"));
+      } else {
+        k.add([
+          k.text("Tap screen or press R to try again", { size: 14, font: "sans-serif" }),
+          k.pos(k.width() / 2, k.height() / 2 + 100),
+          k.anchor("center"),
+          k.color(220, 220, 220),
+          k.fixed(),
+          k.z(LAYERS.OVERLAY_TEXT),
+        ]);
+        opts.onLose?.(buildResult(false));
+      }
     }
+
 
     // ================= Controls =================
     const leftKeys = ["left", "a"];

@@ -1,23 +1,22 @@
 ## Problem
 
-The Poster View embeds `/tool/embed`, but that page still renders extra UI from the shared game component:
-
-- a keyboard hint line under the canvas ("← → to move · Space / ↑ to jump · R to reset · ⛶ for fullscreen")
-- a "⛶ Full" toggle button in the corner
-- the canvas is centered at a fixed 16:9 box inside a `grid place-items-center` wrapper, so it letterboxes instead of filling the projected area
+In the "★ THE TRAIL AHEAD ★" screen (the `TrailMap` component in `src/components/game/game-canvas.tsx`), the animated dashed line and the 8 numbered stops are generated mathematically — evenly spaced across the width with a sine-wave vertical offset. They have no relationship to the winding trail and numbered stops painted into the parchment background image (`trail-map-bg-v2.png`). The background is also drawn with `background-size: cover`, so it gets cropped differently at every screen size, which would break any alignment even if the coordinates matched today.
 
 ## Fix
 
-1. **`src/components/game/game-canvas.tsx`** — add an optional `presentation` (embed) prop:
-   - hides the desktop keyboard hint text
-   - hides the "⛶ Full" fullscreen button (irrelevant when already projected)
-   - drops the rounded corners/ring border and makes the canvas wrapper fill 100% of its parent's width and height
-   - keeps all gameplay, HUD, title/win screens, and touch controls untouched
+Make the drawn trail the single source of truth so the two can never disagree:
 
-2. **`src/routes/tool.embed.tsx`** — render the canvas in presentation mode inside a `w-screen h-screen` black container with no padding, so the game fills the iframe edge to edge.
+1. **New background art** — generate a parchment/adventure-map background with terrain only (forest, river, mountains, coast, compass rose, decorative border) and **no painted trail or numbered stops**. This becomes the canvas the animation draws on.
 
-3. **`src/routes/admin.poster.tsx`** — ensure the iframe panel has no inner padding/borders that shrink the game, so the left panel is purely the game.
+2. **Rewrite the trail rendering in `TrailMap`**
+   - Replace the straight sine-spaced line segments with a single hand-authored curved path (SVG cubic bezier) through 8 fixed waypoints laid out over the map's terrain — starting bottom-left, winding through forest and across the river, up over the mountains, ending top-right at "Coverage Begins!".
+   - Animate the trail with the dash-offset technique (`stroke-dasharray` / `stroke-dashoffset`) so the dashed path draws itself smoothly along the curve instead of popping in per segment.
+   - Numbered stop pins sit exactly on the path waypoints and pop in as the drawing reaches each one; the label caption below keeps updating to the current stop.
+
+3. **Lock the coordinate space** — switch the background to `background-size: 100% 100%` inside the fixed `aspect-[2/1]` frame and use the same `0 0 800 400` viewBox for the SVG, so image pixels and SVG coordinates map 1:1 at every screen size and on mobile.
+
+4. Respect reduced motion (show the completed trail immediately) and keep the existing "▶ Begin Journey" / "Back" buttons unchanged.
 
 ## Verification
 
-Drive the live app with a headless browser as an admin viewing `/admin/poster`, and screenshot it to confirm the left panel shows only the game canvas filling the panel — no hint text, no fullscreen button, no site chrome — plus a screenshot of `/tool/embed` on its own.
+Drive the live app with a headless browser on both desktop and a narrow mobile viewport, step to the Trail Map screen, and capture screenshots mid-animation and at completion to confirm the trail and pins sit on the map terrain and line up identically at both sizes.

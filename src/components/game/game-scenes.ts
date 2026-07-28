@@ -17,6 +17,20 @@
 
 import type { KAPLAYCtx } from "kaplay";
 import type { ImprovementKey } from "@/lib/game.functions";
+import { FeatureFlags } from "@/lib/game-features";
+import {
+  PlayerManager,
+  PowerUpManager,
+  EnemyManager,
+  BossManager,
+  CheckpointManager,
+  activeUpgradeRows,
+  POWERUP_DEFS,
+  POWERUP_KINDS,
+  ZONE_INDEX,
+  type PowerUpKind,
+  type CheckpointSnapshot,
+} from "./managers";
 import charSheetUrl from "@/assets/game/character-sheet.png";
 import heroSlideSheetUrl from "@/assets/game/hero-slide-sheet.png";
 import propsSheetUrl from "@/assets/game/props-sheet.png";
@@ -805,7 +819,29 @@ function spawnDecor(
 
 export async function startGame(opts: StartGameOpts): Promise<() => void> {
   const kaplay = (await import("kaplay")).default;
-  const active: Record<string, boolean | undefined> = opts.mode === "after" ? { ...opts.flags } : {};
+
+  // Seed the shared flag store with whatever the caller knows right now. From
+  // here on the engine reads the store live, so an admin toggle changes
+  // gameplay without restarting the run.
+  FeatureFlags.setFromDbFlags(opts.flags as Record<string, boolean>);
+
+  // Centralized systems — the only consumers of the feature flags.
+  const playerMgr = new PlayerManager();
+  const powerUps = new PowerUpManager();
+  const enemyMgr = new EnemyManager(powerUps);
+  const bossMgr = new BossManager(powerUps);
+  const checkpointMgr = new CheckpointManager();
+
+  /** Legacy read-only view: `active.extra_lives` now resolves LIVE. */
+  const active = new Proxy(
+    {},
+    { get: (_t, prop) => FeatureFlags.isDbKeyOn(String(prop)) },
+  ) as Record<string, boolean>;
+
+  /** Live subscription to the flag store; re-created whenever a scene starts. */
+  let unsubscribeFeatures: (() => void) | null = null;
+
+
 
   const k: Ctx = kaplay({
     canvas: opts.canvas,
@@ -1633,19 +1669,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     };
 
 
-    // Save-point campfire near town start (existing improvement).
+    // ===== Checkpoint flags (Check Your Status Anytime) =====
+    // Managed live: markers appear the moment the upgrade is switched on and
+    // vanish the moment it is switched off.
     const checkpointX = spawnX > 1000 ? spawnX : 40;
-    if (active.resume_checkpoint) {
-      const fx = BIOME_W * 3 + 40;
-      const ch = DISPLAY_H["campfire"];
-      spawnGrounded(k, "campfire", sizes, {
-        x: fx, z: LAYERS.PROP, tag: "checkpoint",
-        props: { atX: fx },
-        hitboxScale: { x: -ch / 2, w: ch, h: ch },
-      });
-    }
-    if (active.documents_earlier) {
-      spawnDecor(k, "backpack", sizes, { x: 80, z: LAYERS.PROP });
+    function syncCheckpointMarkers() {
+      const existing = k.get("checkpoint");
+      if (checkpointMgr.enabled()) {
+        if (existing.length > 0) return;
+        for (let z = 1; z < ZONES.length; z++) {
+          const fx = BIOME_W * z + 60;
+          const ch = DISPLAY_H["campfire"];
+          spawnGrounded(k, "campfire", sizes, {
+            x: fx, z: LAYERS.PROP, tag: "checkpoint",
+            props: { atX: fx },
+            hitboxScale: { x: -ch / 2, w: ch, h: ch },
+          });
+        }
+      } else {
+        existing.forEach((o) => (o as unknown as { destroy: () => void }).destroy());
+        checkpointMgr.clear();
+      }
     }
 
 
@@ -1665,8 +1709,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         checkpointX,
         won: false,
         dead: false,
-        lives: active.extra_lives ? 5 : 3,
-        maxLives: active.extra_lives ? 5 : 3,
+        lives: playerMgr.startingLives(),
+        maxLives: playerMgr.startingLives(),
         facing: 1 as 1 | -1,
         invulnUntil: 0,
         lastGroundedAt: k.time(),
@@ -1784,27 +1828,169 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (nearTop || col?.isBottom()) snapToPlatform(plat);
     });
 
-    // ================= Ranger helper =================
-    if (active.navigator_helper) {
-      const ranger = spawnGrounded(k, "ranger", sizes, {
-        x: spawnX + 60,
-        z: LAYERS.ACTOR,
-      });
-      const bubble = k.add([
-        k.text("Follow me!", { size: 12, font: "sans-serif" }),
-        k.pos(0, 0),
-        k.color(30, 30, 30),
-        k.z(LAYERS.EFFECT),
+    // ================= Power-ups (Navigator / Live Chat / Email) =================
+    // Every pickup is driven by PowerUpManager, which is driven by the flags.
+    // Nothing here asks about a flag directly.
+    const POWERUP_STYLE: Record<
+      PowerUpKind,
+      { fill: [number, number, number]; glyph: string }
+    > = {
+      navigator: { fill: [60, 150, 90], glyph: "NAV" },
+      chat: { fill: [50, 110, 210], glyph: "CHAT" },
+      email: { fill: [200, 130, 40], glyph: "MAIL" },
+    };
+    const powerUpObjs = new Map<PowerUpKind, AnyObj>();
+
+    function spawnPowerUp(kind: PowerUpKind) {
+      const def = POWERUP_DEFS[kind];
+      const style = POWERUP_STYLE[kind];
+      const x = def.zone * BIOME_W + def.offsetX;
+      const y = GROUND_Y - def.y;
+      const W = 54, H = 30;
+      const box = k.add([
+        k.rect(W, H, { radius: 6 }),
+        k.pos(x, y),
         k.anchor("center"),
-      ]);
-      ranger.onUpdate(() => {
-        const target = Math.min(player.pos.x + 90, LEVEL_END - 100);
-        const dx = target - ranger.pos.x;
-        ranger.pos.x += Math.sign(dx) * Math.min(Math.abs(dx), 3);
-        ranger.pos.y = GROUND_Y;
-        bubble.pos = k.vec2(ranger.pos.x, ranger.pos.y - DISPLAY_H["ranger"] - 12);
+        k.color(...style.fill),
+        k.outline(3, k.rgb(255, 255, 255)),
+        k.area({ shape: new k.Rect(k.vec2(-W / 2, -H / 2), W, H) }),
+        k.z(LAYERS.EFFECT),
+        "powerup",
+        { kind, baseY: y },
+      ]) as AnyObj;
+      const label = k.add([
+        k.text(style.glyph, { size: 13, font: "sans-serif" }),
+        k.pos(x, y),
+        k.anchor("center"),
+        k.color(255, 255, 255),
+        k.z(LAYERS.EFFECT + 1),
+      ]) as AnyObj;
+      box.onUpdate(() => {
+        box.pos.y = box.baseY + Math.sin(k.time() * 2.4) * 6;
+        label.pos = k.vec2(box.pos.x, box.pos.y);
       });
+      box.onDestroy(() => label.destroy());
+      powerUpObjs.set(kind, box);
     }
+
+    function syncPowerUps() {
+      powerUps.revokeDisabled();
+      for (const kind of POWERUP_KINDS) {
+        const present = powerUpObjs.get(kind);
+        if (powerUps.shouldSpawn(kind)) {
+          if (!present) spawnPowerUp(kind);
+        } else if (present) {
+          present.destroy();
+          powerUpObjs.delete(kind);
+        }
+      }
+    }
+
+    function sparkleBurst(x: number, y: number, color: [number, number, number]) {
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        const sp = k.add([
+          k.rect(4, 4),
+          k.pos(x, y),
+          k.color(...color),
+          k.anchor("center"),
+          k.opacity(1),
+          k.z(LAYERS.EFFECT + 2),
+          { vx: Math.cos(a) * 110, vy: Math.sin(a) * 110, life: 0 },
+        ]) as AnyObj;
+        sp.onUpdate(() => {
+          sp.pos.x += sp.vx * k.dt();
+          sp.pos.y += sp.vy * k.dt();
+          sp.life += k.dt();
+          sp.opacity = Math.max(0, 1 - sp.life * 1.4);
+          if (sp.life > 0.8) sp.destroy();
+        });
+      }
+    }
+
+    player.onCollide("powerup", (p) => {
+      const obj = p as unknown as { kind: PowerUpKind; pos: { x: number; y: number }; destroy: () => void };
+      const kind = obj.kind;
+      powerUps.collect(kind);
+      player.score += 300;
+      sparkleBurst(obj.pos.x, obj.pos.y, POWERUP_STYLE[kind].fill);
+      obj.destroy();
+      powerUpObjs.delete(kind);
+      showHint(
+        kind === "navigator"
+          ? "Navigator joined you — they'll handle the boss!"
+          : kind === "chat"
+            ? "Live chat open — you're shielded in this zone!"
+            : "Emailed your case worker — umbrella up!",
+      );
+    });
+
+    // ----- Navigator companion: walks beside the player while carried -----
+    let companion: AnyObj | null = null;
+    let companionBubble: AnyObj | null = null;
+    function syncCompanion() {
+      const want = powerUps.navigatorReady();
+      if (want && !companion) {
+        companion = spawnGrounded(k, "ranger", sizes, {
+          x: player.pos.x - 60,
+          z: LAYERS.ACTOR,
+        }) as AnyObj;
+        companionBubble = k.add([
+          k.text("I'll help!", { size: 12, font: "sans-serif" }),
+          k.pos(0, 0),
+          k.color(255, 255, 255),
+          k.z(LAYERS.EFFECT),
+          k.anchor("center"),
+        ]) as AnyObj;
+      } else if (!want && companion) {
+        companion.destroy();
+        companionBubble?.destroy();
+        companion = null;
+        companionBubble = null;
+      }
+    }
+    k.onUpdate(() => {
+      if (!companion) return;
+      const target = player.pos.x - 62 * player.facing;
+      const dx = target - companion.pos.x;
+      companion.pos.x += Math.sign(dx) * Math.min(Math.abs(dx), 4);
+      companion.pos.y = GROUND_Y;
+      if (companionBubble) {
+        companionBubble.pos = k.vec2(companion.pos.x, companion.pos.y - DISPLAY_H["ranger"] - 12);
+      }
+      if (Math.random() < 0.06) {
+        sparkleBurst(companion.pos.x, companion.pos.y - DISPLAY_H["ranger"] / 2, [255, 235, 140]);
+      }
+    });
+
+    // ----- Chat shield ring + Email umbrella, purely reactive visuals -----
+    const shieldRing = k.add([
+      k.circle(34),
+      k.pos(0, 0),
+      k.anchor("center"),
+      k.color(90, 170, 255),
+      k.opacity(0),
+      k.z(LAYERS.PLAYER - 1),
+    ]) as AnyObj;
+    const umbrella = k.add([
+      k.rect(64, 12, { radius: 6 }),
+      k.pos(0, 0),
+      k.anchor("center"),
+      k.color(220, 90, 90),
+      k.outline(2, k.rgb(40, 40, 60)),
+      k.opacity(0),
+      k.z(LAYERS.PLAYER + 1),
+    ]) as AnyObj;
+    k.onUpdate(() => {
+      const zoneNow = Math.floor(player.pos.x / BIOME_W);
+      const shielded = powerUps.shieldActive(zoneNow);
+      shieldRing.opacity = shielded ? 0.35 + Math.sin(k.time() * 8) * 0.15 : 0;
+      shieldRing.pos = k.vec2(player.pos.x, player.pos.y - 26);
+      const umb = powerUps.umbrellaActive(zoneNow);
+      umbrella.opacity = umb ? 1 : 0;
+      umbrella.pos = k.vec2(player.pos.x, player.pos.y - DISPLAY_H["hero-idle"] - 10);
+    });
+
 
     // ================= HUD =================
     // pixelHudText: HUD label with a 1-px black drop shadow so pixel text
@@ -1845,6 +2031,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         set text(v: string) { main.text = v; shadow.text = v; },
         get opacity() { return main.opacity as number; },
         set opacity(v: number) { main.opacity = v; shadow.opacity = v; },
+        setPos(x: number, y: number) {
+          main.pos = k.vec2(x, y);
+          shadow.pos = k.vec2(x + 1, y + 1);
+        },
       };
     }
 
@@ -1860,7 +2050,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const APP_ICON_W = 18;
     const APP_ICON_H = 22;
     const appIcons: AnyObj[] = [];
-    for (let i = 0; i < player.maxLives; i++) {
+    const MAX_POSSIBLE_LIVES = 5;
+    for (let i = 0; i < MAX_POSSIBLE_LIVES; i++) {
       const bx = 12 + i * (APP_ICON_W + 6);
       const by = 58;
       const card = k.add([
@@ -1934,18 +2125,58 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       anchor: "top", initial: "0:30", opacity: 0,
     });
 
+    // ===== ACTIVE UPGRADES panel (bottom-left, grows/shrinks with flags) =====
+    const UPG_ROWS = 5;
+    const upgPanel = k.add([
+      k.rect(190, 24 + UPG_ROWS * 16, { radius: 6 }),
+      k.pos(12, k.height() - 12),
+      k.anchor("botleft"),
+      k.color(15, 15, 30),
+      k.outline(2, k.rgb(255, 220, 90)),
+      k.opacity(0),
+      k.fixed(),
+      k.z(LAYERS.HUD),
+    ]) as AnyObj;
+    const upgTitle = pixelHudText({
+      x: 22, y: 0, size: 10, color: [255, 220, 90], anchor: "topleft",
+      initial: "ACTIVE UPGRADES", opacity: 0,
+    });
+    const upgRows = Array.from({ length: UPG_ROWS }, () =>
+      pixelHudText({ x: 22, y: 0, size: 10, color: [255, 255, 255], anchor: "topleft", opacity: 0 }),
+    );
+
+    function updateUpgradePanel() {
+      const rows = activeUpgradeRows(FeatureFlags.get(), powerUps);
+      const h = rows.length === 0 ? 0 : 26 + rows.length * 16;
+      upgPanel.height = h;
+      upgPanel.opacity = rows.length === 0 ? 0 : 0.85;
+      const top = k.height() - 12 - h;
+      upgTitle.opacity = rows.length === 0 ? 0 : 1;
+      upgTitle.setPos(22, top + 6);
+      upgRows.forEach((t, i) => {
+        const row = rows[i];
+        if (!row) {
+          t.opacity = 0;
+          return;
+        }
+        t.opacity = 1;
+        t.text = `${row.carried ? "✓" : "○"} ${row.label}`;
+        t.setPos(22, top + 22 + i * 16);
+      });
+    }
+
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
       appIcons.forEach((g, i) => {
-        const active = i < player.lives;
-        const op = active ? 1 : 0.18;
+        const op = i < player.lives ? 1 : i < player.maxLives ? 0.18 : 0;
         g.card.opacity = op;
         g.line1.opacity = op;
         g.line2.opacity = op;
         g.line3.opacity = op;
       });
+      updateUpgradePanel();
       const need = ["ID", "Income", "Household"].filter((d) => !player.docs.has(d));
-      docsHud.text = active.documents_earlier || player.docs.size > 0
+      docsHud.text = player.docs.size > 0
         ? need.length ? `Application docs needed: ${need.join(", ")}` : "Application docs: complete ✓"
         : "";
       const z = player.farthestZone;
@@ -2242,8 +2473,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.dead) return;
         if (k.time() < player.invulnUntil) return;
         if (k.time() < boss.hurtUntil) return;
-        // Navigator power-up: helper takes the boss out on first contact.
-        if (active.navigator_helper) {
+        // Navigator power-up: the helper takes the boss out on first contact
+        // and is consumed (single use).
+        if (bossMgr.shouldAutoDefeat()) {
+          bossMgr.consumeNavigator();
+          syncCompanion();
           boss.hits = 2;
           boss.hurtUntil = k.time() + 0.4;
           zoneState.bossHits = 2;
@@ -2255,6 +2489,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           hearts.destroy();
           const kx = boss.pos.x;
           const ky = GROUND_Y - 40;
+          sparkleBurst(boss.pos.x, GROUND_Y - bh / 2, [255, 235, 140]);
           k.wait(0.6, () => {
             boss.destroy();
             spawnGoldKey(kx, ky);
@@ -2395,25 +2630,47 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     player.onCollide("monster", () => {
-      // Live Chat Assistant: invincible to all enemies in Zone 4 (Gathering Documents).
-      const inGatherZone = Math.floor(player.pos.x / BIOME_W) === 3;
-      if (active.chat_invincible && inGatherZone) return;
+      const zoneNow = Math.floor(player.pos.x / BIOME_W);
+      if (enemyMgr.blocksDamage("monster", zoneNow)) return;
       loseLife("monster");
     });
-    player.onCollide("boulder", () => {
+    player.onCollide("boulder", (b) => {
       // In the Awaiting-Decision zone, a calendar hit also resets the countdown
       // to the full 10 seconds — feels like the clock starting over.
-      const inWaitZone = Math.floor(player.pos.x / BIOME_W) === 5;
-      // Email Your Case Worker: umbrella blocks falling calendar dates in Zone 6.
-      if (active.email_umbrella && inWaitZone) return;
+      const zoneNow = Math.floor(player.pos.x / BIOME_W);
+      if (enemyMgr.blocksDamage("boulder", zoneNow)) {
+        // Umbrella: the calendar bounces away instead of hurting.
+        const obj = b as unknown as { pos: { x: number; y: number }; spd?: number; baseX?: number };
+        obj.pos.y = -80;
+        if (typeof obj.baseX === "number") {
+          obj.baseX = obj.pos.x + (Math.random() - 0.5) * 200;
+        }
+        sparkleBurst(player.pos.x, player.pos.y - 60, [255, 255, 255]);
+        return;
+      }
       const alive = !player.dead && !player.won && k.time() >= player.invulnUntil;
-      if (inWaitZone && alive && zoneState.waitStart > 0) {
+      if (zoneNow === ZONE_INDEX.awaitDecision && alive && zoneState.waitStart > 0) {
         zoneState.waitStart = k.time();
       }
       loseLife("boulder");
     });
     player.onCollide("water", () => loseLife("water"));
 
+
+    function buildCheckpoint(): CheckpointSnapshot {
+      return {
+        x: player.pos.x,
+        y: player.pos.y,
+        lives: player.lives,
+        maxLives: player.maxLives,
+        score: player.score,
+        docs: [...player.docs],
+        farthestZone: player.farthestZone,
+        powerups: powerUps.snapshot(),
+        zoneState: { ...zoneState },
+        doorsUnlocked: doors.map((d) => !!d?.unlocked),
+      };
+    }
 
     function loseLife(cause: FailCause) {
       if (player.dead || player.won) return;
@@ -2423,18 +2680,31 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.deaths += 1;
       if (player.lives <= 0) {
         player.dead = true;
+        checkpointMgr.clear();
         showEnd(false, cause);
         return;
       }
-      // Resume at the entry of the zone the player already reached — never
-      // start the whole trail over. Save-point campfire still wins if active.
-      const zoneEntryX = Math.max(40, player.farthestZone * BIOME_W + 40);
-      const rx = active.resume_checkpoint ? player.checkpointX : zoneEntryX;
-      player.pos = k.vec2(rx, GROUND_Y - 40);
+      // Check Your Status Anytime: resume exactly where you were, keeping
+      // documents, power-ups and unlocked doors. Otherwise fall back to the
+      // entry of the furthest zone reached.
+      const snap = checkpointMgr.get();
+      if (snap) {
+        player.pos = k.vec2(snap.x, snap.y - 20);
+        player.docs = new Set(snap.docs);
+        powerUps.restore(snap.powerups);
+        syncPowerUps();
+        syncCompanion();
+        sparkleBurst(player.pos.x, player.pos.y - 40, [120, 255, 170]);
+        showHint("Resumed from your saved checkpoint.");
+      } else {
+        const zoneEntryX = Math.max(40, player.farthestZone * BIOME_W + 40);
+        player.pos = k.vec2(zoneEntryX, GROUND_Y - 40);
+      }
       player.vel = k.vec2(0, 0);
       player.riding = null;
       updateHud();
     }
+
 
     function buildResult(won: boolean): WinResult {
       const durationMs = Math.round((k.time() - startTime) * 1000);
@@ -2544,15 +2814,42 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     }
 
+    // ===== Feature-flag reconciliation =====
+    // One place where a live toggle is applied to a run in progress. Called
+    // once at boot, on every store change, and defensively each second.
+    function applyFeatures() {
+      if (playerMgr.reconcileLives(player)) updateHud();
+      syncCheckpointMarkers();
+      syncPowerUps();
+      syncCompanion();
+      updateHud();
+    }
+    unsubscribeFeatures?.();
+    unsubscribeFeatures = FeatureFlags.subscribe(() => applyFeatures());
+    applyFeatures();
+    let lastFeatureSweep = 0;
+
     k.onUpdate(() => {
       if (w?.__gameInput?.resetReq) {
         w.__gameInput.resetReq = false;
+        checkpointMgr.clear();
+        powerUps.reset();
         k.go("trail", 40, 1);
         return;
       }
       if (player.dead || player.won) return;
 
       const now = k.time();
+
+      // Defensive sweep (covers any missed store notification) + checkpoint save.
+      if (now - lastFeatureSweep > 1) {
+        lastFeatureSweep = now;
+        applyFeatures();
+        const grounded = player.isGrounded?.() || !!player.riding;
+        const safe = grounded && now >= player.invulnUntil && !zoneState.cutscene;
+        checkpointMgr.maybeSave(now, safe, buildCheckpoint);
+      }
+
 
       const z = Math.min(ZONES.length - 1, Math.max(0, Math.floor(player.pos.x / BIOME_W)));
       if (z > player.farthestZone) player.farthestZone = z;
@@ -2798,6 +3095,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   return () => {
     try {
+      unsubscribeFeatures?.();
+      unsubscribeFeatures = null;
       k.quit();
     } catch {
       // ignore teardown errors

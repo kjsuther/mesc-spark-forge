@@ -2598,9 +2598,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const pole = poleEnts[0];
       if (!pole) {
         // Extremely defensive: without a pole we can't slide, so just win.
+        setMusic("victory");
         showHint("You got your Medical ID!");
         return;
       }
+      // Coverage is secured — triumphant fanfare carries the pole slide
+      // straight through to the WIN screen.
+      setMusic("victory");
       zoneState.cutscene = true;
       zoneState.cutscenePhase = "walk-to-pole";
       zoneState.cutscenePoleX = pole.poleX;

@@ -58,6 +58,7 @@ import heroPortraitUrl from "@/assets/game/hero-portrait.png";
 import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
 
 import docIdAsset from "@/assets/game/doc-id.png.asset.json";
+import { EXPLORATION_THEMES, ZONE_THEMES, type MusicTheme } from "@/lib/game-music";
 import docPaystubAsset from "@/assets/game/doc-paystub.png.asset.json";
 import docEnvelopeAsset from "@/assets/game/doc-envelope.png.asset.json";
 import formMonsterV2Asset from "@/assets/game/form-monster-v2.png.asset.json";
@@ -89,7 +90,7 @@ export type StartGameOpts = {
   onWin?: (result: WinResult) => void;
   onLose?: (result: WinResult) => void;
   /** Lets the scene ask the host for a different music theme. */
-  onMusicTheme?: (theme: "adventure" | "boss" | "victory") => void;
+  onMusicTheme?: (theme: MusicTheme) => void;
 };
 
 type Ctx = KAPLAYCtx;
@@ -865,11 +866,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   // ----- Music direction -----
   // The scene doesn't own the audio engine (the React host does), it just
   // asks for a mood. Guarded so we only emit on an actual change.
-  let musicTheme: "adventure" | "boss" | "victory" = "adventure";
-  const setMusic = (theme: "adventure" | "boss" | "victory") => {
+  let musicTheme: MusicTheme = "adventure";
+  const setMusic = (theme: MusicTheme) => {
     if (musicTheme === theme) return;
     musicTheme = theme;
     opts.onMusicTheme?.(theme);
+  };
+  // Rotate the exploration tunes by a random offset per run so the same zone
+  // doesn't always play the same song across repeat plays.
+  const musicRotation = Math.floor(Math.random() * EXPLORATION_THEMES.length);
+  /** The tune that belongs to a zone, after this run's rotation. */
+  const zoneMusic = (zoneIdx: number): MusicTheme => {
+    const base = ZONE_THEMES[Math.max(0, Math.min(ZONE_THEMES.length - 1, zoneIdx))] ?? "adventure";
+    const at = EXPLORATION_THEMES.indexOf(base);
+    if (at < 0) return base; // boss / victory / waiting stay put
+    return EXPLORATION_THEMES[(at + musicRotation) % EXPLORATION_THEMES.length];
   };
 
 
@@ -3385,8 +3396,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           // Start the wait clock only once the player has read the briefing.
           if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
         });
-        // Never let the battle theme follow the player out of the boss zone.
-        if (musicTheme === "boss" && z !== 6) setMusic("adventure");
+        // Each zone gets its own tune; the boss arena overrides this itself.
+        if (z !== 6) setMusic(zoneMusic(z));
       }
 
 

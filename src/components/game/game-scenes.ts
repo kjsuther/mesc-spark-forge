@@ -1137,7 +1137,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Floating label above the brick so player knows what each represents.
       addSignPlaque(k, m.x, BRICK_Y - 42, m.label, m.icon);
     }
-    addSignPlaque(k, 1080, GROUND_Y - 180, "Smash a brick →", "!");
+    addSpeech(k, 180, BRICK_Y - 90, "Smash a brick and collect application", [40, 60, 120]);
     zoneObjectives[0] = {
       hudLabel: () => `METHOD ${zoneState.methodTouched ? "✓" : "☐"}`,
       met: () => zoneState.methodTouched,
@@ -1150,6 +1150,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       spawnDecor(k, "laptop", sizes, { x: lx, z: LAYERS.PROP });
     }
     addSpeech(k, sx0 + 380, GROUND_Y - DISPLAY_H["laptop"] - 30, "Create an account", [40, 60, 120]);
+    addSpeech(k, sx0 + 300, 110, "Collect Username and Password and avoid account locks", [40, 60, 120]);
     // Username collectible — floats above ground
     {
       const ux = sx0 + 300;
@@ -1238,6 +1239,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= ZONE 2: Crossing River of Paperwork =================
     const rx0 = RIVER_GAP_X0;
     const rx1 = RIVER_GAP_X1;
+    addSpeech(k, rx0 - 40, GROUND_Y - 250, "Use platforms to get to other side", [40, 60, 120]);
     if (active.bridge) {
       k.add([
         k.rect(rx1 - rx0, 14),
@@ -1350,7 +1352,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         hitboxScale: { x: -dh / 2, w: dh, h: dh },
       });
     }
-    addSpeech(k, tx0 + 120, GROUND_Y - 80, "GATHER 3 DOCS", [40, 60, 120]);
+    addSpeech(k, tx0 + 200, GROUND_Y - 80, "Gather 3 docs and avoid evil clipboards", [40, 60, 120]);
     {
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
@@ -1454,7 +1456,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     }
 
-    addSpeech(k, relayBase + 100, GROUND_Y - DISPLAY_H["mailbox"] - 40, "Answer every request!", [40, 80, 130]);
+    addSpeech(k, relayBase + 100, GROUND_Y - DISPLAY_H["mailbox"] - 40, "Collect all notice mailboxes and avoid confusing letters", [40, 80, 130]);
     // Decorative paper airplanes drifting across the sky — ties into the
     // "letters back and forth with the agency" theme. No collision.
     {
@@ -1531,6 +1533,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     addSpeech(k, mx0 + 500, 90, "Awaiting a decision…", [50, 40, 80]);
+    addSpeech(k, mx0 + 220, 140, "Avoid falling dates", [50, 40, 80]);
     zoneObjectives[5] = {
       hudLabel: () => {
         if (zoneState.waitStart === 0) return "WAIT 0:10";
@@ -1572,6 +1575,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       addSpeech(k, p.x, GROUND_Y - dh - 26, p.label, [30, 30, 60]);
     }
     addSpeech(k, kx0 + 560, GROUND_Y - 220, "Pick ONE plan", [30, 60, 120]);
+    addSpeech(k, kx0 + 200, 110, "Pick your plan and defeat the boss", [30, 60, 120]);
     zoneObjectives[6] = {
       hudLabel: () =>
         zoneState.hasKey
@@ -1589,6 +1593,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Staircase platforms rising, wider spacing so jumps between steps are
     // committed (bottomless kill plane below the whole staircase). Steps sit
     // over a lethal gap in the ground so a missed jump costs a life.
+    addSpeech(k, cx0 + 150, 110, "Climb stairs and collect your medical card", [30, 60, 120]);
     const stairY0 = GROUND_Y;
     const stepCount = 6;
     const STEP_GAP_X = 110;   // matches Z7_GAP1 above so the pole lands on ground
@@ -1699,12 +1704,36 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (existing.length > 0) return;
         for (let z = 1; z < ZONES.length; z++) {
           const fx = BIOME_W * z + 60;
-          const ch = DISPLAY_H["campfire"];
-          spawnGrounded(k, "campfire", sizes, {
-            x: fx, z: LAYERS.PROP, tag: "checkpoint",
-            props: { atX: fx },
-            hitboxScale: { x: -ch / 2, w: ch, h: ch },
-          });
+          if (z === 1) {
+            // Zone 2 keeps the campfire sprite.
+            const ch = DISPLAY_H["campfire"];
+            spawnGrounded(k, "campfire", sizes, {
+              x: fx, z: LAYERS.PROP, tag: "checkpoint",
+              props: { atX: fx },
+              hitboxScale: { x: -ch / 2, w: ch, h: ch },
+            });
+          } else {
+            // Other zones: slim navy/gold checkpoint flag instead of a campfire.
+            const pole = k.add([
+              k.rect(4, 46),
+              k.pos(fx, GROUND_Y - 46),
+              k.color(30, 35, 60),
+              k.outline(1, k.rgb(255, 220, 90)),
+              k.area({ shape: new k.Rect(k.vec2(-14, 0), 32, 46) }),
+              k.z(LAYERS.PROP),
+              "checkpoint",
+              { atX: fx },
+            ]) as AnyObj;
+            const flag = k.add([
+              k.rect(20, 14),
+              k.pos(fx + 4, GROUND_Y - 44),
+              k.color(255, 220, 90),
+              k.outline(1, k.rgb(20, 25, 45)),
+              k.z(LAYERS.PROP),
+              "checkpoint-flag",
+            ]) as AnyObj;
+            pole.onDestroy(() => flag.destroy());
+          }
         }
       } else {
         existing.forEach((o) => (o as unknown as { destroy: () => void }).destroy());
@@ -1948,6 +1977,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ----- Navigator companion: walks beside the player while carried -----
     let companion: AnyObj | null = null;
     let companionBubble: AnyObj | null = null;
+    let companionBubbleParts: AnyObj[] = [];
     function syncCompanion() {
       const want = powerUps.navigatorReady();
       if (want && !companion) {
@@ -1955,16 +1985,41 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           x: player.pos.x - 60,
           z: LAYERS.ACTOR,
         }) as AnyObj;
-        companionBubble = k.add([
-          k.text("I'll help!", { size: 12, font: "sans-serif" }),
+        // Name card: navy plaque + shadowed gold text so it stays readable
+        // against bright skies and pale backgrounds.
+        const navLabel = "Navigator — I'll help!";
+        const navSize = 10;
+        const navW = Math.ceil(navLabel.length * navSize * 0.62) + 14;
+        const navH = navSize + 10;
+        const navPlaque = k.add([
+          k.rect(navW, navH, { radius: 3 }),
           k.pos(0, 0),
-          k.color(255, 255, 255),
-          k.z(LAYERS.EFFECT),
           k.anchor("center"),
+          k.color(20, 25, 45),
+          k.outline(2, k.rgb(255, 220, 90)),
+          k.opacity(0.95),
+          k.z(LAYERS.EFFECT),
         ]) as AnyObj;
+        const navShadow = k.add([
+          k.text(navLabel, { size: navSize, font: "sans-serif" }),
+          k.pos(0, 0),
+          k.anchor("center"),
+          k.color(0, 0, 0),
+          k.z(LAYERS.EFFECT + 1),
+        ]) as AnyObj;
+        const navText = k.add([
+          k.text(navLabel, { size: navSize, font: "sans-serif" }),
+          k.pos(0, 0),
+          k.anchor("center"),
+          k.color(255, 220, 90),
+          k.z(LAYERS.EFFECT + 2),
+        ]) as AnyObj;
+        companionBubble = navPlaque;
+        companionBubbleParts = [navPlaque, navShadow, navText];
       } else if (!want && companion) {
         companion.destroy();
-        companionBubble?.destroy();
+        companionBubbleParts.forEach((o) => o.destroy());
+        companionBubbleParts = [];
         companion = null;
         companionBubble = null;
       }
@@ -1975,8 +2030,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const dx = target - companion.pos.x;
       companion.pos.x += Math.sign(dx) * Math.min(Math.abs(dx), 4);
       companion.pos.y = GROUND_Y;
-      if (companionBubble) {
-        companionBubble.pos = k.vec2(companion.pos.x, companion.pos.y - DISPLAY_H["ranger"] - 12);
+      if (companionBubbleParts.length) {
+        const bx = companion.pos.x;
+        const by = companion.pos.y - DISPLAY_H["ranger"] - 12;
+        companionBubbleParts[0].pos = k.vec2(bx, by);
+        companionBubbleParts[1].pos = k.vec2(bx + 1, by + 1);
+        companionBubbleParts[2].pos = k.vec2(bx, by);
       }
       if (Math.random() < 0.06) {
         sparkleBurst(companion.pos.x, companion.pos.y - DISPLAY_H["ranger"] / 2, [255, 235, 140]);

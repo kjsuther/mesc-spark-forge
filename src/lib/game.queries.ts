@@ -119,3 +119,41 @@ export function myRoundVoteQuery(voterId: string, roundId: string | null) {
     enabled: !!voterId && !!roundId,
   });
 }
+
+export type BuildRun = {
+  id: string;
+  improvementKey: string;
+  votes: number;
+  durationSec: number;
+  startedAt: string;
+  appliesFlag: boolean;
+} | null;
+
+/**
+ * The currently-running "live build" sequence, if any. Shared by every screen
+ * so the poster projector and attendee phones play the same beat at the same
+ * second (driven off `startedAt`).
+ */
+export const activeBuildRunQuery = queryOptions({
+  queryKey: ["game_build_run", "active"],
+  queryFn: async (): Promise<BuildRun> => {
+    const { data, error } = await supabase
+      .from("game_build_runs")
+      .select("id, improvement_key, votes, duration_sec, started_at, applies_flag, status")
+      .eq("status", "running")
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return {
+      id: data.id,
+      improvementKey: data.improvement_key,
+      votes: data.votes ?? 0,
+      durationSec: data.duration_sec ?? 30,
+      startedAt: data.started_at,
+      appliesFlag: data.applies_flag ?? true,
+    };
+  },
+  refetchInterval: 15000,
+});

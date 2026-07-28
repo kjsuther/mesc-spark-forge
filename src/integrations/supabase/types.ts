@@ -92,6 +92,48 @@ export type Database = {
         }
         Relationships: []
       }
+      game_build_runs: {
+        Row: {
+          applies_flag: boolean
+          completed_at: string | null
+          created_at: string
+          duration_sec: number
+          id: string
+          improvement_key: string
+          round_id: string | null
+          started_at: string
+          status: string
+          updated_at: string
+          votes: number
+        }
+        Insert: {
+          applies_flag?: boolean
+          completed_at?: string | null
+          created_at?: string
+          duration_sec?: number
+          id?: string
+          improvement_key: string
+          round_id?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          votes?: number
+        }
+        Update: {
+          applies_flag?: boolean
+          completed_at?: string | null
+          created_at?: string
+          duration_sec?: number
+          id?: string
+          improvement_key?: string
+          round_id?: string | null
+          started_at?: string
+          status?: string
+          updated_at?: string
+          votes?: number
+        }
+        Relationships: []
+      }
       game_improvement_pool: {
         Row: {
           baseline_pain: string

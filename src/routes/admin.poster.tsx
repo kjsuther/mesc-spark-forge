@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Leaderboard } from "@/components/game/leaderboard";
+import { BuildTheater } from "@/components/build-theater";
 import { activeRoundQuery, improvementsQuery } from "@/lib/game.queries";
 
 export const Route = createFileRoute("/admin/poster")({
@@ -73,7 +74,9 @@ function PosterView() {
 
   return (
     <div className="min-h-screen bg-mn-blue text-cream flex flex-col">
+      <BuildTheater variant="poster" />
       <header className="px-6 py-3 border-b-2 border-accent-orange/70 flex items-center justify-between gap-3 flex-wrap">
+
         <div>
           <div className="text-[10px] font-black uppercase tracking-widest text-accent-gold">
             ★ MESC 2026 · Live Poster ★

@@ -8,6 +8,7 @@ import {
   improvementsQuery,
   gameSettingsQuery,
   activeRoundQuery,
+  activeBuildRunQuery,
 } from "@/lib/game.queries";
 import {
   setImprovementEnabled,
@@ -16,6 +17,9 @@ import {
   resetLeaderboard,
   startVoteRound,
   endAndApplyRound,
+  finalizeBuildRun,
+  replayBuildRun,
+  cancelBuildRun,
   IMPROVEMENT_KEYS,
   type ImprovementKey,
 } from "@/lib/game.functions";
@@ -35,15 +39,20 @@ function AdminGamePage() {
   const { data: improvements = [] } = useQuery(improvementsQuery);
   const { data: settings } = useQuery(gameSettingsQuery);
   const { data: round } = useQuery(activeRoundQuery);
+  const { data: buildRun } = useQuery(activeBuildRunQuery);
   const toggle = useServerFn(setImprovementEnabled);
   const setMode = useServerFn(setBeforeAfter);
   const reset = useServerFn(resetImprovements);
   const startRound = useServerFn(startVoteRound);
   const endRound = useServerFn(endAndApplyRound);
   const wipeScores = useServerFn(resetLeaderboard);
+  const finishBuild = useServerFn(finalizeBuildRun);
+  const replayBuild = useServerFn(replayBuildRun);
+  const stopBuild = useServerFn(cancelBuildRun);
 
   const [selected, setSelected] = useState<Set<ImprovementKey>>(new Set());
   const [durationMin, setDurationMin] = useState(10);
+  const [replayKey, setReplayKey] = useState<ImprovementKey>(IMPROVEMENT_KEYS[0]);
 
   useEffect(() => {
     const ch = supabase
@@ -65,6 +74,9 @@ function AdminGamePage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "game_vote_rounds" }, () =>
         qc.invalidateQueries({ queryKey: ["game_round"] }),
       )
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_build_runs" }, () =>
+        qc.invalidateQueries({ queryKey: ["game_build_run"] }),
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
@@ -77,6 +89,15 @@ function AdminGamePage() {
     [improvements],
   );
   const secondsLeft = useCountdown(round?.endsAt ?? null);
+  const buildEndsAt = buildRun
+    ? new Date(new Date(buildRun.startedAt).getTime() + buildRun.durationSec * 1000).toISOString()
+    : null;
+  const buildSecondsLeft = useCountdown(buildEndsAt);
+  const buildLabel =
+    improvements.find((i) => i.key === buildRun?.improvementKey)?.label ??
+    buildRun?.improvementKey ??
+    "";
+
 
   async function handleToggle(key: ImprovementKey, enabled: boolean) {
     await toggle({ data: { key, enabled } });
@@ -106,9 +127,33 @@ function AdminGamePage() {
   }
   async function handleEndRound() {
     const res = await endRound();
-    if (res.winner) toast.success(`Applied winner: ${res.winner.key} (${res.winner.votes} votes)`);
+    if (res.winner)
+      toast.success(
+        `Winner: ${res.winner.key} (${res.winner.votes} votes) — build sequence playing on all screens`,
+      );
     else toast.info("No winner to apply");
+    qc.invalidateQueries({ queryKey: ["game_build_run"] });
   }
+  async function handleFinishBuild() {
+    if (!buildRun) return;
+    await finishBuild({ data: { id: buildRun.id, force: true } });
+    toast.success("Build finished — upgrade applied");
+    qc.invalidateQueries({ queryKey: ["game_build_run"] });
+    qc.invalidateQueries({ queryKey: ["game_improvements"] });
+    qc.invalidateQueries({ queryKey: ["game_settings"] });
+  }
+  async function handleCancelBuild() {
+    await stopBuild();
+    toast.info("Build sequence stopped — no flags changed");
+    qc.invalidateQueries({ queryKey: ["game_build_run"] });
+  }
+  async function handleReplayBuild() {
+    const votes = improvements.find((i) => i.key === replayKey)?.votes ?? 0;
+    await replayBuild({ data: { key: replayKey, votes } });
+    toast.success("Replaying build sequence (no flags change)");
+    qc.invalidateQueries({ queryKey: ["game_build_run"] });
+  }
+
   async function handleResetScores() {
     if (!confirm("Wipe the entire High Scores leaderboard? This cannot be undone.")) return;
     try {
@@ -167,6 +212,65 @@ function AdminGamePage() {
           </div>
         </div>
       </section>
+
+      {/* Live build sequence */}
+      <section className="mb-6 bg-[#11131c] text-white border-2 border-emerald-400/40 rounded-lg p-4">
+        <h2 className="font-bold uppercase tracking-wide text-sm mb-3 text-emerald-300">
+          Live Build Sequence
+        </h2>
+        {buildRun ? (
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <span className="text-sm">
+              Building <b>{buildLabel}</b> — {buildSecondsLeft}s remaining
+              {buildRun.appliesFlag ? "" : " (replay — no flags change)"}
+            </span>
+            <div className="flex gap-2">
+              {buildRun.appliesFlag && (
+                <button
+                  onClick={handleFinishBuild}
+                  className="bg-emerald-500 text-white font-bold text-sm px-4 py-2 rounded hover:brightness-110"
+                >
+                  Skip / finish now
+                </button>
+              )}
+              <button
+                onClick={handleCancelBuild}
+                className="border border-white/30 text-white/80 font-bold text-sm px-4 py-2 rounded hover:bg-white/10"
+              >
+                Stop
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <p className="text-xs text-white/60 max-w-md">
+              Ending a round plays a 30-second "Lovable is building it" sequence on the poster
+              screen and every attendee phone, then switches the upgrade on. You can also replay
+              the sequence for rehearsal — a replay changes nothing.
+            </p>
+            <div className="flex gap-2">
+              <select
+                value={replayKey}
+                onChange={(e) => setReplayKey(e.target.value as ImprovementKey)}
+                className="bg-[#0e1119] border border-white/20 rounded px-2 py-2 text-sm"
+              >
+                {improvements.map((i) => (
+                  <option key={i.key} value={i.key}>
+                    {i.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={handleReplayBuild}
+                className="bg-white/10 border border-white/25 font-bold text-sm px-4 py-2 rounded hover:bg-white/20"
+              >
+                Replay build sequence
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+
 
       {/* Voting round */}
       <section className="mb-6 bg-white border-2 border-accent-orange/60 rounded-lg p-4">

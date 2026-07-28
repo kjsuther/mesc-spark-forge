@@ -8,6 +8,7 @@ import { SectionHeading } from "@/components/trail/section-heading";
 import { GameCanvas } from "@/components/game/game-canvas";
 import { VotePanel } from "@/components/game/vote-panel";
 import { Leaderboard } from "@/components/game/leaderboard";
+import { BuildTheater } from "@/components/build-theater";
 import type { WinResult } from "@/components/game/game-scenes";
 import { improvementsQuery, gameSettingsQuery, activeRoundQuery } from "@/lib/game.queries";
 import { nowBuildingQuery } from "@/lib/queries";
@@ -110,6 +111,8 @@ function ToolPage() {
   return (
     <div className="min-h-screen flex flex-col bg-white text-dark-gray font-sans">
       <SiteChrome />
+      <BuildTheater variant="page" />
+
 
       <main id="main-content" className="max-w-6xl w-full mx-auto py-10 px-4 sm:px-6 flex-1">
         <NowBuildingBanner items={nowBuilding} variant="tool" />

@@ -60,10 +60,19 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
   const toggleMusic = useCallback(() => {
     setMusicOn(music.toggle());
   }, [music]);
-  const key = `${mode}|${Object.entries(flags)
+  // Upgrade flags are NOT part of the restart key: they stream into the
+  // shared feature-flag store instead, so an admin toggle changes gameplay
+  // live without restarting the player's run.
+  const key = mode;
+
+  const flagSignature = Object.entries(flags)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}:${v ? 1 : 0}`)
-    .join(",")}`;
+    .join(",");
+  useEffect(() => {
+    FeatureFlags.setFromDbFlags(flags as Record<string, boolean>);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flagSignature]);
 
   // Start the game only after the user picks a launch mode
   useEffect(() => {

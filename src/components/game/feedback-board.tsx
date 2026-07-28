@@ -56,8 +56,9 @@ export function FeedbackBoard({ variant = "page" }: Props) {
       </h2>
       <p className="mt-1 text-sm text-dark-gray/80">
         Everything players have asked for, in the order the team plans to build it — and
-        everything that's already live in the After Feedback version.
+        everything that's already live in the Current Version of the game.
       </p>
+
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Column

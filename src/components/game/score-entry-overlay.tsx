@@ -2,6 +2,7 @@
 // Rendered on top of the game canvas (never below the game window) so the
 // player can't miss that they scored.
 import { useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { WinResult } from "./game-scenes";
@@ -308,7 +309,23 @@ export function ScoreEntryOverlay({
             </div>
           </>
         )}
+
+        <Link
+          to="/feedback"
+          className="mt-5 inline-flex min-h-[44px] items-center justify-center border-4 px-4 py-3 text-[8px] leading-relaxed tracking-widest"
+          style={{
+            fontFamily: PIXEL_FONT,
+            color: "var(--color-mn-blue)",
+            background: "var(--color-accent-gold)",
+            borderColor: "var(--color-cream)",
+            touchAction: "manipulation",
+          }}
+          onPointerUp={(e) => e.stopPropagation()}
+        >
+          ✎ TELL US WHAT TO FIX →
+        </Link>
       </div>
     </div>
+
   );
 }

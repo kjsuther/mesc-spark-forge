@@ -49,6 +49,48 @@ function useOrientation() {
   return { portrait };
 }
 
+/** The real, currently-visible viewport. `visualViewport` is the only value
+ *  that is accurate on iOS Safari while the URL bar animates in and out, so
+ *  it wins over `innerWidth/innerHeight` whenever it exists. */
+function useViewportSize() {
+  const [size, setSize] = useState(() => {
+    if (typeof window === "undefined") return { vw: 960, vh: 540 };
+    return { vw: window.innerWidth, vh: window.innerHeight };
+  });
+  useEffect(() => {
+    let raf = 0;
+    const read = () => {
+      const vv = window.visualViewport;
+      const vw = Math.round(vv?.width ?? window.innerWidth);
+      const vh = Math.round(vv?.height ?? window.innerHeight);
+      setSize((prev) => (prev.vw === vw && prev.vh === vh ? prev : { vw, vh }));
+    };
+    // Coalesce bursts (rotation fires resize several times) into one frame.
+    const schedule = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(read);
+    };
+    read();
+    window.addEventListener("resize", schedule);
+    window.addEventListener("orientationchange", schedule);
+    document.addEventListener("fullscreenchange", schedule);
+    document.addEventListener("webkitfullscreenchange", schedule as EventListener);
+    window.visualViewport?.addEventListener("resize", schedule);
+    window.visualViewport?.addEventListener("scroll", schedule);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("orientationchange", schedule);
+      document.removeEventListener("fullscreenchange", schedule);
+      document.removeEventListener("webkitfullscreenchange", schedule as EventListener);
+      window.visualViewport?.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("scroll", schedule);
+    };
+  }, []);
+  return size;
+}
+
+
 export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);

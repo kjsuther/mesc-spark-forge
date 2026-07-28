@@ -529,14 +529,15 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                   </p>
                   <p className="mt-4 text-[9px] leading-[1.9] text-cream sm:text-[11px]">
                     Go as far as you can down the trail. When your run ends,
-                    VOTE on a tool that could help along the way. The winning
-                    tool gets added to the trail after the timer.
+                    tell us what would have made the journey easier &mdash; the
+                    team builds that feedback into the next version.
                   </p>
                 </div>
                 <div className="mx-auto flex max-w-xs flex-col gap-3">
                   <MenuButton onClick={() => setMenuScreen("trailmap")}>▶ Continue</MenuButton>
                   <MenuButton onClick={() => setMenuScreen("title")}>Back</MenuButton>
                 </div>
+
               </div>
             )}
 

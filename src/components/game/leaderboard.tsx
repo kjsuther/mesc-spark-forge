@@ -18,7 +18,7 @@ const leaderboardQuery = {
       .select("id, display_name, score, duration_ms, mode, created_at")
       .order("score", { ascending: false })
       .order("created_at", { ascending: true })
-      .limit(10);
+      .limit(3);
     if (error) throw error;
     return (data ?? []) as GameScore[];
   },
@@ -42,7 +42,7 @@ export function Leaderboard({ variant = "panel" }: { variant?: "panel" | "poster
       <div className="flex flex-col h-full">
         <header className="bg-accent-gold text-mn-blue px-4 py-2 border-b-2 border-accent-orange/60">
           <span className="font-display uppercase tracking-widest text-sm">
-            ★ Live High Scores · Top 10
+            ★ Live High Scores · Top 3
           </span>
         </header>
         <ol className="flex-1 overflow-auto p-2 space-y-1">

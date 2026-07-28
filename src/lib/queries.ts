@@ -33,55 +33,11 @@ export type CurrentWork = {
   updated_at: string;
 };
 
-// Public column list — excludes email + notify_on_launch, which are restricted
-// by column-level GRANTs so they never reach the browser.
-const PUBLIC_FEEDBACK_COLUMNS =
-  "id, created_at, wish, organization, role, state, moscow, status, priority_rank, action_slug, shipped_at, hidden";
+// NOTE: public feedback/vote browsing was removed from the site. The browser
+// has no read access to submitter emails or voter fingerprints — those columns
+// are restricted by column-level grants and are only reachable through
+// admin-authenticated server functions.
 
-export const feedbackListQuery = queryOptions({
-  queryKey: ["feedback"],
-  queryFn: async (): Promise<Feedback[]> => {
-    const { data, error } = await supabase
-      .from("feedback")
-      .select(PUBLIC_FEEDBACK_COLUMNS)
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-    return (data ?? []) as Feedback[];
-  },
-  refetchInterval: 10_000,
-  refetchIntervalInBackground: false,
-});
-
-// Aggregate votes for everyone: voter_fingerprint is column-restricted and never
-// returned publicly. Personal vote membership is fetched separately via
-// myVotesQuery, which filters server-side by fingerprint.
-export const votesListQuery = queryOptions({
-  queryKey: ["votes"],
-  queryFn: async (): Promise<Vote[]> => {
-    const { data, error } = await supabase.from("votes").select("id, feedback_id, bucket");
-    if (error) throw error;
-    return (data ?? []).map((v) => ({ ...v, voter_fingerprint: null })) as Vote[];
-  },
-  refetchInterval: 10_000,
-  refetchIntervalInBackground: false,
-});
-
-export function myVotesQuery(voterId: string) {
-  return queryOptions({
-    queryKey: ["votes", "mine", voterId],
-    queryFn: async (): Promise<{ id: string; feedback_id: string; bucket: "must" | "should" | "could" }[]> => {
-      if (!voterId) return [];
-      const { data, error } = await supabase.rpc("get_my_votes", {
-        _voter_fingerprint: voterId,
-      });
-      if (error) throw error;
-      return (data ?? []) as { id: string; feedback_id: string; bucket: "must" | "should" | "could" }[];
-    },
-    refetchInterval: 10_000,
-    refetchIntervalInBackground: false,
-    enabled: !!voterId,
-  });
-}
 
 export const versionsQuery = queryOptions({
   queryKey: ["versions"],

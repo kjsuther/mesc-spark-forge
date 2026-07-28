@@ -177,3 +177,74 @@ async function applyRound(
 
   return { ok: true as const, winner: { key: winner[0], votes: winner[1] } };
 }
+
+// ===== Public (unauthenticated) attendee voting =====
+// These run server-side with the service-role client so the browser never
+// needs read access to `voter_fingerprint` and never calls a SECURITY DEFINER
+// RPC directly. All validation happens here.
+
+function cleanFingerprint(fp: unknown): string | null {
+  if (typeof fp !== "string") return null;
+  const v = fp.trim();
+  if (v.length < 8 || v.length > 200) return null;
+  return v;
+}
+
+export const castRoundVote = createServerFn({ method: "POST" })
+  .inputValidator((data: { improvementKey: string; voterFingerprint: string }) => data)
+  .handler(async ({ data }) => {
+    const fingerprint = cleanFingerprint(data.voterFingerprint);
+    const key = typeof data.improvementKey === "string" ? data.improvementKey.trim() : "";
+    if (!fingerprint) return { ok: false as const, message: "Invalid voter" };
+    if (!key || key.length > 100) return { ok: false as const, message: "Invalid option" };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    const { data: round } = await supabaseAdmin
+      .from("game_vote_rounds")
+      .select("id, ends_at")
+      .eq("status", "active")
+      .gt("ends_at", new Date().toISOString())
+      .order("started_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!round) return { ok: false as const, message: "No active round" };
+
+    const { data: candidate } = await supabaseAdmin
+      .from("game_round_candidates")
+      .select("improvement_key")
+      .eq("round_id", round.id)
+      .eq("improvement_key", key)
+      .maybeSingle();
+    if (!candidate) return { ok: false as const, message: "Not a candidate in this round" };
+
+    const { data: existing } = await supabaseAdmin
+      .from("game_improvement_votes")
+      .select("id")
+      .eq("round_id", round.id)
+      .eq("voter_fingerprint", fingerprint)
+      .maybeSingle();
+    if (existing) return { ok: false as const, message: "Already voted in this round" };
+
+    const { error } = await supabaseAdmin
+      .from("game_improvement_votes")
+      .insert({ improvement_key: key, voter_fingerprint: fingerprint, round_id: round.id });
+    if (error) return { ok: false as const, message: "Vote could not be recorded" };
+
+    return { ok: true as const, message: "ok" };
+  });
+
+export const getMyRoundVote = createServerFn({ method: "POST" })
+  .inputValidator((data: { roundId: string; voterFingerprint: string }) => data)
+  .handler(async ({ data }): Promise<{ improvementKey: string | null }> => {
+    const fingerprint = cleanFingerprint(data.voterFingerprint);
+    if (!fingerprint || !data.roundId) return { improvementKey: null };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: row } = await supabaseAdmin
+      .from("game_improvement_votes")
+      .select("improvement_key")
+      .eq("round_id", data.roundId)
+      .eq("voter_fingerprint", fingerprint)
+      .maybeSingle();
+    return { improvementKey: row?.improvement_key ?? null };
+  });

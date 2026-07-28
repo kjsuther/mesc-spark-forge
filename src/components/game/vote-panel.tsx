@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -7,12 +8,15 @@ import {
   activeRoundQuery,
   myRoundVoteQuery,
 } from "@/lib/game.queries";
+import { castRoundVote as castRoundVoteFn } from "@/lib/game.functions";
 import { getVoterId } from "@/lib/voter";
 
 export function VotePanel({ highlight = false }: { highlight?: boolean }) {
   const queryClient = useQueryClient();
+  const castVote = useServerFn(castRoundVoteFn);
   const [voterId, setVoterId] = useState("");
   useEffect(() => setVoterId(getVoterId()), []);
+
 
   const { data: improvements = [] } = useQuery(improvementsQuery);
   const { data: round } = useQuery(activeRoundQuery);
@@ -56,22 +60,19 @@ export function VotePanel({ highlight = false }: { highlight?: boolean }) {
       toast.info("You've already voted in this round.");
       return;
     }
-    const { data, error } = await supabase.rpc("cast_round_vote", {
-      _improvement_key: key,
-      _voter_fingerprint: voterId,
-    });
-    if (error) {
-      toast.error(error.message);
-      return;
+    try {
+      const res = await castVote({ data: { improvementKey: key, voterFingerprint: voterId } });
+      if (!res.ok) {
+        toast.error(res.message ?? "Vote rejected");
+        return;
+      }
+      toast.success("Vote counted");
+      queryClient.invalidateQueries({ queryKey: ["game_round"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Vote failed");
     }
-    const first = Array.isArray(data) ? data[0] : data;
-    if (first && !first.ok) {
-      toast.error(first.message ?? "Vote rejected");
-      return;
-    }
-    toast.success("Vote counted");
-    queryClient.invalidateQueries({ queryKey: ["game_round"] });
   }
+
 
   return (
     <section

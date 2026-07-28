@@ -2116,18 +2116,58 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       anchor: "top", initial: "0:30", opacity: 0,
     });
 
+    // ===== ACTIVE UPGRADES panel (bottom-left, grows/shrinks with flags) =====
+    const UPG_ROWS = 5;
+    const upgPanel = k.add([
+      k.rect(190, 24 + UPG_ROWS * 16, { radius: 6 }),
+      k.pos(12, k.height() - 12),
+      k.anchor("botleft"),
+      k.color(15, 15, 30),
+      k.outline(2, k.rgb(255, 220, 90)),
+      k.opacity(0),
+      k.fixed(),
+      k.z(LAYERS.HUD),
+    ]) as AnyObj;
+    const upgTitle = pixelHudText({
+      x: 22, y: 0, size: 10, color: [255, 220, 90], anchor: "topleft",
+      initial: "ACTIVE UPGRADES", opacity: 0,
+    });
+    const upgRows = Array.from({ length: UPG_ROWS }, () =>
+      pixelHudText({ x: 22, y: 0, size: 10, color: [255, 255, 255], anchor: "topleft", opacity: 0 }),
+    );
+
+    function updateUpgradePanel() {
+      const rows = activeUpgradeRows(FeatureFlags.get(), powerUps);
+      const h = rows.length === 0 ? 0 : 26 + rows.length * 16;
+      upgPanel.height = h;
+      upgPanel.opacity = rows.length === 0 ? 0 : 0.85;
+      const top = k.height() - 12 - h;
+      upgTitle.opacity = rows.length === 0 ? 0 : 1;
+      upgTitle.pos = k.vec2(22, top + 6);
+      upgRows.forEach((t, i) => {
+        const row = rows[i];
+        if (!row) {
+          t.opacity = 0;
+          return;
+        }
+        t.opacity = 1;
+        t.text = `${row.carried ? "✓" : "○"} ${row.label}`;
+        t.pos = k.vec2(22, top + 22 + i * 16);
+      });
+    }
+
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
       appIcons.forEach((g, i) => {
-        const active = i < player.lives;
-        const op = active ? 1 : 0.18;
+        const op = i < player.lives ? 1 : i < player.maxLives ? 0.18 : 0;
         g.card.opacity = op;
         g.line1.opacity = op;
         g.line2.opacity = op;
         g.line3.opacity = op;
       });
+      updateUpgradePanel();
       const need = ["ID", "Income", "Household"].filter((d) => !player.docs.has(d));
-      docsHud.text = active.documents_earlier || player.docs.size > 0
+      docsHud.text = player.docs.size > 0
         ? need.length ? `Application docs needed: ${need.join(", ")}` : "Application docs: complete ✓"
         : "";
       const z = player.farthestZone;

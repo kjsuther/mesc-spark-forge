@@ -2819,7 +2819,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       syncCompanion();
       updateHud();
     }
-    const unsubscribeFeatures = FeatureFlags.subscribe(() => applyFeatures());
+    unsubscribeFeatures?.();
+    unsubscribeFeatures = FeatureFlags.subscribe(() => applyFeatures());
     applyFeatures();
     let lastFeatureSweep = 0;
 

@@ -530,7 +530,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       <div
         className={
           overlayFs
-            ? "relative overflow-hidden bg-mn-blue"
+            ? "relative overflow-hidden bg-black"
             : presentation
               ? "relative w-full flex-1 min-h-0 overflow-hidden bg-mn-blue"
               : "relative w-full overflow-hidden rounded-lg bg-mn-blue ring-2 ring-mn-blue/60 shadow-lg"
@@ -538,9 +538,12 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         style={
           overlayFs
             ? {
-                // Fill the full viewport; canvas itself letterboxes via object-fit.
-                width: "100vw",
-                height: "100dvh",
+                // Edge-to-edge: the engine's logical viewport already matches
+                // the device aspect, so there is nothing left to letterbox.
+                width: fsWidth,
+                height: fsHeight,
+                margin: 0,
+                padding: 0,
               }
             : presentation
               ? { width: "100%", height: "100%" }
@@ -553,12 +556,13 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
           onContextMenu={(e) => e.preventDefault()}
           className="block w-full h-full touch-none select-none"
           style={{
-            ...(presentation ? {} : { aspectRatio: "16 / 9" }),
+            // NOTE: the engine rewrites this element's cssText on boot
+            // (width/height 100% + pixelated), so the wrapper above is the
+            // real source of truth for size. Only the pre-boot placeholder
+            // shape is declared here.
+            ...(presentation || overlayFs ? {} : { aspectRatio: "16 / 9" }),
             width: "100%",
             height: "100%",
-            maxWidth: "100%",
-            maxHeight: "100%",
-            objectFit: "contain",
             imageRendering: "pixelated",
             touchAction: "none",
             display: "block",
@@ -566,6 +570,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
           tabIndex={0}
           aria-label="Blazing the Trail to Coverage game"
         />
+
 
 
         {/* In-window SNES name entry the moment a run ends */}

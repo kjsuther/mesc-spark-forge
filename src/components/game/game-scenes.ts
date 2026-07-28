@@ -3037,7 +3037,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (now >= boss.nextShot && now >= boss.hurtUntil) {
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
           spawnBossShot(boss.pos.x + toward * (bw / 2), GROUND_Y - 34, toward);
-          boss.nextShot = now + 2.1 + Math.random() * 0.7;
+          boss.nextShot = now + 1.05 + Math.random() * 0.45;
         }
         // Flash while invulnerable.
         const wantHurt = now < boss.hurtUntil;

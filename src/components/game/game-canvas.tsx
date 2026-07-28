@@ -56,6 +56,20 @@ export function GameCanvas({ flags, mode, onWin, onLose, presentation = false }:
   const [loading, setLoading] = useState(false);
   const [endResult, setEndResult] = useState<WinResult | null>(null);
   const [showVote, setShowVote] = useState(false);
+  // A vote panel only appears if a round is live and has options left to vote on.
+  const { data: liveRound } = useQuery({ ...activeRoundQuery, enabled: !presentation });
+  const { data: liveImprovements = [] } = useQuery({
+    ...improvementsQuery,
+    enabled: !presentation,
+  });
+  const voteLive = useMemo(() => {
+    if (!liveRound?.endsAt) return false;
+    if (new Date(liveRound.endsAt).getTime() <= Date.now()) return false;
+    const enabled = new Set(liveImprovements.filter((i) => i.enabled).map((i) => i.key));
+    return liveRound.candidates.some((c) => !enabled.has(c.key as never));
+  }, [liveRound, liveImprovements]);
+  const voteLiveRef = useRef(voteLive);
+  voteLiveRef.current = voteLive;
   const { portrait } = useOrientation();
   const [isTouch] = useState(() => isCoarsePointer());
   const music = useMemo(() => new GameMusic(), []);

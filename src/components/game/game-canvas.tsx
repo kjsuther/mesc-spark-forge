@@ -302,11 +302,25 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
   const toggleFullscreen = useCallback(async () => {
     if (isFullscreen) {
+      fsIntentRef.current = false;
       await exitNativeFullscreen();
       return;
     }
     if (fauxFullscreen) {
+      fsIntentRef.current = false;
       setFauxFullscreen(false);
+      return;
+    }
+    fsIntentRef.current = true;
+    // On touch devices the in-page overlay is the better fullscreen: iOS
+    // Safari refuses element fullscreen entirely, and on Android the native
+    // one is dropped by rotation. The overlay is stable everywhere and the
+    // engine resizes into it normally.
+    if (isCoarsePointer()) {
+      setFauxFullscreen(true);
+      // Android Chrome supports it too — take the extra chrome-free pixels
+      // when they're on offer, and keep the overlay underneath as a fallback.
+      if (nativeFullscreenSupported()) void requestNativeFullscreen();
       return;
     }
     if (!nativeFullscreenSupported()) {
@@ -323,15 +337,18 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     nativeFullscreenSupported,
   ]);
 
-  // User picked a mode. On mobile / touch devices we skip native fullscreen
-  // (unsupported on iOS Safari for divs, and awaiting the promise loses the
-  // user gesture) and go straight to faux-fullscreen so the launch is
-  // instantaneous and the canvas gets the whole viewport.
+  // User picked a mode. On mobile / touch devices we go straight to the
+  // in-page fullscreen overlay so the launch is instantaneous and the canvas
+  // gets the whole viewport without waiting on a fullscreen promise.
   const pickMode = useCallback(
     (m: LaunchMode) => {
       const coarse = isCoarsePointer();
       if (m === "fullscreen" || coarse) {
-        if (!coarse && nativeFullscreenSupported()) {
+        fsIntentRef.current = true;
+        if (coarse) {
+          setFauxFullscreen(true);
+          if (nativeFullscreenSupported()) void requestNativeFullscreen();
+        } else if (nativeFullscreenSupported()) {
           // Fire-and-forget; do not await so setLaunchMode is synchronous.
           void requestNativeFullscreen().then((ok) => {
             if (!ok) setFauxFullscreen(true);
@@ -343,6 +360,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       setLaunchMode(m);
     },
     [requestNativeFullscreen, nativeFullscreenSupported],
+
   );
 
   // Every paused menu screen advances the same way: Enter, Space, mouse click,

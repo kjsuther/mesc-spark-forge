@@ -10,7 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ToolRouteImport } from './routes/tool'
+import { Route as ScoresRouteImport } from './routes/scores'
+import { Route as FeedbackRouteImport } from './routes/feedback'
 import { Route as EmbedRouteImport } from './routes/embed'
+import { Route as BacklogRouteImport } from './routes/backlog'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
@@ -30,9 +33,24 @@ const ToolRoute = ToolRouteImport.update({
   path: '/tool',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ScoresRoute = ScoresRouteImport.update({
+  id: '/scores',
+  path: '/scores',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedbackRoute = FeedbackRouteImport.update({
+  id: '/feedback',
+  path: '/feedback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EmbedRoute = EmbedRouteImport.update({
   id: '/embed',
   path: '/embed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BacklogRoute = BacklogRouteImport.update({
+  id: '/backlog',
+  path: '/backlog',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminRoute = AdminRouteImport.update({
@@ -107,7 +125,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
+  '/backlog': typeof BacklogRoute
   '/embed': typeof EmbedRoute
+  '/feedback': typeof FeedbackRoute
+  '/scores': typeof ScoresRoute
   '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/feedback': typeof AdminFeedbackRoute
@@ -123,7 +144,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/backlog': typeof BacklogRoute
   '/embed': typeof EmbedRoute
+  '/feedback': typeof FeedbackRoute
+  '/scores': typeof ScoresRoute
   '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/feedback': typeof AdminFeedbackRoute
@@ -141,7 +165,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/admin': typeof AdminRouteWithChildren
+  '/backlog': typeof BacklogRoute
   '/embed': typeof EmbedRoute
+  '/feedback': typeof FeedbackRoute
+  '/scores': typeof ScoresRoute
   '/tool': typeof ToolRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/feedback': typeof AdminFeedbackRoute
@@ -160,7 +187,10 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
+    | '/backlog'
     | '/embed'
+    | '/feedback'
+    | '/scores'
     | '/tool'
     | '/actions/$slug'
     | '/admin/feedback'
@@ -176,7 +206,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/backlog'
     | '/embed'
+    | '/feedback'
+    | '/scores'
     | '/tool'
     | '/actions/$slug'
     | '/admin/feedback'
@@ -193,7 +226,10 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/admin'
+    | '/backlog'
     | '/embed'
+    | '/feedback'
+    | '/scores'
     | '/tool'
     | '/actions/$slug'
     | '/admin/feedback'
@@ -211,7 +247,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
   AdminRoute: typeof AdminRouteWithChildren
+  BacklogRoute: typeof BacklogRoute
   EmbedRoute: typeof EmbedRoute
+  FeedbackRoute: typeof FeedbackRoute
+  ScoresRoute: typeof ScoresRoute
   ToolRoute: typeof ToolRoute
   ActionsSlugRoute: typeof ActionsSlugRoute
   ActionsCheckDocumentsStartRoute: typeof ActionsCheckDocumentsStartRoute
@@ -227,11 +266,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ToolRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/scores': {
+      id: '/scores'
+      path: '/scores'
+      fullPath: '/scores'
+      preLoaderRoute: typeof ScoresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feedback': {
+      id: '/feedback'
+      path: '/feedback'
+      fullPath: '/feedback'
+      preLoaderRoute: typeof FeedbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/embed': {
       id: '/embed'
       path: '/embed'
       fullPath: '/embed'
       preLoaderRoute: typeof EmbedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/backlog': {
+      id: '/backlog'
+      path: '/backlog'
+      fullPath: '/backlog'
+      preLoaderRoute: typeof BacklogRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin': {
@@ -354,7 +414,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
   AdminRoute: AdminRouteWithChildren,
+  BacklogRoute: BacklogRoute,
   EmbedRoute: EmbedRoute,
+  FeedbackRoute: FeedbackRoute,
+  ScoresRoute: ScoresRoute,
   ToolRoute: ToolRoute,
   ActionsSlugRoute: ActionsSlugRoute,
   ActionsCheckDocumentsStartRoute: ActionsCheckDocumentsStartRoute,

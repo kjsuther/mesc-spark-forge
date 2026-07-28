@@ -1,53 +1,48 @@
-# Mobile Fullscreen Overhaul + Zone 6 / Boss Difficulty
+## Goal
 
-## What I found (verified in code)
+Make the site read clearly as "play a video game → give feedback → we build it → replay". Break the Play Game page into focused subpages, add top-level navigation, and wire in-game links to feedback.
 
-- The game renders into a fixed 960×540 buffer with the engine's `letterbox: true` mode (`src/components/game/game-scenes.ts`, lines ~101-110, ~890-906).
-- The engine **overwrites the canvas inline style** on init (`style.cssText = "...width:100%;height:100%"`), so the React-set `aspectRatio`/`objectFit: contain` on the canvas in `game-canvas.tsx` is discarded — sizing is entirely driven by the canvas's parent box.
-- The engine's resize handler contains an early `if (app.isFullscreen()) return;` — **while the browser is in native fullscreen, the canvas backing buffer is never recomputed**. It stays at whatever size the canvas had before fullscreen was entered. This is the direct cause of "small game with large margins" after pressing Full Screen.
-- On phones, launching already flips into a faux-fullscreen fixed overlay (`pickMode`), but the canvas parent is `100vw × 100dvh`, and 960×540 (16:9) letterboxed into a 19.5:9 phone leaves permanent side bars.
-- Touch pads and the Exit button already use `env(safe-area-inset-*)`, but only for left/right/bottom/top-right — the canvas itself ignores safe areas.
+## 1. New routes (top-level nav)
 
-## Changes
+Create three subpages, each with its own `head()` metadata, shared header/footer:
 
-### 1. Fix fullscreen canvas resizing (root cause)
-- Add a `useLayoutEffect`-driven resize controller in `game-canvas.tsx` that owns canvas element sizing: on mount, `resize`, `orientationchange`, `fullscreenchange`, `visualViewport` resize, and a `ResizeObserver` on the wrapper.
-- Since the engine skips its own resize while in native fullscreen, the controller will explicitly set `canvas.width/height` (backing store) and re-trigger the engine's viewport recalculation by dispatching a synthetic resize after briefly leaving/refreshing the size, or by setting the canvas box then forcing a `window.dispatchEvent(new Event("resize"))` while temporarily not in the engine's fullscreen state path. If the engine still refuses, fall back to preferring **faux fullscreen** (fixed overlay, no browser fullscreen API) on touch devices, which the engine resizes normally — this is already the default path on coarse pointers and will become the canonical mobile path.
-- Debounce/rAF-coalesce resizes so no flicker or frame drops.
+- `/feedback` — **Share Feedback**: intro copy explaining you're giving feedback on the game, the existing feedback form, plus a prominent link to the Backlog page and a "Back to the game" link.
+- `/backlog` — **Feedback Backlog**: the existing backlog board (open items in team-ranked order + already-implemented list), with a link to Share Feedback and Play Game.
+- `/scores` — **High Scores**: the existing top-3 leaderboard panel, with a link to Play Game.
 
-### 2. Landscape-adaptive logical viewport (kills black bars)
-- Replace fixed `LOGICAL_W = 960` with a computed view width: keep height locked at 540 (so all vertical layout, ground plane, and sprite scale are untouched) and derive width from the device aspect ratio, clamped to 960–1200.
-- Effect: on a 19.5:9 phone the player simply sees slightly more trail horizontally instead of black bars. No gameplay values change; camera clamp at line ~3620 switches from the `LOGICAL_W` constant to the computed view width, and all HUD already uses `k.width()`/`k.height()`.
-- Desktop keeps 960×540 exactly (aspect ≈ 16:9 → clamp resolves to 960), so no desktop regression.
+Add all three to `NAV_LINKS` in the site header (desktop + mobile sheet), keeping "Play the Game" as the orange CTA. Also add them to the site footer links.
 
-### 3. Full-bleed layout and safe areas
-- Fullscreen wrapper: `100dvw × 100dvh`, zero padding/margins, `background: #000`, with `padding` from `env(safe-area-inset-*)` applied only to the *UI overlay layer* (Exit button, pads, hint text) — the canvas itself goes edge to edge so no display area is wasted.
-- Remove the redundant `aspectRatio`/`objectFit` styles that the engine wipes anyway, and let the wrapper be the single source of truth.
+## 2. Play Game page (`/tool`) slimmed down
 
-### 4. Readability and touch targets in fullscreen
-- Scale menu/pause/instruction overlays with viewport-relative clamps (`clamp()` font sizes keyed off `svh`) so title, story, controls, zone step screens, score entry, and end screens stay legible and never clip in short landscape viewports; add internal scroll only as a last resort.
-- Bump touch pad sizes on small landscape heights (D-pad 72→ responsive 64-88, JUMP 92→ responsive 80-104) and keep them anchored inside safe areas.
-- Keep `image-rendering: pixelated` and integer-snapped positions so pixel art stays sharp.
+- Rename the version tab **"After feedback" → "Current Version"** (the other stays "Original Version"). Update the helper text and any other wording that says "After Feedback" on the public site (backlog board copy).
+- Make the intro copy explicitly say this is a retro **video game** you play and give feedback on.
+- Keep only: intro, version toggle, "best played on desktop/laptop" notice, game canvas.
+- Remove the inline feedback form, backlog board, and leaderboard from this page.
+- Below the canvas add a button row: **Share feedback**, **View backlog**, **High scores**.
 
-### 5. Fullscreen persistence
-- Persist the fullscreen intent in state; on `fullscreenchange` exit that wasn't user-initiated, fall back to the faux-fullscreen overlay instead of dropping to the page layout.
-- Re-run the resize controller after every scene change (level load, death, restart, boss, menus) by resizing on the engine's scene transitions as well as DOM events.
+## 3. In-game links to feedback
 
-### 6. Zone 6 harder (`game-scenes.ts`, current build only)
-- Calendar page fall speed `230 → 340`.
-- `CAL_MIN_GAP` `0.85 → 0.5`; telegraph `0.5 → 0.35`; rearm delay window `0.2-1.8 → 0.15-0.9`.
-- Keep the "never drop directly on the player" safety so it stays fair.
+- In the end-of-run overlay (shown after a win or a death), add a clearly styled 16-bit-looking **"Tell us what to fix →"** action that navigates to `/feedback`, alongside the existing name-entry / close actions. Works with both click and touch.
+- Note: the "Thank You" finale is drawn inside the game canvas engine, so the link will be surfaced by the same end-of-run overlay that appears on completion (it fires on win as well as loss). If you'd rather have a link painted inside the canvas art itself, that's a bigger engine change — say the word.
 
-### 7. Boss harder (`game-scenes.ts`, current build only)
-- Hop cooldown `3.2 + rand(1.8)` → `1.5 + rand(0.9)`.
-- Shot cooldown roughly halved; projectile speed `210 → 300`.
-- Projectiles live long enough (and are not culled early) to travel the full zone width, so the player must actively dodge or shoot them down rather than out-walk them.
-- Boss still requires exactly 3 "+" hits; the 0.9s post-hit invulnerability stays.
+## 4. Home page
 
-The frozen "Before Feedback" build (`src/components/game/original/`) receives the fullscreen/layout fixes only — its difficulty stays as-is, since it represents the pre-feedback version.
+Below the hero and above the steps, add a dark navy "practical path forward" band styled like the reference image: small gold eyebrow label, large two-line headline, and a row of small cards — reworded for this project (e.g. "Play it", "Tell us what's broken", "We build it live", "Play the better version", "Repeat").
 
-## Testing
-Automated headless-browser passes at iPhone Mini, iPhone Pro Max, Pixel, and small-tablet landscape viewports (plus a desktop regression pass): launch → fullscreen → confirm the canvas fills the viewport with no dead margin, step screens readable, pads inside safe areas, then play through a zone transition, a death/restart, and the boss fight, capturing screenshots at each step.
+Reduce the steps from four to three, each with a button:
+
+1. **Play the game** → button to `/tool`
+2. **Tell us what to fix** → button to `/feedback`
+3. **Come back and replay the new version** → button to `/tool`
+
+Mention "View the backlog" as an optional aside with a link to `/backlog`. Rewrite hero and section copy to drop the removed voting/timer/5-upgrade language.
+
+## 5. About page
+
+Rewrite the copy around the game loop: attendees play the game, submit feedback, the poster team implements it during the session, and players re-test live — showing how fast teams can align on concepts when the feedback loop is minutes instead of months. Keep the AI-transparency and "today vs. possible" sections but re-word them to the game context; fix the "[Your State]" placeholders in the metadata.
 
 ## Technical notes
-Files touched: `src/components/game/game-canvas.tsx` (layout/fullscreen/resize/UI scaling), `src/components/game/game-scenes.ts` (dynamic view width, Zone 6, boss), `src/components/game/original/game-scenes.ts` (dynamic view width only).
+
+- New route files: `src/routes/feedback.tsx`, `src/routes/backlog.tsx`, `src/routes/scores.tsx`, reusing `FeedbackForm`, `FeedbackBoard`, and `Leaderboard` components as-is.
+- Loaders prime `gameFeedbackQuery` where needed; the existing realtime subscription moves to the pages that show feedback data.
+- No database or admin-site changes — the admin backlog ranking/status flow stays as it is.

@@ -839,6 +839,98 @@ const TRAIL_PATH_D = [
   "C 664 182, 700 182, 726 193",
 ].join(" ");
 
+/** Pre-run "how to play" briefing — shown once after the journey map so the
+ *  player knows the controls on whichever device they're on. */
+function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack: () => void }) {
+  const [touch, setTouch] = useState(false);
+  useEffect(() => {
+    setTouch(
+      typeof window !== "undefined" &&
+        typeof window.matchMedia === "function" &&
+        window.matchMedia("(pointer: coarse)").matches,
+    );
+  }, []);
+
+  const desktop: Array<[string, string]> = [
+    ["← →", "Move"],
+    ["Space / ↑", "Jump"],
+    ["R", "Restart run"],
+    ["Esc", "Pause"],
+  ];
+  const mobile: Array<[string, string]> = [
+    ["◀ ▶", "Move"],
+    ["⤒", "Jump"],
+    ["Tap", "Continue screens"],
+    ["⛶", "Full screen"],
+  ];
+
+  const Column = ({
+    heading,
+    rows,
+    active,
+  }: {
+    heading: string;
+    rows: Array<[string, string]>;
+    active: boolean;
+  }) => (
+    <div
+      className="flex-1 border-4 px-3 py-3"
+      style={{
+        borderColor: active ? "var(--color-accent-gold)" : "rgba(255,255,255,0.35)",
+        background: active ? "rgba(255,220,90,0.12)" : "rgba(0,0,0,0.25)",
+      }}
+    >
+      <p
+        className="mb-3 text-center text-[8px] tracking-widest sm:text-[10px]"
+        style={{ color: active ? "var(--color-accent-gold)" : "var(--color-cream)" }}
+      >
+        {heading}
+        {active ? " ★" : ""}
+      </p>
+      <ul className="flex flex-col gap-2">
+        {rows.map(([key, action]) => (
+          <li key={action} className="flex items-center justify-between gap-2">
+            <span className="text-[8px] text-accent-gold sm:text-[10px]">{key}</span>
+            <span className="text-[7px] text-cream sm:text-[9px]">{action}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
+  return (
+    <div
+      className="w-full max-w-2xl text-center"
+      style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
+    >
+      <div
+        className="mx-auto mb-5 border-[6px] border-cream bg-mn-blue px-4 py-5"
+        style={{
+          imageRendering: "pixelated",
+          boxShadow:
+            "0 0 0 6px var(--color-mn-blue), 0 0 0 12px var(--color-accent-gold), 0 0 0 18px var(--color-mn-blue)",
+        }}
+      >
+        <p className="mb-4 text-[9px] tracking-widest text-accent-gold sm:text-[11px]">
+          ★ HOW TO PLAY ★
+        </p>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Column heading="DESKTOP" rows={desktop} active={!touch} />
+          <Column heading="MOBILE" rows={mobile} active={touch} />
+        </div>
+        <p className="mt-4 text-[7px] leading-[1.9] text-cream sm:text-[9px]">
+          Reach the clinic at the end of the trail. Collect your documents, dodge
+          the barriers, and don&apos;t give up.
+        </p>
+      </div>
+      <div className="mx-auto flex max-w-xs flex-col gap-3">
+        <MenuButton onClick={onContinue}>▶ Start Run</MenuButton>
+        <MenuButton onClick={onBack}>Back</MenuButton>
+      </div>
+    </div>
+  );
+}
+
 function TrailMap({ onContinue, onBack }: { onContinue: () => void; onBack: () => void }) {
   const pathRef = useRef<SVGPathElement | null>(null);
   const [len, setLen] = useState(0);

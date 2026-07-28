@@ -54,6 +54,9 @@ import brickBlockSheetUrl from "@/assets/game/brick-block-sheet.png";
 import envelopeGremlinSheetUrl from "@/assets/game/envelope-gremlin-sheet.png";
 import bossSheetUrl from "@/assets/game/boss-sheet.png";
 import doorLockUrl from "@/assets/game/door-lock.png";
+import heroPortraitUrl from "@/assets/game/hero-portrait.png";
+import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
+
 import docIdAsset from "@/assets/game/doc-id.png.asset.json";
 import docPaystubAsset from "@/assets/game/doc-paystub.png.asset.json";
 import docEnvelopeAsset from "@/assets/game/doc-envelope.png.asset.json";
@@ -660,7 +663,10 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadBackground(k, "bg-mountain", bgMountainUrl),
     safeLoadBackground(k, "bg-market",   bgMarketUrl),
     safeLoadBackground(k, "bg-clinic",   bgClinicUrl),
+    safeLoadBackground(k, "hero-portrait", heroPortraitUrl),
+    safeLoadBackground(k, "mesc-logo-16bit", mescLogo16Url),
   ]);
+
 
   ASSET_REPORT.ready = true;
   if (typeof window !== "undefined") {
@@ -2782,7 +2788,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.fixed(),
         k.z(LAYERS.OVERLAY),
       ]);
-      overlay.onClick(() => k.go("trail", 40, 1));
+      if (!win) overlay.onClick(() => k.go("trail", 40, 1));
       k.add([
         k.text(title, { size: 30, font: "sans-serif" }),
         k.pos(k.width() / 2, k.height() / 2 - 78),
@@ -2799,16 +2805,23 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.fixed(),
         k.z(LAYERS.OVERLAY_TEXT),
       ]);
-      k.add([
-        k.text("Tap screen or press R to try again", { size: 14, font: "sans-serif" }),
-        k.pos(k.width() / 2, k.height() / 2 + 100),
-        k.anchor("center"),
-        k.color(220, 220, 220),
-        k.fixed(),
-        k.z(LAYERS.OVERLAY_TEXT),
-      ]);
-      if (!win) opts.onLose?.(buildResult(false));
+      if (win) {
+        // The WIN screen holds for 5s, then hands off to the thank-you
+        // cutscene — that scene owns the restart prompt.
+        k.wait(5, () => k.go("thanks"));
+      } else {
+        k.add([
+          k.text("Tap screen or press R to try again", { size: 14, font: "sans-serif" }),
+          k.pos(k.width() / 2, k.height() / 2 + 100),
+          k.anchor("center"),
+          k.color(220, 220, 220),
+          k.fixed(),
+          k.z(LAYERS.OVERLAY_TEXT),
+        ]);
+        opts.onLose?.(buildResult(false));
+      }
     }
+
 
     // ================= Controls =================
     const leftKeys = ["left", "a"];
@@ -3077,7 +3090,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     for (const key of jumpKeys) k.onKeyPress(key as never, () => tryJump());
-    k.onKeyPress("r", () => k.go("trail", 40, 1));
+    k.onKeyPress("r", () => {
+      // While the win sequence is playing the player must watch the
+      // thank-you cutscene before restarting.
+      if (player.won) return;
+      k.go("trail", 40, 1);
+    });
+
 
     (player as AnyObj).use(k.opacity(1));
     player.onUpdate(() => {
@@ -3119,7 +3138,124 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
   });
 
+  // ================= Thank-you cutscene =================
+  // Plays 5s after the WIN overlay. Close-up of the hero thanking the player,
+  // with the 16-bit MESC 2026 conference badge. Only exit is "try again".
+  k.scene("thanks", () => {
+    const W = k.width();
+    const H = k.height();
+
+    // Night-sky gradient backdrop (bands, SNES style) + starfield.
+    const bands = [
+      [16, 22, 58], [22, 32, 78], [30, 46, 100], [40, 62, 122], [52, 80, 142],
+    ];
+    bands.forEach((c, i) => {
+      k.add([
+        k.rect(W, Math.ceil(H / bands.length) + 1),
+        k.pos(0, Math.floor((H / bands.length) * i)),
+        k.color(c[0], c[1], c[2]),
+        k.fixed(),
+        k.z(0),
+      ]);
+    });
+    for (let i = 0; i < 60; i++) {
+      const s = 2 + ((i * 7) % 2);
+      k.add([
+        k.rect(s, s),
+        k.pos(((i * 137) % W), ((i * 89) % (H - 40))),
+        k.color(255, 255, 220),
+        k.opacity(0.25 + ((i * 13) % 60) / 100),
+        k.fixed(),
+        k.z(1),
+      ]);
+    }
+
+    // Hero portrait, bottom-left.
+    const portraitH = Math.min(300, H * 0.62);
+    k.add([
+      k.sprite("hero-portrait", { width: portraitH, height: portraitH }),
+      k.pos(Math.floor(W * 0.24), H - 10),
+      k.anchor("bot"),
+      k.fixed(),
+      k.z(5),
+    ]);
+
+    // Conference badge, upper-right.
+    const logoS = Math.min(210, H * 0.42);
+    k.add([
+      k.sprite("mesc-logo-16bit", { width: logoS, height: logoS }),
+      k.pos(Math.floor(W * 0.79), Math.floor(H * 0.40)),
+      k.anchor("center"),
+      k.fixed(),
+      k.z(5),
+    ]);
+
+    // Speech bubble.
+    const bw = Math.min(560, W - 60);
+    const bh = 118;
+    const bx = Math.floor(W / 2 - bw / 2);
+    const by = 24;
+    k.add([k.rect(bw + 8, bh + 8), k.pos(bx - 4, by - 4), k.color(0, 0, 0), k.fixed(), k.z(8)]);
+    k.add([k.rect(bw, bh), k.pos(bx, by), k.color(252, 250, 235), k.fixed(), k.z(9)]);
+    k.add([
+      k.text(
+        "Thank you for helping make my journey easier.\nEvery fix you voted on is one less barrier\nfor a real person applying for coverage.\n\nHave a great time at MESC 2026!",
+        { size: 15, font: "sans-serif", width: bw - 28, align: "center", lineSpacing: 4 },
+      ),
+      k.pos(Math.floor(W / 2), by + Math.floor(bh / 2)),
+      k.anchor("center"),
+      k.color(24, 32, 68),
+      k.fixed(),
+      k.z(10),
+    ]);
+    // Bubble tail pointing down toward the hero.
+    k.add([
+      k.rect(22, 16),
+      k.pos(Math.floor(W * 0.30), by + bh - 1),
+      k.color(252, 250, 235),
+      k.outline(3, k.rgb(0, 0, 0)),
+      k.fixed(),
+      k.z(9),
+    ]);
+
+    // Blinking restart prompt.
+    const prompt = k.add([
+      k.text("Tap screen or press R to try again", { size: 16, font: "sans-serif" }),
+      k.pos(Math.floor(W / 2), H - 26),
+      k.anchor("center"),
+      k.color(255, 235, 120),
+      k.opacity(1),
+      k.fixed(),
+      k.z(12),
+    ]);
+    const winReset =
+      typeof window !== "undefined"
+        ? (window as unknown as { __gameInput?: { resetReq: boolean } })
+        : undefined;
+    k.onUpdate(() => {
+      (prompt as AnyObj).opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.15;
+      if (winReset?.__gameInput?.resetReq) {
+        winReset.__gameInput.resetReq = false;
+        k.go("trail", 40, 1);
+      }
+    });
+
+
+    const hit = k.add([
+      k.rect(W, H),
+      k.pos(0, 0),
+      k.opacity(0),
+      k.area(),
+      k.fixed(),
+      k.z(20),
+    ]);
+    hit.onClick(() => k.go("trail", 40, 1));
+    k.onKeyPress("r", () => k.go("trail", 40, 1));
+    k.onKeyPress("space", () => k.go("trail", 40, 1));
+  });
+
   k.go("trail", 40, 1);
+
 
   return () => {
     try {

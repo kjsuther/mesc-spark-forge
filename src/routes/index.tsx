@@ -80,21 +80,22 @@ const STEPS: Step[] = [
   {
     num: 2,
     title: "Vote on the upgrade you want next",
-    body: "After playing, pick one of five upgrades that would help you finish the journey. One vote per attendee, per round.",
+    body: "After playing, vote for one of the available upgrades that you feel would help you finish the journey. One vote per attendee, per round of voting. There will be 5 total rounds of voting for upgrades.",
     cta: "Cast your vote",
     theme: THEMES.gold,
   },
   {
     num: 3,
     title: "Wait for the timer to reach 0:00",
-    body: "Each voting round runs for 10 minutes. Watch the poster board or the game page to see the votes stack up live.",
+    body: "Each voting round runs for 10 minutes. Watch the poster board or this site to see votes being collected live and see which game upgrade will be implemented next.",
     cta: "Watch the round",
     theme: THEMES.teal,
   },
   {
     num: 4,
     title: "Play again with the new upgrade active",
-    body: "When the timer ends, the top-voted upgrade turns on for everyone. Replay the game and see if the trail is a little easier.",
+    body: "When the voting timer ends for that round, the top-voted upgrade will be implemented for everyone to try. Replay the game and see adding tools to assist in the journey makes the game a little easier.",
+
     cta: "Play the next round",
     theme: THEMES.orange,
   },

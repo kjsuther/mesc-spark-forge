@@ -100,7 +100,7 @@ export function Leaderboard({ variant = "panel" }: { variant?: "panel" | "poster
     <section className="mt-6 rounded-lg border-2 border-accent-gold/60 bg-cream/60 overflow-hidden">
       <header className="bg-accent-gold text-mn-blue px-4 py-2 flex items-center justify-between">
         <span className="font-display uppercase tracking-widest text-sm">
-          ★ High Scores
+          ★ High Scores · Top 3
         </span>
         <span className="text-[10px] font-bold uppercase tracking-widest text-mn-blue/70">
           Updates every 5s

@@ -1137,7 +1137,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Floating label above the brick so player knows what each represents.
       addSignPlaque(k, m.x, BRICK_Y - 42, m.label, m.icon);
     }
-    addSpeech(k, 90, BRICK_Y - 90, "Smash a brick and collect application", [40, 60, 120]);
+    addSpeech(k, 180, BRICK_Y - 90, "Smash a brick and collect application", [40, 60, 120]);
     zoneObjectives[0] = {
       hudLabel: () => `METHOD ${zoneState.methodTouched ? "✓" : "☐"}`,
       met: () => zoneState.methodTouched,
@@ -1352,7 +1352,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         hitboxScale: { x: -dh / 2, w: dh, h: dh },
       });
     }
-    addSpeech(k, tx0 + 120, GROUND_Y - 80, "Gather 3 docs and avoid evil clipboards", [40, 60, 120]);
+    addSpeech(k, tx0 + 200, GROUND_Y - 80, "Gather 3 docs and avoid evil clipboards", [40, 60, 120]);
     {
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
@@ -1704,12 +1704,36 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (existing.length > 0) return;
         for (let z = 1; z < ZONES.length; z++) {
           const fx = BIOME_W * z + 60;
-          const ch = DISPLAY_H["campfire"];
-          spawnGrounded(k, "campfire", sizes, {
-            x: fx, z: LAYERS.PROP, tag: "checkpoint",
-            props: { atX: fx },
-            hitboxScale: { x: -ch / 2, w: ch, h: ch },
-          });
+          if (z === 1) {
+            // Zone 2 keeps the campfire sprite.
+            const ch = DISPLAY_H["campfire"];
+            spawnGrounded(k, "campfire", sizes, {
+              x: fx, z: LAYERS.PROP, tag: "checkpoint",
+              props: { atX: fx },
+              hitboxScale: { x: -ch / 2, w: ch, h: ch },
+            });
+          } else {
+            // Other zones: slim navy/gold checkpoint flag instead of a campfire.
+            const pole = k.add([
+              k.rect(4, 46),
+              k.pos(fx, GROUND_Y - 46),
+              k.color(30, 35, 60),
+              k.outline(1, k.rgb(255, 220, 90)),
+              k.area({ shape: new k.Rect(k.vec2(-14, 0), 32, 46) }),
+              k.z(LAYERS.PROP),
+              "checkpoint",
+              { atX: fx },
+            ]) as AnyObj;
+            const flag = k.add([
+              k.rect(20, 14),
+              k.pos(fx + 4, GROUND_Y - 44),
+              k.color(255, 220, 90),
+              k.outline(1, k.rgb(20, 25, 45)),
+              k.z(LAYERS.PROP),
+              "checkpoint-flag",
+            ]) as AnyObj;
+            pole.onDestroy(() => flag.destroy());
+          }
         }
       } else {
         existing.forEach((o) => (o as unknown as { destroy: () => void }).destroy());
@@ -1953,6 +1977,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ----- Navigator companion: walks beside the player while carried -----
     let companion: AnyObj | null = null;
     let companionBubble: AnyObj | null = null;
+    let companionBubbleParts: AnyObj[] = [];
     function syncCompanion() {
       const want = powerUps.navigatorReady();
       if (want && !companion) {
@@ -1960,16 +1985,41 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           x: player.pos.x - 60,
           z: LAYERS.ACTOR,
         }) as AnyObj;
-        companionBubble = k.add([
-          k.text("I'll help!", { size: 12, font: "sans-serif" }),
+        // Name card: navy plaque + shadowed gold text so it stays readable
+        // against bright skies and pale backgrounds.
+        const navLabel = "Navigator — I'll help!";
+        const navSize = 10;
+        const navW = Math.ceil(navLabel.length * navSize * 0.62) + 14;
+        const navH = navSize + 10;
+        const navPlaque = k.add([
+          k.rect(navW, navH, { radius: 3 }),
           k.pos(0, 0),
-          k.color(255, 255, 255),
-          k.z(LAYERS.EFFECT),
           k.anchor("center"),
+          k.color(20, 25, 45),
+          k.outline(2, k.rgb(255, 220, 90)),
+          k.opacity(0.95),
+          k.z(LAYERS.EFFECT),
         ]) as AnyObj;
+        const navShadow = k.add([
+          k.text(navLabel, { size: navSize, font: "sans-serif" }),
+          k.pos(0, 0),
+          k.anchor("center"),
+          k.color(0, 0, 0),
+          k.z(LAYERS.EFFECT + 1),
+        ]) as AnyObj;
+        const navText = k.add([
+          k.text(navLabel, { size: navSize, font: "sans-serif" }),
+          k.pos(0, 0),
+          k.anchor("center"),
+          k.color(255, 220, 90),
+          k.z(LAYERS.EFFECT + 2),
+        ]) as AnyObj;
+        companionBubble = navPlaque;
+        companionBubbleParts = [navPlaque, navShadow, navText];
       } else if (!want && companion) {
         companion.destroy();
-        companionBubble?.destroy();
+        companionBubbleParts.forEach((o) => o.destroy());
+        companionBubbleParts = [];
         companion = null;
         companionBubble = null;
       }
@@ -1980,8 +2030,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const dx = target - companion.pos.x;
       companion.pos.x += Math.sign(dx) * Math.min(Math.abs(dx), 4);
       companion.pos.y = GROUND_Y;
-      if (companionBubble) {
-        companionBubble.pos = k.vec2(companion.pos.x, companion.pos.y - DISPLAY_H["ranger"] - 12);
+      if (companionBubbleParts.length) {
+        const bx = companion.pos.x;
+        const by = companion.pos.y - DISPLAY_H["ranger"] - 12;
+        companionBubbleParts[0].pos = k.vec2(bx, by);
+        companionBubbleParts[1].pos = k.vec2(bx + 1, by + 1);
+        companionBubbleParts[2].pos = k.vec2(bx, by);
       }
       if (Math.random() < 0.06) {
         sparkleBurst(companion.pos.x, companion.pos.y - DISPLAY_H["ranger"] / 2, [255, 235, 140]);

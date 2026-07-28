@@ -1544,8 +1544,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const CAL_COUNT = 8;
     const CAL_L = mx0 + 80;
     const CAL_R = mx0 + BIOME_W - 80;
-    const CAL_MIN_GAP = 0.85; // seconds between two pages starting to fall
-    const CAL_TELEGRAPH = 0.5; // seconds a warning marker shows before the drop
+    const CAL_MIN_GAP = 0.5; // seconds between two pages starting to fall
+    const CAL_TELEGRAPH = 0.35; // seconds a warning marker shows before the drop
     let calNextDropAt = 0;
     let calLastX = (CAL_L + CAL_R) / 2;
     /** Pick a drop column: away from the player and from the previous drop. */
@@ -1568,7 +1568,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         x: (CAL_L + CAL_R) / 2, y: -400, z: LAYERS.ACTOR,
         tag: "boulder",
         props: {
-          spd: 230,
+          spd: 340,
           spin: 40,
           driftAmp: 10,
           driftSpd: 1,
@@ -1584,7 +1584,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const rearm = () => {
         b.falling = false;
         b.pos = k.vec2((CAL_L + CAL_R) / 2, -600);
-        b.armAt = k.time() + 0.2 + Math.random() * 1.6;
+        b.armAt = k.time() + 0.15 + Math.random() * 0.75;
       };
       rearm();
       b.onUpdate(() => {
@@ -2888,12 +2888,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.area({ shape: new k.Rect(k.vec2(0, 0), sw - 8, sh - 8) }),
         k.z(LAYERS.EFFECT),
         "boss-shot",
-        { vx: dirX * 210, born: k.time() },
+        { vx: dirX * 300, born: k.time() },
       ]) as AnyObj;
       shot.onUpdate(() => {
         shot.pos.x += shot.vx * k.dt();
         shot.pos.y += Math.sin(k.time() * 6) * 0.6;
-        if (k.time() - shot.born > 6) shot.destroy();
+        // Live long enough to cross the whole arena — the player has to
+        // dodge or shoot the paperwork down, not out-walk it.
+        if (k.time() - shot.born > 14) shot.destroy();
       });
     }
 
@@ -3024,7 +3026,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // Occasional hop.
         if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
           boss.vy = -430;
-          boss.nextHop = now + 3.2 + Math.random() * 1.8;
+          boss.nextHop = now + 1.5 + Math.random() * 0.9;
         }
         boss.vy += 1300 * dt;
         boss.pos.y = Math.min(GROUND_Y, boss.pos.y + boss.vy * dt);

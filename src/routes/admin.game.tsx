@@ -74,6 +74,9 @@ function AdminGamePage() {
       .on("postgres_changes", { event: "*", schema: "public", table: "game_vote_rounds" }, () =>
         qc.invalidateQueries({ queryKey: ["game_round"] }),
       )
+      .on("postgres_changes", { event: "*", schema: "public", table: "game_build_runs" }, () =>
+        qc.invalidateQueries({ queryKey: ["game_build_run"] }),
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
@@ -86,6 +89,15 @@ function AdminGamePage() {
     [improvements],
   );
   const secondsLeft = useCountdown(round?.endsAt ?? null);
+  const buildEndsAt = buildRun
+    ? new Date(new Date(buildRun.startedAt).getTime() + buildRun.durationSec * 1000).toISOString()
+    : null;
+  const buildSecondsLeft = useCountdown(buildEndsAt);
+  const buildLabel =
+    improvements.find((i) => i.key === buildRun?.improvementKey)?.label ??
+    buildRun?.improvementKey ??
+    "";
+
 
   async function handleToggle(key: ImprovementKey, enabled: boolean) {
     await toggle({ data: { key, enabled } });

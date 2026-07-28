@@ -1,22 +1,32 @@
-## Problem
+## Goal
 
-In the "★ THE TRAIL AHEAD ★" screen (the `TrailMap` component in `src/components/game/game-canvas.tsx`), the animated dashed line and the 8 numbered stops are generated mathematically — evenly spaced across the width with a sine-wave vertical offset. They have no relationship to the winding trail and numbered stops painted into the parchment background image (`trail-map-bg-v2.png`). The background is also drawn with `background-size: cover`, so it gets cropped differently at every screen size, which would break any alignment even if the coordinates matched today.
+Keep the current map artwork exactly as is. Rework the animated overlay in the "THE TRAIL AHEAD" screen so the animated line traces the trail actually painted on that image and its stops land on the printed 1–8 markers.
 
-## Fix
+## Current problem
 
-Make the drawn trail the single source of truth so the two can never disagree:
+The overlay in `TrailMap` (`src/components/game/game-canvas.tsx`) places 8 nodes on a math-generated sine wave evenly spread left→right, then draws straight dashed lines between them. That geometry has nothing to do with the artwork, so colored dots land in trees/water and the lines cut across the map.
 
-1. **New background art** — generate a parchment/adventure-map background with terrain only (forest, river, mountains, coast, compass rose, decorative border) and **no painted trail or numbered stops**. This becomes the canvas the animation draws on.
+## Approach
 
-2. **Rewrite the trail rendering in `TrailMap`**
-   - Replace the straight sine-spaced line segments with a single hand-authored curved path (SVG cubic bezier) through 8 fixed waypoints laid out over the map's terrain — starting bottom-left, winding through forest and across the river, up over the mountains, ending top-right at "Coverage Begins!".
-   - Animate the trail with the dash-offset technique (`stroke-dasharray` / `stroke-dashoffset`) so the dashed path draws itself smoothly along the curve instead of popping in per segment.
-   - Numbered stop pins sit exactly on the path waypoints and pop in as the drawing reaches each one; the label caption below keeps updating to the current stop.
+1. **Measure the artwork once.** The background is 1280×640 (2:1), and the SVG overlay already uses a `0 0 800 400` viewBox with `background-size: cover` on a fixed `aspect-[2/1]` frame, so image pixels map 1:1 to viewBox units. Traced marker centers (viewBox units):
 
-3. **Lock the coordinate space** — switch the background to `background-size: 100% 100%` inside the fixed `aspect-[2/1]` frame and use the same `0 0 800 400` viewBox for the SVG, so image pixels and SVG coordinates map 1:1 at every screen size and on mobile.
+   ```text
+   1 (92,275)  2 (163,192)  3 (261,213)  4 (383,138)
+   5 (333,268) 6 (570,299)  7 (638,193)  8 (726,193)
+   ```
 
-4. Respect reduced motion (show the completed trail immediately) and keep the existing "▶ Begin Journey" / "Back" buttons unchanged.
+2. **Hand-author the path.** Replace the generated line segments with a single SVG `<path>` of cubic bezier segments running 1→2→3→4→5→6→7→8, with control points tuned to hug the painted dashed trail (dips around the bridge at 3, the loop up to the farmhouse at 4 and back down to 5, the long curve past the mountain tunnel to 6).
 
-## Verification
+3. **Animate the draw, not the dots.** Use `getTotalLength()` on the path with `stroke-dasharray`/`stroke-dashoffset` so the highlight line draws smoothly along the trail. A small traveling marker (hero-colored dot with pixel outline) rides the path via `getPointAtLength()`.
 
-Drive the live app with a headless browser on both desktop and a narrow mobile viewport, step to the Trail Map screen, and capture screenshots mid-animation and at completion to confirm the trail and pins sit on the map terrain and line up identically at both sizes.
+4. **Stops read as highlights, not new pins.** Instead of drawing opaque colored circles over the printed numbers, each stop gets a pulsing gold ring + soft glow centered on the printed marker, activated as the line reaches it. Numbers stay legible.
+
+5. **Caption sync.** The existing bottom caption keeps updating to the current stop's label; add a dark plaque behind it for the same readability treatment used elsewhere in the game.
+
+6. **Scaling safety.** Frame stays `aspect-[2/1]` with `background-size: 100% 100%` (instead of `cover`) so the image can never crop and de-sync from the overlay at any container width; the SVG keeps `preserveAspectRatio="none"` matched to that.
+
+## Technical notes
+
+- Only `src/components/game/game-canvas.tsx` (the `TrailMap` component) changes. No asset changes; `trail-map-terrain.png` is not used.
+- Animation driven by a `requestAnimationFrame` progress value (0→1) rather than the current 60ms interval tick, for a smooth draw; respects reduced-motion by snapping to full path.
+- Verification: run the intro flow in the preview at desktop and mobile widths and screenshot the map screen to confirm the animated line sits on the painted trail and rings land on stops 1–8.

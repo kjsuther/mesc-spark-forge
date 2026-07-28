@@ -25,7 +25,8 @@ function EmbedPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const mode: "before" | "after" = settings?.before_after ?? "before";
+  const mode: "before" | "after" =
+    settings?.before_after ?? (improvements.some((i) => i.enabled) ? "after" : "before");
 
   // Upgrades only apply in the "after feedback" version.
   const flags = useMemo(() => {

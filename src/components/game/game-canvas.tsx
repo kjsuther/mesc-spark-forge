@@ -419,7 +419,16 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
         {/* SNES-style title / launch / high-score screen */}
         {!launchMode && !error && (
-          <div className="absolute inset-0 z-30 grid place-items-center bg-mn-blue p-4 text-cream">
+          <div
+            className="absolute inset-0 z-30 grid place-items-center bg-mn-blue p-4 text-cream"
+            onClick={(e) => {
+              // Tap/click anywhere continues — except on the menu buttons
+              // themselves, which already have their own action.
+              if ((e.target as HTMLElement).closest("button")) return;
+              advanceMenu();
+            }}
+          >
+
             {menuScreen === "title" && (
               <div className="w-full max-w-lg text-center">
                 <div
@@ -457,6 +466,12 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                 >
                   <MenuButton onClick={() => { music.start(); setMusicOn(true); setMenuScreen("explainer"); }}>▶ Start Game</MenuButton>
                   <MenuButton onClick={() => setMenuScreen("scores")}>★ High Scores</MenuButton>
+                  {/* Full screen is a first-class title-screen option, not a
+                      hidden control that only appears mid-run. */}
+                  <MenuButton onClick={() => { void toggleFullscreen(); }}>
+                    {isFullscreen || fauxFullscreen ? "⤡ Exit Full Screen" : "⛶ Full Screen"}
+                  </MenuButton>
+
                 </div>
               </div>
             )}

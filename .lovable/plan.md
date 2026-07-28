@@ -1,55 +1,70 @@
-## What changes
+# Improve "Blazing the Trail to Coverage"
 
-Out: the 5 preset enhancements + toggles, live vote rounds (vote panel, in-game vote overlay, poster vote chart), and the live-coding "Build Theater" animation.
+Targeted improvements to the existing Kaplay engine. No architecture rewrite; all art, sprites, music, HUD, achievements, feedback system and scoring stay as-is. Changes land in **both** engines — the current build (`src/components/game/game-scenes.ts`) and the frozen original (`src/components/game/original/game-scenes.ts`) — plus the shared React shell.
 
-In: a real feedback backlog that players write to, admins rank and ship, and both the public site and Poster View display.
+## 1. Auto-run fix
 
-## 1. Feedback backlog (new data)
+Cause to eliminate: the shared `window.__gameInput` object (`left/right/jumpReq`) persists across scene restarts, so a held touch button or a stale flag keeps `dir = +1` on the next run, and keys held during `R`/restart still read as down.
 
-New table `game_feedback`:
-- `description` (short text, required)
-- `submitter_name` (first name + last initial, e.g. "Kevin S.")
-- `status`: `backlog` | `implemented`
-- `rank` (admin-controlled ordering)
-- `implemented_at`, `created_at`, `updated_at`
-- Public may read all rows (nothing sensitive stored) and insert new ones; only the admin session can update, reorder, delete.
+- Clear `__gameInput` at the start of every `trail` scene entry (and on win/lose/thanks scene entry).
+- Add an "input arm" gate: after a scene starts, movement stays at zero until a fresh press is observed (a key-down transition or a touch button press that began after the scene loaded). Held-over input is ignored until released.
+- The React shell already resets `__gameInput` on launch; also reset it on pointerup/pointercancel/blur/visibilitychange so a finger sliding off the D-pad can never latch.
+- Verify after: reset button, `R` restart, lose-all-lives, win → thanks → replay, and return to title.
 
-The existing site-feedback table stays untouched.
+## 2. Full Screen button on the title screen
 
-## 2. Player-facing (tool page)
+- Add a retro pixel-styled **FULL SCREEN** button to the title menu in `game-canvas.tsx`, sized for comfortable tapping (min ~48px tall) and visible on both layouts.
+- Uses the existing `requestNativeFullscreen` helper with the existing faux-fullscreen fallback for iOS Safari.
 
-- **Submit form** below the game: short description + first name + last initial, with a thank-you confirmation. Light rate/length validation.
-- **Feedback board** below the form, in two columns:
-  - *In the backlog* — ordered by the admin's rank.
-  - *Implemented* — newest first, with a count badge.
-- **Before / After tabs**:
-  - "After Feedback" is now the **default**.
-  - "Before Feedback (Original Version)" is a manual click and runs the frozen original game.
-  - The counter next to the tabs becomes "N player suggestions implemented" (no longer capped at 5), and the After view lists the implemented items.
-- Remove the vote panel, the in-game vote overlay, and the Build Theater from this page.
+## 3. Universal continue input
 
-## 3. Frozen original build
+Introduce one shared helper (`awaitContinue`) used by every paused screen: title, story/explainer, tutorial, zone step screens, win, lose, credits/thanks.
 
-Today's game code is copied once into `src/components/game/original/` and wired to the "before" tab. That copy is never edited again; all future feedback changes go into the live game used by "After Feedback". The feature-flag plumbing (`game-features.ts`, flags props) is deleted from both.
+- Desktop: Enter, Space, or mouse click.
+- Mobile/touch: tap anywhere on the canvas or overlay.
+- Prompt text adapts: `Press Enter, Space, or Click to Continue` vs `Tap Anywhere to Continue`.
+- Removes any remaining Enter-only path.
 
-## 4. Admin site
+## 4. Interactive step screens replace fading title cards
 
-New **Feedback** admin page (and a card on the admin index):
-- Backlog list with drag-or-arrow reordering that writes `rank` — this order is exactly what players and the Poster View see.
-- Per item: edit description/name, **Mark Implemented**, **Move back to Backlog**, delete.
-- Implemented list with the date shipped.
-- Counts at the top (backlog / implemented).
-- The old Game admin page loses the upgrade toggles, round controls, and build-run controls; it keeps the leaderboard/settings pieces.
+Replace `showTitleCard` on zone entry with a true pause panel:
 
-## 5. Poster View
+- Freeze player movement, enemy updates, timers (including the Zone 6 countdown), and projectiles while shown.
+- Centered pixel panel: step number, step name, subtitle, instruction lines, sprite thumbnails of the enemies/collectibles named, and the continue prompt.
+- Sprites are drawn from the already-loaded atlas frames (application, username/password, account lock, platform, three documents, evil clipboard, mailbox, monster envelope, calendar, plan pedestals, boss, "+" projectile, stairs, medical ID card).
+- Shown the **first time per run** for each zone; respawns re-enter without interruption.
+- Content per zone exactly as specified in Steps 1–8.
+- The end-of-game "STEP 8 · ENROLLED" flourish card stays as a celebration card.
 
-- Vote chart and build animation removed.
-- Shows the ranked backlog and the implemented list side by side with the leaderboard, live-updating.
+## 5. Difficulty rebalance (~20–30% easier, same pace)
+
+Data-only edits to spawn tables — movement speed, jump velocity, and gravity untouched:
+
+- Remove roughly a quarter of enemy placements per zone, preferring duplicates and clustered pairs.
+- Widen minimum spacing between consecutive hazards so each requires a single clean jump.
+- Slightly widen the tightest gap/platform windows so jump timing is forgiving.
+- Eliminate overlaps where a falling hazard and a ground enemy occupy the same landing spot.
+
+## 6. Boss fight redesign (Zone 7)
+
+Replace the stomp mechanic entirely.
+
+- **Boss**: patrols back and forth, occasional hop, and fires themed projectiles on a timer (paperwork / denial letter / bill sprites drawn from existing art, tinted variants where needed). Projectiles travel horizontally at moderate speed at a height clearable by a normal jump, with a guaranteed minimum gap between shots so nothing is unavoidable.
+- **Player**: selecting a managed care plan grants an automatic power-up — the player continuously auto-fires `+` cross projectiles toward the boss. No fire button.
+- **Health**: exactly 3 hits. Each hit flashes the boss, grants brief invulnerability, then it resumes attacking. Heart HUD above the boss shows 3.
+- **Defeat**: defeat animation, boss disappears, gold key drops, exit door unlocks and the player proceeds.
+- Body contact with the boss and being hit by a boss projectile cost a life as usual; the Navigator auto-defeat path is preserved in the original build where that upgrade exists.
+
+## 7. Leaderboards show top 3 only
+
+- `src/components/game/leaderboard.tsx`: limit 3, ordered by score descending then earliest `created_at`; columns show rank, name, score only.
+- Same top-3 treatment in the in-game high-score display and the Poster View leaderboard.
+
+## 8. Regression pass
+
+Playwright run against the preview at desktop and mobile viewports covering: launch → title → step screen → zone 1 clear, death/restart with no auto-run, boss defeat, win → thanks → replay, high-score entry, feedback form, and the admin feedback board.
 
 ## Technical notes
 
-- Data access follows the existing pattern: public reads via the browser client with RLS + grants; all admin writes through `createServerFn` in a new `src/lib/feedback.functions.ts` guarded by `requireAdmin()`.
-- Realtime subscription on `game_feedback` so the tool page and Poster View update instantly when an admin ships an item.
-- Files removed: `src/components/game/vote-panel.tsx`, `vote-overlay.tsx`, `src/components/build-theater.tsx`, `src/lib/build-scripts.ts`, `src/lib/game-features.ts`, plus the vote/build server functions and queries.
-- Old tables (`game_improvements`, `game_improvement_votes`, `game_vote_rounds`, `game_round_candidates`, `game_improvement_pool`, `game_build_runs`) are dropped in the same migration once the code no longer reads them.
-- `embed.tsx` follows the same default-to-After behavior.
+- Touched files: `src/components/game/game-scenes.ts`, `src/components/game/original/game-scenes.ts`, `src/components/game/game-canvas.tsx`, `src/components/game/leaderboard.tsx`, `src/routes/admin.poster.tsx` (leaderboard limit), plus a small shared `step-screens` data module for the eight panels.
+- No database migrations and no changes to the feedback backlog system.

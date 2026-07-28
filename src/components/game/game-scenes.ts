@@ -2580,9 +2580,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
 
       // Sprite strip: what you'll meet in this zone.
-      const iconTop = Math.min(y + 6, panelY + panelH - 118);
-      const iconBox = 52;
-      const gap = 26;
+      const iconTop = Math.min(y + px(6), panelY + panelH - px(118));
+      const iconBox = px(52);
+      const gap = px(26);
       const totalW = data.icons.length * iconBox + (data.icons.length - 1) * gap;
       let ix = cx - totalW / 2 + iconBox / 2;
       for (const icon of data.icons) {
@@ -2596,29 +2596,29 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             k.pos(ix, centerY), k.anchor("center"), k.fixed(), k.z(303),
           ]);
         } else if (icon.glyph) {
-          put([k.rect(30, 9), k.pos(ix, centerY), k.anchor("center"), k.color(60, 210, 120), k.outline(2, k.rgb(255, 255, 255)), k.fixed(), k.z(303)]);
-          put([k.rect(9, 30), k.pos(ix, centerY), k.anchor("center"), k.color(60, 210, 120), k.outline(2, k.rgb(255, 255, 255)), k.fixed(), k.z(303)]);
+          put([k.rect(px(30), px(9)), k.pos(ix, centerY), k.anchor("center"), k.color(60, 210, 120), k.outline(2, k.rgb(255, 255, 255)), k.fixed(), k.z(303)]);
+          put([k.rect(px(9), px(30)), k.pos(ix, centerY), k.anchor("center"), k.color(60, 210, 120), k.outline(2, k.rgb(255, 255, 255)), k.fixed(), k.z(303)]);
         } else if (icon.shape === "platform") {
-          put([k.rect(54, 14), k.pos(ix, centerY), k.anchor("center"), k.color(240, 230, 200), k.outline(2, k.rgb(60, 45, 25)), k.fixed(), k.z(303)]);
+          put([k.rect(px(54), px(14)), k.pos(ix, centerY), k.anchor("center"), k.color(240, 230, 200), k.outline(2, k.rgb(60, 45, 25)), k.fixed(), k.z(303)]);
         } else {
           for (let s = 0; s < 3; s++) {
             put([
-              k.rect(18, 10), k.pos(ix - 18 + s * 18, centerY + 16 - s * 10),
+              k.rect(px(18), px(10)), k.pos(ix - px(18) + s * px(18), centerY + px(16) - s * px(10)),
               k.anchor("center"), k.color(200, 195, 210), k.outline(2, k.rgb(90, 90, 110)),
               k.fixed(), k.z(303),
             ]);
           }
         }
         put([
-          k.text(icon.label, { size: 8, font: "sans-serif", width: iconBox + gap - 4, align: "center" }),
-          k.pos(ix, centerY + iconBox / 2 + 6), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
+          k.text(icon.label, { size: px(9), font: "sans-serif", width: iconBox + gap - px(4), align: "center" }),
+          k.pos(ix, centerY + iconBox / 2 + px(6)), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
         ]);
         ix += iconBox + gap;
       }
 
       const promptNode = put([
-        k.text(CONTINUE_PROMPT(), { size: 12, font: "sans-serif" }),
-        k.pos(cx, panelY + panelH - 26), k.anchor("center"), k.opacity(1),
+        k.text(CONTINUE_PROMPT(), { size: px(13), font: "sans-serif" }),
+        k.pos(cx, panelY + panelH - px(26)), k.anchor("center"), k.opacity(1),
         k.color(255, 235, 120), k.fixed(), k.z(303),
       ]);
 
@@ -2626,6 +2626,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const hitArea = put([
         k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305),
       ]);
+
       const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
         k.onKeyPress(key as never, () => close()),
       );

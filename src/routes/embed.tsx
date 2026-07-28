@@ -27,13 +27,15 @@ function EmbedPage() {
 
   const mode: "before" | "after" = settings?.before_after ?? "before";
 
+  // Upgrades only apply in the "after feedback" version.
   const flags = useMemo(() => {
     const base = Object.fromEntries(
       IMPROVEMENT_KEYS.map((k) => [k, false]),
     ) as Record<ImprovementKey, boolean>;
+    if (mode !== "after") return base;
     for (const imp of improvements) base[imp.key] = imp.enabled;
     return base;
-  }, [improvements]);
+  }, [improvements, mode]);
 
   return (
     <div className="w-screen h-[100dvh] bg-black overflow-hidden">

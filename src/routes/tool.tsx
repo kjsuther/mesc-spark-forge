@@ -89,13 +89,16 @@ function ToolPage() {
 
   const mode: "before" | "after" = localMode ?? settings?.before_after ?? "before";
 
+  // Upgrades only ever apply to the "After feedback" version of the game.
+  // The "Before feedback" run is always the raw, un-upgraded experience.
   const flags = useMemo(() => {
     const base = Object.fromEntries(
       IMPROVEMENT_KEYS.map((k) => [k, false]),
     ) as Record<ImprovementKey, boolean>;
+    if (mode !== "after") return base;
     for (const imp of improvements) base[imp.key] = imp.enabled;
     return base;
-  }, [improvements]);
+  }, [improvements, mode]);
 
   const enabledCount = improvements.filter((i) => i.enabled).length;
 
@@ -148,6 +151,17 @@ function ToolPage() {
               : "Raw experience — no improvements applied"}
           </span>
         </div>
+
+        <div className="mb-4 rounded-lg border-2 border-accent-orange bg-accent-orange/10 px-4 py-3">
+          <p className="text-sm font-bold uppercase tracking-wide text-mn-blue">
+            ⌨ Best played on a desktop or laptop
+          </p>
+          <p className="mt-1 text-sm text-dark-gray/80">
+            Keyboard controls (arrow keys + space) give the smoothest run. Mobile works, but the
+            on-screen controls are cramped — if you're on a phone, turn it sideways into landscape.
+          </p>
+        </div>
+
 
         <ClientGameCanvas
           flags={flags}

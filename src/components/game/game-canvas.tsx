@@ -468,12 +468,14 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
   // Menus, pause cards, and instruction screens are plain HTML, so they scale
   // independently of the canvas. Anchor them to the same 960x540 design box
-  // the game uses: short landscape phones shrink slightly (nothing clips),
+  // the game uses. Menu cards are taller than the game viewport because they
+  // include buttons, so short landscape phones use a taller fit baseline to
+  // keep Continue / Start controls reachable above mobile browser chrome.
   // large tablets and desktops scale up (nothing is squint-small).
   const uiScale = overlayFs
     ? Math.max(
         isTouch ? 0.56 : 0.82,
-        Math.min(1.85, Math.min(vw / 960, vh / 540) * (isTouch ? 1.06 : 1.12)),
+        Math.min(1.85, Math.min(vw / 960, vh / (isTouch ? 680 : 540)) * (isTouch ? 1.02 : 1.12)),
       )
     : 1;
   const menuSafePadding = overlayFs && isTouch ? 4 : 8;

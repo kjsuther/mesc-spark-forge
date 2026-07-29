@@ -484,6 +484,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         Math.min(1.85, Math.min(vw / 960, vh / (isTouch ? 680 : 540)) * (isTouch ? 1.02 : 1.12)),
       )
     : 1;
+  const menuScale = overlayFs && isTouch && menuScreen === "trailmap" ? Math.min(uiScale, 0.5) : uiScale;
   const menuSafePadding = overlayFs && isTouch ? 4 : 8;
 
 
@@ -668,7 +669,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                 big screens and stops short landscape phones from clipping. */}
             <div
               className="grid h-full w-full place-items-center"
-              style={{ transform: `scale(${uiScale})`, transformOrigin: "center" }}
+              style={{ transform: `scale(${menuScale})`, transformOrigin: "center" }}
 
             >
 
@@ -931,10 +932,11 @@ function MenuButton({ children, onClick }: { children: React.ReactNode; onClick:
     e.stopPropagation();
     if (firedRef.current) return;
     firedRef.current = true;
-    // Reset shortly so re-mounts / re-renders don't lock the button.
+    // Reset after the delayed mobile click has passed so touchstart + click
+    // cannot advance two menu screens from one physical tap.
     setTimeout(() => {
       firedRef.current = false;
-    }, 400);
+    }, 1000);
     onClick();
   };
   return (

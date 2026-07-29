@@ -39,28 +39,28 @@ export function Leaderboard({ variant = "panel" }: { variant?: "panel" | "poster
 
   if (variant === "poster") {
     return (
-      <div className="flex flex-col h-full">
-        <header className="bg-accent-gold text-mn-blue px-4 py-2 border-b-2 border-accent-orange/60">
-          <span className="font-display uppercase tracking-widest text-sm">
+      <div className="flex flex-col h-full min-h-0">
+        <header className="bg-accent-gold text-mn-blue px-3 py-1.5 border-b-2 border-accent-orange/60">
+          <span className="font-display uppercase tracking-widest text-xs">
             ★ Live High Scores · Top 3
           </span>
         </header>
-        <ol className="flex-1 overflow-auto p-2 space-y-1">
+        <ol className="flex-1 min-h-0 overflow-auto p-1.5 space-y-1">
           {isLoading && (
-            <li className="text-cream/60 italic text-sm text-center py-4">Loading…</li>
+            <li className="text-cream/60 italic text-xs text-center py-3">Loading…</li>
           )}
           {!isLoading && scores.length === 0 && (
-            <li className="text-cream/60 italic text-sm text-center py-4">
+            <li className="text-cream/60 italic text-xs text-center py-3">
               Be the first to finish the trail!
             </li>
           )}
           {scores.map((s, i) => (
             <li
               key={s.id}
-              className="flex items-center gap-2 bg-white/5 border border-white/10 rounded px-2 py-1.5"
+              className="flex items-center gap-2 bg-white/5 border border-white/10 rounded px-2 py-1"
             >
               <span
-                className={`w-6 h-6 grid place-items-center rounded text-[11px] font-black tabular-nums shrink-0 ${
+                className={`w-5 h-5 grid place-items-center rounded text-[10px] font-black tabular-nums shrink-0 ${
                   i === 0
                     ? "bg-accent-gold text-mn-blue"
                     : i < 3
@@ -70,26 +70,26 @@ export function Leaderboard({ variant = "panel" }: { variant?: "panel" | "poster
               >
                 {i + 1}
               </span>
-              <span className="flex-1 min-w-0 truncate font-bold text-cream text-sm">
+              <span className="flex-1 min-w-0 truncate font-bold text-cream text-xs">
                 {s.display_name}
               </span>
               <span
-                className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${
+                className={`text-[8px] font-bold uppercase tracking-widest px-1 py-0.5 rounded ${
                   s.mode === "after" ? "bg-mn-green/80 text-white" : "bg-accent-orange/80 text-white"
                 }`}
               >
                 {s.mode === "after" ? "current" : "original"}
               </span>
-              <span className="text-cream/70 text-[10px] tabular-nums shrink-0 w-10 text-right">
+              <span className="text-cream/70 text-[10px] tabular-nums shrink-0 w-9 text-right">
                 {fmtDuration(s.duration_ms)}
               </span>
-              <span className="text-accent-gold font-black tabular-nums shrink-0 w-14 text-right">
+              <span className="text-accent-gold font-black text-xs tabular-nums shrink-0 w-12 text-right">
                 {s.score}
               </span>
             </li>
           ))}
         </ol>
-        <footer className="text-center text-[9px] font-bold uppercase tracking-widest text-cream/60 py-1.5 border-t border-white/10">
+        <footer className="text-center text-[9px] font-bold uppercase tracking-widest text-cream/60 py-1 border-t border-white/10">
           Auto-refresh · every 5s
         </footer>
       </div>

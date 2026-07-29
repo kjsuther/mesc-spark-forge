@@ -119,6 +119,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const [isTouch] = useState(() => isCoarsePointer());
   /** The player asked for fullscreen; keep them there across browser hiccups. */
   const fsIntentRef = useRef(false);
+  const suppressMenuTapUntilRef = useRef(0);
 
   const music = useMemo(() => new GameMusic(), []);
   const [musicOn, setMusicOn] = useState(false);
@@ -659,9 +660,20 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
             onClick={(e) => {
               // Tap/click anywhere continues — except on the menu buttons
               // themselves, which already have their own action.
+              if (performance.now() < suppressMenuTapUntilRef.current) return;
               if ((e.target as HTMLElement).closest("button")) return;
               enterFullscreenOnFirstTap();
               advanceMenu();
+            }}
+            onPointerDownCapture={(e) => {
+              if ((e.target as HTMLElement).closest("button")) {
+                suppressMenuTapUntilRef.current = performance.now() + 900;
+              }
+            }}
+            onTouchStartCapture={(e) => {
+              if ((e.target as HTMLElement).closest("button")) {
+                suppressMenuTapUntilRef.current = performance.now() + 900;
+              }
             }}
 
           >

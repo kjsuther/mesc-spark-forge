@@ -618,8 +618,10 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
               // Tap/click anywhere continues — except on the menu buttons
               // themselves, which already have their own action.
               if ((e.target as HTMLElement).closest("button")) return;
+              enterFullscreenOnFirstTap();
               advanceMenu();
             }}
+
           >
             {/* One scale factor for every menu card: keeps text legible on
                 big screens and stops short landscape phones from clipping. */}

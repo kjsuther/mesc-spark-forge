@@ -471,8 +471,12 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   // the game uses: short landscape phones shrink slightly (nothing clips),
   // large tablets and desktops scale up (nothing is squint-small).
   const uiScale = overlayFs
-    ? Math.max(0.82, Math.min(1.85, Math.min(vw / 960, vh / 540) * 1.12))
+    ? Math.max(
+        isTouch ? 0.56 : 0.82,
+        Math.min(1.85, Math.min(vw / 960, vh / 540) * (isTouch ? 1.06 : 1.12)),
+      )
     : 1;
+  const menuSafePadding = overlayFs && isTouch ? 4 : 8;
 
 
   const containerStyle: React.CSSProperties = overlayFs
@@ -636,11 +640,12 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
             className="absolute inset-0 z-30 grid place-items-center overflow-hidden bg-mn-blue text-cream"
             style={{
               padding: [
-                "calc(env(safe-area-inset-top, 0px) + 8px)",
-                "calc(env(safe-area-inset-right, 0px) + 12px)",
-                "calc(env(safe-area-inset-bottom, 0px) + 8px)",
-                "calc(env(safe-area-inset-left, 0px) + 12px)",
+                `calc(env(safe-area-inset-top, 0px) + ${menuSafePadding}px)`,
+                `calc(env(safe-area-inset-right, 0px) + ${menuSafePadding + 4}px)`,
+                `calc(env(safe-area-inset-bottom, 0px) + ${menuSafePadding}px)`,
+                `calc(env(safe-area-inset-left, 0px) + ${menuSafePadding + 4}px)`,
               ].join(" "),
+              touchAction: "manipulation",
             }}
             onClick={(e) => {
               // Tap/click anywhere continues — except on the menu buttons

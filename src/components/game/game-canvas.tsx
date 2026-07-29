@@ -665,13 +665,14 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                   className="mx-auto flex max-w-xs flex-col gap-3"
                   style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
                 >
-                  <MenuButton onClick={() => { music.start(); setMusicOn(true); setMenuScreen("explainer"); }}>▶ Start Game</MenuButton>
-                  <MenuButton onClick={() => setMenuScreen("scores")}>★ High Scores</MenuButton>
+                  <MenuButton onClick={() => { enterFullscreenOnFirstTap(); music.start(); setMusicOn(true); setMenuScreen("explainer"); }}>▶ Start Game</MenuButton>
+                  <MenuButton onClick={() => { enterFullscreenOnFirstTap(); setMenuScreen("scores"); }}>★ High Scores</MenuButton>
                   {/* Full screen is a first-class title-screen option, not a
                       hidden control that only appears mid-run. */}
-                  <MenuButton onClick={() => { void toggleFullscreen(); }}>
+                  <MenuButton onClick={() => { autoFsDoneRef.current = true; void toggleFullscreen(); }}>
                     {isFullscreen || fauxFullscreen ? "⤡ Exit Full Screen" : "⛶ Full Screen"}
                   </MenuButton>
+
 
                 </div>
               </div>

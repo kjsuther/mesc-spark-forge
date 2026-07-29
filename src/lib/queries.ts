@@ -72,10 +72,14 @@ export const nowBuildingQuery = queryOptions({
     const { data, error } = await supabase
       .from("feedback_public")
       .select("id, wish, created_at")
-      .eq("hidden", false)
+      .eq("status", "in_progress")
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return (data ?? []).map((r) => ({ id: r.id, wish: r.wish, started_at: r.created_at }));
+    return (data ?? []).map((r) => ({
+      id: r.id as string,
+      wish: r.wish as string,
+      started_at: r.created_at as string,
+    }));
   },
   refetchInterval: 15_000,
   refetchIntervalInBackground: false,

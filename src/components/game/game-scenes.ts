@@ -56,6 +56,7 @@ import bossSheetUrl from "@/assets/game/boss-sheet.png";
 import doorLockUrl from "@/assets/game/door-lock.png";
 import heroPortraitUrl from "@/assets/game/hero-portrait.png";
 import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
+import dhsLogo16Url from "@/assets/game/mn-dhs-logo-16bit.png";
 
 import docIdAsset from "@/assets/game/doc-id.png.asset.json";
 import { EXPLORATION_THEMES, ZONE_THEMES, type MusicTheme } from "@/lib/game-music";
@@ -699,6 +700,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadBackground(k, "bg-clinic",   bgClinicUrl),
     safeLoadBackground(k, "hero-portrait", heroPortraitUrl),
     safeLoadBackground(k, "mesc-logo-16bit", mescLogo16Url),
+    safeLoadBackground(k, "dhs-logo-16bit", dhsLogo16Url),
   ]);
 
 
@@ -3747,12 +3749,43 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(5),
     ]);
 
-    // Conference badge, upper-right.
-    const logoS = Math.min(210, H * 0.42);
+    // Conference badge + MN DHS badge, right side. Both sit on an opaque
+    // backing plate so the night sky never shows through the artwork.
+    const logoS = Math.min(168, H * 0.34);
+    const badgeX = Math.floor(W * 0.79);
+    const mescY = Math.floor(H * 0.32);
+    const dhsW = Math.floor(logoS * 1.05);
+    const dhsH = Math.floor(dhsW * 0.62);
+    const dhsY = mescY + Math.floor(logoS / 2) + Math.floor(dhsH / 2) + 14;
+    k.add([
+      k.rect(logoS + 8, logoS + 8),
+      k.pos(badgeX, mescY),
+      k.anchor("center"),
+      k.color(12, 18, 44),
+      k.fixed(),
+      k.z(4),
+    ]);
     k.add([
       k.sprite("mesc-logo-16bit", { width: logoS, height: logoS }),
-      k.pos(Math.floor(W * 0.79), Math.floor(H * 0.40)),
+      k.pos(badgeX, mescY),
       k.anchor("center"),
+      k.fixed(),
+      k.z(5),
+    ]);
+    k.add([
+      k.rect(dhsW + 8, dhsH + 8),
+      k.pos(badgeX, dhsY),
+      k.anchor("center"),
+      k.color(12, 18, 44),
+      k.opacity(1),
+      k.fixed(),
+      k.z(4),
+    ]);
+    k.add([
+      k.sprite("dhs-logo-16bit", { width: dhsW, height: dhsH }),
+      k.pos(badgeX, dhsY),
+      k.anchor("center"),
+      k.opacity(1),
       k.fixed(),
       k.z(5),
     ]);
@@ -3766,7 +3799,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.add([k.rect(bw, bh), k.pos(bx, by), k.color(252, 250, 235), k.fixed(), k.z(9)]);
     k.add([
       k.text(
-        "Thank you for helping make my journey easier.\nEvery fix you suggest is one less barrier\nfor a real person applying for coverage.\n\nHave a great time at MESC 2026!",
+        "Thank you for helping make my journey easier.\nEvery fix you suggest makes the journey easier.\n\nHave a great time at MESC 2026!",
         { size: 15, font: "sans-serif", width: bw - 28, align: "center", lineSpacing: 4 },
       ),
       k.pos(Math.floor(W / 2), by + Math.floor(bh / 2)),

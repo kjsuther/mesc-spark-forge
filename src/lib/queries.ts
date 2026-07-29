@@ -70,13 +70,16 @@ export const nowBuildingQuery = queryOptions({
   queryKey: ["now_building"],
   queryFn: async (): Promise<NowBuildingItem[]> => {
     const { data, error } = await supabase
-      .from("feedback")
+      .from("feedback_public")
       .select("id, wish, created_at")
       .eq("status", "in_progress")
-      .eq("hidden", false)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    return (data ?? []).map((r) => ({ id: r.id, wish: r.wish, started_at: r.created_at }));
+    return (data ?? []).map((r) => ({
+      id: r.id as string,
+      wish: r.wish as string,
+      started_at: r.created_at as string,
+    }));
   },
   refetchInterval: 15_000,
   refetchIntervalInBackground: false,

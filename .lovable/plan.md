@@ -1,48 +1,28 @@
 ## Goal
 
-Make the site read clearly as "play a video game → give feedback → we build it → replay". Break the Play Game page into focused subpages, add top-level navigation, and wire in-game links to feedback.
+On phones and tablets, the game should take over the whole screen as soon as the player taps into it — menus included — instead of only after the launch step.
 
-## 1. New routes (top-level nav)
+## Current behavior
 
-Create three subpages, each with its own `head()` metadata, shared header/footer:
+The game canvas already has two fullscreen paths: the browser's native fullscreen and an in-page overlay that stretches the game across the viewport. Today both only kick in when the player reaches the launch step (or manually presses the "Full Screen" button on the title card), so the title, story, trail map, and controls screens still render inside the small in-page box on mobile.
 
-- `/feedback` — **Share Feedback**: intro copy explaining you're giving feedback on the game, the existing feedback form, plus a prominent link to the Backlog page and a "Back to the game" link.
-- `/backlog` — **Feedback Backlog**: the existing backlog board (open items in team-ranked order + already-implemented list), with a link to Share Feedback and Play Game.
-- `/scores` — **High Scores**: the existing top-3 leaderboard panel, with a link to Play Game.
+## Change
 
-Add all three to `NAV_LINKS` in the site header (desktop + mobile sheet), keeping "Play the Game" as the orange CTA. Also add them to the site footer links.
+On touch devices only:
 
-## 2. Play Game page (`/tool`) slimmed down
+1. The first tap on the title screen ("Start Game", "High Scores", or tapping the card) immediately turns on the in-page fullscreen overlay, so every menu screen and the game itself use the entire viewport.
+2. That same tap also attempts real browser fullscreen (to hide the address bar). If the browser refuses — iOS Safari does — the in-page overlay still covers the screen, so nothing regresses.
+3. The existing "Full Screen / Exit Full Screen" title-screen button stays, and still lets the player drop back out; leaving fullscreen won't be undone by the auto-behavior.
+4. Desktop behavior is unchanged: fullscreen stays opt-in via the button or the fullscreen launch option.
 
-- Rename the version tab **"After feedback" → "Current Version"** (the other stays "Original Version"). Update the helper text and any other wording that says "After Feedback" on the public site (backlog board copy).
-- Make the intro copy explicitly say this is a retro **video game** you play and give feedback on.
-- Keep only: intro, version toggle, "best played on desktop/laptop" notice, game canvas.
-- Remove the inline feedback form, backlog board, and leaderboard from this page.
-- Below the canvas add a button row: **Share feedback**, **View backlog**, **High scores**.
-
-## 3. In-game links to feedback
-
-- In the end-of-run overlay (shown after a win or a death), add a clearly styled 16-bit-looking **"Tell us what to fix →"** action that navigates to `/feedback`, alongside the existing name-entry / close actions. Works with both click and touch.
-- Note: the "Thank You" finale is drawn inside the game canvas engine, so the link will be surfaced by the same end-of-run overlay that appears on completion (it fires on win as well as loss). If you'd rather have a link painted inside the canvas art itself, that's a bigger engine change — say the word.
-
-## 4. Home page
-
-Below the hero and above the steps, add a dark navy "practical path forward" band styled like the reference image: small gold eyebrow label, large two-line headline, and a row of small cards — reworded for this project (e.g. "Play it", "Tell us what's broken", "We build it live", "Play the better version", "Repeat").
-
-Reduce the steps from four to three, each with a button:
-
-1. **Play the game** → button to `/tool`
-2. **Tell us what to fix** → button to `/feedback`
-3. **Come back and replay the new version** → button to `/tool`
-
-Mention "View the backlog" as an optional aside with a link to `/backlog`. Rewrite hero and section copy to drop the removed voting/timer/5-upgrade language.
-
-## 5. About page
-
-Rewrite the copy around the game loop: attendees play the game, submit feedback, the poster team implements it during the session, and players re-test live — showing how fast teams can align on concepts when the feedback loop is minutes instead of months. Keep the AI-transparency and "today vs. possible" sections but re-word them to the game context; fix the "[Your State]" placeholders in the metadata.
+While the overlay is active, page scrolling behind the game stays locked (already implemented) and the existing safe-area insets, UI scaling, and rotate-to-landscape prompt continue to apply, so the menus stay legible at overlay size.
 
 ## Technical notes
 
-- New route files: `src/routes/feedback.tsx`, `src/routes/backlog.tsx`, `src/routes/scores.tsx`, reusing `FeedbackForm`, `FeedbackBoard`, and `Leaderboard` components as-is.
-- Loaders prime `gameFeedbackQuery` where needed; the existing realtime subscription moves to the pages that show feedback data.
-- No database or admin-site changes — the admin backlog ranking/status flow stays as it is.
+- In `src/components/game/game-canvas.tsx`: add a touch-only `enterFullscreenOnFirstTap` helper that sets `fsIntentRef`, `setFauxFullscreen(true)`, and fires `requestNativeFullscreen()` fire-and-forget; guard it with a ref so it runs once and never re-triggers after a manual exit.
+- Call it from the title-screen menu button handlers and the "tap anywhere continues" handler on the menu layer.
+- Verify the menu scale factor (`uiScale`) and the rotate prompt render correctly with `overlayFs` true while `launchMode` is still null — the menu layer currently assumes the small box on mobile.
+- No changes to game logic, scenes, or the original frozen build.
+</content>
+<summary>Auto-fullscreen the game on mobile from the player's first tap</summary>
+</invoke>

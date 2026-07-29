@@ -2620,7 +2620,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       const promptNode = put([
         k.text(CONTINUE_PROMPT(), { size: Math.max(14, px(16)), font: "sans-serif" }),
-        k.pos(cx, panelY + panelH - px(26)), k.anchor("center"), k.opacity(1),
+        k.pos(cx, panelY + panelH - px(30)), k.anchor("center"), k.opacity(1),
         k.color(255, 235, 120), k.fixed(), k.z(303),
       ]);
 

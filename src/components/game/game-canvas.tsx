@@ -53,16 +53,28 @@ function useOrientation() {
  *  that is accurate on iOS Safari while the URL bar animates in and out, so
  *  it wins over `innerWidth/innerHeight` whenever it exists. */
 function useViewportSize() {
+  const readSize = () => {
+    const vv = window.visualViewport;
+    const widths = [vv?.width, window.innerWidth, document.documentElement.clientWidth].filter(
+      (n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0,
+    );
+    const heights = [vv?.height, window.innerHeight, document.documentElement.clientHeight].filter(
+      (n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0,
+    );
+    return {
+      vw: Math.round(Math.min(...widths)),
+      vh: Math.round(Math.min(...heights)),
+    };
+  };
+
   const [size, setSize] = useState(() => {
     if (typeof window === "undefined") return { vw: 960, vh: 540 };
-    return { vw: window.innerWidth, vh: window.innerHeight };
+    return readSize();
   });
   useEffect(() => {
     let raf = 0;
     const read = () => {
-      const vv = window.visualViewport;
-      const vw = Math.round(vv?.width ?? window.innerWidth);
-      const vh = Math.round(vv?.height ?? window.innerHeight);
+      const { vw, vh } = readSize();
       setSize((prev) => (prev.vw === vw && prev.vh === vh ? prev : { vw, vh }));
     };
     // Coalesce bursts (rotation fires resize several times) into one frame.

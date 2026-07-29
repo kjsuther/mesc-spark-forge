@@ -657,11 +657,12 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
               ].join(" "),
               touchAction: "manipulation",
             }}
-            onClick={(e) => {
+            onPointerDown={(e) => {
               // Tap/click anywhere continues — except on the menu buttons
               // themselves, which already have their own action.
               if (performance.now() < suppressMenuTapUntilRef.current) return;
               if ((e.target as HTMLElement).closest("button")) return;
+              e.preventDefault();
               enterFullscreenOnFirstTap();
               advanceMenu();
             }}

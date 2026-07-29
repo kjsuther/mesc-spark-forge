@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { SiteChrome } from "@/components/site-chrome";
 import { SiteFooter } from "@/components/site-footer";
 import { NowBuildingBanner } from "@/components/now-building-banner";
+import { InstallPrompt } from "@/components/install-prompt";
+
 import { SectionHeading } from "@/components/trail/section-heading";
 import { GameCanvas } from "@/components/game/game-canvas";
 import type { WinResult } from "@/components/game/game-scenes";
@@ -113,6 +115,8 @@ function ToolPage() {
           </span>
         </div>
 
+        <InstallPrompt />
+
         <div className="mb-4 rounded-lg border-2 border-accent-orange bg-accent-orange/10 px-4 py-3">
           <p className="text-sm font-bold uppercase tracking-wide text-mn-blue">
             ⌨ Best played on a desktop or laptop
@@ -124,6 +128,7 @@ function ToolPage() {
         </div>
 
         <ClientGameCanvas mode={mode} />
+
 
         <div className="mt-6 flex flex-wrap gap-3">
           <Link

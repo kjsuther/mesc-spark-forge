@@ -1,0 +1,33 @@
+{
+  "name": "Blazing the Trail to Coverage",
+  "short_name": "Trail Game",
+  "description": "A 16-bit retro platformer about the journey to health coverage — play it, tell us what to fix, replay the improved version.",
+  "start_url": "/tool",
+  "scope": "/",
+  "id": "/tool",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#0b1b3a",
+  "theme_color": "#0b1b3a",
+  "icons": [
+    {
+      "src": "/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

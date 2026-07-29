@@ -946,7 +946,10 @@ function MenuButton({ children, onClick }: { children: React.ReactNode; onClick:
       // Fire on pointerdown so the menu action is committed before mobile
       // browsers enter fullscreen or animate their address-bar chrome.
       onPointerDown={fire}
-      onClick={fire}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+        fire(e);
+      }}
       onContextMenu={(e) => e.preventDefault()}
       className="flex-1 touch-none select-none border-2 border-accent-gold bg-accent-orange px-4 py-3 text-sm font-black uppercase tracking-widest text-cream shadow-[4px_4px_0_var(--color-accent-gold)] active:translate-x-1 active:translate-y-1 active:shadow-none"
       style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}

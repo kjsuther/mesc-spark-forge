@@ -70,9 +70,8 @@ export const nowBuildingQuery = queryOptions({
   queryKey: ["now_building"],
   queryFn: async (): Promise<NowBuildingItem[]> => {
     const { data, error } = await supabase
-      .from("feedback")
+      .from("feedback_public")
       .select("id, wish, created_at")
-      .eq("status", "in_progress")
       .eq("hidden", false)
       .order("created_at", { ascending: false });
     if (error) throw error;

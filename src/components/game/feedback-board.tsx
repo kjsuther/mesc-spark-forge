@@ -79,6 +79,61 @@ export function FeedbackBoard({ variant = "page" }: Props) {
   );
 }
 
+function PosterPanel({
+  title,
+  headClass,
+  badge,
+  items,
+  total,
+  empty,
+  marker,
+}: {
+  title: string;
+  headClass: string;
+  badge: string;
+  items: GameFeedback[];
+  total: number;
+  empty: string;
+  marker: (i: number) => React.ReactNode;
+}) {
+  const more = total - items.length;
+  return (
+    <div className="flex h-full flex-col min-h-0">
+      <header
+        className={`flex items-center justify-between gap-2 border-b-2 px-4 py-2 ${headClass}`}
+      >
+        <span className="font-display text-sm uppercase tracking-widest">{title}</span>
+        <span className="rounded bg-white/15 px-2 py-0.5 text-[11px] font-black tabular-nums">
+          {badge}
+        </span>
+      </header>
+      <div className="min-h-0 flex-1 overflow-auto p-2">
+        {items.length === 0 ? (
+          <p className="p-6 text-center text-sm text-cream/70">{empty}</p>
+        ) : (
+          <ol className="space-y-1.5">
+            {items.map((f, i) => (
+              <li
+                key={f.id}
+                className="flex items-start gap-2 rounded border border-white/10 bg-white/5 px-2 py-1.5"
+              >
+                {marker(i)}
+                <span className="min-w-0 flex-1 text-sm text-cream">
+                  {f.description}
+                  <span className="ml-1 text-[11px] text-cream/60">— {f.submitter_name}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+      <footer className="border-t border-white/10 px-3 py-1 text-center text-[9px] font-bold uppercase tracking-widest text-cream/60">
+        {more > 0 ? `+${more} more · see the full list at mesc.mn-dhs.online` : "Full list at mesc.mn-dhs.online"}
+      </footer>
+    </div>
+  );
+}
+
 function Column({
   title,
   tone,

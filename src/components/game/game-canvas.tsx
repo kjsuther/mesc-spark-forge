@@ -942,6 +942,8 @@ function MenuButton({ children, onClick }: { children: React.ReactNode; onClick:
       type="button"
       // Fire on pointerdown so the menu action is committed before mobile
       // browsers enter fullscreen or animate their address-bar chrome.
+      onTouchStart={fire}
+      onMouseDown={fire}
       onPointerDown={fire}
       onClick={fire}
       onContextMenu={(e) => e.preventDefault()}

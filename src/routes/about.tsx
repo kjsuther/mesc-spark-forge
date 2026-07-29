@@ -111,6 +111,85 @@ function AboutPage() {
           </p>
         </section>
 
+        {/* Game → real world */}
+        <section>
+          <h2 className="font-display text-2xl text-mn-blue uppercase tracking-wide border-b-2 border-mn-blue pb-3 mb-6">
+            From the game to the real front door
+          </h2>
+          <p className="text-dark-gray/80 max-w-3xl leading-relaxed mb-6">
+            Every obstacle in the game is a stand-in for a barrier real applicants hit when they
+            try to get health coverage. That's the point of building it: changing an obstacle in a
+            game takes an afternoon, and it's a cheap, honest rehearsal for changing the same thing
+            in the actual system. When a player says "this part is unfair," they're usually telling
+            us something true about the real process — and the fix they describe usually maps to a
+            real product change.
+          </p>
+
+          <div className="grid gap-3">
+            {[
+              {
+                g: "Smashing bricks to find the right application",
+                p: "People don't know which channel to use — mail, phone, county office, or online.",
+                f: "One clear front door with guided intake.",
+              },
+              {
+                g: "Account lockouts",
+                p: "Password and identity friction stops people before they ever start.",
+                f: "Simpler identity proofing and account recovery.",
+              },
+              {
+                g: "Hunting for missing documents",
+                p: "Verification churn means sending the same paperwork over and over.",
+                f: "Data matching and reuse of documents already on file.",
+              },
+              {
+                g: "Waiting while the calendar pages fall",
+                p: "Silence during processing drives anxiety, phone calls, and churn.",
+                f: "Proactive status updates and a self-service status checker.",
+              },
+              {
+                g: "The \"Denied\" boss fight",
+                p: "Notices arrive in language people can't act on.",
+                f: "Plain-language notices with clear next steps and appeal paths.",
+              },
+            ].map((r) => (
+              <div
+                key={r.g}
+                className="grid md:grid-cols-3 gap-3 md:gap-5 p-5 rounded-2xl border-2 border-mn-blue/20 bg-cream/60"
+              >
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-accent-orange mb-1">
+                    In the game
+                  </p>
+                  <p className="text-sm font-bold text-mn-blue">{r.g}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-dark-gray/60 mb-1">
+                    Real-world pain point
+                  </p>
+                  <p className="text-sm text-dark-gray/80">{r.p}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-mn-green mb-1">
+                    What it points at
+                  </p>
+                  <p className="text-sm text-dark-gray/80">{r.f}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-dark-gray/80 max-w-3xl leading-relaxed mt-6">
+            This is how a game becomes more than a game. Playing it surfaces the friction faster
+            than a requirements workshop. Fixing it live proves a concept is buildable before
+            anyone writes a procurement document. And because every change traces back to a named
+            person's feedback, the people closest to the problem stay visible in the solution —
+            which is exactly the habit we want carried into the tools that real Medicaid clients
+            depend on.
+          </p>
+        </section>
+
+
         {/* AI Transparency */}
         <section className="bg-sky-blue/10 border border-sky-blue/30 rounded-3xl p-8">
           <h2 className="text-2xl font-bold text-mn-blue mb-4">

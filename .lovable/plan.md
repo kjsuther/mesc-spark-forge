@@ -1,34 +1,34 @@
-## 1. Homepage heading
+## 1. Controls screen — show only the player's device
 
-In `src/routes/index.tsx` (line 145), change the eyebrow text "A practical path forward" to "What's the Concept?". No other homepage copy changes.
+In `ControlsScreen` (`src/components/game/game-canvas.tsx`), the existing coarse-pointer detection already runs but both columns always render. Change it to render a single column: mobile controls when `(pointer: coarse)` matches, desktop controls otherwise. Drop the "active/inactive" styling since only one column shows, widen it to full panel width, and label the heading accordingly ("DESKTOP / LAPTOP" vs "MOBILE"). Keep the same 16-bit frame, the closing tip line, and the Start Run / Back buttons.
 
-## 2. About page — connect the game to real Medicaid pain points
+## 2. Thank-you screen copy
 
-Insert a new section immediately after the "Why a video game?" block in `src/routes/about.tsx`, keeping every existing section intact.
+In both `src/components/game/game-scenes.ts` and `src/components/game/original/game-scenes.ts` (the frozen original build), change the speech bubble text to:
 
-The new section ("From the game to the real front door") does three things:
-- A short lead paragraph stating that every obstacle in the game is a stand-in for a real barrier applicants hit, and that fixing it in the game is a fast, cheap rehearsal for fixing it in the actual system.
-- A mapping grid: each row pairs a game moment with the real-world pain point and the kind of real tool/change it points at. Examples drawn from the existing zones:
-  - Smashing bricks to find the right application → applicants don't know which channel to use → one clear front door with guided intake
-  - Account lockouts → password/identity friction blocks people before they start → simpler identity and account recovery
-  - Missing documents → verification churn and repeated document requests → data-matching and reuse of documents already on file
-  - Waiting for a decision (falling calendar pages) → silence during processing drives calls and churn → proactive status updates and self-service status checks
-  - The "Denied" boss → notices people can't act on → plain-language notices with next steps
-- A closing paragraph on why this elevates real outcomes: faster alignment on concepts, testable ideas before procurement, and changes that trace back to a named person's feedback.
+"Thank you for helping make my journey easier.
+Every fix you suggest makes the journey easier.
 
-Styling reuses existing tokens (cream/navy cards, `border-mn-blue/20`, `font-display` heading) so it matches the surrounding page.
+Have a great time at MESC 2026!"
 
-## 3. Poster View — three balanced panels
+Since the first line and the replacement now repeat "makes the journey easier", the bubble will read:
+"Thank you for playing. Every fix you suggest makes the journey easier. Have a great time at MESC 2026!" — same message, no duplicated phrase. Bubble height/width adjusts for the shorter text.
 
-In `src/routes/admin.poster.tsx`, replace the current 2-row sidebar with a 3-row sidebar: High Scores, Implemented, Feedback Backlog. Grid rows become `minmax(0,0.85fr) minmax(0,1fr) minmax(0,1fr)` so High Scores is slightly smaller and the other two are equal.
+## 3. MN DHS 16-bit logo on the Thank You screen
 
-- **High Scores**: already limited to top 3; make the poster variant more compact (tighter padding/row height) so it fits the smaller panel.
-- **Implemented (new)**: add an `"poster-implemented"` variant to `src/components/game/feedback-board.tsx` showing the 3 most recent implemented items (already sorted newest-first by `splitFeedback`), with a green header, a ✓ marker per item, a total count badge, and a footer line like "+N more · see the full list at mesc.mn-dhs.online/backlog" when there are more than 3.
-- **Feedback Backlog**: limit the existing poster variant to the top 3 ranked items, keep the numbered gold badges, and add the same "+N more on the main site" footer line.
+- Generate a 16-bit / pixel-art version of the Minnesota DHS logo (from the uploaded image: white "Minnesota Department of Human Services" wordmark with the green mark) as a new asset `src/assets/game/mn-dhs-logo-16bit.png`, rendered on a solid opaque panel (not transparent) with full color.
+- Load it alongside the MESC badge in both game-scene files.
+- Place it on the thank-you scene under/next to the MESC 2026 badge on the right side, sized to fit, drawn on an opaque backing rectangle so nothing shows through.
 
-Both feedback panels share one presentational sub-component so their sizing, type scale, and footer treatment are identical.
+## 4. Readable instructional pause screens
+
+In the `showStepScreen` panel of both game-scene files, the text currently uses small 13–17px sizes scaled by viewport. Changes:
+- Increase base sizes: title 17→24, subtitle 13→17, body lines 15→19, icon captions 9→12, continue prompt 13→16.
+- Enforce a minimum on-screen size so text never shrinks below readable on small phones (floor the scaled size, e.g. `max(scaled, 14px)` for body).
+- Increase line spacing and panel padding, and grow the panel max height so the larger text still fits; body text wraps within the wider inner width.
+- Keep the navy/gold panel styling but use the clean `sans-serif` font already in use (not pixel font) for all instructional copy so it stays crisp.
 
 ## Technical notes
 
-- Files touched: `src/routes/index.tsx`, `src/routes/about.tsx`, `src/routes/admin.poster.tsx`, `src/components/game/feedback-board.tsx`, `src/components/game/leaderboard.tsx` (poster variant density only).
-- No database, query, or server-function changes — `gameFeedbackQuery` and `splitFeedback` already return everything needed; slicing happens in the poster components so the public `/backlog` page still shows the full lists.
+- Files touched: `src/components/game/game-canvas.tsx`, `src/components/game/game-scenes.ts`, `src/components/game/original/game-scenes.ts`, plus one new generated image asset.
+- No backend, data, or route changes.

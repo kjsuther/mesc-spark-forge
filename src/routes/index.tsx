@@ -142,7 +142,7 @@ function WelcomePage() {
         <section className="max-w-6xl w-full mx-auto px-5 sm:px-6 -mt-8 sm:-mt-12 relative z-10">
           <div className="rounded-3xl bg-mn-blue text-white p-7 sm:p-10 shadow-xl">
             <p className="text-accent-gold text-[11px] sm:text-xs font-bold uppercase tracking-widest mb-3">
-              A practical path forward
+              What's the Concept?
             </p>
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight max-w-4xl">
               Start with a real player. Listen to what breaks.

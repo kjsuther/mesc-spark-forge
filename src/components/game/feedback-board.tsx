@@ -2,9 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { gameFeedbackQuery, splitFeedback, type GameFeedback } from "@/lib/feedback.queries";
 
 type Props = {
-  /** "page" = attendee site, "poster" = projected dark theme. */
-  variant?: "page" | "poster";
+  /** "page" = attendee site, "poster" = projected backlog, "poster-implemented" = projected shipped list. */
+  variant?: "page" | "poster" | "poster-implemented";
 };
+
+const POSTER_LIMIT = 3;
 
 export function FeedbackBoard({ variant = "page" }: Props) {
   const { data: rows = [] } = useQuery(gameFeedbackQuery);
@@ -12,42 +14,40 @@ export function FeedbackBoard({ variant = "page" }: Props) {
 
   if (variant === "poster") {
     return (
-      <div className="flex h-full flex-col min-h-0">
-        <header className="flex items-center justify-between gap-2 border-b-2 border-accent-gold/60 bg-accent-orange px-4 py-2 text-white">
-          <span className="font-display text-sm uppercase tracking-widest">
-            ★ Feedback backlog
+      <PosterPanel
+        title="★ Feedback backlog"
+        headClass="bg-accent-orange text-white border-accent-gold/60"
+        badge={`${backlog.length} open`}
+        items={backlog.slice(0, POSTER_LIMIT)}
+        total={backlog.length}
+        empty="No open feedback — tell us what to build next!"
+        marker={(i) => (
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-accent-gold text-[11px] font-black text-mn-blue">
+            {i + 1}
           </span>
-          <span className="rounded bg-white/15 px-2 py-0.5 text-[11px] font-black tabular-nums">
-            {implemented.length} built
-          </span>
-        </header>
-        <div className="min-h-0 flex-1 overflow-auto p-2">
-          {backlog.length === 0 ? (
-            <p className="p-6 text-center text-sm text-cream/70">
-              No open feedback — tell us what to build next!
-            </p>
-          ) : (
-            <ol className="space-y-1.5">
-              {backlog.map((f, i) => (
-                <li
-                  key={f.id}
-                  className="flex items-start gap-2 rounded border border-white/10 bg-white/5 px-2 py-1.5"
-                >
-                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-accent-gold text-[11px] font-black text-mn-blue">
-                    {i + 1}
-                  </span>
-                  <span className="min-w-0 flex-1 text-sm text-cream">
-                    {f.description}
-                    <span className="ml-1 text-[11px] text-cream/60">— {f.submitter_name}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-      </div>
+        )}
+      />
     );
   }
+
+  if (variant === "poster-implemented") {
+    return (
+      <PosterPanel
+        title="✓ Implemented"
+        headClass="bg-mn-green text-white border-accent-gold/60"
+        badge={`${implemented.length} shipped`}
+        items={implemented.slice(0, POSTER_LIMIT)}
+        total={implemented.length}
+        empty="Nothing shipped yet — your feedback could be first."
+        marker={() => (
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-accent-gold text-[11px] font-black text-mn-blue">
+            ✓
+          </span>
+        )}
+      />
+    );
+  }
+
 
   return (
     <section id="backlog" className="mt-10 scroll-mt-24">

@@ -416,7 +416,11 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const advanceMenu = useCallback(() => {
     setMenuScreen((screen) => {
       if (screen === "title") {
-        music.start();
+        try {
+          music.start();
+        } catch (err) {
+          console.warn("[game] music start failed", err);
+        }
         setMusicOn(true);
         return "explainer";
       }
@@ -704,7 +708,20 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                   className="mx-auto flex max-w-xs flex-col gap-3"
                   style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
                 >
-                  <MenuButton onClick={() => { enterFullscreenOnFirstTap(); music.start(); setMusicOn(true); setMenuScreen("explainer"); }}>▶ Start Game</MenuButton>
+                  <MenuButton
+                    onClick={() => {
+                      setMenuScreen("explainer");
+                      setMusicOn(true);
+                      enterFullscreenOnFirstTap();
+                      try {
+                        music.start();
+                      } catch (err) {
+                        console.warn("[game] music start failed", err);
+                      }
+                    }}
+                  >
+                    ▶ Start Game
+                  </MenuButton>
                   <MenuButton onClick={() => { enterFullscreenOnFirstTap(); setMenuScreen("scores"); }}>★ High Scores</MenuButton>
                   {/* Full screen is a first-class title-screen option, not a
                       hidden control that only appears mid-run. */}

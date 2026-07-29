@@ -24,54 +24,38 @@ const topScoresQuery = {
   staleTime: 4000,
 };
 
-function Slots({ value, len, focused }: { value: string; len: number; focused: boolean }) {
-  const [blink, setBlink] = useState(true);
-  useEffect(() => {
-    const t = setInterval(() => setBlink((b) => !b), 450);
-    return () => clearInterval(t);
-  }, []);
-  const chars = Array.from({ length: len }, (_, i) => value[i] ?? "");
-  const cursorAt = Math.min(value.length, len - 1);
-  return (
-    <div className="flex gap-[3px]">
-      {chars.map((c, i) => {
-        const isCursor = focused && blink && i === cursorAt && value.length < len + 1;
-        return (
-          <span
-            key={i}
-            className="grid h-6 w-[15px] place-items-center border-2 text-[10px]"
-            style={{
-              fontFamily: PIXEL_FONT,
-              color: "var(--color-accent-gold)",
-              background: isCursor ? "rgba(255,220,90,0.25)" : "rgba(10,20,45,0.9)",
-              borderColor: focused ? "var(--color-accent-gold)" : "rgba(255,220,90,0.35)",
-            }}
-          >
-            {c}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
+const fieldStyle: React.CSSProperties = {
+  fontFamily: PIXEL_FONT,
+  color: "var(--color-accent-gold)",
+  background: "rgba(10,20,45,0.95)",
+  borderColor: "var(--color-accent-gold)",
+  caretColor: "var(--color-accent-gold)",
+  letterSpacing: "0.18em",
+  textTransform: "uppercase",
+  touchAction: "manipulation",
+  WebkitAppearance: "none",
+  borderRadius: 0,
+};
 
 export function ScoreEntryOverlay({
   result,
   onClose,
+  uiScale = 1,
 }: {
   result: WinResult;
   onClose: () => void;
+  uiScale?: number;
 }) {
   const qc = useQueryClient();
   const { data: top = [] } = useQuery(topScoresQuery);
   const [first, setFirst] = useState("");
   const [initial, setInitial] = useState("");
-  const [field, setField] = useState<"first" | "initial">("first");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const firstRef = useRef<HTMLInputElement | null>(null);
   const initialRef = useRef<HTMLInputElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   const score = result.score;
   const isHighScore = top.length < 10 || score > (top[top.length - 1]?.score ?? 0);
@@ -87,13 +71,25 @@ export function ScoreEntryOverlay({
     } catch {
       // ignore
     }
-    const t = setTimeout(() => firstRef.current?.focus(), 60);
-    return () => clearTimeout(t);
+    // Focus after mount, and again on the next frame: entering/leaving
+    // fullscreen re-parents the canvas host and can drop the caret.
+    const focus = () => firstRef.current?.focus();
+    const t = setTimeout(focus, 60);
+    const raf = requestAnimationFrame(focus);
+    document.addEventListener("fullscreenchange", focus);
+    return () => {
+      clearTimeout(t);
+      cancelAnimationFrame(raf);
+      document.removeEventListener("fullscreenchange", focus);
+    };
   }, []);
 
-  // Swallow game keys (R restarts the run) while the panel is open.
+  // Keep game keys (R restarts the run) from firing while the panel is open,
+  // but never swallow keystrokes aimed at our own inputs.
   useEffect(() => {
     const block = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target === firstRef.current || target === initialRef.current)) return;
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
@@ -109,6 +105,18 @@ export function ScoreEntryOverlay({
       window.removeEventListener("keyup", block, true);
     };
   }, [onClose]);
+
+  // When the on-screen keyboard opens on a short landscape phone, keep the
+  // Save / Skip buttons scrolled into view.
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const onResize = () => {
+      panelRef.current?.scrollIntoView({ block: "center" });
+    };
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
 
   async function save() {
     const f = first.trim();
@@ -148,184 +156,200 @@ export function ScoreEntryOverlay({
 
   const secs = Math.round(result.durationMs / 1000);
   const stats = `ZONE ${result.farthestZone + 1}/8 · DOCS ${result.docs}/3 · ${secs}S`;
+  const scale = Math.max(0.62, Math.min(1.35, uiScale));
 
   return (
     <div
-      className="absolute inset-0 z-50 grid place-items-center overflow-y-auto p-3"
-      style={{ background: "rgba(6,12,28,0.86)", touchAction: "manipulation" }}
+      className="absolute inset-0 z-50 overflow-y-auto"
+      style={{
+        background: "rgba(6,12,28,0.86)",
+        touchAction: "manipulation",
+        padding: [
+          "calc(env(safe-area-inset-top, 0px) + 8px)",
+          "calc(env(safe-area-inset-right, 0px) + 8px)",
+          "calc(env(safe-area-inset-bottom, 0px) + 16px)",
+          "calc(env(safe-area-inset-left, 0px) + 8px)",
+        ].join(" "),
+      }}
       onPointerDown={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      <div
-        className="w-full max-w-md border-[5px] bg-mn-blue px-4 py-4 text-center"
-        style={{
-          borderColor: "var(--color-cream)",
-          imageRendering: "pixelated",
-          boxShadow:
-            "0 0 0 5px var(--color-mn-blue), 0 0 0 10px var(--color-accent-gold), 0 0 0 15px var(--color-mn-blue)",
-          fontFamily: PIXEL_FONT,
-        }}
-      >
-        <p
-          className="text-[10px] tracking-widest"
+      <div className="flex min-h-full w-full items-center justify-center">
+        <div
+          ref={panelRef}
+          className="w-full max-w-md border-[5px] bg-mn-blue px-4 py-4 text-center"
           style={{
-            color: isHighScore ? "var(--color-accent-gold)" : "var(--color-cream)",
-            textShadow: "1px 1px 0 #000",
-          }}
-        >
-          {isHighScore ? "★ NEW HIGH SCORE ★" : "RUN COMPLETE"}
-        </p>
-        <p
-          className="mt-2 text-[18px]"
-          style={{ color: "var(--color-cream)", textShadow: "2px 2px 0 #000" }}
-        >
-          {score.toLocaleString()}
-        </p>
-        <p className="mt-1 text-[7px] tracking-wider" style={{ color: "rgba(255,255,255,0.7)" }}>
-          {stats}
-        </p>
-
-        {saved ? (
-          <p
-            className="mt-5 mb-2 text-[10px] tracking-widest"
-            style={{ color: "var(--color-accent-gold)", textShadow: "1px 1px 0 #000" }}
-          >
-            SCORE SAVED!
-          </p>
-        ) : (
-          <>
-            <div className="mt-4 flex flex-col items-center gap-3">
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[7px] tracking-widest" style={{ color: "var(--color-accent-gold)" }}>
-                  FIRST NAME
-                </span>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  className="min-h-[44px] px-2 py-2"
-                  style={{ touchAction: "manipulation" }}
-                  onPointerUp={() => firstRef.current?.focus()}
-                >
-                  <Slots value={first} len={12} focused={field === "first"} />
-                </div>
-              </div>
-              <div className="flex flex-col items-center gap-1">
-                <span className="text-[7px] tracking-widest" style={{ color: "var(--color-accent-gold)" }}>
-                  LAST INITIAL
-                </span>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  className="min-h-[44px] px-2 py-2"
-                  style={{ touchAction: "manipulation" }}
-                  onPointerUp={() => initialRef.current?.focus()}
-                >
-                  <Slots value={initial} len={1} focused={field === "initial"} />
-                </div>
-              </div>
-            </div>
-
-            {/* Hidden real inputs drive the pixel slots so phone + desktop keyboards work. */}
-            <input
-              ref={firstRef}
-              value={first}
-              inputMode="text"
-              autoCapitalize="characters"
-              aria-label="First name"
-              onFocus={() => setField("first")}
-              onChange={(e) => setFirst(e.target.value.toUpperCase().replace(/[^A-Z '-]/g, "").slice(0, 12))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  initialRef.current?.focus();
-                }
-              }}
-              className="absolute h-px w-px opacity-0"
-              style={{ left: -9999 }}
-            />
-            <input
-              ref={initialRef}
-              value={initial}
-              inputMode="text"
-              autoCapitalize="characters"
-              aria-label="Last initial"
-              onFocus={() => setField("initial")}
-              onChange={(e) => setInitial(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1))}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  void save();
-                }
-              }}
-              className="absolute h-px w-px opacity-0"
-              style={{ left: -9999 }}
-            />
-
-            {err && (
-              <p className="mt-3 text-[7px] tracking-widest" style={{ color: "#ff8a8a" }}>
-                {err}
-              </p>
-            )}
-
-            <div className="mt-5 flex items-center justify-center gap-3">
-              <button
-                type="button"
-                disabled={saving}
-                onPointerUp={(e) => {
-                  e.preventDefault();
-                  void save();
-                }}
-                className="min-h-[44px] border-4 px-5 py-3 text-[9px] tracking-widest disabled:opacity-60"
-                style={{
-                  fontFamily: PIXEL_FONT,
-                  color: "var(--color-cream)",
-                  background: "var(--color-mn-green)",
-                  borderColor: "var(--color-accent-gold)",
-                  textShadow: "1px 1px 0 #000",
-                  touchAction: "manipulation",
-                }}
-              >
-                {saving ? "SAVING…" : "SAVE"}
-              </button>
-              <button
-                type="button"
-                onPointerUp={(e) => {
-                  e.preventDefault();
-                  onClose();
-                }}
-                className="min-h-[44px] border-4 px-5 py-3 text-[9px] tracking-widest"
-                style={{
-                  fontFamily: PIXEL_FONT,
-                  color: "var(--color-cream)",
-                  background: "rgba(0,0,0,0.35)",
-                  borderColor: "rgba(255,255,255,0.5)",
-                  textShadow: "1px 1px 0 #000",
-                  touchAction: "manipulation",
-                }}
-              >
-                SKIP
-              </button>
-            </div>
-          </>
-        )}
-
-        <Link
-          to="/feedback"
-          className="mt-5 inline-flex min-h-[44px] items-center justify-center border-4 px-4 py-3 text-[8px] leading-relaxed tracking-widest"
-          style={{
-            fontFamily: PIXEL_FONT,
-            color: "var(--color-mn-blue)",
-            background: "var(--color-accent-gold)",
             borderColor: "var(--color-cream)",
-            touchAction: "manipulation",
+            imageRendering: "pixelated",
+            boxShadow:
+              "0 0 0 5px var(--color-mn-blue), 0 0 0 10px var(--color-accent-gold), 0 0 0 15px var(--color-mn-blue)",
+            fontFamily: PIXEL_FONT,
+            transform: `scale(${scale})`,
+            transformOrigin: "center",
           }}
-          onPointerUp={(e) => e.stopPropagation()}
         >
-          ✎ TELL US WHAT TO FIX →
-        </Link>
+          <p
+            className="text-[10px] tracking-widest"
+            style={{
+              color: isHighScore ? "var(--color-accent-gold)" : "var(--color-cream)",
+              textShadow: "1px 1px 0 #000",
+            }}
+          >
+            {isHighScore ? "★ NEW HIGH SCORE ★" : "RUN COMPLETE"}
+          </p>
+          <p
+            className="mt-2 text-[18px]"
+            style={{ color: "var(--color-cream)", textShadow: "2px 2px 0 #000" }}
+          >
+            {score.toLocaleString()}
+          </p>
+          <p className="mt-1 text-[7px] tracking-wider" style={{ color: "rgba(255,255,255,0.7)" }}>
+            {stats}
+          </p>
+
+          {saved ? (
+            <p
+              className="mt-5 mb-2 text-[10px] tracking-widest"
+              style={{ color: "var(--color-accent-gold)", textShadow: "1px 1px 0 #000" }}
+            >
+              SCORE SAVED!
+            </p>
+          ) : (
+            <>
+              <div className="mt-4 flex flex-col items-center gap-3">
+                <label className="flex w-full flex-col items-center gap-1">
+                  <span
+                    className="text-[7px] tracking-widest"
+                    style={{ color: "var(--color-accent-gold)" }}
+                  >
+                    FIRST NAME
+                  </span>
+                  <input
+                    ref={firstRef}
+                    value={first}
+                    inputMode="text"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    enterKeyHint="next"
+                    maxLength={12}
+                    aria-label="First name"
+                    placeholder="NAME"
+                    onChange={(e) =>
+                      setFirst(e.target.value.toUpperCase().replace(/[^A-Z '-]/g, "").slice(0, 12))
+                    }
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        initialRef.current?.focus();
+                      }
+                    }}
+                    onKeyUp={(e) => e.stopPropagation()}
+                    className="h-11 w-full max-w-[280px] border-[3px] px-2 text-center text-[11px] outline-none"
+                    style={fieldStyle}
+                  />
+                </label>
+                <label className="flex flex-col items-center gap-1">
+                  <span
+                    className="text-[7px] tracking-widest"
+                    style={{ color: "var(--color-accent-gold)" }}
+                  >
+                    LAST INITIAL
+                  </span>
+                  <input
+                    ref={initialRef}
+                    value={initial}
+                    inputMode="text"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    enterKeyHint="done"
+                    maxLength={1}
+                    aria-label="Last initial"
+                    placeholder="X"
+                    onChange={(e) =>
+                      setInitial(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1))
+                    }
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void save();
+                      }
+                    }}
+                    onKeyUp={(e) => e.stopPropagation()}
+                    className="h-11 w-14 border-[3px] px-1 text-center text-[13px] outline-none"
+                    style={fieldStyle}
+                  />
+                </label>
+              </div>
+
+              {err && (
+                <p className="mt-3 text-[7px] tracking-widest" style={{ color: "#ff8a8a" }}>
+                  {err}
+                </p>
+              )}
+
+              <div className="mt-5 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    void save();
+                  }}
+                  className="min-h-[44px] border-4 px-5 py-3 text-[9px] tracking-widest disabled:opacity-60"
+                  style={{
+                    fontFamily: PIXEL_FONT,
+                    color: "var(--color-cream)",
+                    background: "var(--color-mn-green)",
+                    borderColor: "var(--color-accent-gold)",
+                    textShadow: "1px 1px 0 #000",
+                    touchAction: "manipulation",
+                  }}
+                >
+                  {saving ? "SAVING…" : "SAVE"}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onClose();
+                  }}
+                  className="min-h-[44px] border-4 px-5 py-3 text-[9px] tracking-widest"
+                  style={{
+                    fontFamily: PIXEL_FONT,
+                    color: "var(--color-cream)",
+                    background: "rgba(0,0,0,0.35)",
+                    borderColor: "rgba(255,255,255,0.5)",
+                    textShadow: "1px 1px 0 #000",
+                    touchAction: "manipulation",
+                  }}
+                >
+                  SKIP
+                </button>
+              </div>
+            </>
+          )}
+
+          <Link
+            to="/feedback"
+            className="mt-5 inline-flex min-h-[44px] items-center justify-center border-4 px-4 py-3 text-[8px] leading-relaxed tracking-widest"
+            style={{
+              fontFamily: PIXEL_FONT,
+              color: "var(--color-mn-blue)",
+              background: "var(--color-accent-gold)",
+              borderColor: "var(--color-cream)",
+              touchAction: "manipulation",
+            }}
+            onPointerUp={(e) => e.stopPropagation()}
+          >
+            ✎ TELL US WHAT TO FIX →
+          </Link>
+        </div>
       </div>
     </div>
-
   );
 }

@@ -370,8 +370,9 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const autoFsDoneRef = useRef(false);
   const enterFullscreenOnFirstTap = useCallback(() => {
     if (autoFsDoneRef.current) return;
-    autoFsDoneRef.current = true;
     if (!isCoarsePointer()) return;
+    autoFsDoneRef.current = true;
+
     fsIntentRef.current = true;
     setFauxFullscreen(true);
     // Native fullscreen also hides the browser chrome where it's allowed.

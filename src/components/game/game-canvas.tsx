@@ -363,6 +363,24 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
   );
 
+  // Touch devices: the very first tap anywhere in the game (menu buttons or
+  // the "tap anywhere" layer) takes over the whole screen, so the title,
+  // story, trail map and controls screens are already fullscreen. Runs once —
+  // if the player then exits fullscreen manually, we leave them alone.
+  const autoFsDoneRef = useRef(false);
+  const enterFullscreenOnFirstTap = useCallback(() => {
+    if (autoFsDoneRef.current) return;
+    if (!isCoarsePointer()) return;
+    autoFsDoneRef.current = true;
+
+    fsIntentRef.current = true;
+    setFauxFullscreen(true);
+    // Native fullscreen also hides the browser chrome where it's allowed.
+    if (nativeFullscreenSupported()) void requestNativeFullscreen();
+  }, [nativeFullscreenSupported, requestNativeFullscreen]);
+
+
+
   // Every paused menu screen advances the same way: Enter, Space, mouse click,
   // or a tap anywhere on touch devices.
   const advanceMenu = useCallback(() => {
@@ -600,8 +618,10 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
               // Tap/click anywhere continues — except on the menu buttons
               // themselves, which already have their own action.
               if ((e.target as HTMLElement).closest("button")) return;
+              enterFullscreenOnFirstTap();
               advanceMenu();
             }}
+
           >
             {/* One scale factor for every menu card: keeps text legible on
                 big screens and stops short landscape phones from clipping. */}
@@ -647,13 +667,14 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                   className="mx-auto flex max-w-xs flex-col gap-3"
                   style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
                 >
-                  <MenuButton onClick={() => { music.start(); setMusicOn(true); setMenuScreen("explainer"); }}>▶ Start Game</MenuButton>
-                  <MenuButton onClick={() => setMenuScreen("scores")}>★ High Scores</MenuButton>
+                  <MenuButton onClick={() => { enterFullscreenOnFirstTap(); music.start(); setMusicOn(true); setMenuScreen("explainer"); }}>▶ Start Game</MenuButton>
+                  <MenuButton onClick={() => { enterFullscreenOnFirstTap(); setMenuScreen("scores"); }}>★ High Scores</MenuButton>
                   {/* Full screen is a first-class title-screen option, not a
                       hidden control that only appears mid-run. */}
-                  <MenuButton onClick={() => { void toggleFullscreen(); }}>
+                  <MenuButton onClick={() => { autoFsDoneRef.current = true; void toggleFullscreen(); }}>
                     {isFullscreen || fauxFullscreen ? "⤡ Exit Full Screen" : "⛶ Full Screen"}
                   </MenuButton>
+
 
                 </div>
               </div>

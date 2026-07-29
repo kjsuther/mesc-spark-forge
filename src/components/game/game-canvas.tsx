@@ -401,10 +401,12 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     autoFsDoneRef.current = true;
 
     fsIntentRef.current = true;
-    nudgeMobileBrowserChrome();
     setFauxFullscreen(true);
-    // Native fullscreen also hides the browser chrome where it's allowed.
-    if (nativeFullscreenSupported()) void requestNativeFullscreen();
+    window.setTimeout(() => {
+      nudgeMobileBrowserChrome();
+      // Native fullscreen also hides the browser chrome where it's allowed.
+      if (nativeFullscreenSupported()) void requestNativeFullscreen();
+    }, 0);
   }, [nativeFullscreenSupported, nudgeMobileBrowserChrome, requestNativeFullscreen]);
 
 

@@ -119,7 +119,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const [isTouch] = useState(() => isCoarsePointer());
   /** The player asked for fullscreen; keep them there across browser hiccups. */
   const fsIntentRef = useRef(false);
-  const suppressMenuTapUntilRef = useRef(0);
+  const menuTapHandledUntilRef = useRef(0);
 
   const music = useMemo(() => new GameMusic(), []);
   const [musicOn, setMusicOn] = useState(false);
@@ -660,21 +660,12 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
             onPointerDown={(e) => {
               // Tap/click anywhere continues — except on the menu buttons
               // themselves, which already have their own action.
-              if (performance.now() < suppressMenuTapUntilRef.current) return;
+              if (performance.now() < menuTapHandledUntilRef.current) return;
               if ((e.target as HTMLElement).closest("button")) return;
               e.preventDefault();
+              menuTapHandledUntilRef.current = performance.now() + 900;
               enterFullscreenOnFirstTap();
               advanceMenu();
-            }}
-            onPointerDownCapture={(e) => {
-              if ((e.target as HTMLElement).closest("button")) {
-                suppressMenuTapUntilRef.current = performance.now() + 900;
-              }
-            }}
-            onTouchStartCapture={(e) => {
-              if ((e.target as HTMLElement).closest("button")) {
-                suppressMenuTapUntilRef.current = performance.now() + 900;
-              }
             }}
 
           >
@@ -939,17 +930,14 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
 
 function MenuButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
-  const firedRef = useRef(false);
+  const firedUntilRef = useRef(0);
   const fire = (e: React.SyntheticEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (firedRef.current) return;
-    firedRef.current = true;
-    // Reset after the delayed mobile click has passed so touchstart + click
-    // cannot advance two menu screens from one physical tap.
-    setTimeout(() => {
-      firedRef.current = false;
-    }, 1000);
+    const now = performance.now();
+    if (now < firedUntilRef.current) return;
+    // Ignore follow-up touch/click events generated from the same physical tap.
+    firedUntilRef.current = now + 1200;
     onClick();
   };
   return (
@@ -957,8 +945,6 @@ function MenuButton({ children, onClick }: { children: React.ReactNode; onClick:
       type="button"
       // Fire on pointerdown so the menu action is committed before mobile
       // browsers enter fullscreen or animate their address-bar chrome.
-      onTouchStart={fire}
-      onMouseDown={fire}
       onPointerDown={fire}
       onClick={fire}
       onContextMenu={(e) => e.preventDefault()}

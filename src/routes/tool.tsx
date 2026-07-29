@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { SiteChrome } from "@/components/site-chrome";
 import { SiteFooter } from "@/components/site-footer";
 import { NowBuildingBanner } from "@/components/now-building-banner";
+import { InstallPrompt } from "@/components/install-prompt";
+
 import { SectionHeading } from "@/components/trail/section-heading";
 import { GameCanvas } from "@/components/game/game-canvas";
 import type { WinResult } from "@/components/game/game-scenes";

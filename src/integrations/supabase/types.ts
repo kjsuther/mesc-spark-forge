@@ -239,11 +239,50 @@ export type Database = {
             referencedRelation: "feedback"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "votes_feedback_id_fkey"
+            columns: ["feedback_id"]
+            isOneToOne: false
+            referencedRelation: "feedback_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Views: {
-      [_ in never]: never
+      feedback_public: {
+        Row: {
+          action_slug: string | null
+          created_at: string | null
+          id: string | null
+          moscow: string | null
+          priority_rank: number | null
+          shipped_at: string | null
+          status: string | null
+          wish: string | null
+        }
+        Insert: {
+          action_slug?: string | null
+          created_at?: string | null
+          id?: string | null
+          moscow?: string | null
+          priority_rank?: number | null
+          shipped_at?: string | null
+          status?: string | null
+          wish?: string | null
+        }
+        Update: {
+          action_slug?: string | null
+          created_at?: string | null
+          id?: string | null
+          moscow?: string | null
+          priority_rank?: number | null
+          shipped_at?: string | null
+          status?: string | null
+          wish?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_my_votes: {

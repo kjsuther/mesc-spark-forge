@@ -641,7 +641,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
         {/* In-window SNES name entry the moment a run ends */}
         {endResult && !presentation && launchMode && (
-          <ScoreEntryOverlay result={endResult} onClose={() => setEndResult(null)} />
+          <ScoreEntryOverlay result={endResult} onClose={() => setEndResult(null)} uiScale={uiScale} />
         )}
 
         {/* SNES-style title / launch / high-score screen */}

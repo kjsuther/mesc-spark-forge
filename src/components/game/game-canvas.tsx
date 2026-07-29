@@ -53,16 +53,28 @@ function useOrientation() {
  *  that is accurate on iOS Safari while the URL bar animates in and out, so
  *  it wins over `innerWidth/innerHeight` whenever it exists. */
 function useViewportSize() {
+  const readSize = () => {
+    const vv = window.visualViewport;
+    const widths = [vv?.width, window.innerWidth, document.documentElement.clientWidth].filter(
+      (n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0,
+    );
+    const heights = [vv?.height, window.innerHeight, document.documentElement.clientHeight].filter(
+      (n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0,
+    );
+    return {
+      vw: Math.round(Math.min(...widths)),
+      vh: Math.round(Math.min(...heights)),
+    };
+  };
+
   const [size, setSize] = useState(() => {
     if (typeof window === "undefined") return { vw: 960, vh: 540 };
-    return { vw: window.innerWidth, vh: window.innerHeight };
+    return readSize();
   });
   useEffect(() => {
     let raf = 0;
     const read = () => {
-      const vv = window.visualViewport;
-      const vw = Math.round(vv?.width ?? window.innerWidth);
-      const vh = Math.round(vv?.height ?? window.innerHeight);
+      const { vw, vh } = readSize();
       setSize((prev) => (prev.vw === vw && prev.vh === vh ? prev : { vw, vh }));
     };
     // Coalesce bursts (rotation fires resize several times) into one frame.
@@ -107,6 +119,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const [isTouch] = useState(() => isCoarsePointer());
   /** The player asked for fullscreen; keep them there across browser hiccups. */
   const fsIntentRef = useRef(false);
+  const menuTapHandledUntilRef = useRef(0);
 
   const music = useMemo(() => new GameMusic(), []);
   const [musicOn, setMusicOn] = useState(false);
@@ -300,6 +313,18 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     }
   }, []);
 
+  const nudgeMobileBrowserChrome = useCallback(() => {
+    if (!isCoarsePointer()) return;
+    // Browsers only hide their top/bottom controls after a user gesture. This
+    // small scroll nudge helps Chrome/Samsung Internet tuck the chrome away,
+    // while iOS safely stays on the faux fullscreen overlay path.
+    const visibleHeight = Math.round(window.visualViewport?.height ?? window.innerHeight);
+    const maxScroll = Math.max(0, document.documentElement.scrollHeight - visibleHeight);
+    const targetY = Math.min(1, maxScroll);
+    window.scrollTo(0, targetY);
+    window.setTimeout(() => window.scrollTo(0, targetY), 120);
+  }, []);
+
   const toggleFullscreen = useCallback(async () => {
     if (isFullscreen) {
       fsIntentRef.current = false;
@@ -312,6 +337,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       return;
     }
     fsIntentRef.current = true;
+    nudgeMobileBrowserChrome();
     // On touch devices the in-page overlay is the better fullscreen: iOS
     // Safari refuses element fullscreen entirely, and on Android the native
     // one is dropped by rotation. The overlay is stable everywhere and the
@@ -335,6 +361,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     requestNativeFullscreen,
     exitNativeFullscreen,
     nativeFullscreenSupported,
+    nudgeMobileBrowserChrome,
   ]);
 
   // User picked a mode. On mobile / touch devices we go straight to the
@@ -345,6 +372,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       const coarse = isCoarsePointer();
       if (m === "fullscreen" || coarse) {
         fsIntentRef.current = true;
+        nudgeMobileBrowserChrome();
         if (coarse) {
           setFauxFullscreen(true);
           if (nativeFullscreenSupported()) void requestNativeFullscreen();
@@ -359,7 +387,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       }
       setLaunchMode(m);
     },
-    [requestNativeFullscreen, nativeFullscreenSupported],
+    [requestNativeFullscreen, nativeFullscreenSupported, nudgeMobileBrowserChrome],
 
   );
 
@@ -373,11 +401,14 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     if (!isCoarsePointer()) return;
     autoFsDoneRef.current = true;
 
-    fsIntentRef.current = true;
-    setFauxFullscreen(true);
-    // Native fullscreen also hides the browser chrome where it's allowed.
-    if (nativeFullscreenSupported()) void requestNativeFullscreen();
-  }, [nativeFullscreenSupported, requestNativeFullscreen]);
+    window.setTimeout(() => {
+      fsIntentRef.current = true;
+      setFauxFullscreen(true);
+      nudgeMobileBrowserChrome();
+      // Native fullscreen also hides the browser chrome where it's allowed.
+      if (nativeFullscreenSupported()) void requestNativeFullscreen();
+    }, 0);
+  }, [nativeFullscreenSupported, nudgeMobileBrowserChrome, requestNativeFullscreen]);
 
 
 
@@ -386,7 +417,11 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const advanceMenu = useCallback(() => {
     setMenuScreen((screen) => {
       if (screen === "title") {
-        music.start();
+        try {
+          music.start();
+        } catch (err) {
+          console.warn("[game] music start failed", err);
+        }
         setMusicOn(true);
         return "explainer";
       }
@@ -440,11 +475,18 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
   // Menus, pause cards, and instruction screens are plain HTML, so they scale
   // independently of the canvas. Anchor them to the same 960x540 design box
-  // the game uses: short landscape phones shrink slightly (nothing clips),
+  // the game uses. Menu cards are taller than the game viewport because they
+  // include buttons, so short landscape phones use a taller fit baseline to
+  // keep Continue / Start controls reachable above mobile browser chrome.
   // large tablets and desktops scale up (nothing is squint-small).
   const uiScale = overlayFs
-    ? Math.max(0.82, Math.min(1.85, Math.min(vw / 960, vh / 540) * 1.12))
+    ? Math.max(
+        isTouch ? 0.56 : 0.82,
+        Math.min(1.85, Math.min(vw / 960, vh / (isTouch ? 680 : 540)) * (isTouch ? 1.02 : 1.12)),
+      )
     : 1;
+  const menuScale = overlayFs && isTouch && menuScreen === "trailmap" ? Math.min(uiScale, 0.5) : uiScale;
+  const menuSafePadding = overlayFs && isTouch ? 4 : 8;
 
 
   const containerStyle: React.CSSProperties = overlayFs
@@ -608,16 +650,20 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
             className="absolute inset-0 z-30 grid place-items-center overflow-hidden bg-mn-blue text-cream"
             style={{
               padding: [
-                "calc(env(safe-area-inset-top, 0px) + 8px)",
-                "calc(env(safe-area-inset-right, 0px) + 12px)",
-                "calc(env(safe-area-inset-bottom, 0px) + 8px)",
-                "calc(env(safe-area-inset-left, 0px) + 12px)",
+                `calc(env(safe-area-inset-top, 0px) + ${menuSafePadding}px)`,
+                `calc(env(safe-area-inset-right, 0px) + ${menuSafePadding + 4}px)`,
+                `calc(env(safe-area-inset-bottom, 0px) + ${menuSafePadding}px)`,
+                `calc(env(safe-area-inset-left, 0px) + ${menuSafePadding + 4}px)`,
               ].join(" "),
+              touchAction: "manipulation",
             }}
-            onClick={(e) => {
+            onPointerDown={(e) => {
               // Tap/click anywhere continues — except on the menu buttons
               // themselves, which already have their own action.
+              if (performance.now() < menuTapHandledUntilRef.current) return;
               if ((e.target as HTMLElement).closest("button")) return;
+              e.preventDefault();
+              menuTapHandledUntilRef.current = performance.now() + 900;
               enterFullscreenOnFirstTap();
               advanceMenu();
             }}
@@ -627,7 +673,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                 big screens and stops short landscape phones from clipping. */}
             <div
               className="grid h-full w-full place-items-center"
-              style={{ transform: `scale(${uiScale})`, transformOrigin: "center" }}
+              style={{ transform: `scale(${menuScale})`, transformOrigin: "center" }}
 
             >
 
@@ -667,7 +713,20 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                   className="mx-auto flex max-w-xs flex-col gap-3"
                   style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
                 >
-                  <MenuButton onClick={() => { enterFullscreenOnFirstTap(); music.start(); setMusicOn(true); setMenuScreen("explainer"); }}>▶ Start Game</MenuButton>
+                  <MenuButton
+                    onClick={() => {
+                      setMenuScreen("explainer");
+                      setMusicOn(true);
+                      enterFullscreenOnFirstTap();
+                      try {
+                        music.start();
+                      } catch (err) {
+                        console.warn("[game] music start failed", err);
+                      }
+                    }}
+                  >
+                    ▶ Start Game
+                  </MenuButton>
                   <MenuButton onClick={() => { enterFullscreenOnFirstTap(); setMenuScreen("scores"); }}>★ High Scores</MenuButton>
                   {/* Full screen is a first-class title-screen option, not a
                       hidden control that only appears mid-run. */}
@@ -871,26 +930,26 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
 
 function MenuButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
-  const firedRef = useRef(false);
+  const firedUntilRef = useRef(0);
   const fire = (e: React.SyntheticEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (firedRef.current) return;
-    firedRef.current = true;
-    // Reset shortly so re-mounts / re-renders don't lock the button.
-    setTimeout(() => {
-      firedRef.current = false;
-    }, 400);
+    const now = performance.now();
+    if (now < firedUntilRef.current) return;
+    // Ignore follow-up touch/click events generated from the same physical tap.
+    firedUntilRef.current = now + 1200;
     onClick();
   };
   return (
     <button
       type="button"
-      // Use pointerup so touch and mouse both fire immediately; iOS Safari
-      // sometimes drops synthetic click events under containers with
-      // touch-action:none / user-select:none.
-      onPointerUp={fire}
-      onClick={fire}
+      // Fire on pointerdown so the menu action is committed before mobile
+      // browsers enter fullscreen or animate their address-bar chrome.
+      onPointerDown={fire}
+      onKeyDown={(e) => {
+        if (e.key !== "Enter" && e.key !== " " && e.key !== "Spacebar") return;
+        fire(e);
+      }}
       onContextMenu={(e) => e.preventDefault()}
       className="flex-1 touch-none select-none border-2 border-accent-gold bg-accent-orange px-4 py-3 text-sm font-black uppercase tracking-widest text-cream shadow-[4px_4px_0_var(--color-accent-gold)] active:translate-x-1 active:translate-y-1 active:shadow-none"
       style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}

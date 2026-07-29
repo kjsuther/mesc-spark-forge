@@ -3823,34 +3823,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ]);
 
 
-    // Speech bubble.
-    const bw = Math.min(560, W - 60);
-    const bh = 145;
-    const bx = Math.floor(W / 2 - bw / 2);
-    const by = 24;
-    k.add([k.rect(bw + 8, bh + 8), k.pos(bx - 4, by - 4), k.color(0, 0, 0), k.fixed(), k.z(8)]);
-    k.add([k.rect(bw, bh), k.pos(bx, by), k.color(252, 250, 235), k.fixed(), k.z(9)]);
-    k.add([
-      k.text(
-        "Thanks for blazing the trail with me!\nEvery idea you share makes the next journey\na little less bumpy.\n\nIf this ride made you smile, vote for our poster\nsession — friendly competition, serious bragging\nrights!\n\nHave a great time at MESC 2026!",
-        { size: 15, font: "sans-serif", width: bw - 28, align: "center", lineSpacing: 4 },
-      ),
-      k.pos(Math.floor(W / 2), by + Math.floor(bh / 2)),
-      k.anchor("center"),
-      k.color(24, 32, 68),
-      k.fixed(),
-      k.z(10),
-    ]);
-    // Bubble tail pointing down toward the hero.
-    k.add([
-      k.rect(22, 16),
-      k.pos(Math.floor(W * 0.30), by + bh - 1),
-      k.color(252, 250, 235),
-      k.outline(3, k.rgb(0, 0, 0)),
-      k.fixed(),
-      k.z(9),
-    ]);
-
     // Blinking restart prompt.
     const prompt = k.add([
       k.text(isCoarsePointer() ? "Tap Anywhere to Continue" : "Press Enter, Space, or Click to Continue", { size: 16, font: "sans-serif" }),

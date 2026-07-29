@@ -2551,7 +2551,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       put([k.rect(W, H), k.pos(0, 0), k.color(0, 0, 0), k.opacity(0.86), k.fixed(), k.z(300)]);
       const panelW = Math.min(px(780), W - px(32));
-      const panelH = Math.min(px(360), H - px(28));
+      const panelH = Math.min(px(430), H - px(20));
       const panelX = Math.floor(W / 2 - panelW / 2);
       const panelY = Math.floor(H / 2 - panelH / 2);
       put([
@@ -2562,7 +2562,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const cx = Math.floor(W / 2);
       let y = panelY + px(26);
       const label = (text: string, size: number, rgb: [number, number, number], width?: number) => {
-        const fs = px(size);
+        const fs = Math.max(15, px(size));
         put([
           k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
           k.pos(cx + 1, y + 1), k.anchor("top"), k.color(0, 0, 0), k.fixed(), k.z(302),
@@ -2574,13 +2574,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         y += (main.height ?? fs) + px(8);
       };
 
-      label(data.title, 17, [255, 220, 90], panelW - px(48));
-      label(data.subtitle, 13, [180, 205, 255], panelW - px(48));
+      label(data.title, 24, [255, 220, 90], panelW - px(48));
+      label(data.subtitle, 17, [180, 205, 255], panelW - px(48));
       y += px(4);
-      label(data.lines.map((l) => `• ${l}`).join("\n"), 15, [245, 245, 245], panelW - px(60));
+      label(data.lines.map((l) => `• ${l}`).join("\n"), 19, [245, 245, 245], panelW - px(60));
 
       // Sprite strip: what you'll meet in this zone.
-      const iconTop = Math.min(y + px(6), panelY + panelH - px(118));
+      const iconTop = Math.min(y + px(8), panelY + panelH - px(124));
       const iconBox = px(52);
       const gap = px(26);
       const totalW = data.icons.length * iconBox + (data.icons.length - 1) * gap;
@@ -2610,14 +2610,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           }
         }
         put([
-          k.text(icon.label, { size: px(9), font: "sans-serif", width: iconBox + gap - px(4), align: "center" }),
+          k.text(icon.label, { size: Math.max(11, px(12)), font: "sans-serif", width: iconBox + gap - px(4), align: "center" }),
           k.pos(ix, centerY + iconBox / 2 + px(6)), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
         ]);
         ix += iconBox + gap;
       }
 
       const promptNode = put([
-        k.text(CONTINUE_PROMPT(), { size: px(13), font: "sans-serif" }),
+        k.text(CONTINUE_PROMPT(), { size: Math.max(14, px(16)), font: "sans-serif" }),
         k.pos(cx, panelY + panelH - px(26)), k.anchor("center"), k.opacity(1),
         k.color(255, 235, 120), k.fixed(), k.z(303),
       ]);

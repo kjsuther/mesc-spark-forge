@@ -1096,39 +1096,8 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
     ["⛶", "Full screen"],
   ];
 
-  const Column = ({
-    heading,
-    rows,
-    active,
-  }: {
-    heading: string;
-    rows: Array<[string, string]>;
-    active: boolean;
-  }) => (
-    <div
-      className="flex-1 border-4 px-3 py-3"
-      style={{
-        borderColor: active ? "var(--color-accent-gold)" : "rgba(255,255,255,0.35)",
-        background: active ? "rgba(255,220,90,0.12)" : "rgba(0,0,0,0.25)",
-      }}
-    >
-      <p
-        className="mb-3 text-center text-[8px] tracking-widest sm:text-[10px]"
-        style={{ color: active ? "var(--color-accent-gold)" : "var(--color-cream)" }}
-      >
-        {heading}
-        {active ? " ★" : ""}
-      </p>
-      <ul className="flex flex-col gap-2">
-        {rows.map(([key, action]) => (
-          <li key={action} className="flex items-center justify-between gap-2">
-            <span className="text-[8px] text-accent-gold sm:text-[10px]">{key}</span>
-            <span className="text-[7px] text-cream sm:text-[9px]">{action}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
+  const rows = touch ? mobile : desktop;
+  const heading = touch ? "MOBILE CONTROLS" : "DESKTOP / LAPTOP CONTROLS";
 
   return (
     <div
@@ -1146,10 +1115,26 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
         <p className="mb-4 text-[9px] tracking-widest text-accent-gold sm:text-[11px]">
           ★ HOW TO PLAY ★
         </p>
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Column heading="DESKTOP" rows={desktop} active={!touch} />
-          <Column heading="MOBILE" rows={mobile} active={touch} />
+        <div
+          className="border-4 px-4 py-4"
+          style={{
+            borderColor: "var(--color-accent-gold)",
+            background: "rgba(255,220,90,0.12)",
+          }}
+        >
+          <p className="mb-4 text-center text-[9px] tracking-widest text-accent-gold sm:text-[11px]">
+            {heading}
+          </p>
+          <ul className="mx-auto flex max-w-sm flex-col gap-3">
+            {rows.map(([key, action]) => (
+              <li key={action} className="flex items-center justify-between gap-3">
+                <span className="text-[10px] text-accent-gold sm:text-[12px]">{key}</span>
+                <span className="text-[9px] text-cream sm:text-[11px]">{action}</span>
+              </li>
+            ))}
+          </ul>
         </div>
+
         <p className="mt-4 text-[7px] leading-[1.9] text-cream sm:text-[9px]">
           Reach the clinic at the end of the trail. Collect your documents, dodge
           the barriers, and don&apos;t give up.

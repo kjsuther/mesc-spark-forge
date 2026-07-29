@@ -363,6 +363,23 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
   );
 
+  // Touch devices: the very first tap anywhere in the game (menu buttons or
+  // the "tap anywhere" layer) takes over the whole screen, so the title,
+  // story, trail map and controls screens are already fullscreen. Runs once —
+  // if the player then exits fullscreen manually, we leave them alone.
+  const autoFsDoneRef = useRef(false);
+  const enterFullscreenOnFirstTap = useCallback(() => {
+    if (autoFsDoneRef.current) return;
+    autoFsDoneRef.current = true;
+    if (!isCoarsePointer()) return;
+    fsIntentRef.current = true;
+    setFauxFullscreen(true);
+    // Native fullscreen also hides the browser chrome where it's allowed.
+    if (nativeFullscreenSupported()) void requestNativeFullscreen();
+  }, [nativeFullscreenSupported, requestNativeFullscreen]);
+
+
+
   // Every paused menu screen advances the same way: Enter, Space, mouse click,
   // or a tap anywhere on touch devices.
   const advanceMenu = useCallback(() => {

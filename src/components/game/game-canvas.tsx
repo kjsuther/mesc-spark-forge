@@ -312,6 +312,18 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     }
   }, []);
 
+  const nudgeMobileBrowserChrome = useCallback(() => {
+    if (!isCoarsePointer()) return;
+    // Browsers only hide their top/bottom controls after a user gesture. This
+    // small scroll nudge helps Chrome/Samsung Internet tuck the chrome away,
+    // while iOS safely stays on the faux fullscreen overlay path.
+    const visibleHeight = Math.round(window.visualViewport?.height ?? window.innerHeight);
+    const maxScroll = Math.max(0, document.documentElement.scrollHeight - visibleHeight);
+    const targetY = Math.min(1, maxScroll);
+    window.scrollTo(0, targetY);
+    window.setTimeout(() => window.scrollTo(0, targetY), 120);
+  }, []);
+
   const toggleFullscreen = useCallback(async () => {
     if (isFullscreen) {
       fsIntentRef.current = false;
@@ -324,6 +336,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       return;
     }
     fsIntentRef.current = true;
+    nudgeMobileBrowserChrome();
     // On touch devices the in-page overlay is the better fullscreen: iOS
     // Safari refuses element fullscreen entirely, and on Android the native
     // one is dropped by rotation. The overlay is stable everywhere and the
@@ -347,6 +360,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     requestNativeFullscreen,
     exitNativeFullscreen,
     nativeFullscreenSupported,
+    nudgeMobileBrowserChrome,
   ]);
 
   // User picked a mode. On mobile / touch devices we go straight to the
@@ -357,6 +371,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       const coarse = isCoarsePointer();
       if (m === "fullscreen" || coarse) {
         fsIntentRef.current = true;
+        nudgeMobileBrowserChrome();
         if (coarse) {
           setFauxFullscreen(true);
           if (nativeFullscreenSupported()) void requestNativeFullscreen();
@@ -371,7 +386,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       }
       setLaunchMode(m);
     },
-    [requestNativeFullscreen, nativeFullscreenSupported],
+    [requestNativeFullscreen, nativeFullscreenSupported, nudgeMobileBrowserChrome],
 
   );
 
@@ -386,10 +401,11 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     autoFsDoneRef.current = true;
 
     fsIntentRef.current = true;
+    nudgeMobileBrowserChrome();
     setFauxFullscreen(true);
     // Native fullscreen also hides the browser chrome where it's allowed.
     if (nativeFullscreenSupported()) void requestNativeFullscreen();
-  }, [nativeFullscreenSupported, requestNativeFullscreen]);
+  }, [nativeFullscreenSupported, nudgeMobileBrowserChrome, requestNativeFullscreen]);
 
 
 

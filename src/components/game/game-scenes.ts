@@ -940,6 +940,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   const sizes = await loadAllSprites(k);
 
+  // QA hook: lets automated checks jump straight to a scene.
+  if (typeof window !== "undefined") {
+    (window as unknown as { __gameGo?: (s: string, ...a: unknown[]) => void }).__gameGo = (
+      s: string,
+      ...a: unknown[]
+    ) => k.go(s, ...(a as never[]));
+  }
+
   k.scene("trail", (spawnX: number = 40, lives: number = 1) => {
     const startTime = k.time();
 

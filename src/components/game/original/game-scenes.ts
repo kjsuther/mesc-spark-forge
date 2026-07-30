@@ -88,6 +88,10 @@ export type StartGameOpts = {
   canvas: HTMLCanvasElement;
   flags: GameFlags;
   mode: "before" | "after";
+  /** Stage to resume after the browser has discarded the canvas context. */
+  resumeZone?: number;
+  /** Reports durable stage progress to the React host. */
+  onSafeProgress?: (zone: number) => void;
   onWin?: (result: WinResult) => void;
   onLose?: (result: WinResult) => void;
   /** Lets the scene ask the host for a different music theme. */
@@ -3365,6 +3369,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     let rightArmed = false;
 
     let currentZone = Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)));
+    opts.onSafeProgress?.(currentZone);
     // Start the run on this zone's tune (rotated for variety per run).
     setMusic(zoneMusic(currentZone));
     showStepScreen(currentZone);
@@ -3405,6 +3410,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.onUpdate(() => {
       if (w?.__gameInput?.resetReq) {
         w.__gameInput.resetReq = false;
+        opts.onSafeProgress?.(0);
         checkpointMgr.clear();
         powerUps.reset();
         setMusic(zoneMusic(currentZone));
@@ -3431,6 +3437,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (z > player.farthestZone) player.farthestZone = z;
       if (z !== currentZone) {
         currentZone = z;
+        opts.onSafeProgress?.(currentZone);
         if (!player.visitedZones.has(z)) {
           player.visitedZones.add(z);
           player.score += 1000;
@@ -3858,7 +3865,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   });
 
-  k.go("trail", 40, 1);
+  const resumeZone = Math.min(
+    ZONES.length - 1,
+    Math.max(0, Math.floor(opts.resumeZone ?? 0)),
+  );
+  k.go("trail", resumeZone * BIOME_W + 40, 1);
 
 
   return () => {

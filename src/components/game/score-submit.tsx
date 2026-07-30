@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { submitGameScore } from "@/lib/game.functions";
 import type { WinResult } from "./game-scenes";
 
 const LS_KEY = "trailGame.name.v1";
@@ -32,6 +33,7 @@ export function ScoreSubmit({
   onDone?: () => void;
 }) {
   const qc = useQueryClient();
+  const submitScore = useServerFn(submitGameScore);
   const [first, setFirst] = useState("");
   const [initial, setInitial] = useState("");
   const [submitted, setSubmitted] = useState(false);
@@ -64,19 +66,23 @@ export function ScoreSubmit({
       toast.error("Enter your last-name initial");
       return;
     }
-    const display = `${f.slice(0, 24)} ${i}.`;
+    const display = `${f.slice(0, 12)} ${i}.`;
     setSubmitting(true);
-    const { error } = await supabase.from("game_scores").insert({
-      display_name: display,
-      score,
-      duration_ms: Math.max(1, result.durationMs),
-      mode: result.mode,
-    });
-    setSubmitting(false);
-    if (error) {
-      toast.error("Could not save score");
+    try {
+      await submitScore({
+        data: {
+          displayName: display,
+          score,
+          durationMs: Math.max(1, result.durationMs),
+          mode: result.mode,
+        },
+      });
+    } catch (error) {
+      setSubmitting(false);
+      toast.error(error instanceof Error ? error.message : "Could not save score");
       return;
     }
+    setSubmitting(false);
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({ first: f, initial: i }));
     } catch {
@@ -121,8 +127,10 @@ export function ScoreSubmit({
         <input
           type="text"
           value={first}
-          onChange={(e) => setFirst(e.target.value)}
-          maxLength={24}
+          onChange={(e) =>
+            setFirst(e.target.value.toUpperCase().replace(/[^A-Z '-]/g, "").slice(0, 12))
+          }
+          maxLength={12}
           className="mt-1 border-2 border-mn-blue/40 rounded px-2 py-1 text-sm font-normal normal-case tracking-normal text-dark-gray bg-white"
           placeholder="Jane"
         />

@@ -397,6 +397,22 @@ export class GameMusic {
     this.noiseBuf = null;
   }
 
+  /** Pause audio while the page is backgrounded without forgetting the tune. */
+  suspend() {
+    if (!this.enabled || !this.ctx || this.ctx.state !== "running") return;
+    void this.ctx.suspend().catch(() => {
+      // iOS can race a page suspension; the browser will pause audio anyway.
+    });
+  }
+
+  /** Resume after a page return. This may still wait for the next user tap on iOS. */
+  resume() {
+    if (!this.enabled || !this.ctx || this.ctx.state !== "suspended") return;
+    void this.ctx.resume().catch(() => {
+      // Autoplay policy can require another explicit gesture.
+    });
+  }
+
   /** Mute + reset to the default theme (used when a run ends / menu returns). */
   reset() {
     this.theme = "adventure";

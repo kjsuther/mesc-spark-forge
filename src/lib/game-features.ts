@@ -1,10 +1,9 @@
 // ============================================================================
 // Feature-flag core for the Medicaid journey game.
 //
-// Every upgrade the conference audience votes on is a *feature flag*. Nothing
-// about an upgrade is hardcoded into the game: the engine reads this store at
-// runtime (every frame where it matters), and the admin dashboard writes to
-// the database, which streams back here over realtime.
+// These capability hooks remain after the curated improvement ballot was
+// replaced by the free-form feedback backlog. The host supplies one explicit
+// build snapshot at run start; there is no longer a database toggle stream.
 //
 // Adding a sixth upgrade later = add one entry to `GameFeatures`,
 // `FEATURE_DB_KEY` and `FEATURE_META`. No engine changes required beyond the
@@ -82,9 +81,7 @@ export const DEFAULT_FEATURES: GameFeatures = {
 type Listener = (features: GameFeatures) => void;
 
 /**
- * Process-wide singleton the game engine and React tree both talk to.
- * React pushes updates in (`setFromDbFlags`), the engine reads them out
- * (`get` / `isOn`) — so a toggle change is felt live without a remount.
+ * Process-wide store shared by the game managers during one run.
  */
 class FeatureFlagStore {
   private features: GameFeatures = { ...DEFAULT_FEATURES };

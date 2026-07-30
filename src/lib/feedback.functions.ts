@@ -9,12 +9,16 @@ function clean(value: unknown, min: number, max: number, label: string): string 
 
 /** Public: an attendee submits one piece of feedback about the game. */
 export const submitGameFeedback = createServerFn({ method: "POST" })
-  .inputValidator((data: { description: string; submitterName: string }) => ({
+  .validator((data: { description: string; submitterName: string }) => ({
     description: clean(data?.description, 3, 280, "Feedback"),
     submitterName: clean(data?.submitterName, 2, 60, "Your name"),
   }))
   .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const [{ supabaseAdmin }, { enforceSubmissionCooldown }] = await Promise.all([
+      import("@/integrations/supabase/client.server"),
+      import("./public-submission.server"),
+    ]);
+    enforceSubmissionCooldown("feedback", 8_000);
     // New items land at the bottom of the backlog.
     const { data: last } = await supabaseAdmin
       .from("game_feedback")
@@ -33,7 +37,7 @@ export const submitGameFeedback = createServerFn({ method: "POST" })
   });
 
 export const setGameFeedbackStatus = createServerFn({ method: "POST" })
-  .inputValidator((data: { id: string; status: "backlog" | "implemented" }) => data)
+  .validator((data: { id: string; status: "backlog" | "implemented" }) => data)
   .handler(async ({ data }) => {
     await requireAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -51,7 +55,7 @@ export const setGameFeedbackStatus = createServerFn({ method: "POST" })
 
 /** Persist a new backlog order: ids in the order the admin arranged them. */
 export const reorderGameFeedback = createServerFn({ method: "POST" })
-  .inputValidator((data: { ids: string[] }) => data)
+  .validator((data: { ids: string[] }) => data)
   .handler(async ({ data }) => {
     await requireAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -67,7 +71,7 @@ export const reorderGameFeedback = createServerFn({ method: "POST" })
   });
 
 export const updateGameFeedback = createServerFn({ method: "POST" })
-  .inputValidator((data: { id: string; description: string; submitterName: string }) => ({
+  .validator((data: { id: string; description: string; submitterName: string }) => ({
     id: data.id,
     description: clean(data?.description, 3, 280, "Feedback"),
     submitterName: clean(data?.submitterName, 2, 60, "Name"),
@@ -88,7 +92,7 @@ export const updateGameFeedback = createServerFn({ method: "POST" })
   });
 
 export const deleteGameFeedback = createServerFn({ method: "POST" })
-  .inputValidator((data: { id: string }) => data)
+  .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
     await requireAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

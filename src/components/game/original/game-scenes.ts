@@ -3746,24 +3746,45 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(5),
     ]);
 
-    // Speech bubble.
-    const bw = Math.min(560, W - 60);
-    const bh = 145;
+    // Speech bubble — the panel is measured around the rendered text so no line
+    // can ever spill outside the cream box, on any canvas size.
+    const MSG =
+      "Thanks for blazing the trail with me!\nEvery idea you share makes the next journey smoother.\n\nIf this ride made you smile, vote for our poster session!\n\nHave a great time at MESC 2026!";
+    const bw = Math.min(560, W - 40);
     const bx = Math.floor(W / 2 - bw / 2);
-    const by = 24;
+    const by = 20;
+    const padX = 14;
+    const padY = 16;
+    // Space kept free below the bubble for the logo stack + continue prompt.
+    const reservedBelow = 150;
+    const maxBubbleH = Math.max(96, H - by - reservedBelow);
+
+    const makeMsg = (size: number) =>
+      k.add([
+        k.text(MSG, {
+          size,
+          font: "sans-serif",
+          width: bw - padX * 2,
+          align: "center",
+          lineSpacing: 5,
+        }),
+        k.pos(Math.floor(W / 2), by + padY),
+        k.anchor("top"),
+        k.color(24, 32, 68),
+        k.fixed(),
+        k.z(10),
+      ]);
+
+    let msgSize = 17;
+    let msg = makeMsg(msgSize);
+    while (msgSize > 14 && ((msg as AnyObj).height as number) + padY * 2 > maxBubbleH) {
+      k.destroy(msg);
+      msgSize -= 1;
+      msg = makeMsg(msgSize);
+    }
+    const bh = Math.ceil(((msg as AnyObj).height as number) + padY * 2);
     k.add([k.rect(bw + 8, bh + 8), k.pos(bx - 4, by - 4), k.color(0, 0, 0), k.fixed(), k.z(8)]);
     k.add([k.rect(bw, bh), k.pos(bx, by), k.color(252, 250, 235), k.fixed(), k.z(9)]);
-    k.add([
-      k.text(
-        "Thanks for blazing the trail with me!\nEvery idea you share makes the next journey\na little less bumpy.\n\nIf this ride made you smile, vote for our poster\nsession — friendly competition, serious bragging\nrights!\n\nHave a great time at MESC 2026!",
-        { size: 15, font: "sans-serif", width: bw - 28, align: "center", lineSpacing: 4 },
-      ),
-      k.pos(Math.floor(W / 2), by + Math.floor(bh / 2)),
-      k.anchor("center"),
-      k.color(24, 32, 68),
-      k.fixed(),
-      k.z(10),
-    ]);
     // Bubble tail pointing down toward the hero.
     k.add([
       k.rect(22, 16),
@@ -3777,15 +3798,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Conference badge + MN DHS badge, stacked BELOW the speech bubble so they
     // are never clipped. Both sit on an opaque backing plate so the night sky
     // never shows through the artwork.
-    const logoTop = by + bh + 18;
+    const logoTop = by + bh + 16;
     const logoBottom = H - 46;
-    const availH = Math.max(60, logoBottom - logoTop);
+    const availH = Math.max(52, logoBottom - logoTop);
     const dhsW = Math.floor(Math.min(W * 0.40, 340));
-    const dhsH = Math.max(24, Math.floor(dhsW * 0.148));
-    const logoS = Math.floor(Math.min(150, Math.max(56, availH - dhsH - 22)));
+    const dhsH = Math.max(22, Math.floor(dhsW * 0.148));
+    const logoS = Math.floor(Math.min(150, Math.max(48, availH - dhsH - 22)));
     const badgeX = Math.floor(W - Math.max(logoS, dhsW) / 2 - 22);
     const mescY = logoTop + Math.floor(logoS / 2);
-    const dhsY = mescY + Math.floor(logoS / 2) + Math.floor(dhsH / 2) + 14;
+    const dhsY = mescY + Math.floor(logoS / 2) + Math.floor(dhsH / 2) + 12;
     k.add([
       k.rect(logoS + 8, logoS + 8),
       k.pos(badgeX, mescY),

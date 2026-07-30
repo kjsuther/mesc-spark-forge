@@ -3749,13 +3749,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const MSG =
       "Thanks for blazing the trail with me!\nEvery idea you share makes the next journey a little less bumpy.\n\nIf this ride made you smile, vote for our poster session!\n\nHave a great time at MESC 2026!";
 
+    // The canvas can be cropped top/bottom when the CSS box is wider than the
+    // logical 16:9 buffer, so keep everything inside a vertical safe inset.
+    const SAFE_Y = Math.round(H * 0.1);
     // --- Speech bubble: measure the real rendered text, then size the panel. ---
     const bw = Math.min(560, W - 40);
     const padX = 16;
     const padY = 14;
-    const by = 16;
+    const by = SAFE_Y;
     // Reserve room under the bubble for the logo stack + prompt.
-    const maxBubbleH = Math.max(90, H - by - 150);
+    const maxBubbleH = Math.max(90, H - by - SAFE_Y - 130);
+
     let msg: AnyObj | null = null;
     let bh = 0;
     for (const size of [17, 16, 15, 14, 13, 12, 11, 10]) {

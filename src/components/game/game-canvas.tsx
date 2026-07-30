@@ -751,8 +751,9 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
             ? "relative overflow-hidden bg-black"
             : presentation
               ? "relative w-full flex-1 min-h-0 overflow-hidden bg-mn-blue"
-              : "relative w-full overflow-hidden rounded-lg bg-mn-blue ring-2 ring-mn-blue/60 shadow-lg"
+              : "relative mx-auto w-full scroll-mt-24 overflow-hidden rounded-lg bg-mn-blue ring-2 ring-mn-blue/60 shadow-lg [aspect-ratio:16/9] max-h-[calc(100svh-9rem)]"
         }
+
         style={
           overlayFs
             ? {

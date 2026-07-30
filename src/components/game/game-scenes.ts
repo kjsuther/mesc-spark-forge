@@ -3864,7 +3864,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Blinking restart prompt.
     const prompt = k.add([
       k.text(isCoarsePointer() ? "Tap Anywhere to Continue" : "Press Enter, Space, or Click to Continue", { size: 16, font: "sans-serif" }),
-      k.pos(Math.floor(W / 2), H - 26),
+      k.pos(Math.floor(W / 2), H - SAFE_Y - 6),
       k.anchor("center"),
       k.color(255, 235, 120),
       k.opacity(1),

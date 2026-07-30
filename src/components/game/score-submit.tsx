@@ -8,10 +8,13 @@ const LS_KEY = "trailGame.name.v1";
 
 const STEP_LABELS = [
   "Step 1 · Learn you may qualify",
-  "Step 2 · Start your application",
-  "Step 3 · Submit your documents",
-  "Step 4 · Wait for review",
-  "Step 5 · Enroll in coverage",
+  "Step 2 · Create your account",
+  "Step 3 · Start your application",
+  "Step 4 · Gather your documents",
+  "Step 5 · Respond to requests for info",
+  "Step 6 · Await a decision",
+  "Step 7 · Choose a health plan",
+  "Step 8 · Enroll in coverage",
 ];
 
 export function computeScore(r: WinResult): number {
@@ -101,7 +104,7 @@ export function ScoreSubmit({
   const headline = result.won
     ? `★ You covered the trail — score: ${score.toLocaleString()}`
     : `You made it to ${stepLabel} — score: ${score.toLocaleString()}`;
-  const sub = `Distance ${result.distancePx.toLocaleString()}px · Docs ${result.docs}/3 · Zones ${result.farthestZone + 1}/5 · Jumps ${result.jumpsLanded} · Enemies passed ${result.enemiesPassed}${result.deaths ? ` · Deaths ${result.deaths}` : ""}`;
+  const sub = `Distance ${result.distancePx.toLocaleString()}px · Docs ${result.docs}/3 · Zones ${result.farthestZone + 1}/8 · Jumps ${result.jumpsLanded} · Enemies passed ${result.enemiesPassed}${result.deaths ? ` · Deaths ${result.deaths}` : ""}`;
 
 
   return (

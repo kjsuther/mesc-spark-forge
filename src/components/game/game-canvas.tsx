@@ -4,6 +4,7 @@ import { ScoreEntryOverlay } from "./score-entry-overlay";
 import { GameMusic, type MusicTheme } from "@/lib/game-music";
 import type { GameFlags, WinResult } from "./game-scenes";
 import trailMapBg from "@/assets/game/trail-map-bg-v2.png.asset.json";
+import { selectViewportSnapshot } from "./viewport";
 
 type Props = {
   mode: "before" | "after";
@@ -55,27 +56,41 @@ function useOrientation() {
 function useViewportSize() {
   const readSize = () => {
     const vv = window.visualViewport;
-    const widths = [vv?.width, window.innerWidth, document.documentElement.clientWidth].filter(
-      (n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0,
+    return selectViewportSnapshot(
+      vv
+        ? {
+            width: vv.width,
+            height: vv.height,
+            offsetLeft: vv.offsetLeft,
+            offsetTop: vv.offsetTop,
+          }
+        : undefined,
+      { width: window.innerWidth, height: window.innerHeight },
+      {
+        width: document.documentElement.clientWidth,
+        height: document.documentElement.clientHeight,
+      },
     );
-    const heights = [vv?.height, window.innerHeight, document.documentElement.clientHeight].filter(
-      (n): n is number => typeof n === "number" && Number.isFinite(n) && n > 0,
-    );
-    return {
-      vw: Math.round(Math.min(...widths)),
-      vh: Math.round(Math.min(...heights)),
-    };
   };
 
   const [size, setSize] = useState(() => {
-    if (typeof window === "undefined") return { vw: 960, vh: 540 };
+    if (typeof window === "undefined") {
+      return { vw: 960, vh: 540, offsetLeft: 0, offsetTop: 0 };
+    }
     return readSize();
   });
   useEffect(() => {
     let raf = 0;
     const read = () => {
-      const { vw, vh } = readSize();
-      setSize((prev) => (prev.vw === vw && prev.vh === vh ? prev : { vw, vh }));
+      const next = readSize();
+      setSize((prev) =>
+        prev.vw === next.vw &&
+        prev.vh === next.vh &&
+        prev.offsetLeft === next.offsetLeft &&
+        prev.offsetTop === next.offsetTop
+          ? prev
+          : next,
+      );
     };
     // Coalesce bursts (rotation fires resize several times) into one frame.
     const schedule = () => {
@@ -115,7 +130,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const [loading, setLoading] = useState(false);
   const [endResult, setEndResult] = useState<WinResult | null>(null);
   const { portrait } = useOrientation();
-  const { vw, vh } = useViewportSize();
+  const { vw, vh, offsetLeft, offsetTop } = useViewportSize();
   const [isTouch] = useState(() => isCoarsePointer());
   /** The player asked for fullscreen; keep them there across browser hiccups. */
   const fsIntentRef = useRef(false);
@@ -209,7 +224,13 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         document.fullscreenElement ||
         (document as unknown as { webkitFullscreenElement?: Element }).webkitFullscreenElement;
       setIsFullscreen(!!fsElement);
-      if (!fsElement && fsIntentRef.current) setFauxFullscreen(true);
+      if (fsElement) {
+        // Native and faux fullscreen are mutually exclusive. Keeping both
+        // active makes one Exit tap leave the fixed overlay behind.
+        setFauxFullscreen(false);
+      } else if (fsIntentRef.current) {
+        setFauxFullscreen(true);
+      }
     };
     document.addEventListener("fullscreenchange", onFsChange);
     document.addEventListener("webkitfullscreenchange", onFsChange as EventListener);
@@ -328,6 +349,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const toggleFullscreen = useCallback(async () => {
     if (isFullscreen) {
       fsIntentRef.current = false;
+      setFauxFullscreen(false);
       await exitNativeFullscreen();
       return;
     }
@@ -343,10 +365,14 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     // one is dropped by rotation. The overlay is stable everywhere and the
     // engine resizes into it normally.
     if (isCoarsePointer()) {
-      setFauxFullscreen(true);
+      if (!nativeFullscreenSupported()) {
+        setFauxFullscreen(true);
+        return;
+      }
       // Android Chrome supports it too — take the extra chrome-free pixels
       // when they're on offer, and keep the overlay underneath as a fallback.
-      if (nativeFullscreenSupported()) void requestNativeFullscreen();
+      const ok = await requestNativeFullscreen();
+      setFauxFullscreen(!ok);
       return;
     }
     if (!nativeFullscreenSupported()) {
@@ -374,8 +400,11 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         fsIntentRef.current = true;
         nudgeMobileBrowserChrome();
         if (coarse) {
-          setFauxFullscreen(true);
-          if (nativeFullscreenSupported()) void requestNativeFullscreen();
+          if (nativeFullscreenSupported()) {
+            void requestNativeFullscreen().then((ok) => setFauxFullscreen(!ok));
+          } else {
+            setFauxFullscreen(true);
+          }
         } else if (nativeFullscreenSupported()) {
           // Fire-and-forget; do not await so setLaunchMode is synchronous.
           void requestNativeFullscreen().then((ok) => {
@@ -401,13 +430,14 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     if (!isCoarsePointer()) return;
     autoFsDoneRef.current = true;
 
-    window.setTimeout(() => {
-      fsIntentRef.current = true;
+    fsIntentRef.current = true;
+    nudgeMobileBrowserChrome();
+    // Keep requestFullscreen in the original pointer event's user activation.
+    if (nativeFullscreenSupported()) {
+      void requestNativeFullscreen().then((ok) => setFauxFullscreen(!ok));
+    } else {
       setFauxFullscreen(true);
-      nudgeMobileBrowserChrome();
-      // Native fullscreen also hides the browser chrome where it's allowed.
-      if (nativeFullscreenSupported()) void requestNativeFullscreen();
-    }, 0);
+    }
   }, [nativeFullscreenSupported, nudgeMobileBrowserChrome, requestNativeFullscreen]);
 
 
@@ -415,26 +445,31 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   // Every paused menu screen advances the same way: Enter, Space, mouse click,
   // or a tap anywhere on touch devices.
   const advanceMenu = useCallback(() => {
-    setMenuScreen((screen) => {
-      if (screen === "title") {
-        try {
-          music.start();
-        } catch (err) {
-          console.warn("[game] music start failed", err);
-        }
-        setMusicOn(true);
-        return "explainer";
+    if (menuScreen === "title") {
+      try {
+        music.start();
+      } catch (err) {
+        console.warn("[game] music start failed", err);
       }
-      if (screen === "explainer") return "trailmap";
-      if (screen === "trailmap") return "controls";
-      if (screen === "controls") {
-        pickMode("standard");
-        return screen;
-      }
-      // High scores: continue means "get going".
-      return "explainer";
-    });
-  }, [pickMode]);
+      setMusicOn(true);
+      setMenuScreen("explainer");
+      return;
+    }
+    if (menuScreen === "explainer") {
+      setMenuScreen("trailmap");
+      return;
+    }
+    if (menuScreen === "trailmap") {
+      setMenuScreen("controls");
+      return;
+    }
+    if (menuScreen === "controls") {
+      pickMode("standard");
+      return;
+    }
+    // High scores: continue means "get going".
+    setMenuScreen("explainer");
+  }, [menuScreen, music, pickMode]);
 
   useEffect(() => {
     if (launchMode || error) return;
@@ -492,7 +527,8 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const containerStyle: React.CSSProperties = overlayFs
     ? {
         position: fauxFullscreen ? "fixed" : "relative",
-        inset: fauxFullscreen ? 0 : undefined,
+        top: fauxFullscreen ? offsetTop : undefined,
+        left: fauxFullscreen ? offsetLeft : undefined,
         width: fsWidth,
         height: fsHeight,
         maxWidth: "100%",
@@ -534,7 +570,11 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       {showRotatePrompt && (
         <div
           className="fixed inset-0 z-[10000] grid place-items-center bg-mn-blue p-6 text-center text-cream"
-          style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
+          style={{
+            padding:
+              "calc(env(safe-area-inset-top, 0px) + 24px) calc(env(safe-area-inset-right, 0px) + 24px) calc(env(safe-area-inset-bottom, 0px) + 24px) calc(env(safe-area-inset-left, 0px) + 24px)",
+            fontFamily: '"Press Start 2P", ui-monospace, monospace',
+          }}
         >
           <div className="max-w-xs">
             <div
@@ -813,8 +853,14 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
             type="button"
             onClick={toggleMusic}
             aria-label={musicOn ? "Mute music" : "Play music"}
-            className="absolute top-2 right-14 z-40 h-9 w-9 rounded-md border-2 border-cream bg-mn-blue/80 text-cream text-lg font-black backdrop-blur-sm"
-            style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
+            className="absolute z-40 h-9 w-9 rounded-md border-2 border-cream bg-mn-blue/80 text-cream text-lg font-black backdrop-blur-sm"
+            style={{
+              top: "calc(env(safe-area-inset-top, 0px) + 10px)",
+              right: overlayFs
+                ? "calc(env(safe-area-inset-right, 0px) + 88px)"
+                : "56px",
+              fontFamily: '"Press Start 2P", ui-monospace, monospace',
+            }}
           >
             {musicOn ? "🔊" : "🔇"}
           </button>
@@ -1295,6 +1341,4 @@ function TrailMap({ onContinue, onBack }: { onContinue: () => void; onBack: () =
     </div>
   );
 }
-
-
 

@@ -3900,6 +3900,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   });
 
+  if (typeof window !== "undefined") {
+    (window as unknown as { __gameGo?: (s: string) => void }).__gameGo = (s) => k.go(s as never);
+  }
+
+
+
   const resumeZone = Math.min(
     ZONES.length - 1,
     Math.max(0, Math.floor(opts.resumeZone ?? 0)),

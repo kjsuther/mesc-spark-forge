@@ -4,6 +4,7 @@ import { ScoreEntryOverlay } from "./score-entry-overlay";
 import { GameMusic, type MusicTheme } from "@/lib/game-music";
 import type { GameFlags, WinResult } from "./game-scenes";
 import trailMapBg from "@/assets/game/trail-map-bg-v2.png.asset.json";
+import { clampResumeZone, shouldRecoverGameAfterResume } from "./lifecycle";
 import { selectViewportSnapshot } from "./viewport";
 
 type Props = {
@@ -14,7 +15,9 @@ type Props = {
   presentation?: boolean;
 };
 
-const EMPTY_FLAGS: GameFlags = {
+// The former database-driven improvement ballot was retired in favor of the
+// free-form feedback backlog. Keep these dormant capability hooks explicit.
+const BUILD_FLAGS: GameFlags = {
   extra_lives: false,
   navigator_helper: false,
   chat_invincible: false,
@@ -128,6 +131,8 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const [menuScreen, setMenuScreen] = useState<MenuScreen>("title");
   const [showHint, setShowHint] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [recovering, setRecovering] = useState(false);
+  const [engineGeneration, setEngineGeneration] = useState(0);
   const [endResult, setEndResult] = useState<WinResult | null>(null);
   const { portrait } = useOrientation();
   const { vw, vh, offsetLeft, offsetTop } = useViewportSize();
@@ -135,6 +140,8 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   /** The player asked for fullscreen; keep them there across browser hiccups. */
   const fsIntentRef = useRef(false);
   const menuTapHandledUntilRef = useRef(0);
+  const resumeZoneRef = useRef(0);
+  const recoveryPendingRef = useRef(false);
 
   const music = useMemo(() => new GameMusic(), []);
   const [musicOn, setMusicOn] = useState(false);
@@ -177,17 +184,27 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
             ? await import("./original/game-scenes")
             : await import("./game-scenes");
         if (cancelled) return;
-        const flags = EMPTY_FLAGS;
+        const flags = BUILD_FLAGS;
         destroy = await startGame({
           canvas, flags, mode,
+          resumeZone: clampResumeZone(resumeZoneRef.current),
+          onSafeProgress: (zone) => {
+            resumeZoneRef.current = clampResumeZone(zone);
+          },
           onWin: (r) => { setEndResult(r); onWin?.(r); },
           onLose: (r) => { setEndResult(r); onLose?.(r); },
           onMusicTheme: handleMusicTheme,
         });
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          recoveryPendingRef.current = false;
+          setRecovering(false);
+          setLoading(false);
+        }
       } catch (err) {
         console.error("[game] failed to start", err);
         if (!cancelled) {
+          recoveryPendingRef.current = false;
+          setRecovering(false);
           setError(err instanceof Error ? err.message : "Failed to start game");
           setLoading(false);
         }
@@ -199,7 +216,100 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       if (destroy) destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, launchMode]);
+  }, [key, launchMode, engineGeneration]);
+
+  const recoverGame = useCallback(() => {
+    if (!launchMode || recoveryPendingRef.current) return;
+    recoveryPendingRef.current = true;
+    const w = window as unknown as { __gameInput?: TouchInput };
+    if (w.__gameInput) {
+      w.__gameInput.left = false;
+      w.__gameInput.right = false;
+      w.__gameInput.jumpReq = false;
+      w.__gameInput.resetReq = false;
+    }
+    setEndResult(null);
+    setError(null);
+    setRecovering(true);
+    setLoading(true);
+    // Replacing the element guarantees a fresh graphics context. Reusing the
+    // old canvas can retain iOS Safari's corrupted text texture atlas.
+    setEngineGeneration((generation) => generation + 1);
+  }, [launchMode]);
+
+  // Mobile Safari can discard WebGL textures in the background without a
+  // complete context-loss cycle. Recover on either lifecycle signal and let
+  // the scene resume at the most recent durable stage.
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !launchMode) return;
+    let hiddenAt: number | null = null;
+    let contextWasLost = false;
+
+    const releaseInput = () => {
+      const w = window as unknown as { __gameInput?: TouchInput };
+      if (!w.__gameInput) return;
+      w.__gameInput.left = false;
+      w.__gameInput.right = false;
+      w.__gameInput.jumpReq = false;
+    };
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      contextWasLost = true;
+      releaseInput();
+      music.suspend();
+      recoverGame();
+    };
+    const onContextRestored = () => {
+      contextWasLost = false;
+      recoverGame();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = performance.now();
+        releaseInput();
+        music.suspend();
+        return;
+      }
+
+      music.resume();
+      if (
+        shouldRecoverGameAfterResume({
+          isTouch,
+          hiddenAt,
+          visibleAt: performance.now(),
+          contextWasLost,
+        })
+      ) {
+        recoverGame();
+      }
+      hiddenAt = null;
+      contextWasLost = false;
+    };
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (
+        shouldRecoverGameAfterResume({
+          isTouch,
+          hiddenAt,
+          visibleAt: performance.now(),
+          pageWasRestored: event.persisted,
+        })
+      ) {
+        recoverGame();
+      }
+    };
+
+    canvas.addEventListener("webglcontextlost", onContextLost);
+    canvas.addEventListener("webglcontextrestored", onContextRestored);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pageshow", onPageShow);
+    return () => {
+      canvas.removeEventListener("webglcontextlost", onContextLost);
+      canvas.removeEventListener("webglcontextrestored", onContextRestored);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pageshow", onPageShow);
+    };
+  }, [engineGeneration, isTouch, launchMode, music, recoverGame]);
 
   // Back at the menus, drop the music mood back to the default theme.
   useEffect(() => {
@@ -395,6 +505,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   // gets the whole viewport without waiting on a fullscreen promise.
   const pickMode = useCallback(
     (m: LaunchMode) => {
+      resumeZoneRef.current = 0;
       const coarse = isCoarsePointer();
       if (m === "fullscreen" || coarse) {
         fsIntentRef.current = true;
@@ -496,6 +607,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     setShowHint(false);
   }
   function reset() {
+    resumeZoneRef.current = 0;
     const w = window as unknown as { __gameInput?: TouchInput };
     if (w.__gameInput) w.__gameInput.resetReq = true;
   }
@@ -649,7 +761,13 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                 width: fsWidth,
                 height: fsHeight,
                 margin: 0,
-                padding: 0,
+                // Keep canvas-drawn HUD text clear of landscape notches and
+                // the home indicator. Controls remain on the outer safe box.
+                padding:
+                  launchMode && isTouch
+                    ? "env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px)"
+                    : 0,
+                boxSizing: "border-box",
               }
             : presentation
               ? { width: "100%", height: "100%" }
@@ -657,6 +775,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         }
       >
         <canvas
+          key={engineGeneration}
           ref={canvasRef}
           onPointerDown={focusCanvas}
           onContextMenu={(e) => e.preventDefault()}
@@ -874,10 +993,12 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
           >
             <div className="text-center">
               <p className="mb-3 animate-pulse text-[10px] tracking-widest text-accent-gold sm:text-xs">
-                LOADING…
+                {recovering ? "RESTORING…" : "LOADING…"}
               </p>
               <p className="text-[8px] tracking-widest text-cream/70 sm:text-[10px]">
-                Preparing the trail
+                {recovering
+                  ? `Returning to stage ${clampResumeZone(resumeZoneRef.current) + 1}`
+                  : "Preparing the trail"}
               </p>
             </div>
           </div>
@@ -1341,4 +1462,3 @@ function TrailMap({ onContinue, onBack }: { onContinue: () => void; onBack: () =
     </div>
   );
 }
-

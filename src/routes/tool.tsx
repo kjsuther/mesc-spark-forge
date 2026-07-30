@@ -119,11 +119,11 @@ function ToolPage() {
 
         <div className="mb-4 rounded-lg border-2 border-accent-orange bg-accent-orange/10 px-4 py-3">
           <p className="text-sm font-bold uppercase tracking-wide text-mn-blue">
-            ⌨ Best played on a desktop or laptop
+            ⌨ Desktop or phone — choose your trail
           </p>
           <p className="mt-1 text-sm text-dark-gray/80">
-            Keyboard controls (arrow keys + space) give the smoothest run. Mobile works, but the
-            on-screen controls are cramped — if you're on a phone, turn it sideways into landscape.
+            On a computer, use the arrow keys and space. On a phone, rotate to landscape and the
+            game opens with full-screen touch controls kept clear of your notch and home indicator.
           </p>
         </div>
 

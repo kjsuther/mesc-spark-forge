@@ -3,8 +3,10 @@
 // player can't miss that they scored.
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { submitGameScore } from "@/lib/game.functions";
 import type { WinResult } from "./game-scenes";
 
 const LS_KEY = "trailGame.name.v1";
@@ -17,7 +19,7 @@ const topScoresQuery = {
       .from("game_scores")
       .select("score")
       .order("score", { ascending: false })
-      .limit(3);
+      .limit(10);
     if (error) throw error;
     return (data ?? []) as { score: number }[];
   },
@@ -47,6 +49,7 @@ export function ScoreEntryOverlay({
   uiScale?: number;
 }) {
   const qc = useQueryClient();
+  const submitScore = useServerFn(submitGameScore);
   const { data: top = [] } = useQuery(topScoresQuery);
   const [first, setFirst] = useState("");
   const [initial, setInitial] = useState("");
@@ -133,17 +136,21 @@ export function ScoreEntryOverlay({
     }
     setErr(null);
     setSaving(true);
-    const { error } = await supabase.from("game_scores").insert({
-      display_name: `${f.slice(0, 12)} ${i}.`,
-      score,
-      duration_ms: Math.max(1, result.durationMs),
-      mode: result.mode,
-    });
-    setSaving(false);
-    if (error) {
+    try {
+      await submitScore({
+        data: {
+          displayName: `${f.slice(0, 12)} ${i}.`,
+          score,
+          durationMs: Math.max(1, result.durationMs),
+          mode: result.mode,
+        },
+      });
+    } catch {
+      setSaving(false);
       setErr("COULD NOT SAVE — TRY AGAIN");
       return;
     }
+    setSaving(false);
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({ first: f, initial: i }));
     } catch {

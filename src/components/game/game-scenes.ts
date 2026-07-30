@@ -3801,11 +3801,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ]);
 
     // Hero portrait, bottom-left (sized to whatever space is left under bubble).
+    const bottomLimit = H - SAFE_Y - 26;
     const heroTop = by + bh + 8;
-    const portraitH = Math.max(90, Math.min(260, H - heroTop - 30));
+    const portraitH = Math.max(80, Math.min(240, bottomLimit - heroTop));
     k.add([
       k.sprite("hero-portrait", { width: portraitH, height: portraitH }),
-      k.pos(Math.floor(W * 0.22), H - 34),
+      k.pos(Math.floor(W * 0.22), bottomLimit),
       k.anchor("bot"),
       k.fixed(),
       k.z(5),
@@ -3813,9 +3814,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // Conference badge + MN DHS badge, stacked BELOW the speech bubble on the
     // right so they are never clipped, on opaque backing plates.
-    const logoTop = by + bh + 14;
-    const logoBottom = H - 44;
+    const logoTop = by + bh + 12;
+    const logoBottom = bottomLimit;
     const availH = Math.max(50, logoBottom - logoTop);
+
     const dhsW = Math.floor(Math.min(W * 0.34, 300));
     const dhsH = Math.max(20, Math.floor(dhsW * 0.148));
     const logoS = Math.floor(Math.min(140, Math.max(44, availH - dhsH - 18)));

@@ -11,7 +11,7 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Play a 16-bit retro video game about applying for Medicaid, tell us what to fix, and come back to play the version built from your feedback.",
+          "Play a 16-bit retro video game about applying for Medicaid, tell us what to improve, and come back to play the version built from your feedback.",
       },
       { property: "og:title", content: "Blazing the Trail to Coverage — MESC 2026 Demo" },
       {
@@ -72,7 +72,7 @@ const STEPS: Step[] = [
   },
   {
     num: 2,
-    title: "Tell us what to fix",
+    title: "Suggest improvements",
     body: "What tripped you up? What was unclear or unfair? Leave a short note with your first name and last initial. It lands on the public backlog immediately.",
     cta: "✎ Share feedback",
     to: "/feedback",
@@ -90,7 +90,7 @@ const STEPS: Step[] = [
 
 const LOOP_CARDS = [
   "Play the game",
-  "Say what's broken",
+  "Suggest improvements",
   "We build it live",
   "Replay the better version",
   "Repeat the loop",
@@ -117,8 +117,8 @@ function WelcomePage() {
             </h1>
             <p className="text-cream/90 text-base sm:text-lg md:text-xl mt-5 sm:mt-6 max-w-2xl">
               Play our retro video game and see if you can survive the journey of applying for
-              Medicaid. Then tell us what to fix — we build your feedback into the game during the
-              session, and you come back to play the improved version.
+              Medicaid. Then tell us what to improve — we build your feedback into the game during
+              the session, and you come back to play the improved version.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -145,8 +145,8 @@ function WelcomePage() {
               What's the Concept?
             </p>
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight max-w-4xl">
-              Start with a real player. Listen to what breaks.
-              <br className="hidden sm:block" /> Build the fix today. Ship it while they wait.
+              Start with a real player. Listen to the feedback.
+              <br className="hidden sm:block" /> Make the change today. Ship it while they wait.
             </h2>
             <ul className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
               {LOOP_CARDS.map((item) => (

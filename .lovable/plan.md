@@ -1,34 +1,32 @@
-## 1. Controls screen — show only the player's device
+# Copy tweaks + time-weighted scoring
 
-In `ControlsScreen` (`src/components/game/game-canvas.tsx`), the existing coarse-pointer detection already runs but both columns always render. Change it to render a single column: mobile controls when `(pointer: coarse)` matches, desktop controls otherwise. Drop the "active/inactive" styling since only one column shows, widen it to full panel width, and label the heading accordingly ("DESKTOP / LAPTOP" vs "MOBILE"). Keep the same 16-bit frame, the closing tip line, and the Start Run / Back buttons.
+## 1. Homepage copy (src/routes/index.tsx)
 
-## 2. Thank-you screen copy
+- Hero paragraph: "Then tell us what to fix" -> "Then tell us what to improve".
+- Concept headline: "Start with a real player. Listen to the feedback. Make the change today. Ship it while they wait."
+- Loop card 2: "Say what's broken" -> "Suggest improvements".
+- How-it-works step 2 title: "Tell us what to fix" -> "Suggest improvements".
 
-In both `src/components/game/game-scenes.ts` and `src/components/game/original/game-scenes.ts` (the frozen original build), change the speech bubble text to:
+Matching phrasing on the related pages (`/tool` intro line and the page descriptions on `/feedback` and `/tool`) is updated the same way so the site reads consistently.
 
-"Thank you for helping make my journey easier.
-Every fix you suggest makes the journey easier.
+## 2. Make finish time matter a lot more
 
-Have a great time at MESC 2026!"
+Today the only time-based term is a small `4000 - durationMs/100` bonus on a win, so a 1:36 run and a 3:16 run land within ~1,000 points of each other while base points (distance, jumps, docs, enemies) dominate.
 
-Since the first line and the replacement now repeat "makes the journey easier", the bubble will read:
-"Thank you for playing. Every fix you suggest makes the journey easier. Have a great time at MESC 2026!" — same message, no duplicated phrase. Bubble height/width adjusts for the shorter text.
+New end-of-run model, applied in `buildResult()` in `src/components/game/game-scenes.ts` (and mirrored in the frozen original build so both versions score the same way):
 
-## 3. MN DHS 16-bit logo on the Thank You screen
+- Keep the accumulated play score as the base.
+- Replace the flat time bonus with a **speed multiplier** on the whole run score, based on finish time against a par time (~2:30 for a full run, scaled by how many of the 8 zones were reached so partial runs are judged fairly):
+  - at or under ~60s of par: x2.0
+  - at par: x1.0
+  - well over par (2x par or slower): floors at x0.5
+  - interpolated smoothly in between
+- Keep the win bonus (2000) and remaining-lives bonus (500 each) as flat additions after the multiplier, so finishing still clearly beats not finishing.
 
-- Generate a 16-bit / pixel-art version of the Minnesota DHS logo (from the uploaded image: white "Minnesota Department of Human Services" wordmark with the green mark) as a new asset `src/assets/game/mn-dhs-logo-16bit.png`, rendered on a solid opaque panel (not transparent) with full color.
-- Load it alongside the MESC badge in both game-scene files.
-- Place it on the thank-you scene under/next to the MESC 2026 badge on the right side, sized to fit, drawn on an opaque backing rectangle so nothing shows through.
-
-## 4. Readable instructional pause screens
-
-In the `showStepScreen` panel of both game-scene files, the text currently uses small 13–17px sizes scaled by viewport. Changes:
-- Increase base sizes: title 17→24, subtitle 13→17, body lines 15→19, icon captions 9→12, continue prompt 13→16.
-- Enforce a minimum on-screen size so text never shrinks below readable on small phones (floor the scaled size, e.g. `max(scaled, 14px)` for body).
-- Increase line spacing and panel padding, and grow the panel max height so the larger text still fits; body text wraps within the wider inner width.
-- Keep the navy/gold panel styling but use the clean `sans-serif` font already in use (not pixel font) for all instructional copy so it stays crisp.
+Effect on the reported example: the 1:36 run scores roughly 1.6-1.8x the 3:16 run instead of being effectively tied.
 
 ## Technical notes
 
-- Files touched: `src/components/game/game-canvas.tsx`, `src/components/game/game-scenes.ts`, `src/components/game/original/game-scenes.ts`, plus one new generated image asset.
-- No backend, data, or route changes.
+- `src/lib/score-validation.ts` caps score at 250,000; the multiplier keeps typical runs well under that, and the cap stays as an anti-tamper guard.
+- Leaderboard display and the in-canvas score entry need no changes — they read the final score.
+- Existing rows in the leaderboard were scored under the old formula; they stay as-is unless you want the board cleared (there is already an admin reset).

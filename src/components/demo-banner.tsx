@@ -7,7 +7,8 @@ export function DemoBanner() {
       <span className="uppercase tracking-widest text-[10px] font-black mr-2 bg-mn-blue text-accent-gold px-2 py-0.5 rounded">
         Demo
       </span>
-      Built live at MESC 2026 for the MN DHS poster session — not an official eligibility system, not for consumer use.
+      Built for the MESC 2026 MN DHS poster session — not an official eligibility system or
+      consumer service. <strong>Do not enter personal or sensitive information.</strong>
     </div>
   );
 }

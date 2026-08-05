@@ -69,12 +69,8 @@ function ActionDetail() {
       <main id="main-content" className="max-w-6xl w-full mx-auto py-12 px-6 flex-1">
         <div className="mb-4">
           {isSnapshot ? (
-            <Link
-              to="/version/$semver"
-              params={{ semver: snapshotSemver! }}
-              className="text-sm text-mn-blue font-semibold hover:underline"
-            >
-              ← Back to v{snapshotSemver} snapshot
+            <Link to="/tool" className="text-sm text-mn-blue font-semibold hover:underline">
+              ← Back from v{snapshotSemver} snapshot
             </Link>
           ) : (
             <Link to="/tool" className="text-sm text-mn-blue font-semibold hover:underline">

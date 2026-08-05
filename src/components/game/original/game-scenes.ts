@@ -3265,11 +3265,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     function buildResult(won: boolean): WinResult {
       const durationMs = Math.round((k.time() - startTime) * 1000);
-      let finalScore = player.score;
+      // Pace matters: the accumulated play score is scaled by how fast the run
+      // was against a par time (~2:30 for all 8 zones, pro-rated for how far
+      // the player actually got). Fast runs earn up to x2, slow runs floor x0.5.
+      const zonesReached = Math.min(8, Math.max(1, player.farthestZone + 1));
+      const parMs = (150_000 * zonesReached) / 8;
+      const ratio = durationMs / parMs;
+      let speedMult: number;
+      if (ratio <= 0.4) speedMult = 2;
+      else if (ratio <= 1) speedMult = 2 - ((ratio - 0.4) / 0.6) * 1;
+      else if (ratio <= 2) speedMult = 1 - ((ratio - 1) / 1) * 0.5;
+      else speedMult = 0.5;
+      let finalScore = player.score * speedMult;
       if (won) {
         finalScore += 2000;
         finalScore += player.lives * 500;
-        finalScore += Math.max(0, 4000 - Math.floor(durationMs / 100));
       }
       return {
         durationMs,

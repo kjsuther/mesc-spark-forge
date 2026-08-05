@@ -15,7 +15,7 @@ export const Route = createFileRoute("/feedback")({
       {
         name: "description",
         content:
-          "Just played the game? Tell us what to fix. Every idea lands on the public backlog and the poster team builds it live during the session.",
+          "Just played the game? Tell us what to improve. Every idea lands on the public backlog and the poster team builds it live during the session.",
       },
       { property: "og:title", content: "Share Feedback — Blazing the Trail to Coverage" },
       {

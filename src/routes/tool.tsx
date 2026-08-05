@@ -20,7 +20,7 @@ export const Route = createFileRoute("/tool")({
       {
         name: "description",
         content:
-          "Play a retro 16-bit video game about applying for health coverage, then tell us what to fix and come back to the version built from your feedback.",
+          "Play a retro 16-bit video game about applying for health coverage, then tell us what to improve and come back to the version built from your feedback.",
       },
       { property: "og:title", content: "Play Blazing the Trail to Coverage" },
       {
@@ -76,7 +76,7 @@ function ToolPage() {
           <p className="text-lg text-dark-gray/80 max-w-2xl mt-3">
             This is a real, playable <b>16-bit video game</b> — a short trail from{" "}
             <b>"I need health coverage"</b> to <b>Covered!</b>, complete with the barriers people
-            actually hit when they apply. Play it, then tell us what to fix. We build your feedback
+            actually hit when they apply. Play it, then tell us what to improve. We build your feedback
             into the game during the session and you come back to play the better version.
           </p>
         </header>

@@ -2221,9 +2221,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       initial?: string;
       opacity?: number;
     };
+    // HUD type is scaled by the same factor as the briefing panels (capped
+    // lower, since the HUD must not eat the playfield) so score / timer /
+    // docs stay legible when the canvas is drawn small in a browser window.
+    const HUD_S = Math.max(1, Math.min(1.55, UI_TEXT_SCALE));
     function pixelHudText(o: HudTextOpts) {
-      const textOpts: Record<string, unknown> = { size: o.size, font: "sans-serif" };
-      if (o.width !== undefined) textOpts.width = o.width;
+      const fs = Math.round(o.size * HUD_S);
+      const textOpts: Record<string, unknown> = { size: fs, font: "sans-serif" };
+      if (o.width !== undefined) textOpts.width = Math.round(o.width * HUD_S);
       if (o.align !== undefined) textOpts.align = o.align;
       const initial = o.initial ?? "";
       const mkNode = (dx: number, dy: number, rgb: [number, number, number], z: number) => {
@@ -2238,7 +2243,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (o.anchor) parts.push(k.anchor(o.anchor));
         return k.add(parts as never) as AnyObj;
       };
-      const shadow = mkNode(1, 1, [0, 0, 0], LAYERS.HUD);
+      // A full dark halo (not just a drop shadow) is what keeps white HUD text
+      // readable over bright skies, snow, and the market awnings.
+      const d = Math.max(1, Math.round(HUD_S));
+      const halo = [
+        mkNode(-d, 0, [0, 0, 0], LAYERS.HUD),
+        mkNode(d, 0, [0, 0, 0], LAYERS.HUD),
+        mkNode(0, -d, [0, 0, 0], LAYERS.HUD),
+        mkNode(0, d, [0, 0, 0], LAYERS.HUD),
+        mkNode(d, d, [0, 0, 0], LAYERS.HUD),
+      ];
+      const shadow = {
+        set text(v: string) { for (const n of halo) n.text = v; },
+        set opacity(v: number) { for (const n of halo) n.opacity = v; },
+        setPos(x: number, y: number) {
+          halo[0].pos = k.vec2(x - d, y);
+          halo[1].pos = k.vec2(x + d, y);
+          halo[2].pos = k.vec2(x, y - d);
+          halo[3].pos = k.vec2(x, y + d);
+          halo[4].pos = k.vec2(x + d, y + d);
+        },
+      };
       const main = mkNode(0, 0, o.color, LAYERS.HUD + 1);
       return {
         get text() { return main.text as string; },
@@ -2247,7 +2272,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         set opacity(v: number) { main.opacity = v; shadow.opacity = v; },
         setPos(x: number, y: number) {
           main.pos = k.vec2(x, y);
-          shadow.pos = k.vec2(x + 1, y + 1);
+          shadow.setPos(x, y);
         },
       };
     }

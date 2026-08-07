@@ -1684,9 +1684,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
       const spots: Array<{ x: number; dir: 1 | -1; speed: number; range: number }> = [
-        { x: sx0 + 490, dir:  1, speed: 95, range: 240 },
+        { x: sx0 + 490, dir:  1, speed: 122, range: 240 },
         // Padlock guarding the approach to the door on the right.
-        { x: sx0 + 1000, dir: -1, speed: 90, range: 140 },
+        { x: sx0 + 1000, dir: -1, speed: 116, range: 140 },
+
       ];
       for (const s of spots) {
         const m = spawnGrounded(k, "padlock", sizes, {

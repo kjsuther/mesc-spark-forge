@@ -1206,30 +1206,38 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           });
         }
         // --- Flashing "the way is open" arrow above the door ---------------
-        const doorTopY = d.obj.pos.y - DISPLAY_H["door-open"] - 18;
+        const doorTopY = d.obj.pos.y - DISPLAY_H["door-open"] - 22;
         const parts: AnyObj[] = [];
-        const mk = (ox: number, oy: number, w: number, h: number) =>
-          parts.push(k.add([
+        const mk = (ox: number, oy: number, w: number, h: number) => {
+          const p = k.add([
             k.rect(w, h),
             k.pos(d.obj.pos.x + ox, doorTopY + oy),
             k.color(255, 214, 64),
-            k.outline(2, k.rgb(40, 26, 0)),
+            k.outline(3, k.rgb(40, 26, 0)),
             k.anchor("center"),
             k.z(LAYERS.EFFECT),
             k.opacity(1),
-          ]) as AnyObj);
-        // Shaft + chevron head, drawn from blocks so it stays 16-bit.
-        mk(-14, 0, 26, 10);
-        mk(2, -10, 10, 10);
-        mk(2, 10, 10, 10);
-        mk(10, 0, 10, 10);
+          ]) as AnyObj;
+          p.__oy = oy;
+          p.__ox = ox;
+          parts.push(p);
+          return p;
+        };
+        // A real arrow: long shaft, then a stepped triangular head.
+        mk(-30, 0, 40, 14);
+        mk(-2, 0, 14, 42);
+        mk(10, 0, 12, 30);
+        mk(20, 0, 12, 18);
+        mk(29, 0, 8, 8);
         const baseY = doorTopY;
         const arrowCtl = k.onUpdate(() => {
           const t = k.time();
-          const bob = Math.sin(t * 5) * 5;
-          const flash = Math.floor(t * 4) % 2 === 0 ? 1 : 0.35;
+          const bob = Math.sin(t * 5) * 6;
+          const nudge = (Math.sin(t * 5) + 1) * 4;
+          const flash = Math.floor(t * 4) % 2 === 0 ? 1 : 0.4;
           for (const p of parts) {
             p.pos.y = baseY + bob + (p.__oy ?? 0);
+            p.pos.x = d.obj.pos.x + (p.__ox ?? 0) + nudge;
             p.opacity = flash;
           }
           // Retire the cue once the player has stepped through the doorway.
@@ -1239,7 +1247,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             parts.length = 0;
           }
         });
-        parts[0].__oy = 0; parts[1].__oy = -10; parts[2].__oy = 10; parts[3].__oy = 0;
+
 
         // Brief on-screen cue so it reads even when the door is off-camera.
         const cue = k.add([

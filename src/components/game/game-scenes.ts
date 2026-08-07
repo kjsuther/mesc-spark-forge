@@ -3695,7 +3695,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.area({ shape: new k.Rect(k.vec2(0, 0), sw - 8, sh - 8) }),
         k.z(LAYERS.EFFECT),
         "boss-shot",
-        { vx: dirX * 385, born: k.time() },
+        { vx: dirX * 470, born: k.time() },
       ]) as AnyObj;
       shot.onUpdate(() => {
         shot.pos.x += shot.vx * k.dt();
@@ -3824,16 +3824,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.dead) return;
         const dt = k.dt();
         const now = k.time();
-        const speed = 105;
+        // Rage phase: once he is down to his last two hearts he speeds up.
+        const rage = boss.hits >= BOSS_MAX_HITS - 2 ? 1.32 : 1;
+        const speed = 132 * rage;
         boss.pos.x += boss.dir * speed * dt;
         if (boss.pos.x > boss.home + boss.range) { boss.pos.x = boss.home + boss.range; boss.dir = -1; boss.flipX = true; }
         if (boss.pos.x < boss.home - boss.range) { boss.pos.x = boss.home - boss.range; boss.dir = 1; boss.flipX = false; }
         // Occasional hop.
         const wasAirborne = boss.pos.y < GROUND_Y;
         if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
-          boss.vy = -430;
-          boss.nextHop = now + 0.34 + Math.random() * 0.26;
-          boss.armedShot = true; // this jump will throw once he's up
+          boss.vy = -470;
+          boss.nextHop = now + (0.22 + Math.random() * 0.18) / rage;
+          boss.armedShot = true; // this jump will throw on the way up and down
         }
 
         boss.vy += 1300 * dt;
@@ -3844,12 +3846,26 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // Paperwork is thrown from mid-air only — released near the top of a
         // jump, so it arrives at a different height every time. Less frequent
         // than the old ground barrage, but far harder to read.
-        const nearApex = wasAirborne && boss.vy > -80;
+        const nearApex = wasAirborne && boss.vy > -140;
         if (boss.armedShot && nearApex && now >= boss.nextShot && now >= boss.hurtUntil) {
           boss.armedShot = false;
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
+          // Short burst: one at chest height now, a second lower a beat later,
+          // so a single jump forces both a duck and a hop.
           spawnBossShot(boss.pos.x + toward * (bw / 2), boss.pos.y - 34, toward);
-          boss.nextShot = now + 0.78 + Math.random() * 0.35;
+          const burstY = boss.pos.y - 6;
+          const burstX = boss.pos.x;
+          k.wait(0.22, () => {
+            if (boss.dead) return;
+            spawnBossShot(burstX + toward * (bw / 2), burstY, toward);
+          });
+          if (rage > 1) {
+            k.wait(0.44, () => {
+              if (boss.dead) return;
+              spawnBossShot(burstX + toward * (bw / 2), burstY - 60, toward);
+            });
+          }
+          boss.nextShot = now + (0.62 + Math.random() * 0.22) / rage;
         }
 
         // Flash while invulnerable.

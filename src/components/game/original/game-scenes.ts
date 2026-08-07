@@ -137,7 +137,22 @@ function computeViewW(canvas: HTMLCanvasElement): number {
 // (iOS Safari kills the WebGL context around ~64MB of backing store).
 // Combined with `imageRendering: pixelated` on the canvas, this is
 // visually indistinguishable from 2 for pixel-art content.
-const PIXEL_DENSITY = 1;
+/**
+ * Backing-buffer density. A logical 960px buffer displayed in a 1400px CSS box
+ * used to be upscaled 1.46x with `image-rendering: pixelated`, which is what
+ * made every glyph look soft and chunky. Matching the buffer to the box (up to
+ * 2x) means text is rasterised at its real on-screen size and stays sharp,
+ * while sprites still land on whole pixels. Clamped at 2 so the WebGL backing
+ * store stays inside the ~64MB iOS Safari budget.
+ */
+const PIXEL_DENSITY_MAX = 2;
+function computePixelDensity(canvas: HTMLCanvasElement | null, logicalW: number): number {
+  const cssW = canvas?.getBoundingClientRect().width || 0;
+  const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  if (cssW <= 0) return 1;
+  const need = (cssW * Math.min(dpr, 2)) / logicalW;
+  return Math.max(1, Math.min(PIXEL_DENSITY_MAX, Math.round(need * 2) / 2));
+}
 /** Snap any world coordinate or computed sprite dimension to an integer.
  *  Using `floor` (not `round`) is deterministic across renders: a value of
  *  N.4999 and N.5001 both collapse to N, so a sub-pixel jitter can never
@@ -151,7 +166,7 @@ function computeUiTextScale(canvas: HTMLCanvasElement | null, logicalW: number):
   const cssW = canvas?.getBoundingClientRect().width || 0;
   const shrink = cssW > 0 ? logicalW / cssW : 1;
   const wide = logicalW / LOGICAL_W;
-  return Math.max(0.9, Math.min(2, Math.max(wide, shrink)));
+  return Math.max(1, Math.min(2.4, Math.max(wide, shrink)));
 }
 
 /**
@@ -955,7 +970,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // CONSTANT pixel density — not derived from devicePixelRatio. This is the
     // whole reason sprites stay aligned across DPR changes (rotation, zoom,
     // external displays). The browser handles all CSS-pixel scaling uniformly.
-    pixelDensity: PIXEL_DENSITY,
+    pixelDensity: computePixelDensity(opts.canvas, VIEW_W),
     crisp: true,
     touchToMouse: true,
   });

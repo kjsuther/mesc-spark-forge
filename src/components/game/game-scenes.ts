@@ -43,6 +43,7 @@ import bgRelayUrl from "@/assets/game/bg-relay.png";
 import bgMountainUrl from "@/assets/game/bg-mountain.png";
 import bgMarketUrl from "@/assets/game/bg-market.png";
 import bgClinicUrl from "@/assets/game/bg-clinic.png";
+import bgThanksUrl from "@/assets/game/bg-thankyou-office.png";
 import doorSheetUrl from "@/assets/game/door-sheet.png";
 import credentialsSheetUrl from "@/assets/game/credentials-sheet.png";
 import goldKeyUrl from "@/assets/game/gold-key.png";
@@ -765,6 +766,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadBackground(k, "bg-mountain", bgMountainUrl),
     safeLoadBackground(k, "bg-market",   bgMarketUrl),
     safeLoadBackground(k, "bg-clinic",   bgClinicUrl),
+    safeLoadBackground(k, "bg-thanks",   bgThanksUrl),
     safeLoadBackground(k, "hero-portrait", heroPortraitUrl),
     safeLoadBackground(k, "mesc-logo-16bit", mescLogo16Url),
     safeLoadBackground(k, "dhs-logo-16bit", dhsLogo16Url),

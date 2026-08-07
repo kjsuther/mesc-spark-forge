@@ -967,8 +967,10 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         )}
 
 
-        {/* Music toggle (visible whenever a game is running) */}
-        {launchMode && (
+        {/* Music toggle. In windowed play this lives BELOW the canvas so it
+            never covers gameplay; fullscreen has no outside space, so it
+            stays an overlay button in the top-right safe area. */}
+        {launchMode && overlayFs && (
           <button
             type="button"
             onClick={toggleMusic}
@@ -976,9 +978,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
             className="absolute z-40 h-9 w-9 rounded-md border-2 border-cream bg-mn-blue/80 text-cream text-lg font-black backdrop-blur-sm"
             style={{
               top: "calc(env(safe-area-inset-top, 0px) + 10px)",
-              right: overlayFs
-                ? "calc(env(safe-area-inset-right, 0px) + 88px)"
-                : "56px",
+              right: "calc(env(safe-area-inset-right, 0px) + 88px)",
               fontFamily: '"Press Start 2P", ui-monospace, monospace',
             }}
           >
@@ -1003,24 +1003,6 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
               </p>
             </div>
           </div>
-        )}
-
-        {/* Fullscreen toggle overlay button (only while game is running, non-fs) */}
-        {launchMode && !overlayFs && !presentation && (
-          <button
-            type="button"
-            aria-label="Enter fullscreen"
-            onPointerDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              toggleFullscreen();
-            }}
-            onContextMenu={(e) => e.preventDefault()}
-            className="absolute right-2 top-2 z-20 rounded bg-mn-blue/75 px-2 py-1 text-xs font-bold text-cream hover:bg-mn-blue touch-none"
-            style={{ touchAction: "none" }}
-          >
-            ⛶ Full
-          </button>
         )}
 
         {error && (
@@ -1063,6 +1045,37 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
           </>
         )}
       </div>
+
+      {/* Sound + fullscreen controls, outside the canvas at its lower-right
+          corner so they never sit on top of the game. */}
+      {launchMode && !overlayFs && !presentation && (
+        <div className="mt-2 flex flex-wrap items-center justify-end gap-3 select-none">
+          <button
+            type="button"
+            onClick={toggleMusic}
+            aria-label={musicOn ? "Mute music" : "Play music"}
+            className="inline-flex items-center gap-2 rounded-md border-2 border-mn-blue/40 bg-cream px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-mn-blue hover:bg-white"
+          >
+            <span aria-hidden>{musicOn ? "🔊" : "🔇"}</span>
+            {musicOn ? "Sound on" : "Sound off"}
+          </button>
+          <button
+            type="button"
+            aria-label="Enter fullscreen"
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              toggleFullscreen();
+            }}
+            onContextMenu={(e) => e.preventDefault()}
+            className="inline-flex touch-none items-center gap-2 rounded-md border-2 border-mn-blue/40 bg-cream px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-mn-blue hover:bg-white"
+            style={{ touchAction: "none" }}
+          >
+            <span aria-hidden>⛶</span>
+            Full screen
+          </button>
+        </div>
+      )}
 
       {/* Inline touch controls (non-fullscreen mobile) */}
       {launchMode && !overlayFs && !presentation && (

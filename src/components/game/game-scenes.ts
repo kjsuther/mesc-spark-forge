@@ -53,6 +53,7 @@ import paperAirplaneUrl from "@/assets/game/paper-airplane.png";
 import brickBlockSheetUrl from "@/assets/game/brick-block-sheet.png";
 import envelopeGremlinSheetUrl from "@/assets/game/envelope-gremlin-sheet.png";
 import bossSheetUrl from "@/assets/game/boss-sheet.png";
+import bearScoutSheetUrl from "@/assets/game/bear-scout-sheet.png";
 import doorLockUrl from "@/assets/game/door-lock.png";
 import heroPortraitUrl from "@/assets/game/hero-portrait.png";
 import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
@@ -143,6 +144,22 @@ const PIXEL_DENSITY = 1;
  *  N.4999 and N.5001 both collapse to N, so a sub-pixel jitter can never
  *  toggle a sprite between two adjacent integer positions. */
 const px = (n: number): number => Math.floor(n);
+
+/**
+ * How much to enlarge UI type so it keeps a constant PHYSICAL size no matter
+ * how small the canvas is drawn on screen. The engine renders into a fixed
+ * logical buffer, so a canvas displayed at half its logical width halves every
+ * glyph. Multiplying font sizes by (logical width / CSS width) cancels that
+ * out, which is what makes briefing text readable when the player is NOT in
+ * fullscreen. Clamped so the panel can never outgrow the screen.
+ */
+let UI_TEXT_SCALE = 1;
+function computeUiTextScale(canvas: HTMLCanvasElement | null, logicalW: number): number {
+  const cssW = canvas?.getBoundingClientRect().width || 0;
+  const shrink = cssW > 0 ? logicalW / cssW : 1;
+  const wide = logicalW / LOGICAL_W;
+  return Math.max(0.9, Math.min(2, Math.max(wide, shrink)));
+}
 
 /** Touch-first device? Drives the wording of every "continue" prompt. */
 const isCoarsePointer = (): boolean =>
@@ -313,6 +330,10 @@ const DISPLAY_H: Record<string, number> = {
   "boss-idle": 96,
   "boss-hurt": 96,
   "boss-defeat": 54,
+  "bear-scout-walk-0": 54,
+  "bear-scout-walk-1": 54,
+  "bear-scout-look": 54,
+  "bear-scout-sniff": 58,
   "door-lock": 26,
 };
 
@@ -645,8 +666,15 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "boss-defeat", frame: 2 },
   ];
   const lockFrames: FrameSpec[] = [{ name: "door-lock", frame: 0 }];
+  // Zone 2 background cameo: the boss bear roaming the campground, searching.
+  const bearScoutFrames: FrameSpec[] = [
+    { name: "bear-scout-walk-0", frame: 0 },
+    { name: "bear-scout-walk-1", frame: 1 },
+    { name: "bear-scout-look", frame: 2 },
+    { name: "bear-scout-sniff", frame: 3 },
+  ];
 
-  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, lockSizes, docIdSizes, docPaystubSizes, docEnvelopeSizes, formMonsterSizes] = await Promise.all([
+  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, bearScoutSizes, lockSizes, docIdSizes, docPaystubSizes, docEnvelopeSizes, formMonsterSizes] = await Promise.all([
     safeLoadSheet(k, {
       url: charSheetUrl,
       cols: 3,
@@ -677,6 +705,8 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadSheet(k, { url: envelopeGremlinSheetUrl, cols: 2, rows: 1, frames: gremlinFrames,
       groups: [gremlinFrames.map((f) => f.name)], label: "envelope-gremlin-sheet.png" }),
     safeLoadSheet(k, { url: bossSheetUrl,        cols: 3, rows: 1, frames: bossFrames, label: "boss-sheet.png" }),
+    safeLoadSheet(k, { url: bearScoutSheetUrl,   cols: 4, rows: 1, frames: bearScoutFrames,
+      groups: [bearScoutFrames.map((f) => f.name)], label: "bear-scout-sheet.png" }),
     safeLoadSheet(k, { url: doorLockUrl,         cols: 1, rows: 1, frames: lockFrames, label: "door-lock.png" }),
     safeLoadSheet(k, { url: docIdUrl,            cols: 1, rows: 1, frames: docIdFrames,       label: "doc-id.png" }),
     safeLoadSheet(k, { url: docPaystubUrl,       cols: 1, rows: 1, frames: docPaystubFrames,  label: "doc-paystub.png" }),
@@ -713,7 +743,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     (window as unknown as { __gameAssetReport?: AssetReport }).__gameAssetReport = ASSET_REPORT;
   }
 
-  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes, ...brickSizes, ...gremlinSizes, ...bossSizes, ...lockSizes, ...docIdSizes, ...docPaystubSizes, ...docEnvelopeSizes, ...formMonsterSizes };
+  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes, ...brickSizes, ...gremlinSizes, ...bossSizes, ...bearScoutSizes, ...lockSizes, ...docIdSizes, ...docPaystubSizes, ...docEnvelopeSizes, ...formMonsterSizes };
 }
 
 /** Load already-registered sprites' backing images from the sheets by pulling
@@ -870,6 +900,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   // Match the logical viewport to the real on-screen aspect before boot.
   VIEW_W = computeViewW(opts.canvas);
+  UI_TEXT_SCALE = computeUiTextScale(opts.canvas, VIEW_W);
 
   // Seed the shared flag store with whatever the caller knows right now. From
   // here on the engine reads the store live, so an admin toggle changes
@@ -1194,6 +1225,79 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const laptopSpots = [sx0 + 180, sx0 + 380, sx0 + 560];
     for (const lx of laptopSpots) {
       spawnDecor(k, "laptop", sizes, { x: lx, z: LAYERS.PROP });
+    }
+
+    // --- Background cameo: the boss bear prowling the campground, hunting ---
+    // Purely decorative: drawn behind the play plane, no area/collision, no
+    // damage. He patrols, stops to look around, sniffs the air, and moves on.
+    {
+      const bearL = sx0 + 140;
+      const bearR = sx0 + 880;
+      // Sits further back than the play plane: smaller, higher on screen.
+      const bearScale = 0.78;
+      const bearBaseH = DISPLAY_H["bear-scout-walk-0"];
+      const bearDisp = displaySize("bear-scout-walk-0", sizes);
+      const bearGroundY = GROUND_Y - 6;
+      const bear = k.add([
+        k.sprite("bear-scout-walk-0", {
+          width: Math.max(8, bearDisp.w * bearScale),
+          height: Math.max(8, bearBaseH * bearScale),
+        }),
+        k.pos(px(bearL), px(bearGroundY)),
+        k.anchor("bot"),
+        k.color(190, 190, 205), // atmospheric haze so he reads as distance
+        k.opacity(0.9),
+        k.z(LAYERS.DECOR_BACK),
+      ]) as AnyObj;
+
+      type BearMode = "walk" | "look" | "sniff";
+      let bearMode: BearMode = "walk";
+      let bearDir = 1;
+      let bearTimer = 0;
+      let bearStepT = 0;
+      let bearStep = 0;
+
+      const setBearFrame = (name: string) => {
+        const d = displaySize(name, sizes);
+        bear.use(
+          k.sprite(name, {
+            width: Math.max(8, d.w * bearScale),
+            height: Math.max(8, (DISPLAY_H[name] ?? bearBaseH) * bearScale),
+          }),
+        );
+        // Sheet art faces right; flip when he patrols left.
+        bear.flipX = bearDir < 0;
+      };
+
+      bear.onUpdate(() => {
+        const dt = k.dt();
+        bearTimer -= dt;
+        if (bearMode === "walk") {
+          bear.pos.x += bearDir * 42 * dt;
+          if (bear.pos.x > bearR) { bear.pos.x = bearR; bearDir = -1; }
+          if (bear.pos.x < bearL) { bear.pos.x = bearL; bearDir = 1; }
+          bearStepT += dt;
+          if (bearStepT > 0.22) {
+            bearStepT = 0;
+            bearStep = 1 - bearStep;
+            setBearFrame(`bear-scout-walk-${bearStep}`);
+          }
+          if (bearTimer <= 0) {
+            bearMode = Math.random() < 0.5 ? "look" : "sniff";
+            bearTimer = 1.1 + Math.random() * 1.2;
+            setBearFrame(bearMode === "look" ? "bear-scout-look" : "bear-scout-sniff");
+          }
+        } else if (bearTimer <= 0) {
+          // Searching pause over: often turn around, as if casting about.
+          if (Math.random() < 0.55) bearDir = -bearDir;
+          bearMode = "walk";
+          bearTimer = 2.2 + Math.random() * 2.4;
+          setBearFrame(`bear-scout-walk-${bearStep}`);
+        }
+      });
+
+      bearTimer = 2.4;
+      setBearFrame("bear-scout-walk-0");
     }
     // Username collectible — floats above ground
     {
@@ -2539,7 +2643,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // On wide phones the logical viewport stretches past 960, which would
       // shrink every glyph on screen. Scale the panel and its type by the
       // same factor so text keeps a constant physical size.
-      const S = W / LOGICAL_W;
+      UI_TEXT_SCALE = computeUiTextScale(opts.canvas, W);
+      const S = UI_TEXT_SCALE;
       const px = (n: number) => Math.round(n * S);
       const nodes: AnyObj[] = [];
       const put = (parts: unknown[]) => {
@@ -3330,6 +3435,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const body = win
         ? "You navigated every step and enrolled in Medicaid coverage."
         : `${pickFailureMessage(zone, cause ?? "fell")}\n\nTell us what would make the next attempt easier — the form is below the game.`;
+      const T = computeUiTextScale(opts.canvas, k.width());
       const overlay = k.add([
         k.rect(k.width(), k.height()),
         k.pos(0, 0),
@@ -3341,7 +3447,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]);
       if (!win) overlay.onClick(() => k.go("trail", 40, 1));
       k.add([
-        k.text(title, { size: 30, font: "sans-serif" }),
+        k.text(title, { size: Math.round(30 * T), font: "sans-serif" }),
         k.pos(k.width() / 2, k.height() / 2 - 78),
         k.anchor("center"),
         k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 150, 150)),
@@ -3349,7 +3455,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.z(LAYERS.OVERLAY_TEXT),
       ]);
       k.add([
-        k.text(body, { size: 16, font: "sans-serif", width: 720, align: "center" }),
+        k.text(body, {
+          size: Math.round(16 * T),
+          font: "sans-serif",
+          width: Math.min(720 * T, k.width() - 40),
+          align: "center",
+        }),
         k.pos(k.width() / 2, k.height() / 2),
         k.anchor("center"),
         k.color(240, 240, 240),
@@ -3362,7 +3473,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.wait(5, () => k.go("thanks"));
       } else {
         k.add([
-          k.text("Tap screen or press R to try again", { size: 14, font: "sans-serif" }),
+          k.text("Tap screen or press R to try again", { size: Math.round(14 * T), font: "sans-serif" }),
           k.pos(k.width() / 2, k.height() / 2 + 100),
           k.anchor("center"),
           k.color(220, 220, 220),
@@ -4115,9 +4226,12 @@ function addSignPlaque(
   label: string,
   badge: string,
 ) {
-  const w = Math.max(96, label.length * 6 + 20);
-  const badgeH = 16;
-  const labelH = 18;
+  const T = UI_TEXT_SCALE;
+  const badgeSize = Math.round(10 * T);
+  const labelSize = Math.round(11 * T);
+  const w = Math.max(96 * T, label.length * 6 * T + 20);
+  const badgeH = Math.round(16 * T);
+  const labelH = Math.round(18 * T);
   const gap = 2;
   const totalH = badgeH + gap + labelH;
   const cy = topY - totalH / 2;
@@ -4132,14 +4246,14 @@ function addSignPlaque(
   ]);
   const badgeTextY = cy - totalH / 2 + badgeH / 2 + 1;
   k.add([
-    k.text(badge, { size: 10, font: "sans-serif" }),
+    k.text(badge, { size: badgeSize, font: "sans-serif" }),
     k.pos(x + 1, badgeTextY + 1),
     k.anchor("center"),
     k.color(0, 0, 0),
     k.z(LAYERS.EFFECT + 1),
   ]);
   k.add([
-    k.text(badge, { size: 10, font: "sans-serif" }),
+    k.text(badge, { size: badgeSize, font: "sans-serif" }),
     k.pos(x, badgeTextY),
     k.anchor("center"),
     k.color(255, 235, 150),
@@ -4156,14 +4270,14 @@ function addSignPlaque(
   ]);
   const labelTextY = cy + totalH / 2 - labelH / 2 + 1;
   k.add([
-    k.text(label, { size: 11, font: "sans-serif" }),
+    k.text(label, { size: labelSize, font: "sans-serif" }),
     k.pos(x + 1, labelTextY + 1),
     k.anchor("center"),
     k.color(255, 240, 220),
     k.z(LAYERS.EFFECT + 1),
   ]);
   k.add([
-    k.text(label, { size: 11, font: "sans-serif" }),
+    k.text(label, { size: labelSize, font: "sans-serif" }),
     k.pos(x, labelTextY),
     k.anchor("center"),
     k.color(30, 20, 10),
@@ -4181,7 +4295,7 @@ function addSpeech(
   // High-contrast world label: dark plaque behind gold text with 1-px shadow.
   // (rgb argument ignored — standardized on gold-on-navy for legibility.)
   // Sized up so the sign stays readable in windowed (non-fullscreen) play.
-  const size = 16;
+  const size = Math.round(16 * UI_TEXT_SCALE);
   const charW = size * 0.62;
   const w = Math.max(72, Math.ceil(text.length * charW) + 22);
   const h = size + 16;

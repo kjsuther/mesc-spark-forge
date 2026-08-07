@@ -144,6 +144,16 @@ const PIXEL_DENSITY = 1;
  *  toggle a sprite between two adjacent integer positions. */
 const px = (n: number): number => Math.floor(n);
 
+/** Keeps UI type at a constant physical size when the canvas is drawn
+ *  smaller than its logical buffer (windowed, non-fullscreen play). */
+let UI_TEXT_SCALE = 1;
+function computeUiTextScale(canvas: HTMLCanvasElement | null, logicalW: number): number {
+  const cssW = canvas?.getBoundingClientRect().width || 0;
+  const shrink = cssW > 0 ? logicalW / cssW : 1;
+  const wide = logicalW / LOGICAL_W;
+  return Math.max(0.9, Math.min(2, Math.max(wide, shrink)));
+}
+
 /** Touch-first device? Drives the wording of every "continue" prompt. */
 const isCoarsePointer = (): boolean =>
   typeof window !== "undefined" &&
@@ -870,6 +880,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   // Match the logical viewport to the real on-screen aspect before boot.
   VIEW_W = computeViewW(opts.canvas);
+  UI_TEXT_SCALE = computeUiTextScale(opts.canvas, VIEW_W);
 
   // Seed the shared flag store with whatever the caller knows right now. From
   // here on the engine reads the store live, so an admin toggle changes
@@ -2544,7 +2555,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const H = k.height();
       // Wide phones stretch the logical viewport past 960; scale the panel
       // and its type by the same factor so text keeps a constant on-screen size.
-      const S = W / LOGICAL_W;
+      UI_TEXT_SCALE = computeUiTextScale(opts.canvas, W);
+      const S = UI_TEXT_SCALE;
       const px = (n: number) => Math.round(n * S);
       const nodes: AnyObj[] = [];
       const put = (parts: unknown[]) => {
@@ -3322,6 +3334,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const body = win
         ? "You navigated every step and enrolled in Medicaid coverage."
         : `${pickFailureMessage(zone, cause ?? "fell")}\n\nTell us what would make the next attempt easier — the form is below the game.`;
+      const T = computeUiTextScale(opts.canvas, k.width());
       const overlay = k.add([
         k.rect(k.width(), k.height()),
         k.pos(0, 0),
@@ -3333,7 +3346,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]);
       if (!win) overlay.onClick(() => k.go("trail", 40, 1));
       k.add([
-        k.text(title, { size: 30, font: "sans-serif" }),
+        k.text(title, { size: Math.round(30 * T), font: "sans-serif" }),
         k.pos(k.width() / 2, k.height() / 2 - 78),
         k.anchor("center"),
         k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 150, 150)),
@@ -3341,7 +3354,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.z(LAYERS.OVERLAY_TEXT),
       ]);
       k.add([
-        k.text(body, { size: 16, font: "sans-serif", width: 720, align: "center" }),
+        k.text(body, {
+          size: Math.round(16 * T),
+          font: "sans-serif",
+          width: Math.min(720 * T, k.width() - 40),
+          align: "center",
+        }),
         k.pos(k.width() / 2, k.height() / 2),
         k.anchor("center"),
         k.color(240, 240, 240),
@@ -3354,7 +3372,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.wait(5, () => k.go("thanks"));
       } else {
         k.add([
-          k.text("Tap screen or press R to try again", { size: 14, font: "sans-serif" }),
+          k.text("Tap screen or press R to try again", { size: Math.round(14 * T), font: "sans-serif" }),
           k.pos(k.width() / 2, k.height() / 2 + 100),
           k.anchor("center"),
           k.color(220, 220, 220),
@@ -4063,9 +4081,12 @@ function addSignPlaque(
   label: string,
   badge: string,
 ) {
-  const w = Math.max(96, label.length * 6 + 20);
-  const badgeH = 16;
-  const labelH = 18;
+  const T = UI_TEXT_SCALE;
+  const badgeSize = Math.round(10 * T);
+  const labelSize = Math.round(11 * T);
+  const w = Math.max(96 * T, label.length * 6 * T + 20);
+  const badgeH = Math.round(16 * T);
+  const labelH = Math.round(18 * T);
   const gap = 2;
   const totalH = badgeH + gap + labelH;
   const cy = topY - totalH / 2;
@@ -4080,14 +4101,14 @@ function addSignPlaque(
   ]);
   const badgeTextY = cy - totalH / 2 + badgeH / 2 + 1;
   k.add([
-    k.text(badge, { size: 10, font: "sans-serif" }),
+    k.text(badge, { size: badgeSize, font: "sans-serif" }),
     k.pos(x + 1, badgeTextY + 1),
     k.anchor("center"),
     k.color(0, 0, 0),
     k.z(LAYERS.EFFECT + 1),
   ]);
   k.add([
-    k.text(badge, { size: 10, font: "sans-serif" }),
+    k.text(badge, { size: badgeSize, font: "sans-serif" }),
     k.pos(x, badgeTextY),
     k.anchor("center"),
     k.color(255, 235, 150),
@@ -4104,14 +4125,14 @@ function addSignPlaque(
   ]);
   const labelTextY = cy + totalH / 2 - labelH / 2 + 1;
   k.add([
-    k.text(label, { size: 11, font: "sans-serif" }),
+    k.text(label, { size: labelSize, font: "sans-serif" }),
     k.pos(x + 1, labelTextY + 1),
     k.anchor("center"),
     k.color(255, 240, 220),
     k.z(LAYERS.EFFECT + 1),
   ]);
   k.add([
-    k.text(label, { size: 11, font: "sans-serif" }),
+    k.text(label, { size: labelSize, font: "sans-serif" }),
     k.pos(x, labelTextY),
     k.anchor("center"),
     k.color(30, 20, 10),
@@ -4128,7 +4149,7 @@ function addSpeech(
 ) {
   // High-contrast world label: dark plaque behind gold text with 1-px shadow.
   // (rgb argument ignored — standardized on gold-on-navy for legibility.)
-  const size = 16;
+  const size = Math.round(16 * UI_TEXT_SCALE);
   const charW = size * 0.62;
   const w = Math.max(72, Math.ceil(text.length * charW) + 22);
   const h = size + 16;

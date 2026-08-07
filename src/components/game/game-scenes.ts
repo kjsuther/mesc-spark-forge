@@ -64,6 +64,7 @@ import dhsLogo16Url from "@/assets/game/mn-dhs-logo-16bit.png";
 
 import docIdAsset from "@/assets/game/doc-id.png.asset.json";
 import { ZONE_THEMES, type MusicTheme } from "@/lib/game-music";
+import { playSfx } from "@/lib/game-sfx";
 import docPaystubAsset from "@/assets/game/doc-paystub.png.asset.json";
 import docEnvelopeAsset from "@/assets/game/doc-envelope.png.asset.json";
 import formMonsterV2Asset from "@/assets/game/form-monster-v2.png.asset.json";
@@ -1197,10 +1198,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (!d || d.unlocked) return;
       d.unlocked = true;
       // Unlock animation: brief shake, chime, then swap sprite + drop barrier.
+      playSfx("door-unlock");
       d.obj.color = k.rgb(255, 240, 120);
       k.wait(0.25, () => { d.obj.color = k.rgb(255, 255, 255); });
       k.wait(0.5, () => {
+        playSfx("door-open");
         setGameObjSprite(d.obj, "door-open");
+
         d.barrier?.destroy();
         d.barrier = null;
         // Sparkle burst above door
@@ -1291,7 +1295,128 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
 
+    // ---- Doorway transition ------------------------------------------------
+    // Completing a zone no longer teleports the player: they walk into the
+    // doorway, vanish inside, the door swings shut behind them, the screen
+    // fades, and the next zone opens at its official start. Once through, the
+    // door is sealed for good — the journey only ever moves forward.
+    let transitioning = false;
+    /** Hard floor on X: the far side of the last door walked through. */
+    let progressFloorX = 0;
+
+    function walkThroughDoor(zoneIdx: number) {
+      const d = doors[zoneIdx];
+      if (!d || !d.unlocked || transitioning) return;
+      if (zoneIdx >= 7) return;
+      transitioning = true;
+      pauseGameplay();
+
+      const doorX = d.obj.pos.x;
+      const p = player as AnyObj;
+      const startX = player.pos.x;
+      const startScale = 1;
+      let t = 0;
+      let stepAt = 0;
+      p.vel = k.vec2(0, 0);
+      player.flipX = false;
+
+      const ctl = k.onUpdate(() => {
+        const dt = k.dt();
+        t += dt;
+        // Phase 1 (0.55s): stride into the doorway, footsteps on the boards.
+        if (t < 0.55) {
+          const f = t / 0.55;
+          player.pos.x = startX + (doorX - startX) * f;
+          player.pos.y = GROUND_Y;
+          if (t - stepAt > 0.18) { stepAt = t; playSfx("footstep"); }
+          return;
+        }
+        // Phase 2 (0.45s): step inside — shrink into the frame and fade out.
+        if (t < 1.0) {
+          const f = (t - 0.55) / 0.45;
+          player.pos.x = doorX;
+          p.opacity = Math.max(0, 1 - f);
+          p.scale = k.vec2(startScale * (1 - f * 0.35), startScale * (1 - f * 0.15));
+          return;
+        }
+        try { ctl.cancel(); } catch { /* ignore */ }
+
+        // Door swings shut behind them, with a solid thump.
+        setGameObjSprite(d.obj, "door-closed");
+        playSfx("door-close");
+        for (let i = 0; i < 6; i++) {
+          const dust = k.add([
+            k.rect(5, 5),
+            k.pos(doorX - 20 + i * 8, GROUND_Y - 4),
+            k.color(190, 175, 150),
+            k.opacity(0.8),
+            k.anchor("center"),
+            k.z(LAYERS.EFFECT),
+            { life: 0, vx: (i - 3) * 22 },
+          ]) as AnyObj;
+          dust.onUpdate(() => {
+            dust.life += k.dt();
+            dust.pos.x += dust.vx * k.dt();
+            dust.pos.y -= 26 * k.dt();
+            dust.opacity = Math.max(0, 0.8 - dust.life * 1.8);
+            if (dust.life > 0.5) dust.destroy();
+          });
+        }
+
+        // Fade to black, move to the start of the next zone, fade back in.
+        const fade = k.add([
+          k.rect(k.width(), k.height()),
+          k.pos(0, 0),
+          k.color(0, 0, 0),
+          k.opacity(0),
+          k.fixed(),
+          k.z(320),
+        ]) as AnyObj;
+        let ft = 0;
+        let moved = false;
+        const fadeCtl = k.onUpdate(() => {
+          ft += k.dt();
+          if (ft < 0.45) { fade.opacity = ft / 0.45; return; }
+          if (!moved) {
+            moved = true;
+            fade.opacity = 1;
+            // Official start of the next zone, on solid ground.
+            player.pos.x = (zoneIdx + 1) * BIOME_W + 46;
+            player.pos.y = GROUND_Y - 4;
+            p.vel = k.vec2(0, 0);
+            p.opacity = 1;
+            p.scale = k.vec2(1, 1);
+            // Seal the completed zone: nothing can walk back through.
+            progressFloorX = (zoneIdx + 1) * BIOME_W + 12;
+            const seal = k.add([
+              k.rect(16, 620),
+              k.pos(progressFloorX - 24, GROUND_Y - 620),
+              k.opacity(0),
+              k.area({ shape: new k.Rect(k.vec2(0, 0), 16, 620) }),
+              k.body({ isStatic: true }),
+              k.z(LAYERS.PROP),
+            ]);
+            seal.paused = false;
+            return;
+          }
+          if (ft < 0.75) return; // hold on black while the new zone settles
+          fade.opacity = Math.max(0, 1 - (ft - 0.75) / 0.4);
+          if (ft > 1.2) {
+            try { fadeCtl.cancel(); } catch { /* ignore */ }
+            try { fade.destroy(); } catch { /* ignore */ }
+            resumeGameplay();
+            transitioning = false;
+            leftArmed = false;
+            rightArmed = false;
+            if (w?.__gameInput) w.__gameInput.jumpReq = false;
+            // The main loop notices the new zone and opens its briefing.
+          }
+        });
+      });
+    }
+
     // Spawn doors for zones 0..6 (zone 7 = finale, uses fire pole instead).
+
     for (let i = 0; i < 7; i++) doors[i] = spawnDoor(i);
 
     // ================= ZONE 0: Finding the Trail — smash a brick to pick your apply method =================
@@ -1341,12 +1466,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // --- Background cameos: the boss bear glimpsed hunting through Zones 1-6 -
     // Purely decorative: drawn behind the play plane, no area/collision, no
-    // damage. Each zone gets its own perch, scale and haze tint so he blends
-    // into that backdrop and never reads as an obstacle on the player's path.
+    // damage. Every cameo now walks on a real, drawn shelf of terrain (forest
+    // floor, riverbank, rooftop, ridge path, cliff ledge) so he can never read
+    // as floating in mid-air or clipping through the backdrop. He turns at the
+    // ledge edges — never steps off one, never crosses a gap.
     {
       type BearCameo = {
         zone: number;      // 0-based zone index
-        left: number;      // patrol bounds, relative to the zone start
+        left: number;      // ledge span, relative to the zone start
         right: number;
         rise: number;      // pixels above the player's ground line
         scale: number;
@@ -1354,41 +1481,90 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         tint: [number, number, number];
         opacity: number;
         pauseBias: number; // 0 = always walking, 1 = mostly stopped & looking
+        /** Terrain he walks on — decides how the shelf under him is drawn. */
+        ground: "soil" | "rock" | "roof" | "grass";
       };
       const BEAR_CAMEOS: BearCameo[] = [
-        // Zone 1 — peeks out of the far treeline, sniffs, slips back.
-        { zone: 0, left: 620,  right: 900,  rise: 196, scale: 0.55, speed: 26, tint: [150, 165, 170], opacity: 0.72, pauseBias: 0.75 },
-        // Zone 2 — pacing the campfire terrace (the original cameo).
-        { zone: 1, left: 140,  right: 880,  rise: 161, scale: 0.9,  speed: 42, tint: [190, 190, 205], opacity: 0.9,  pauseBias: 0.45 },
-        // Zone 3 — the far riverbank ledge across the rapids.
-        { zone: 2, left: 320,  right: 1000, rise: 214, scale: 0.5,  speed: 30, tint: [160, 180, 200], opacity: 0.7,  pauseBias: 0.55 },
-        // Zone 4 — crossing a rooftop gap in the distant town.
-        { zone: 3, left: 700,  right: 1060, rise: 196, scale: 0.40, speed: 34, tint: [170, 170, 195], opacity: 0.62, pauseBias: 0.3  },
-        // Zone 5 — climbing the upper ridge silhouette.
-        { zone: 4, left: 420,  right: 1080, rise: 262, scale: 0.46, speed: 24, tint: [150, 160, 190], opacity: 0.66, pauseBias: 0.6  },
-        // Zone 6 — standing on the distant storm cliff, scanning.
-        { zone: 5, left: 300,  right: 780,  rise: 186, scale: 0.46,  speed: 20, tint: [140, 150, 180], opacity: 0.6,  pauseBias: 0.8  },
+        // Zone 1 — the forest floor of the far treeline.
+        { zone: 0, left: 620,  right: 900,  rise: 196, scale: 0.55, speed: 26, tint: [150, 165, 170], opacity: 0.72, pauseBias: 0.75, ground: "soil" },
+        // Zone 2 — pacing the grassy campfire terrace.
+        { zone: 1, left: 140,  right: 880,  rise: 161, scale: 0.9,  speed: 42, tint: [190, 190, 205], opacity: 0.9,  pauseBias: 0.45, ground: "grass" },
+        // Zone 3 — the stony riverbank across the rapids.
+        { zone: 2, left: 320,  right: 1000, rise: 214, scale: 0.5,  speed: 30, tint: [160, 180, 200], opacity: 0.7,  pauseBias: 0.55, ground: "rock" },
+        // Zone 4 — one continuous rooftop in the distant town (no gap crossing).
+        { zone: 3, left: 700,  right: 1060, rise: 196, scale: 0.40, speed: 34, tint: [170, 170, 195], opacity: 0.62, pauseBias: 0.3,  ground: "roof" },
+        // Zone 5 — the ridge path along the upper hills.
+        { zone: 4, left: 420,  right: 1080, rise: 262, scale: 0.46, speed: 24, tint: [150, 160, 190], opacity: 0.66, pauseBias: 0.6,  ground: "rock" },
+        // Zone 6 — a cliff ledge on the distant storm bluff.
+        { zone: 5, left: 300,  right: 780,  rise: 186, scale: 0.46, speed: 20, tint: [140, 150, 180], opacity: 0.6,  pauseBias: 0.8,  ground: "rock" },
       ];
+
+      /** Palette for the drawn shelf, keyed by terrain type. */
+      const GROUND_PAL: Record<
+        BearCameo["ground"],
+        { body: [number, number, number]; cap: [number, number, number]; depth: number }
+      > = {
+        soil:  { body: [62, 52, 38],  cap: [86, 104, 56],  depth: 26 },
+        grass: { body: [56, 74, 44],  cap: [96, 138, 68],  depth: 30 },
+        rock:  { body: [58, 62, 74],  cap: [96, 104, 122], depth: 34 },
+        roof:  { body: [52, 46, 58],  cap: [104, 92, 104], depth: 22 },
+      };
 
       const bearBaseH = DISPLAY_H["bear-scout-walk-0"];
       for (const cam of BEAR_CAMEOS) {
         const zx = BIOME_W * cam.zone;
-        const bearL = zx + cam.left;
-        const bearR = zx + cam.right;
         const bearScale = cam.scale;
         const bearDisp = displaySize("bear-scout-walk-0", sizes);
+        const bearW = Math.max(8, bearDisp.w * bearScale);
         const bearGroundY = GROUND_Y - cam.rise;
+
+        // ---- The shelf he lives on: drawn first, behind him -----------------
+        // Slightly wider than his patrol so both ends read as solid terrain
+        // continuing into the scenery rather than a floating platform.
+        const pal = GROUND_PAL[cam.ground];
+        const shelfL = zx + cam.left - bearW;
+        const shelfR = zx + cam.right + bearW;
+        const shelfW = shelfR - shelfL;
+        const haze = cam.opacity * 0.9;
+        const mixed = (c: [number, number, number]): [number, number, number] => [
+          Math.round((c[0] + cam.tint[0]) / 2),
+          Math.round((c[1] + cam.tint[1]) / 2),
+          Math.round((c[2] + cam.tint[2]) / 2),
+        ];
+        // Body of the shelf (the mass of earth/rock/roof beneath his feet).
+        k.add([
+          k.rect(shelfW, pal.depth),
+          k.pos(px(shelfL), px(bearGroundY)),
+          k.color(...mixed(pal.body)),
+          k.opacity(haze),
+          k.z(LAYERS.DECOR_BACK - 2),
+        ]);
+        // Top cap (grass line / rock face / roof tiles) so the walking surface
+        // is unmistakable at a glance.
+        k.add([
+          k.rect(shelfW, 6),
+          k.pos(px(shelfL), px(bearGroundY - 6)),
+          k.color(...mixed(pal.cap)),
+          k.opacity(haze),
+          k.z(LAYERS.DECOR_BACK - 1),
+        ]);
+
         const bear = k.add([
           k.sprite("bear-scout-walk-0", {
-            width: Math.max(8, bearDisp.w * bearScale),
+            width: bearW,
             height: Math.max(8, bearBaseH * bearScale),
           }),
-          k.pos(px(bearL), px(bearGroundY)),
+          k.pos(px(zx + cam.left), px(bearGroundY - 5)),
           k.anchor("bot"),
           k.color(cam.tint[0], cam.tint[1], cam.tint[2]), // atmospheric haze
           k.opacity(cam.opacity),
           k.z(LAYERS.DECOR_BACK),
         ]) as AnyObj;
+
+        // He must keep all four feet on the shelf: the turn-around bounds sit
+        // half a body width inside the drawn terrain.
+        const bearL = shelfL + bearW * 0.6;
+        const bearR = shelfR - bearW * 0.6;
 
         type BearMode = "walk" | "look" | "sniff";
         let bearMode: BearMode = "walk";
@@ -1409,13 +1585,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           bear.flipX = bearDir < 0;
         };
 
+        /** Stop, look over the drop, then turn back inland. */
+        const pauseAtEdge = () => {
+          bearMode = "look";
+          bearTimer = 0.9 + Math.random() * 0.8;
+          bearDir = -bearDir;
+          setBearFrame("bear-scout-look");
+        };
+
         bear.onUpdate(() => {
           const dt = k.dt();
           bearTimer -= dt;
+          // Feet stay pinned to the shelf surface every frame — no drift, no
+          // floating, whatever else happens to the sprite swap.
+          bear.pos.y = px(bearGroundY - 5);
           if (bearMode === "walk") {
-            bear.pos.x += bearDir * cam.speed * dt;
-            if (bear.pos.x > bearR) { bear.pos.x = bearR; bearDir = -1; }
-            if (bear.pos.x < bearL) { bear.pos.x = bearL; bearDir = 1; }
+            const next = bear.pos.x + bearDir * cam.speed * dt;
+            if (next >= bearR) { bear.pos.x = bearR; pauseAtEdge(); return; }
+            if (next <= bearL) { bear.pos.x = bearL; pauseAtEdge(); return; }
+            bear.pos.x = next;
             bearStepT += dt;
             if (bearStepT > 0.22) {
               bearStepT = 0;
@@ -1428,8 +1616,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
               setBearFrame(bearMode === "look" ? "bear-scout-look" : "bear-scout-sniff");
             }
           } else if (bearTimer <= 0) {
-            // Searching pause over: often turn around, as if casting about.
-            if (Math.random() < 0.55) bearDir = -bearDir;
+            // Searching pause over: sometimes cast about before moving on, but
+            // never turn back toward an edge he is already standing on.
+            if (bear.pos.x > bearR - 2) bearDir = -1;
+            else if (bear.pos.x < bearL + 2) bearDir = 1;
+            else if (Math.random() < 0.45) bearDir = -bearDir;
             bearMode = "walk";
             bearTimer = (2.2 + Math.random() * 2.4) * (1.4 - cam.pauseBias);
             setBearFrame(`bear-scout-walk-${bearStep}`);
@@ -1440,6 +1631,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         setBearFrame("bear-scout-walk-0");
       }
     }
+
 
     // Username collectible — floats above ground
     {
@@ -3036,7 +3228,197 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     /** ~3s scripted entrance: the bear charges in from the woods and roars. */
+    /** Zone 7 only plays its cinematic once per run. */
+    let bossCinematicPlayed = false;
+
+    /**
+     * ~5s in-engine cinematic that opens Zone 7. Five one-second beats:
+     * hush, rumble + falling leaves, the bear stalking in, the hero recoiling
+     * in fear, then the rear-up roar that hands over to the boss theme.
+     * Everything is drawn with the existing pixel sprites and blocky particles
+     * so it sits inside the 16-bit look; nothing is pre-rendered video.
+     */
+    function playBossCinematic(onDone: () => void) {
+      pauseGameplay();
+      const p = player as AnyObj;
+      const heroX = player.pos.x;
+      const bh = DISPLAY_H["boss-idle"];
+      const bw = displaySize("boss-idle", sizes).w;
+      // He stalks in from off-camera on the right and stops a respectful,
+      // very unrespectful, distance away.
+      const bearTargetX = heroX + 300;
+      const bear = k.add([
+        k.sprite("boss-idle", { width: bw, height: bh }),
+        k.pos(heroX + 720, GROUND_Y),
+        k.anchor("bot"),
+        k.opacity(0),
+        k.z(LAYERS.ACTOR),
+      ]) as AnyObj;
+      bear.flipX = true;
+
+      const spawned: AnyObj[] = [bear];
+      const shakeUntilRef = { t: 0 };
+      let t = 0;
+      let beat = 0;
+      let stepAt = 0;
+      const baseCamY = LOGICAL_H / 2;
+
+      const leaf = () => {
+        const lx = heroX - 180 + Math.random() * 620;
+        const l = k.add([
+          k.rect(6, 4),
+          k.pos(lx, GROUND_Y - 300 - Math.random() * 80),
+          k.color(Math.random() < 0.5 ? 168 : 196, Math.random() < 0.5 ? 120 : 88, 48),
+          k.anchor("center"),
+          k.opacity(0.95),
+          k.z(LAYERS.EFFECT),
+          { life: 0, sway: Math.random() * 6 },
+        ]) as AnyObj;
+        l.onUpdate(() => {
+          l.life += k.dt();
+          l.pos.y += 70 * k.dt();
+          l.pos.x += Math.sin(l.life * 3 + l.sway) * 30 * k.dt();
+          l.angle = (l.angle ?? 0) + 120 * k.dt();
+          if (l.pos.y > GROUND_Y - 2) { l.opacity -= k.dt() * 3; }
+          if (l.opacity <= 0 || l.life > 5) l.destroy();
+        });
+        spawned.push(l);
+      };
+
+      const dustPuff = (x: number) => {
+        const d = k.add([
+          k.rect(7, 7),
+          k.pos(x, GROUND_Y - 4),
+          k.color(206, 194, 168),
+          k.opacity(0.85),
+          k.anchor("center"),
+          k.z(LAYERS.EFFECT),
+          { life: 0 },
+        ]) as AnyObj;
+        d.onUpdate(() => {
+          d.life += k.dt();
+          d.pos.x += 26 * k.dt();
+          d.pos.y -= 22 * k.dt();
+          d.opacity = Math.max(0, 0.85 - d.life * 1.9);
+          if (d.life > 0.5) d.destroy();
+        });
+        spawned.push(d);
+      };
+
+      let bang: AnyObj | null = null;
+
+      const ctl = k.onUpdate(() => {
+        const dt = k.dt();
+        t += dt;
+
+        // Camera holds on the clearing, with impact shakes layered on top.
+        const shake = shakeUntilRef.t > t ? Math.sin(t * 60) * 5 : 0;
+        const camX = Math.max(VIEW_W / 2, Math.min(heroX + 90, LEVEL_END - VIEW_W / 2));
+        k.setCamPos(px(camX), px(baseCamY + shake));
+
+        // --- Beat 1 (0.0-1.0s): the clearing goes quiet ----------------------
+        if (beat === 0 && t > 1.0) {
+          // --- Beat 2: the ground shakes, leaves fall, something growls ------
+          beat = 1;
+          playSfx("rumble");
+          shakeUntilRef.t = t + 0.9;
+        }
+        if (beat >= 1 && beat < 3 && Math.random() < 0.35) leaf();
+
+        if (beat === 1 && t > 2.0) {
+          // --- Beat 3: heavy footsteps, the bear walks into frame ------------
+          beat = 2;
+          bear.opacity = 1;
+        }
+        if (beat === 2) {
+          bear.pos.x = Math.max(bearTargetX, bear.pos.x - 260 * dt);
+          bear.pos.y = GROUND_Y - Math.abs(Math.sin(t * 8)) * 5;
+          if (t - stepAt > 0.36) {
+            stepAt = t;
+            playSfx("bear-step");
+            dustPuff(bear.pos.x + bw / 2);
+            shakeUntilRef.t = t + 0.12;
+          }
+          if (t > 3.0) {
+            beat = 3;
+            bear.pos.y = GROUND_Y;
+            // --- Beat 4: the hero recoils --------------------------------
+            bang = k.add([
+              k.text("!", { size: 34, font: "sans-serif" }),
+              k.pos(player.pos.x, GROUND_Y - 130),
+              k.anchor("center"),
+              k.color(255, 236, 120),
+              k.outline(4, k.rgb(30, 20, 0)),
+              k.z(LAYERS.HUD - 1),
+            ]) as AnyObj;
+            spawned.push(bang);
+          }
+        }
+        if (beat === 3) {
+          // Steps backward, trembling, eyes on the bear.
+          player.pos.x = Math.max(heroX - 46, player.pos.x - 60 * dt);
+          p.pos.y = GROUND_Y + Math.sin(t * 40) * 1.5;
+          player.flipX = false;
+          if (bang) bang.pos.x = player.pos.x + Math.sin(t * 30) * 2;
+          if (t > 4.0) {
+            beat = 4;
+            p.pos.y = GROUND_Y;
+            // --- Beat 5: he rears up and roars ------------------------------
+            playSfx("roar");
+            playSfx("impact");
+            shakeUntilRef.t = t + 0.8;
+            setMusic("boss");
+            bear.height = bh * 1.18;
+            const roar = k.add([
+              k.text("ROAAR!", { size: 36, font: "sans-serif" }),
+              k.pos(bear.pos.x, GROUND_Y - bh - 34),
+              k.anchor("center"),
+              k.color(255, 90, 80),
+              k.outline(4, k.rgb(30, 0, 0)),
+              k.z(LAYERS.HUD - 1),
+            ]) as AnyObj;
+            spawned.push(roar);
+            sparkleBurst(bear.pos.x, GROUND_Y - bh / 2, [255, 160, 90]);
+          }
+        }
+        if (beat === 4 && t > 5.0) {
+          beat = 5;
+          try { ctl.cancel(); } catch { /* ignore */ }
+          // Fade the clearing out, clean up, hand over to the briefing card.
+          const fade = k.add([
+            k.rect(k.width(), k.height()),
+            k.pos(0, 0), k.color(0, 0, 0), k.opacity(0), k.fixed(), k.z(320),
+          ]) as AnyObj;
+          let ft = 0;
+          const fadeCtl = k.onUpdate(() => {
+            ft += k.dt();
+            if (ft < 0.4) { fade.opacity = ft / 0.4; return; }
+            if (ft < 0.75) {
+              fade.opacity = 1;
+              for (const o of spawned) { try { o.destroy(); } catch { /* gone */ } }
+              spawned.length = 0;
+              player.pos.x = heroX;
+              player.pos.y = GROUND_Y;
+              p.vel = k.vec2(0, 0);
+              return;
+            }
+            fade.opacity = Math.max(0, 1 - (ft - 0.75) / 0.35);
+            if (ft > 1.15) {
+              try { fadeCtl.cancel(); } catch { /* ignore */ }
+              try { fade.destroy(); } catch { /* ignore */ }
+              resumeGameplay();
+              leftArmed = false;
+              rightArmed = false;
+              if (w?.__gameInput) w.__gameInput.jumpReq = false;
+              onDone();
+            }
+          });
+        }
+      });
+    }
+
     function playBossEntrance(onDone: () => void) {
+
       // Gameplay stays frozen (the ready card already paused it) so the player
       // can just watch; objects created here are not part of that snapshot.
       setMusic("boss");
@@ -3900,6 +4282,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       // A step screen (or any other pause) freezes the whole simulation.
       if (isPaused()) return;
+      if (transitioning) return;
       if (player.dead || player.won) return;
 
       const now = k.time();
@@ -3923,11 +4306,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           player.visitedZones.add(z);
           player.score += 1000;
         }
-        // Interactive step briefing instead of a fading title card.
-        showStepScreen(z, () => {
-          // Start the wait clock only once the player has read the briefing.
-          if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
-        });
+        const openBriefing = () =>
+          showStepScreen(z, () => {
+            // Start the wait clock only once the player has read the briefing.
+            if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
+          });
+        // Zone 7 opens with a short cinematic the first time only — dying and
+        // retrying drops straight into the briefing so it never nags.
+        if (z === 6 && !bossCinematicPlayed) {
+          bossCinematicPlayed = true;
+          playBossCinematic(openBriefing);
+        } else {
+          // Interactive step briefing instead of a fading title card.
+          openBriefing();
+        }
         // Each zone gets its own tune; the boss arena overrides this itself.
         if (z !== 6) setMusic(zoneMusic(z));
       }
@@ -3941,6 +4333,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (!d || d.unlocked || !obj) continue;
         if (obj.met()) unlockDoor(i);
       }
+
+      // Reaching an unlocked doorway starts the walk-through transition.
+      for (let i = 0; i < 7; i++) {
+        const d = doors[i];
+        if (!d || !d.unlocked) continue;
+        const dx = d.obj.pos.x;
+        if (player.pos.x >= dx - 16 && player.pos.x <= dx + 90 && i === currentZone) {
+          walkThroughDoor(i);
+          break;
+        }
+      }
+
 
       // Fire-pole slide: freeze x, descend at controlled speed until base.
       // Safety-net: complete when Y reaches GROUND_Y even if the base
@@ -4164,7 +4568,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // is still on the "wrong" side of the nearest locked door — anywhere
       // before the door itself or within the door's own zone boundary if they
       // tunneled through in one frame.
+      // Completed zones are sealed: never let the player drift back through a
+      // door they already walked into.
+      if (progressFloorX > 0 && player.pos.x < progressFloorX) {
+        player.pos.x = progressFloorX;
+        if (p.vel && p.vel.x < 0) p.vel.x = 0;
+      }
       const HITBOX_HALF = 12;
+
       for (let i = 0; i < doors.length; i++) {
         const d = doors[i];
         if (!d || d.unlocked) continue;

@@ -2789,13 +2789,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // font until the whole label fits the cell on a single line.
         const cellW = Math.min(iconBox + gap, (panelW - px(24)) / data.icons.length);
         const capSize = Math.max(
-          8,
+          9,
           Math.min(px(12), Math.floor(cellW / Math.max(1, icon.label.length * 0.58))),
         );
         put([
           k.text(icon.label, { size: capSize, font: "sans-serif", align: "center" }),
-          k.pos(ix, centerY + iconBox / 2 + px(6)), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
+          k.pos(ix, centerY + iconBox / 2 + px(12)), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
         ]);
+
 
         ix += iconBox + gap;
       }

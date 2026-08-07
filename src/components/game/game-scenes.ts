@@ -1664,7 +1664,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const px = sx0 + 900;
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
-      const speed = 40;
+      const speed = 54;
       const m = spawnGrounded(k, "padlock", sizes, {
         x: px, z: LAYERS.ACTOR, tag: "monster",
         props: { dir: 1, home: px, range: 60 },
@@ -1684,9 +1684,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
       const spots: Array<{ x: number; dir: 1 | -1; speed: number; range: number }> = [
-        { x: sx0 + 490, dir:  1, speed: 95, range: 240 },
+        { x: sx0 + 490, dir:  1, speed: 122, range: 240 },
         // Padlock guarding the approach to the door on the right.
-        { x: sx0 + 1000, dir: -1, speed: 90, range: 140 },
+        { x: sx0 + 1000, dir: -1, speed: 116, range: 140 },
+
       ];
       for (const s of spots) {
         const m = spawnGrounded(k, "padlock", sizes, {
@@ -1736,11 +1737,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Difficulty pass: slower, shallower bobbing gives a wider landing
       // window on every crossing platform (~25% gentler than before).
       const platforms = [
-        { x: rx0 + 30,  y: GROUND_Y - 72,  amp: 50, spd: 3.3, label: "ABOUT YOU" },
-        { x: rx0 + 200, y: GROUND_Y - 92,  amp: 68, spd: 2.9, label: "HOUSEHOLD" },
-        { x: rx0 + 370, y: GROUND_Y - 86,  amp: 62, spd: 3.6, label: "INCOME" },
-        { x: rx0 + 540, y: GROUND_Y - 72,  amp: 50, spd: 3.2, label: "SIGNATURE" },
+        { x: rx0 + 30,  y: GROUND_Y - 72,  amp: 72, spd: 4.3, label: "ABOUT YOU" },
+        { x: rx0 + 200, y: GROUND_Y - 92,  amp: 94, spd: 3.8, label: "HOUSEHOLD" },
+        { x: rx0 + 370, y: GROUND_Y - 86,  amp: 86, spd: 4.7, label: "INCOME" },
+        { x: rx0 + 540, y: GROUND_Y - 72,  amp: 72, spd: 4.2, label: "SIGNATURE" },
       ];
+
 
       for (const p of platforms) {
         const PLAT_W = 108;
@@ -1831,12 +1833,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const mw = displaySize("form-monster", sizes).w;
       // Difficulty pass: three clipboards instead of four, spaced further
       // apart and patrolling slower so gaps between them stay walkable.
-      const baseSpeed = active.plain_language ? 26 : 42;
+      const baseSpeed = active.plain_language ? 34 : 56;
       const monsterSpots: Array<{ x: number; speed: number; range: number }> = [
-        { x: tx0 + 360,  speed: active.plain_language ? 22 : 38, range: 90 },
+        { x: tx0 + 360,  speed: active.plain_language ? 30 : 50, range: 90 },
         { x: tx0 + 700,  speed: baseSpeed,                        range: 105 },
-        { x: tx0 + 1040, speed: active.plain_language ? 22 : 36, range: 95 },
+        { x: tx0 + 1040, speed: active.plain_language ? 30 : 48, range: 95 },
       ];
+
 
       for (const s of monsterSpots) {
         const m = spawnGrounded(k, "form-monster", sizes, {
@@ -1870,13 +1873,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
     {
-      // Difficulty pass: two Envelope-Gremlins (was three), starting further
-      // apart and roaming a little slower.
+      // Difficulty pass: three Envelope-Gremlins roaming the relay stretch.
       const mh = DISPLAY_H["envelope-gremlin-0"];
       const mw = displaySize("envelope-gremlin-0", sizes).w;
       const zoneL = relayBase + 80;
       const zoneR = relayBase + BIOME_W - 80;
-      const startXs = [relayBase + 340, relayBase + 940];
+      const startXs = [relayBase + 340, relayBase + 660, relayBase + 940];
+
       for (let gi = 0; gi < startXs.length; gi++) {
         const sx = startXs[gi];
         const m = spawnGrounded(k, "envelope-gremlin-0", sizes, {

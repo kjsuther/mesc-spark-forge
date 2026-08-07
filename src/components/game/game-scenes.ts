@@ -1502,18 +1502,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         faceLeft: boolean;
       };
       const BEAR_SIGHTINGS: BearSighting[] = [
-        // Zone 1 — draped over a high pine limb, paws dangling, branch swaying.
-        { zone: 0, x: 760,  rise: 268, scale: 0.50, tint: [150, 165, 172], opacity: 0.78, frame: "bear-pose-limb",  motion: "sway",  hold: 6.0, gap: 5.0, faceLeft: false },
-        // Zone 2 — peeking out from behind the camp signboard, ducking down.
-        { zone: 1, x: 560,  rise: 150, scale: 0.66, tint: [186, 190, 200], opacity: 0.9,  frame: "bear-pose-peek",  motion: "peer",  hold: 5.5, gap: 4.0, faceLeft: true  },
-        // Zone 3 — down on the far riverbank, drinking from the water.
-        { zone: 2, x: 760,  rise: 128, scale: 0.46, tint: [162, 182, 202], opacity: 0.72, frame: "bear-pose-drink", motion: "dip",   hold: 6.0, gap: 5.0, faceLeft: true  },
-        // Zone 4 — leaning out of a distant alley gap between the buildings.
-        { zone: 3, x: 840,  rise: 118, scale: 0.36, tint: [150, 152, 176], opacity: 0.6,  frame: "bear-pose-lean",  motion: "bob",   hold: 5.0, gap: 6.0, faceLeft: false },
-        // Zone 5 — reared up on the ridge crest, rising into silhouette.
-        { zone: 4, x: 700,  rise: 236, scale: 0.44, tint: [140, 152, 184], opacity: 0.62, frame: "bear-pose-rear",  motion: "rise",  hold: 5.5, gap: 6.0, faceLeft: true  },
-        // Zone 6 — a faint standing shape drifting in the storm haze.
-        { zone: 5, x: 560,  rise: 162, scale: 0.44, tint: [132, 142, 172], opacity: 0.5,  frame: "bear-pose-rear",  motion: "ghost", hold: 6.0, gap: 6.5, faceLeft: true  },
+        // Zone 1 — draped along the big pine limb on the left of the backdrop.
+        { zone: 0, x: 232,  rise: 254, scale: 0.92, tint: [168, 180, 186], opacity: 0.9,  frame: "bear-pose-limb",  motion: "sway",  hold: 6.0, gap: 4.0, faceLeft: false },
+        // Zone 2 — right behind the "LOOK OUT FOR BEARS!" signboard.
+        { zone: 1, x: 966,  rise: 176, scale: 1.05, tint: [196, 198, 206], opacity: 0.95, frame: "bear-pose-peek",  motion: "peer",  hold: 5.5, gap: 3.5, faceLeft: true  },
+        // Zone 3 — on the far riverbank where the water meets the rock.
+        { zone: 2, x: 214,  rise: 84,  scale: 0.80, tint: [176, 194, 210], opacity: 0.85, frame: "bear-pose-drink", motion: "dip",   hold: 6.0, gap: 4.0, faceLeft: false },
+        // Zone 4 — leaning out from the edge of the lodge building.
+        { zone: 3, x: 676,  rise: 52,  scale: 0.78, tint: [168, 168, 186], opacity: 0.82, frame: "bear-pose-lean",  motion: "bob",   hold: 5.0, gap: 4.5, faceLeft: true  },
+        // Zone 5 — reared up on the painted hill crest behind the fields.
+        { zone: 4, x: 430,  rise: 192, scale: 0.82, tint: [150, 170, 190], opacity: 0.8,  frame: "bear-pose-rear",  motion: "rise",  hold: 5.5, gap: 4.5, faceLeft: true  },
+        // Zone 6 — half-behind a dead pine trunk in the storm haze.
+        { zone: 5, x: 172,  rise: 92,  scale: 0.85, tint: [140, 132, 172], opacity: 0.72, frame: "bear-pose-lean",  motion: "ghost", hold: 6.0, gap: 4.5, faceLeft: false },
+
       ];
 
       for (const cam of BEAR_SIGHTINGS) {

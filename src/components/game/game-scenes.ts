@@ -4220,6 +4220,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // cutscene — that scene owns the restart prompt.
         k.wait(5, () => k.go("thanks"));
       } else {
+        // A dejected hero stands at the edge of the failure screen — he did
+        // not get through this step of the coverage journey.
+        const sadH = Math.max(120, Math.min(k.height() * 0.52, 240));
+        k.add([
+          k.sprite("hero-sad", { width: Math.floor(sadH * 0.677), height: Math.floor(sadH) }),
+          k.pos(18, k.height() - 14),
+          k.anchor("botleft"),
+          k.opacity(0.95),
+          k.fixed(),
+          k.z(LAYERS.OVERLAY_TEXT),
+        ]);
         k.add([
           k.text("Tap Screen, Press R or Enter\nto enter your score and provide feedback", {
             size: Math.round(14 * T),

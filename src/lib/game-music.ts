@@ -12,28 +12,39 @@ export type MusicTheme =
   | "adventure"
   | "town"
   | "river"
+  | "supplies"
+  | "callback"
   | "waiting"
+  | "crossroads"
   | "boss"
   | "victory";
 
-/** Exploration themes that may be shuffled between runs. */
-export const EXPLORATION_THEMES: MusicTheme[] = ["adventure", "town", "river"];
+/** Exploration themes, one per zone — kept distinct, never shuffled. */
+export const EXPLORATION_THEMES: MusicTheme[] = [
+  "adventure",
+  "town",
+  "river",
+  "supplies",
+  "callback",
+  "waiting",
+  "crossroads",
+];
 
 /**
- * Which theme plays in each zone (0-based). Zones share a small rotation so
- * the trail keeps changing mood without whiplash; the caller may rotate the
- * exploration set so repeat runs don't start on the same tune.
+ * Which theme plays in each zone (0-based). Every zone gets its own tune so
+ * no melody is ever heard twice on a single run.
  */
 export const ZONE_THEMES: MusicTheme[] = [
-  "adventure", // 1 Finding the Trail
-  "town",      // 2 Setting Up Camp
-  "river",     // 3 Crossing the River of Paperwork
-  "town",      // 4 Gathering Supplies
-  "adventure", // 5 Answering the Call
-  "waiting",   // 6 Waiting Mountain
-  "boss",      // 7 Choosing Your Path (boss arena sets this itself)
-  "victory",   // 8 Coverage Begins
+  "adventure",  // 1 Finding the Trail
+  "town",       // 2 Setting Up Camp
+  "river",      // 3 Crossing the River of Paperwork
+  "supplies",   // 4 Gathering Supplies
+  "callback",   // 5 Answering the Call
+  "waiting",    // 6 Waiting Mountain
+  "crossroads", // 7 Choosing Your Path (boss arena sets "boss" itself)
+  "victory",    // 8 Coverage Begins
 ];
+
 
 type ThemeDef = {
   melody: NoteEvt[];

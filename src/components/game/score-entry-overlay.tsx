@@ -163,7 +163,12 @@ export function ScoreEntryOverlay({
   }
 
   const secs = Math.round(result.durationMs / 1000);
-  const stats = `ZONE ${result.farthestZone + 1}/8 · DOCS ${result.docs}/3 · ${secs}S`;
+  const clock = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+  const speedBonus = result.timeBonus ?? 0;
+  const stats =
+    `ZONE ${result.farthestZone + 1}/8 · DOCS ${result.docs}/3 · TIME ${clock}` +
+    (speedBonus > 0 ? ` · SPEED +${speedBonus.toLocaleString()}` : "");
+
   const scale = Math.max(0.62, Math.min(1.35, uiScale));
 
   return (

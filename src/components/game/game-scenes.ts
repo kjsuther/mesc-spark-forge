@@ -4142,22 +4142,23 @@ function addSpeech(
 ) {
   // High-contrast world label: dark plaque behind gold text with 1-px shadow.
   // (rgb argument ignored — standardized on gold-on-navy for legibility.)
-  const size = 12;
+  // Sized up so the sign stays readable in windowed (non-fullscreen) play.
+  const size = 16;
   const charW = size * 0.62;
-  const w = Math.max(56, Math.ceil(text.length * charW) + 16);
-  const h = size + 12;
+  const w = Math.max(72, Math.ceil(text.length * charW) + 22);
+  const h = size + 16;
   k.add([
     k.rect(w, h, { radius: 3 }),
     k.pos(x, y),
     k.anchor("center"),
-    k.color(20, 25, 45),
-    k.outline(2, k.rgb(255, 220, 90)),
-    k.opacity(0.92),
+    k.color(10, 14, 32),
+    k.outline(3, k.rgb(255, 220, 90)),
+    k.opacity(1),
     k.z(LAYERS.EFFECT),
   ]);
   k.add([
     k.text(text, { size, font: "sans-serif", align: "center" }),
-    k.pos(x + 1, y + 1),
+    k.pos(x + 2, y + 2),
     k.anchor("center"),
     k.color(0, 0, 0),
     k.z(LAYERS.EFFECT + 1),
@@ -4166,9 +4167,10 @@ function addSpeech(
     k.text(text, { size, font: "sans-serif", align: "center" }),
     k.pos(x, y),
     k.anchor("center"),
-    k.color(255, 220, 90),
+    k.color(255, 232, 130),
     k.z(LAYERS.EFFECT + 2),
   ]);
+
 }
 
 /** Floating pixel-art thought bubble drawn in the sky. Purely decorative —

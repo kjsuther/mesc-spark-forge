@@ -160,7 +160,6 @@ export function ScoreEntryOverlay({
     }
     setSaved(true);
     qc.invalidateQueries({ queryKey: ["game_scores"] });
-    setTimeout(onClose, 1400);
   }
 
   const secs = Math.round(result.durationMs / 1000);

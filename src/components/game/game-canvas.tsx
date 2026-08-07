@@ -808,7 +808,13 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         {endResult && !presentation && launchMode && (
           <ScoreEntryOverlay
             result={endResult}
-            onClose={() => setEndResult(null)}
+            onClose={() => {
+              // If the player doesn't choose "Play Again", send them back to
+              // the title screen so the run doesn't sit idle on the canvas.
+              setEndResult(null);
+              setLaunchMode(null);
+              setMenuScreen("title");
+            }}
             onRestart={() => {
               setEndResult(null);
               const gw = window as unknown as { __gameInput?: TouchInput };

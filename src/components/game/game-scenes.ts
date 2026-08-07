@@ -3653,11 +3653,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Remove every plan pedestal (including the collided one).
       k.get("plan-pick").forEach((o) => (o as { destroy: () => void }).destroy());
       showHint(`Picked ${label} — get ready, something is coming through the trees...`);
-      // Ready card, then the bear charges in, then the fight begins.
-      showBossReadyPrompt(() => {
-        spawnPlanBoss();
-        showHint("The bear attacks! You're firing + now — dodge his paperwork.");
-      });
+      // Plan chosen -> the bear charges in (once), then the ready card, then
+      // the fight begins.
+      const startFight = () =>
+        showBossReadyPrompt(() => {
+          spawnPlanBoss();
+          showHint("The bear attacks! You're firing + now — dodge his paperwork.");
+        });
+      if (!bossCinematicPlayed) {
+        bossCinematicPlayed = true;
+        playBossCinematic(startFight);
+      } else {
+        startFight();
+      }
 
     });
 

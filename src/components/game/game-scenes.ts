@@ -1946,21 +1946,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const CAL_MIN_GAP = 0.13; // seconds between two pages starting to fall
     const CAL_TELEGRAPH = 0.35; // seconds a warning marker shows before the drop
     let calNextDropAt = 0;
-    let calLastX = (CAL_L + CAL_R) / 2;
-    /** Pick a drop column: away from the player and from the previous drop. */
-    function pickCalX(): number {
-      let best = CAL_L + Math.random() * (CAL_R - CAL_L);
-      let bestScore = -1;
-      for (let i = 0; i < 8; i++) {
-        const cand = CAL_L + Math.random() * (CAL_R - CAL_L);
-        const dPlayer = Math.abs(cand - player.pos.x);
-        const dPrev = Math.abs(cand - calLastX);
-        if (dPlayer < 76) continue; // never right on top of the player
-        const score = Math.min(dPlayer, dPrev * 1.4);
-        if (score > bestScore) { bestScore = score; best = cand; }
+    // Full-width coverage: the zone is sliced into columns and every column is
+    // used once per shuffled sweep, so no lane ever stays safe — the player has
+    // to keep moving instead of parking in a dead spot.
+    const CAL_COLS = 16;
+    const CAL_COL_W = (CAL_R - CAL_L) / CAL_COLS;
+    let calBag: number[] = [];
+    function refillCalBag() {
+      calBag = Array.from({ length: CAL_COLS }, (_, i) => i);
+      for (let i = calBag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [calBag[i], calBag[j]] = [calBag[j], calBag[i]];
       }
-      calLastX = best;
-      return best;
+    }
+    refillCalBag();
+    /** Next drop column from the shuffled sweep (jittered inside the column). */
+    function pickCalX(): number {
+      if (calBag.length === 0) refillCalBag();
+      const col = calBag.pop() as number;
+      return CAL_L + col * CAL_COL_W + CAL_COL_W * (0.2 + Math.random() * 0.6);
     }
     for (let i = 0; i < CAL_COUNT; i++) {
       const b = spawnAirborne(k, "calendar-page", sizes, {

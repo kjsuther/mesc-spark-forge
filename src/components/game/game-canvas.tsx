@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Leaderboard } from "./leaderboard";
 import { ScoreEntryOverlay } from "./score-entry-overlay";
 import { GameMusic, type MusicTheme } from "@/lib/game-music";
+import { setSfxEnabled } from "@/lib/game-sfx";
 import type { GameFlags, WinResult } from "./game-scenes";
 import trailMapBg from "@/assets/game/trail-map-bg-v2.png.asset.json";
 import { clampResumeZone, shouldRecoverGameAfterResume } from "./lifecycle";
@@ -147,8 +148,11 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const [musicOn, setMusicOn] = useState(false);
   useEffect(() => () => { music.stop(); }, [music]);
   const toggleMusic = useCallback(() => {
-    setMusicOn(music.toggle());
+    const on = music.toggle();
+    setSfxEnabled(on);
+    setMusicOn(on);
   }, [music]);
+
   // The scene drives the mood: boss battle in Zone 7, fanfare on the finale.
   const handleMusicTheme = useCallback(
     (theme: MusicTheme) => { music.setTheme(theme); },

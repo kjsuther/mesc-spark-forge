@@ -1464,171 +1464,111 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       spawnDecor(k, "laptop", sizes, { x: lx, z: LAYERS.PROP });
     }
 
-    // --- Background cameos: the boss bear glimpsed hunting through Zones 1-6 -
-    // Purely decorative: drawn behind the play plane, no area/collision, no
-    // damage. Every cameo now walks on a real, drawn shelf of terrain (forest
-    // floor, riverbank, rooftop, ridge path, cliff ledge) so he can never read
-    // as floating in mid-air or clipping through the backdrop. He turns at the
-    // ledge edges — never steps off one, never crosses a gap.
+    // --- Background sightings: the boss bear glimpsed through Zones 1-6 ------
+    // Purely decorative and painted INTO the backdrop: no drawn ledges, no
+    // invented geometry, no patrol across empty sky. Each zone gets one short,
+    // mostly-stationary beat at a spot that already reads as terrain in that
+    // zone's art. He fades in out of the haze, does a small organic beat
+    // (sniff / look / head turn), then fades back out and waits a long time.
     {
-      type BearCameo = {
+      type BearSighting = {
         zone: number;      // 0-based zone index
-        left: number;      // ledge span, relative to the zone start
-        right: number;
+        x: number;         // spot within the zone
         rise: number;      // pixels above the player's ground line
         scale: number;
-        speed: number;
         tint: [number, number, number];
-        opacity: number;
-        pauseBias: number; // 0 = always walking, 1 = mostly stopped & looking
-        /** Terrain he walks on — decides how the shelf under him is drawn. */
-        ground: "soil" | "rock" | "roof" | "grass";
+        opacity: number;   // peak opacity while visible
+        /** "peek" = holds in place; "cross" = drifts a short distance. */
+        beat: "peek" | "cross";
+        drift: number;     // px travelled during a "cross" beat (signed)
+        hold: number;      // seconds visible
+        gap: number;       // seconds hidden between sightings
+        faceLeft: boolean;
       };
-      const BEAR_CAMEOS: BearCameo[] = [
-        // Zone 1 — the forest floor of the far treeline.
-        { zone: 0, left: 620,  right: 900,  rise: 196, scale: 0.55, speed: 26, tint: [150, 165, 170], opacity: 0.72, pauseBias: 0.75, ground: "soil" },
-        // Zone 2 — pacing the grassy campfire terrace.
-        { zone: 1, left: 140,  right: 880,  rise: 161, scale: 0.9,  speed: 42, tint: [190, 190, 205], opacity: 0.9,  pauseBias: 0.45, ground: "grass" },
-        // Zone 3 — the stony riverbank across the rapids.
-        { zone: 2, left: 320,  right: 1000, rise: 214, scale: 0.5,  speed: 30, tint: [160, 180, 200], opacity: 0.7,  pauseBias: 0.55, ground: "rock" },
-        // Zone 4 — one continuous rooftop in the distant town (no gap crossing).
-        { zone: 3, left: 700,  right: 1060, rise: 196, scale: 0.40, speed: 34, tint: [170, 170, 195], opacity: 0.62, pauseBias: 0.3,  ground: "roof" },
-        // Zone 5 — the ridge path along the upper hills.
-        { zone: 4, left: 420,  right: 1080, rise: 262, scale: 0.46, speed: 24, tint: [150, 160, 190], opacity: 0.66, pauseBias: 0.6,  ground: "rock" },
-        // Zone 6 — a cliff ledge on the distant storm bluff.
-        { zone: 5, left: 300,  right: 780,  rise: 186, scale: 0.46, speed: 20, tint: [140, 150, 180], opacity: 0.6,  pauseBias: 0.8,  ground: "rock" },
+      const BEAR_SIGHTINGS: BearSighting[] = [
+        // Zone 1 — half-hidden between two distant pines: lean out, sniff, gone.
+        { zone: 0, x: 760,  rise: 150, scale: 0.44, tint: [150, 165, 172], opacity: 0.72, beat: "peek",  drift: 14,   hold: 4.5, gap: 6.0, faceLeft: false },
+        // Zone 2 — behind the far campsite treeline, looking over the brush.
+        { zone: 1, x: 520,  rise: 168, scale: 0.62, tint: [186, 190, 200], opacity: 0.85, beat: "peek",  drift: 10,   hold: 5.5, gap: 4.5, faceLeft: true  },
+        // Zone 3 — low on the far riverbank, dipping his head to the water.
+        { zone: 2, x: 760,  rise: 132, scale: 0.42, tint: [162, 182, 202], opacity: 0.7,  beat: "peek",  drift: 8,    hold: 5.0, gap: 6.0, faceLeft: true  },
+        // Zone 4 — a slow silhouette crossing one distant alley gap.
+        { zone: 3, x: 840,  rise: 122, scale: 0.34, tint: [150, 152, 176], opacity: 0.55, beat: "cross", drift: 70,   hold: 4.5, gap: 7.0, faceLeft: false },
+        // Zone 5 — ridge-crest silhouette on the painted hill line.
+        { zone: 4, x: 700,  rise: 228, scale: 0.38, tint: [140, 152, 184], opacity: 0.58, beat: "cross", drift: -52,  hold: 5.0, gap: 6.5, faceLeft: true  },
+        // Zone 6 — faint shape in the storm haze behind the distant trees.
+        { zone: 5, x: 560,  rise: 158, scale: 0.40, tint: [132, 142, 172], opacity: 0.45, beat: "peek",  drift: 0,    hold: 5.5, gap: 7.5, faceLeft: true  },
       ];
 
-      /** Palette for the drawn shelf, keyed by terrain type. */
-      const GROUND_PAL: Record<
-        BearCameo["ground"],
-        { body: [number, number, number]; cap: [number, number, number]; depth: number }
-      > = {
-        soil:  { body: [62, 52, 38],  cap: [86, 104, 56],  depth: 26 },
-        grass: { body: [56, 74, 44],  cap: [96, 138, 68],  depth: 30 },
-        rock:  { body: [58, 62, 74],  cap: [96, 104, 122], depth: 34 },
-        roof:  { body: [52, 46, 58],  cap: [104, 92, 104], depth: 22 },
-      };
-
       const bearBaseH = DISPLAY_H["bear-scout-walk-0"];
-      for (const cam of BEAR_CAMEOS) {
+      for (const cam of BEAR_SIGHTINGS) {
         const zx = BIOME_W * cam.zone;
-        const bearScale = cam.scale;
+        const baseX = zx + cam.x;
+        const baseY = GROUND_Y - cam.rise;
         const bearDisp = displaySize("bear-scout-walk-0", sizes);
-        const bearW = Math.max(8, bearDisp.w * bearScale);
-        const bearGroundY = GROUND_Y - cam.rise;
-
-        // ---- The shelf he lives on: drawn first, behind him -----------------
-        // Slightly wider than his patrol so both ends read as solid terrain
-        // continuing into the scenery rather than a floating platform.
-        const pal = GROUND_PAL[cam.ground];
-        const shelfL = zx + cam.left - bearW;
-        const shelfR = zx + cam.right + bearW;
-        const shelfW = shelfR - shelfL;
-        const haze = cam.opacity * 0.9;
-        const mixed = (c: [number, number, number]): [number, number, number] => [
-          Math.round((c[0] + cam.tint[0]) / 2),
-          Math.round((c[1] + cam.tint[1]) / 2),
-          Math.round((c[2] + cam.tint[2]) / 2),
-        ];
-        // Body of the shelf (the mass of earth/rock/roof beneath his feet).
-        k.add([
-          k.rect(shelfW, pal.depth),
-          k.pos(px(shelfL), px(bearGroundY)),
-          k.color(...mixed(pal.body)),
-          k.opacity(haze),
-          k.z(LAYERS.DECOR_BACK - 2),
-        ]);
-        // Top cap (grass line / rock face / roof tiles) so the walking surface
-        // is unmistakable at a glance.
-        k.add([
-          k.rect(shelfW, 6),
-          k.pos(px(shelfL), px(bearGroundY - 6)),
-          k.color(...mixed(pal.cap)),
-          k.opacity(haze),
-          k.z(LAYERS.DECOR_BACK - 1),
-        ]);
+        const bearW = Math.max(8, bearDisp.w * cam.scale);
 
         const bear = k.add([
           k.sprite("bear-scout-walk-0", {
             width: bearW,
-            height: Math.max(8, bearBaseH * bearScale),
+            height: Math.max(8, bearBaseH * cam.scale),
           }),
-          k.pos(px(zx + cam.left), px(bearGroundY - 5)),
+          k.pos(px(baseX), px(baseY)),
           k.anchor("bot"),
           k.color(cam.tint[0], cam.tint[1], cam.tint[2]), // atmospheric haze
-          k.opacity(cam.opacity),
+          k.opacity(0),
           k.z(LAYERS.DECOR_BACK),
         ]) as AnyObj;
-
-        // He must keep all four feet on the shelf: the turn-around bounds sit
-        // half a body width inside the drawn terrain.
-        const bearL = shelfL + bearW * 0.6;
-        const bearR = shelfR - bearW * 0.6;
-
-        type BearMode = "walk" | "look" | "sniff";
-        let bearMode: BearMode = "walk";
-        let bearDir = 1;
-        let bearTimer = 0;
-        let bearStepT = 0;
-        let bearStep = 0;
+        bear.flipX = cam.faceLeft;
 
         const setBearFrame = (name: string) => {
           const d = displaySize(name, sizes);
           bear.use(
             k.sprite(name, {
-              width: Math.max(8, d.w * bearScale),
-              height: Math.max(8, (DISPLAY_H[name] ?? bearBaseH) * bearScale),
+              width: Math.max(8, d.w * cam.scale),
+              height: Math.max(8, (DISPLAY_H[name] ?? bearBaseH) * cam.scale),
             }),
           );
-          // Sheet art faces right; flip when he patrols left.
-          bear.flipX = bearDir < 0;
+          bear.flipX = cam.faceLeft;
         };
 
-        /** Stop, look over the drop, then turn back inland. */
-        const pauseAtEdge = () => {
-          bearMode = "look";
-          bearTimer = 0.9 + Math.random() * 0.8;
-          bearDir = -bearDir;
-          setBearFrame("bear-scout-look");
+        // Beat script: a looping timeline of (elapsed -> pose) with a fade
+        // envelope at both ends so he emerges from and dissolves into the art.
+        const FADE = 1.1;
+        const cycle = cam.hold + cam.gap;
+        let t = Math.random() * cycle;
+        let lastFrame = "";
+        const showFrame = (name: string) => {
+          if (name === lastFrame) return;
+          lastFrame = name;
+          setBearFrame(name);
         };
 
         bear.onUpdate(() => {
-          const dt = k.dt();
-          bearTimer -= dt;
-          // Feet stay pinned to the shelf surface every frame — no drift, no
-          // floating, whatever else happens to the sprite swap.
-          bear.pos.y = px(bearGroundY - 5);
-          if (bearMode === "walk") {
-            const next = bear.pos.x + bearDir * cam.speed * dt;
-            if (next >= bearR) { bear.pos.x = bearR; pauseAtEdge(); return; }
-            if (next <= bearL) { bear.pos.x = bearL; pauseAtEdge(); return; }
-            bear.pos.x = next;
-            bearStepT += dt;
-            if (bearStepT > 0.22) {
-              bearStepT = 0;
-              bearStep = 1 - bearStep;
-              setBearFrame(`bear-scout-walk-${bearStep}`);
-            }
-            if (bearTimer <= 0) {
-              bearMode = Math.random() < 0.5 ? "look" : "sniff";
-              bearTimer = (1.1 + Math.random() * 1.2) * (0.6 + cam.pauseBias);
-              setBearFrame(bearMode === "look" ? "bear-scout-look" : "bear-scout-sniff");
-            }
-          } else if (bearTimer <= 0) {
-            // Searching pause over: sometimes cast about before moving on, but
-            // never turn back toward an edge he is already standing on.
-            if (bear.pos.x > bearR - 2) bearDir = -1;
-            else if (bear.pos.x < bearL + 2) bearDir = 1;
-            else if (Math.random() < 0.45) bearDir = -bearDir;
-            bearMode = "walk";
-            bearTimer = (2.2 + Math.random() * 2.4) * (1.4 - cam.pauseBias);
-            setBearFrame(`bear-scout-walk-${bearStep}`);
+          t = (t + k.dt()) % cycle;
+          if (t > cam.hold) {
+            bear.opacity = 0;
+            return;
           }
-        });
+          // Fade envelope.
+          const fadeIn = Math.min(1, t / FADE);
+          const fadeOut = Math.min(1, (cam.hold - t) / FADE);
+          bear.opacity = cam.opacity * Math.min(fadeIn, fadeOut);
 
-        bearTimer = 2.4;
-        setBearFrame("bear-scout-walk-0");
+          const p = t / cam.hold; // 0..1 through the visible window
+          if (cam.beat === "cross") {
+            // A slow, steady drift across the gap — two-frame walk cycle.
+            bear.pos.x = px(baseX + cam.drift * p);
+            showFrame(`bear-scout-walk-${Math.floor(t / 0.26) % 2}`);
+          } else {
+            // Stationary beat: lean out, sniff, lift head, look around.
+            bear.pos.x = px(baseX + cam.drift * Math.sin(p * Math.PI));
+            if (p < 0.28) showFrame("bear-scout-look");
+            else if (p < 0.62) showFrame("bear-scout-sniff");
+            else showFrame("bear-scout-look");
+          }
+          bear.pos.y = px(baseY);
+        });
       }
     }
 
@@ -3713,11 +3653,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Remove every plan pedestal (including the collided one).
       k.get("plan-pick").forEach((o) => (o as { destroy: () => void }).destroy());
       showHint(`Picked ${label} — get ready, something is coming through the trees...`);
-      // Ready card, then the bear charges in, then the fight begins.
-      showBossReadyPrompt(() => {
-        spawnPlanBoss();
-        showHint("The bear attacks! You're firing + now — dodge his paperwork.");
-      });
+      // Plan chosen -> the bear charges in (once), then the ready card, then
+      // the fight begins.
+      const startFight = () =>
+        showBossReadyPrompt(() => {
+          spawnPlanBoss();
+          showHint("The bear attacks! You're firing + now — dodge his paperwork.");
+        });
+      if (!bossCinematicPlayed) {
+        bossCinematicPlayed = true;
+        playBossCinematic(startFight);
+      } else {
+        startFight();
+      }
 
     });
 
@@ -4311,15 +4259,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             // Start the wait clock only once the player has read the briefing.
             if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
           });
-        // Zone 7 opens with a short cinematic the first time only — dying and
-        // retrying drops straight into the briefing so it never nags.
-        if (z === 6 && !bossCinematicPlayed) {
-          bossCinematicPlayed = true;
-          playBossCinematic(openBriefing);
-        } else {
-          // Interactive step briefing instead of a fading title card.
-          openBriefing();
-        }
+        // Zone 7 opens with its normal briefing; the bear's charge-in cinematic
+        // now waits until the player has actually chosen a health plan.
+        openBriefing();
         // Each zone gets its own tune; the boss arena overrides this itself.
         if (z !== 6) setMusic(zoneMusic(z));
       }
@@ -4664,12 +4606,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.add([k.rect(bw, bh), k.pos(bx, by), k.color(252, 250, 235), k.fixed(), k.z(9)]);
     if (msg) msg.pos = k.vec2(Math.floor(W / 2), by + Math.floor(bh / 2));
     // Map a point in the backdrop art (0-1) to canvas space, accounting for
-    // the COVER scaling above — used to sit the hero exactly on the exam bed.
+    // the COVER scaling above — used to stand the hero-on-bed sprite on the
+    // room's floor where the painted exam bed used to be.
     const bgPt = (fx: number, fy: number) => ({
       x: W / 2 + (fx - 0.5) * BG_W * bgScale,
       y: H / 2 + (fy - 0.5) * BG_H * bgScale,
     });
-    const bed = bgPt(0.795, 0.70);
+    const bed = bgPt(0.80, 0.99);
 
     // Bubble tail pointing down toward the hero on the bed.
     k.add([
@@ -4681,17 +4624,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(9),
     ]);
 
-    // Hero sitting on the exam bed at the right of the room, covering the
-    // empty bed in the art so he reads as actually sitting on it.
-    const bottomLimit = H - SAFE_Y - 26;
+    // The bed itself is no longer painted into the backdrop — this sprite is
+    // the whole bed-and-hero element, standing on the room's floor.
+    const bottomLimit = H - SAFE_Y * 0.2;
     const heroTop = by + bh + 8;
-    const portraitH = Math.max(90, Math.min(250, bottomLimit - heroTop));
+    const heroFootY = Math.floor(Math.min(bottomLimit, bed.y));
+    const portraitH = Math.max(120, Math.min(300, heroFootY - heroTop));
     k.add([
       k.sprite("hero-sitting", { width: portraitH, height: portraitH }),
-      k.pos(
-        Math.floor(Math.min(W - portraitH * 0.35, bed.x)),
-        Math.floor(Math.min(bottomLimit, bed.y + portraitH * 0.18)),
-      ),
+      k.pos(Math.floor(Math.min(W - portraitH * 0.35, bed.x)), heroFootY),
       k.anchor("bot"),
       k.fixed(),
       k.z(5),
@@ -4700,7 +4641,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Conference badge + MN DHS badge, stacked BELOW the speech bubble on the
     // LEFT so they never overlap the waving hero, on opaque backing plates.
     const logoTop = by + bh + 12;
-    const logoBottom = bottomLimit;
+    const logoBottom = H - SAFE_Y - 26;
     const availH = Math.max(50, logoBottom - logoTop);
 
     const dhsW = Math.floor(Math.min(W * 0.30, 260));

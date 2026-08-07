@@ -4072,6 +4072,45 @@ function showTitleCard(
   return total;
 }
 
+/** Chunky 16-bit icons for each Zone 1 apply method, drawn as flat pixel
+ *  blocks in a 30x30 space centred on the collectible (offsets are relative). */
+type IconPixel = { x: number; y: number; w: number; h: number; c: [number, number, number] };
+const METHOD_ICON_PIXELS: Record<string, IconPixel[]> = {
+  // Envelope
+  MAIL: [
+    { x: 0, y: 0, w: 22, h: 15, c: [252, 252, 245] },
+    { x: 0, y: -7, w: 22, h: 2, c: [180, 170, 150] },
+    { x: -5, y: -4, w: 5, h: 3, c: [120, 110, 95] },
+    { x: 0, y: -1, w: 5, h: 3, c: [120, 110, 95] },
+    { x: 5, y: -4, w: 5, h: 3, c: [120, 110, 95] },
+    { x: 0, y: 5, w: 14, h: 2, c: [200, 195, 180] },
+  ],
+  // Cell phone
+  PHONE: [
+    { x: 0, y: 0, w: 14, h: 24, c: [40, 45, 60] },
+    { x: 0, y: -1, w: 10, h: 16, c: [120, 220, 240] },
+    { x: 0, y: 9, w: 4, h: 3, c: [180, 190, 205] },
+    { x: 0, y: -10, w: 5, h: 2, c: [180, 190, 205] },
+  ],
+  // Public assistance office building
+  "IN PERSON": [
+    { x: 0, y: 3, w: 22, h: 18, c: [176, 172, 165] },
+    { x: 0, y: -8, w: 24, h: 5, c: [110, 118, 135] },
+    { x: -6, y: -1, w: 5, h: 5, c: [130, 205, 235] },
+    { x: 6, y: -1, w: 5, h: 5, c: [130, 205, 235] },
+    { x: -6, y: 7, w: 5, h: 5, c: [130, 205, 235] },
+    { x: 6, y: 7, w: 5, h: 5, c: [130, 205, 235] },
+    { x: 0, y: 8, w: 6, h: 9, c: [90, 65, 40] },
+  ],
+  // Laptop
+  ONLINE: [
+    { x: 0, y: -4, w: 22, h: 15, c: [70, 78, 95] },
+    { x: 0, y: -4, w: 17, h: 10, c: [130, 215, 235] },
+    { x: 0, y: 6, w: 26, h: 4, c: [150, 158, 175] },
+  ],
+};
+
+
 /** High-contrast wooden trail-sign plaque used for Zone 1 apply methods.
  *  Draws a solid cream card with a dark outline, an icon badge on top, and
  *  the sign label in dark brown so it stays readable over the foggy forest. */

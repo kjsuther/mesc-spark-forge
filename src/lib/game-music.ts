@@ -133,6 +133,10 @@ const BOSS_BASS: NoteEvt[] = [
   [37, 0.5], [37, 0.5], [37, 0.5], [44, 0.5], [37, 1], [36, 1],
 ];
 
+// Driving mid-register stab layer: the same relentless pedal an octave up, so
+// the boss fight reads as a wall of pressure rather than a lone bass line.
+const BOSS_HARMONY: NoteEvt[] = BOSS_BASS.map(([n, d]) => [n + 12, d] as NoteEvt);
+
 // ---------------------------------------------------------------------------
 // VICTORY — bright D-major fanfare that resolves on a big held tonic, then
 // vamps so the WIN screen keeps celebrating.
@@ -409,13 +413,14 @@ const THEMES: Record<MusicTheme, ThemeDef> = {
   boss: {
     melody: BOSS_MELODY,
     bass: BOSS_BASS,
-    bpm: 128,
-    volume: 0.24,
+    harmony: BOSS_HARMONY,
+    bpm: 158,
+    volume: 0.3,
     leadWave: "sawtooth",
-    leadGain: 0.11,
-    bassWave: "triangle",
-    bassGain: 0.28,
-    percussion: "downbeat",
+    leadGain: 0.15,
+    bassWave: "square",
+    bassGain: 0.34,
+    percussion: "offbeat",
     detuneLead: true,
   },
   victory: {

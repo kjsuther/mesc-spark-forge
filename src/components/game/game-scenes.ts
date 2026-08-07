@@ -2758,7 +2758,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Sprite strip: what you'll meet in this zone.
       const iconTop = Math.min(y + px(8), panelY + panelH - px(124));
       const iconBox = px(52);
-      const gap = px(26);
+      const gap = px(40);
       const totalW = data.icons.length * iconBox + (data.icons.length - 1) * gap;
       let ix = cx - totalW / 2 + iconBox / 2;
       for (const icon of data.icons) {

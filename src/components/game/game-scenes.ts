@@ -3141,6 +3141,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         for (const n of nodes) { try { n.destroy(); } catch { /* ignore */ } }
         stepScreenOpen = false;
         resumeGameplay();
+        // Zone 2 onward: a one-second grace window so nothing parked near the
+        // entrance can land a hit the instant the briefing closes.
+        if (z >= 1) player.invulnUntil = Math.max(player.invulnUntil, k.time() + 1);
         // Movement must be re-armed: a finger already on the D-pad when the
         // panel was dismissed should not launch the hero.
         leftArmed = false;

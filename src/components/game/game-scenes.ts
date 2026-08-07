@@ -3703,10 +3703,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // reaching into the spawner's closure.
     let registerBossHit: ((shotX: number, shotY: number) => void) | null = null;
 
-    /** Denial letters / bills the boss throws. Horizontal, jumpable, spaced. */
-    function spawnBossShot(x: number, y: number, dirX: 1 | -1) {
+    /**
+     * Denial letters / bills the boss throws. Whatever height they leave his
+     * paws at, they glide down to a low "must jump" lane just above the ground
+     * so they always reach the player instead of sailing overhead.
+     */
+    function spawnBossShot(x: number, y: number, dirX: 1 | -1, laneOffset = 26) {
       const sw = displaySize("denied", sizes).w;
       const sh = DISPLAY_H["denied"];
+      const targetY = GROUND_Y - laneOffset;
       const shot = k.add([
         k.sprite("denied", { width: sw, height: sh }),
         k.pos(x, y),
@@ -3717,8 +3722,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { vx: dirX * 470, born: k.time() },
       ]) as AnyObj;
       shot.onUpdate(() => {
-        shot.pos.x += shot.vx * k.dt();
-        shot.pos.y += Math.sin(k.time() * 6) * 0.6;
+        const dt = k.dt();
+        shot.pos.x += shot.vx * dt;
+        // Descend toward the low lane, then bob gently along it.
+        if (shot.pos.y < targetY - 1) {
+          shot.pos.y = Math.min(targetY, shot.pos.y + 320 * dt);
+        } else {
+          shot.pos.y = targetY + Math.sin(k.time() * 6) * 3;
+        }
         // Live long enough to cross the whole arena — the player has to
         // dodge or shoot the paperwork down, not out-walk it.
         if (k.time() - shot.born > 14) shot.destroy();

@@ -1025,6 +1025,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
 
 
+  // The win result is held back until the player leaves the Thank You screen,
+  // so the high-score / suggestion overlay never covers the finale.
+  let pendingWin: WinResult | null = null;
+  const flushPendingWin = () => {
+    if (!pendingWin) return;
+    const r = pendingWin;
+    pendingWin = null;
+    opts.onWin?.(r);
+  };
+
   k.setGravity(1800);
 
   const sizes = await loadAllSprites(k);
@@ -1502,18 +1512,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         faceLeft: boolean;
       };
       const BEAR_SIGHTINGS: BearSighting[] = [
-        // Zone 1 — draped over a high pine limb, paws dangling, branch swaying.
-        { zone: 0, x: 760,  rise: 268, scale: 0.50, tint: [150, 165, 172], opacity: 0.78, frame: "bear-pose-limb",  motion: "sway",  hold: 6.0, gap: 5.0, faceLeft: false },
-        // Zone 2 — peeking out from behind the camp signboard, ducking down.
-        { zone: 1, x: 560,  rise: 150, scale: 0.66, tint: [186, 190, 200], opacity: 0.9,  frame: "bear-pose-peek",  motion: "peer",  hold: 5.5, gap: 4.0, faceLeft: true  },
-        // Zone 3 — down on the far riverbank, drinking from the water.
-        { zone: 2, x: 760,  rise: 128, scale: 0.46, tint: [162, 182, 202], opacity: 0.72, frame: "bear-pose-drink", motion: "dip",   hold: 6.0, gap: 5.0, faceLeft: true  },
-        // Zone 4 — leaning out of a distant alley gap between the buildings.
-        { zone: 3, x: 840,  rise: 118, scale: 0.36, tint: [150, 152, 176], opacity: 0.6,  frame: "bear-pose-lean",  motion: "bob",   hold: 5.0, gap: 6.0, faceLeft: false },
-        // Zone 5 — reared up on the ridge crest, rising into silhouette.
-        { zone: 4, x: 700,  rise: 236, scale: 0.44, tint: [140, 152, 184], opacity: 0.62, frame: "bear-pose-rear",  motion: "rise",  hold: 5.5, gap: 6.0, faceLeft: true  },
-        // Zone 6 — a faint standing shape drifting in the storm haze.
-        { zone: 5, x: 560,  rise: 162, scale: 0.44, tint: [132, 142, 172], opacity: 0.5,  frame: "bear-pose-rear",  motion: "ghost", hold: 6.0, gap: 6.5, faceLeft: true  },
+        // Zone 1 — draped along the big pine limb on the left of the backdrop.
+        { zone: 0, x: 232,  rise: 254, scale: 0.92, tint: [168, 180, 186], opacity: 0.9,  frame: "bear-pose-limb",  motion: "sway",  hold: 6.0, gap: 4.0, faceLeft: false },
+        // Zone 2 — right behind the "LOOK OUT FOR BEARS!" signboard.
+        { zone: 1, x: 966,  rise: 176, scale: 1.05, tint: [196, 198, 206], opacity: 0.95, frame: "bear-pose-peek",  motion: "peer",  hold: 5.5, gap: 3.5, faceLeft: true  },
+        // Zone 3 — on the far riverbank where the water meets the rock.
+        { zone: 2, x: 214,  rise: 84,  scale: 0.80, tint: [176, 194, 210], opacity: 0.85, frame: "bear-pose-drink", motion: "dip",   hold: 6.0, gap: 4.0, faceLeft: false },
+        // Zone 4 — leaning out from the edge of the lodge building.
+        { zone: 3, x: 676,  rise: 52,  scale: 0.78, tint: [168, 168, 186], opacity: 0.82, frame: "bear-pose-lean",  motion: "bob",   hold: 5.0, gap: 4.5, faceLeft: true  },
+        // Zone 5 — reared up on the painted hill crest behind the fields.
+        { zone: 4, x: 430,  rise: 192, scale: 0.82, tint: [150, 170, 190], opacity: 0.8,  frame: "bear-pose-rear",  motion: "rise",  hold: 5.5, gap: 4.5, faceLeft: true  },
+        // Zone 6 — half-behind a dead pine trunk in the storm haze.
+        { zone: 5, x: 172,  rise: 92,  scale: 0.85, tint: [140, 132, 172], opacity: 0.72, frame: "bear-pose-lean",  motion: "ghost", hold: 6.0, gap: 4.5, faceLeft: false },
+
       ];
 
       for (const cam of BEAR_SIGHTINGS) {
@@ -1928,10 +1939,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // scheduler instead of raining continuously. Every drop is telegraphed,
     // never lands on the column the player is standing in, and keeps a minimum
     // horizontal gap from the previous drop, so there is always a safe lane.
-    const CAL_COUNT = 14;
+    const CAL_COUNT = 20;
     const CAL_L = mx0 + 40;
     const CAL_R = mx0 + BIOME_W - 40;
-    const CAL_MIN_GAP = 0.19; // seconds between two pages starting to fall
+    const CAL_MIN_GAP = 0.13; // seconds between two pages starting to fall
     const CAL_TELEGRAPH = 0.35; // seconds a warning marker shows before the drop
     let calNextDropAt = 0;
     let calLastX = (CAL_L + CAL_R) / 2;
@@ -1943,7 +1954,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const cand = CAL_L + Math.random() * (CAL_R - CAL_L);
         const dPlayer = Math.abs(cand - player.pos.x);
         const dPrev = Math.abs(cand - calLastX);
-        if (dPlayer < 90) continue; // never right on top of the player
+        if (dPlayer < 76) continue; // never right on top of the player
         const score = Math.min(dPlayer, dPrev * 1.4);
         if (score > bestScore) { bestScore = score; best = cand; }
       }
@@ -1985,7 +1996,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           const nx = pickCalX();
           b.baseX = nx;
           b.pos = k.vec2(nx, -80);
-          b.spd = 380 + Math.random() * 120;
+          b.spd = 470 + Math.random() * 150;
           b.spin = (Math.random() < 0.5 ? -1 : 1) * (25 + Math.random() * 35);
           b.driftAmp = 8 + Math.random() * 12;
           b.driftSpd = 0.7 + Math.random() * 0.6;
@@ -3171,7 +3182,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         leftArmed = false;
         rightArmed = false;
         if (w?.__gameInput) w.__gameInput.jumpReq = false;
-        playBossEntrance(onReady);
+        onReady();
       }
       hitArea.onClick(() => close());
     }
@@ -3694,7 +3705,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.area({ shape: new k.Rect(k.vec2(0, 0), sw - 8, sh - 8) }),
         k.z(LAYERS.EFFECT),
         "boss-shot",
-        { vx: dirX * 385, born: k.time() },
+        { vx: dirX * 470, born: k.time() },
       ]) as AnyObj;
       shot.onUpdate(() => {
         shot.pos.x += shot.vx * k.dt();
@@ -3823,16 +3834,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.dead) return;
         const dt = k.dt();
         const now = k.time();
-        const speed = 105;
+        // Rage phase: once he is down to his last two hearts he speeds up.
+        const rage = boss.hits >= BOSS_MAX_HITS - 2 ? 1.32 : 1;
+        const speed = 132 * rage;
         boss.pos.x += boss.dir * speed * dt;
         if (boss.pos.x > boss.home + boss.range) { boss.pos.x = boss.home + boss.range; boss.dir = -1; boss.flipX = true; }
         if (boss.pos.x < boss.home - boss.range) { boss.pos.x = boss.home - boss.range; boss.dir = 1; boss.flipX = false; }
         // Occasional hop.
         const wasAirborne = boss.pos.y < GROUND_Y;
         if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
-          boss.vy = -430;
-          boss.nextHop = now + 0.34 + Math.random() * 0.26;
-          boss.armedShot = true; // this jump will throw once he's up
+          boss.vy = -470;
+          boss.nextHop = now + (0.22 + Math.random() * 0.18) / rage;
+          boss.armedShot = true; // this jump will throw on the way up and down
         }
 
         boss.vy += 1300 * dt;
@@ -3843,12 +3856,26 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // Paperwork is thrown from mid-air only — released near the top of a
         // jump, so it arrives at a different height every time. Less frequent
         // than the old ground barrage, but far harder to read.
-        const nearApex = wasAirborne && boss.vy > -80;
+        const nearApex = wasAirborne && boss.vy > -140;
         if (boss.armedShot && nearApex && now >= boss.nextShot && now >= boss.hurtUntil) {
           boss.armedShot = false;
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
+          // Short burst: one at chest height now, a second lower a beat later,
+          // so a single jump forces both a duck and a hop.
           spawnBossShot(boss.pos.x + toward * (bw / 2), boss.pos.y - 34, toward);
-          boss.nextShot = now + 0.78 + Math.random() * 0.35;
+          const burstY = boss.pos.y - 6;
+          const burstX = boss.pos.x;
+          k.wait(0.22, () => {
+            if (boss.dead) return;
+            spawnBossShot(burstX + toward * (bw / 2), burstY, toward);
+          });
+          if (rage > 1) {
+            k.wait(0.44, () => {
+              if (boss.dead) return;
+              spawnBossShot(burstX + toward * (bw / 2), burstY - 60, toward);
+            });
+          }
+          boss.nextShot = now + (0.62 + Math.random() * 0.22) / rage;
         }
 
         // Flash while invulnerable.
@@ -4106,7 +4133,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function tryWin() {
       if (player.won || player.dead) return;
       player.won = true;
-      opts.onWin?.(buildResult(true));
+      pendingWin = buildResult(true);
       showTitleCard(k, "STEP 8 · ENROLLED", "★ COVERED ★", [255, 220, 90], 2.4);
       showEnd(true);
     }
@@ -4554,6 +4581,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   // Plays 5s after the WIN overlay. Close-up of the hero thanking the player,
   // with the 16-bit MESC 2026 conference badge. Only exit is "try again".
   k.scene("thanks", () => {
+    // Continuing from the Thank You screen is what finally reports the win —
+    // that is when the high-score / suggestion overlay is allowed to appear.
+    let leftThanks = false;
+    const leaveThanks = () => {
+      if (leftThanks) return;
+      leftThanks = true;
+      flushPendingWin();
+      k.go("trail", START_X(), 1);
+    };
     const W = k.width();
     const H = k.height();
 
@@ -4722,7 +4758,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       (prompt as AnyObj).opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.15;
       if (winReset?.__gameInput?.resetReq) {
         winReset.__gameInput.resetReq = false;
-        k.go("trail", START_X(), 1);
+        leaveThanks();
       }
     });
 
@@ -4735,9 +4771,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.fixed(),
       k.z(20),
     ]);
-    hit.onClick(() => k.go("trail", START_X(), 1));
+    hit.onClick(() => leaveThanks());
     for (const key of ["r", "space", "enter"]) {
-      k.onKeyPress(key as never, () => k.go("trail", START_X(), 1));
+      k.onKeyPress(key as never, () => leaveThanks());
     }
 
   });

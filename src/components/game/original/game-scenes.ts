@@ -990,6 +990,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
 
 
+  // The win result is held back until the player leaves the Thank You screen,
+  // so the high-score / suggestion overlay never covers the finale.
+  let pendingWin: WinResult | null = null;
+  const flushPendingWin = () => {
+    if (!pendingWin) return;
+    const r = pendingWin;
+    pendingWin = null;
+    opts.onWin?.(r);
+  };
+
   k.setGravity(1800);
 
   const sizes = await loadAllSprites(k);
@@ -3468,7 +3478,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function tryWin() {
       if (player.won || player.dead) return;
       player.won = true;
-      opts.onWin?.(buildResult(true));
+      pendingWin = buildResult(true);
       showTitleCard(k, "STEP 8 · ENROLLED", "★ COVERED ★", [255, 220, 90], 2.4);
       showEnd(true);
     }
@@ -3890,6 +3900,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   // Plays 5s after the WIN overlay. Close-up of the hero thanking the player,
   // with the 16-bit MESC 2026 conference badge. Only exit is "try again".
   k.scene("thanks", () => {
+    // Continuing from the Thank You screen is what finally reports the win.
+    let leftThanks = false;
+    const leaveThanks = () => {
+      if (leftThanks) return;
+      leftThanks = true;
+      flushPendingWin();
+      k.go("trail", START_X(), 1);
+    };
     const W = k.width();
     const H = k.height();
 
@@ -4057,7 +4075,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       (prompt as AnyObj).opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.15;
       if (winReset?.__gameInput?.resetReq) {
         winReset.__gameInput.resetReq = false;
-        k.go("trail", START_X(), 1);
+        leaveThanks();
       }
     });
 
@@ -4070,9 +4088,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.fixed(),
       k.z(20),
     ]);
-    hit.onClick(() => k.go("trail", START_X(), 1));
+    hit.onClick(() => leaveThanks());
     for (const key of ["r", "space", "enter"]) {
-      k.onKeyPress(key as never, () => k.go("trail", START_X(), 1));
+      k.onKeyPress(key as never, () => leaveThanks());
     }
 
   });

@@ -4220,7 +4220,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function tryWin() {
       if (player.won || player.dead) return;
       player.won = true;
+      closeZoneSplit(currentZone);
       pendingWin = buildResult(true);
+
       showTitleCard(k, "STEP 8 · ENROLLED", "★ COVERED ★", [255, 220, 90], 2.4);
       showEnd(true);
     }

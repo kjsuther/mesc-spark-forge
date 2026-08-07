@@ -161,6 +161,20 @@ function computeUiTextScale(canvas: HTMLCanvasElement | null, logicalW: number):
   return Math.max(0.9, Math.min(2, Math.max(wide, shrink)));
 }
 
+/**
+ * Where a run begins inside a zone.
+ *
+ * On touch devices the on-screen D-pad and action buttons occupy the lower
+ * LEFT and lower RIGHT of the canvas, so a hero spawned at x=40 starts
+ * underneath the D-pad. Pushing the start position right by ~18% of the
+ * visible width (about an inch and a half on a typical phone, and it scales
+ * with the device because it is a proportion of the viewport) puts the hero
+ * clear of every control before the player touches anything. Desktop is
+ * unchanged at 40.
+ */
+const START_X = (): number =>
+  isCoarsePointer() ? 40 + Math.round(VIEW_W * 0.18) : 40;
+
 /** Touch-first device? Drives the wording of every "continue" prompt. */
 const isCoarsePointer = (): boolean =>
   typeof window !== "undefined" &&
@@ -3450,7 +3464,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.fixed(),
         k.z(LAYERS.OVERLAY),
       ]);
-      if (!win) overlay.onClick(() => k.go("trail", 40, 1));
+      if (!win) overlay.onClick(() => k.go("trail", START_X(), 1));
       k.add([
         k.text(title, { size: Math.round(30 * T), font: "sans-serif" }),
         k.pos(k.width() / 2, k.height() / 2 - 78),
@@ -3554,7 +3568,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         checkpointMgr.clear();
         powerUps.reset();
         setMusic(zoneMusic(currentZone));
-        k.go("trail", 40, 1);
+        k.go("trail", START_X(), 1);
         return;
       }
       // A step screen (or any other pause) freezes the whole simulation.
@@ -3803,7 +3817,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // While the win sequence is playing the player must watch the
       // thank-you cutscene before restarting.
       if (player.won) return;
-      k.go("trail", 40, 1);
+      k.go("trail", START_X(), 1);
     });
 
 
@@ -4019,7 +4033,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       (prompt as AnyObj).opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.15;
       if (winReset?.__gameInput?.resetReq) {
         winReset.__gameInput.resetReq = false;
-        k.go("trail", 40, 1);
+        k.go("trail", START_X(), 1);
       }
     });
 
@@ -4032,9 +4046,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.fixed(),
       k.z(20),
     ]);
-    hit.onClick(() => k.go("trail", 40, 1));
+    hit.onClick(() => k.go("trail", START_X(), 1));
     for (const key of ["r", "space", "enter"]) {
-      k.onKeyPress(key as never, () => k.go("trail", 40, 1));
+      k.onKeyPress(key as never, () => k.go("trail", START_X(), 1));
     }
 
   });
@@ -4045,7 +4059,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ZONES.length - 1,
     Math.max(0, Math.floor(opts.resumeZone ?? 0)),
   );
-  k.go("trail", resumeZone * BIOME_W + 40, 1);
+  k.go("trail", resumeZone * BIOME_W + START_X(), 1);
 
 
   return () => {

@@ -4209,14 +4209,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.wait(5, () => k.go("thanks"));
       } else {
         k.add([
-          k.text("Tap screen or press R to try again", { size: Math.round(14 * T), font: "sans-serif" }),
+          k.text("Tap Screen, Press R or Enter\nto enter your score and provide feedback", {
+            size: Math.round(14 * T),
+            font: "sans-serif",
+            align: "center",
+          }),
           k.pos(k.width() / 2, k.height() / 2 + 100),
           k.anchor("center"),
           k.color(220, 220, 220),
           k.fixed(),
           k.z(LAYERS.OVERLAY_TEXT),
         ]);
-        opts.onLose?.(buildResult(false));
+        // The name-entry / feedback panel is held back until the player
+        // acknowledges the failure screen.
+        pendingLose = buildResult(false);
       }
     }
 

@@ -901,16 +901,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     musicTheme = theme;
     opts.onMusicTheme?.(theme);
   };
-  // Rotate the exploration tunes by a random offset per run so the same zone
-  // doesn't always play the same song across repeat plays.
-  const musicRotation = Math.floor(Math.random() * EXPLORATION_THEMES.length);
-  /** The tune that belongs to a zone, after this run's rotation. */
-  const zoneMusic = (zoneIdx: number): MusicTheme => {
-    const base = ZONE_THEMES[Math.max(0, Math.min(ZONE_THEMES.length - 1, zoneIdx))] ?? "adventure";
-    const at = EXPLORATION_THEMES.indexOf(base);
-    if (at < 0) return base; // boss / victory / waiting stay put
-    return EXPLORATION_THEMES[(at + musicRotation) % EXPLORATION_THEMES.length];
-  };
+  /** Every zone owns a distinct tune — no rotation, no repeats within a run. */
+  const zoneMusic = (zoneIdx: number): MusicTheme =>
+    ZONE_THEMES[Math.max(0, Math.min(ZONE_THEMES.length - 1, zoneIdx))] ?? "adventure";
+
 
 
 

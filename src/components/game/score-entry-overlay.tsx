@@ -42,10 +42,12 @@ const fieldStyle: React.CSSProperties = {
 export function ScoreEntryOverlay({
   result,
   onClose,
+  onRestart,
   uiScale = 1,
 }: {
   result: WinResult;
   onClose: () => void;
+  onRestart?: () => void;
   uiScale?: number;
 }) {
   const qc = useQueryClient();
@@ -222,6 +224,25 @@ export function ScoreEntryOverlay({
             >
               SCORE SAVED!
             </p>
+          )}
+          {saved && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                onRestart?.();
+              }}
+              className="mb-2 min-h-[44px] border-4 px-5 py-3 text-[9px] tracking-widest"
+              style={{
+                fontFamily: PIXEL_FONT,
+                color: "var(--color-mn-blue)",
+                background: "var(--color-cream)",
+                borderColor: "var(--color-accent-gold)",
+                touchAction: "manipulation",
+              }}
+            >
+              ⟳ PLAY AGAIN
+            </button>
           ) : (
             <>
               <div className="mt-4 flex flex-col items-center gap-3">
@@ -336,6 +357,25 @@ export function ScoreEntryOverlay({
                   }}
                 >
                   SKIP
+                </button>
+              </div>
+              <div className="mt-3 flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onRestart?.();
+                  }}
+                  className="min-h-[44px] border-4 px-5 py-3 text-[9px] tracking-widest"
+                  style={{
+                    fontFamily: PIXEL_FONT,
+                    color: "var(--color-mn-blue)",
+                    background: "var(--color-cream)",
+                    borderColor: "var(--color-accent-gold)",
+                    touchAction: "manipulation",
+                  }}
+                >
+                  ⟳ PLAY AGAIN
                 </button>
               </div>
             </>

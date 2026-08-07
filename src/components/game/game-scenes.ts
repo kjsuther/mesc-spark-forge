@@ -2949,6 +2949,157 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       hitArea.onClick(() => close());
     }
 
+    /**
+     * Zone 7: "get ready" card, then a short scripted charge-in so the boss
+     * fight never starts out of nowhere. Calls `onReady()` when the bear has
+     * arrived and control should return to the player.
+     */
+    function showBossReadyPrompt(onReady: () => void) {
+      if (stepScreenOpen) { onReady(); return; }
+      stepScreenOpen = true;
+      pauseGameplay();
+
+      const W = k.width();
+      const H = k.height();
+      UI_TEXT_SCALE = computeUiTextScale(opts.canvas, W);
+      const S = UI_TEXT_SCALE;
+      const px = (n: number) => Math.round(n * S);
+      const nodes: AnyObj[] = [];
+      const put = (parts: unknown[]) => {
+        const o = k.add(parts as never) as AnyObj;
+        nodes.push(o);
+        return o;
+      };
+
+      put([k.rect(W, H), k.pos(0, 0), k.color(0, 0, 0), k.opacity(0.86), k.fixed(), k.z(300)]);
+      const panelW = Math.min(px(660), W - px(32));
+      const panelH = Math.min(px(300), H - px(20));
+      const panelX = Math.floor(W / 2 - panelW / 2);
+      const panelY = Math.floor(H / 2 - panelH / 2);
+      put([
+        k.rect(panelW, panelH, { radius: 6 }), k.pos(panelX, panelY),
+        k.color(16, 22, 52), k.outline(4, k.rgb(255, 220, 90)), k.fixed(), k.z(301),
+      ]);
+      const cx = Math.floor(panelX + panelW / 2);
+      let y = panelY + px(30);
+      const label = (text: string, size: number, rgb: [number, number, number], width?: number) => {
+        const fs = Math.max(15, px(size));
+        put([
+          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
+          k.pos(cx + 1, y + 1), k.anchor("top"), k.color(0, 0, 0), k.fixed(), k.z(302),
+        ]);
+        const main = put([
+          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
+          k.pos(cx, y), k.anchor("top"), k.color(...rgb), k.fixed(), k.z(303),
+        ]);
+        y += (main.height ?? fs) + px(10);
+      };
+      label("THE BEAR IS CLOSE", 26, [255, 220, 90], panelW - px(48));
+      label("Boss Battle · Choosing Your Path", 16, [180, 205, 255], panelW - px(48));
+      y += px(6);
+      label(
+        "• Dodge the paperwork he throws — your \"+\" shots won't stop it.\n• He fires when he jumps, so watch his height.\n• Land 5 hits to win.",
+        18, [245, 245, 245], panelW - px(70),
+      );
+
+      const promptNode = put([
+        k.text(isCoarsePointer() ? "Tap when you're READY" : "Press Enter, Space, or Click when you're READY",
+          { size: Math.max(14, px(16)), font: "sans-serif", align: "center", width: panelW - px(40) }),
+        k.pos(cx, panelY + panelH - px(34)), k.anchor("center"), k.opacity(1),
+        k.color(255, 235, 120), k.fixed(), k.z(303),
+      ]);
+      const hitArea = put([
+        k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305),
+      ]);
+      const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
+        k.onKeyPress(key as never, () => close()),
+      );
+      const blink = k.onUpdate(() => {
+        promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.35;
+      });
+      let closed = false;
+      function close() {
+        if (closed) return;
+        closed = true;
+        for (const h of keyHandlers) { try { h.cancel(); } catch { /* ignore */ } }
+        try { blink.cancel(); } catch { /* ignore */ }
+        for (const n of nodes) { try { n.destroy(); } catch { /* ignore */ } }
+        stepScreenOpen = false;
+        leftArmed = false;
+        rightArmed = false;
+        if (w?.__gameInput) w.__gameInput.jumpReq = false;
+        playBossEntrance(onReady);
+      }
+      hitArea.onClick(() => close());
+    }
+
+    /** ~3s scripted entrance: the bear charges in from the woods and roars. */
+    function playBossEntrance(onDone: () => void) {
+      // Gameplay stays frozen (the ready card already paused it) so the player
+      // can just watch; objects created here are not part of that snapshot.
+      setMusic("boss");
+      const targetX = BIOME_W * 6 + 1050;
+      const bh = DISPLAY_H["boss-idle"];
+      const bw = displaySize("boss-idle", sizes).w;
+      const startX = targetX + 620;
+      const runner = k.add([
+        k.sprite("boss-idle", { width: bw, height: bh }),
+        k.pos(startX, GROUND_Y),
+        k.anchor("bot"),
+        k.z(LAYERS.ACTOR),
+      ]) as AnyObj;
+      runner.flipX = true;
+      let t = 0;
+      let roared = false;
+      const ctl = k.onUpdate(() => {
+        const dt = k.dt();
+        t += dt;
+        if (runner.pos.x > targetX) {
+          runner.pos.x = Math.max(targetX, runner.pos.x - 420 * dt);
+          // Heavy running gait + puffs of trail dust.
+          runner.pos.y = GROUND_Y - Math.abs(Math.sin(t * 14)) * 10;
+          if (Math.floor(t * 12) % 3 === 0) {
+            const dust = k.add([
+              k.rect(6, 6), k.pos(runner.pos.x + bw / 2, GROUND_Y - 4),
+              k.color(210, 200, 180), k.opacity(0.8), k.anchor("center"), k.z(LAYERS.EFFECT),
+              { life: 0 },
+            ]) as AnyObj;
+            dust.onUpdate(() => {
+              dust.life += k.dt();
+              dust.pos.x += 40 * k.dt();
+              dust.pos.y -= 24 * k.dt();
+              dust.opacity = Math.max(0, 0.8 - dust.life * 2);
+              if (dust.life > 0.45) dust.destroy();
+            });
+          }
+          return;
+        }
+        runner.pos.y = GROUND_Y;
+        if (!roared) {
+          roared = true;
+          const roar = k.add([
+            k.text("ROAAR!", { size: 34, font: "sans-serif" }),
+            k.pos(targetX, GROUND_Y - bh - 30),
+            k.anchor("center"), k.color(255, 90, 80), k.outline(4, k.rgb(30, 0, 0)),
+            k.z(LAYERS.HUD - 1),
+          ]) as AnyObj;
+          sparkleBurst(targetX, GROUND_Y - bh / 2, [255, 160, 90]);
+          k.wait(1.1, () => { try { roar.destroy(); } catch { /* gone */ } });
+        }
+        if (t > 0 && roared && k.time() >= 0) {
+          // Hold the roar beat, then hand the fight over.
+          if ((runner.__holdUntil ?? 0) === 0) runner.__holdUntil = k.time() + 1.1;
+          if (k.time() >= runner.__holdUntil) {
+            try { ctl.cancel(); } catch { /* ignore */ }
+            try { runner.destroy(); } catch { /* ignore */ }
+            resumeGameplay();
+            onDone();
+          }
+        }
+      });
+    }
+
+
 
 
 

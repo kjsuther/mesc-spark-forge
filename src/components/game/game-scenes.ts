@@ -4118,6 +4118,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
 
+    // Failure results are held until the player acknowledges the failure
+    // screen, so the score / feedback panel never covers the message.
+    let pendingLose: WinResult | null = null;
+    function flushPendingLose() {
+      if (!pendingLose) return;
+      const r = pendingLose;
+      pendingLose = null;
+      opts.onLose?.(r);
+    }
+
     function buildResult(won: boolean): WinResult {
       const durationMs = Math.round((k.time() - startTime) * 1000);
       // Pace matters: the accumulated play score is scaled by how fast the run

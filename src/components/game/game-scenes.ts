@@ -1873,21 +1873,26 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
     {
-      // Difficulty pass: three Envelope-Gremlins roaming the relay stretch.
+      // Difficulty pass: three Envelope-Gremlins, each patrolling its own
+      // third of the relay stretch so they can't bunch into one wall.
       const mh = DISPLAY_H["envelope-gremlin-0"];
       const mw = displaySize("envelope-gremlin-0", sizes).w;
       const zoneL = relayBase + 80;
       const zoneR = relayBase + BIOME_W - 80;
+      const laneW = (zoneR - zoneL) / 3;
       const startXs = [relayBase + 340, relayBase + 660, relayBase + 940];
+      let nextDiveAllowedAt = 3;
 
       for (let gi = 0; gi < startXs.length; gi++) {
         const sx = startXs[gi];
+        const laneL = zoneL + laneW * gi + 20;
+        const laneR = zoneL + laneW * (gi + 1) - 20;
         const m = spawnGrounded(k, "envelope-gremlin-0", sizes, {
           x: sx, z: LAYERS.ACTOR, tag: "monster",
           props: {
             dir: (Math.random() < 0.5 ? -1 : 1) as 1 | -1,
             speed: 42 + Math.random() * 40,
-            targetX: zoneL + Math.random() * (zoneR - zoneL),
+            targetX: laneL + Math.random() * (laneR - laneL),
             nextRoll: 0.7 + Math.random() * 0.6,
             rollT: 0,
             baseY: GROUND_Y,
@@ -1895,7 +1900,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             animT: 0,
             gremlinFrame: 0,
             diveUntil: 0,
-            nextDive: 2.5 + Math.random() * 2.0,
+            nextDive: 3 + gi * 1.6 + Math.random() * 2.0,
           },
           hitboxScale: { x: -mw / 2, w: mw, h: mh },
         });
@@ -1903,24 +1908,30 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           const dt = k.dt();
           const now = k.time();
           m.rollT += dt;
-          // Occasionally lock onto the player for a short dive burst.
+          // Occasionally lock onto the player for a short dive burst — but
+          // only one gremlin may be diving at a time.
           if (now >= m.nextDive) {
-            m.diveUntil = now + 0.6;
-            m.nextDive = now + 2.5 + Math.random() * 2.0;
+            if (now >= nextDiveAllowedAt) {
+              m.diveUntil = now + 0.6;
+              nextDiveAllowedAt = now + 1.8;
+              m.nextDive = now + 3.0 + Math.random() * 2.5;
+            } else {
+              m.nextDive = now + 0.5;
+            }
           }
           if (now < m.diveUntil) {
-            m.targetX = player.pos.x;
+            m.targetX = k.clamp(player.pos.x, laneL, laneR);
             m.speed = 150;
           } else if (m.rollT >= m.nextRoll || Math.abs(m.pos.x - m.targetX) < 8) {
-            m.targetX = zoneL + Math.random() * (zoneR - zoneL);
+            m.targetX = laneL + Math.random() * (laneR - laneL);
             m.speed = 55 + Math.random() * 55;
             m.nextRoll = 0.7 + Math.random() * 0.6;
             m.rollT = 0;
           }
           m.dir = m.pos.x < m.targetX ? 1 : -1;
           m.pos.x += m.dir * m.speed * dt;
-          if (m.pos.x < zoneL) m.pos.x = zoneL;
-          if (m.pos.x > zoneR) m.pos.x = zoneR;
+          if (m.pos.x < laneL) m.pos.x = laneL;
+          if (m.pos.x > laneR) m.pos.x = laneR;
           m.pos.y = m.baseY + Math.sin(k.time() * 3 + m.bobPhase) * 8;
           m.flipX = m.dir < 0;
           m.animT += dt;
@@ -3141,6 +3152,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         for (const n of nodes) { try { n.destroy(); } catch { /* ignore */ } }
         stepScreenOpen = false;
         resumeGameplay();
+        // Zone 2 onward: a one-second grace window so nothing parked near the
+        // entrance can land a hit the instant the briefing closes.
+        if (z >= 1) player.invulnUntil = Math.max(player.invulnUntil, k.time() + 1);
         // Movement must be re-armed: a finger already on the D-pad when the
         // panel was dismissed should not launch the hero.
         leftArmed = false;

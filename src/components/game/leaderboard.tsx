@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 
 export type GameScore = {
@@ -10,12 +12,15 @@ export type GameScore = {
   created_at: string;
 };
 
-const leaderboardQuery = {
+const SELECT = "id, display_name, score, duration_ms, mode, created_at";
+
+/** Top-3 only — used by the in-game end screen and the poster/kiosk view. */
+const topScoresQuery = {
   queryKey: ["game_scores", "top"] as const,
   queryFn: async (): Promise<GameScore[]> => {
     const { data, error } = await supabase
       .from("game_scores")
-      .select("id, display_name, score, duration_ms, mode, created_at")
+      .select(SELECT)
       .order("score", { ascending: false })
       .order("created_at", { ascending: true })
       .limit(3);
@@ -27,6 +32,25 @@ const leaderboardQuery = {
   staleTime: 4000,
 };
 
+/** Every score ever submitted — used by the dedicated /scores page. */
+export const allScoresQuery = {
+  queryKey: ["game_scores", "all"] as const,
+  queryFn: async (): Promise<GameScore[]> => {
+    const { data, error } = await supabase
+      .from("game_scores")
+      .select(SELECT)
+      .order("score", { ascending: false })
+      .order("created_at", { ascending: true })
+      .limit(2000);
+    if (error) throw error;
+    return (data ?? []) as GameScore[];
+  },
+  refetchInterval: 10000,
+  staleTime: 8000,
+};
+
+const MEDALS = ["🥇", "🥈", "🥉"];
+
 function fmtDuration(ms: number) {
   const s = Math.round(ms / 1000);
   const m = Math.floor(s / 60);
@@ -34,62 +58,76 @@ function fmtDuration(ms: number) {
   return m > 0 ? `${m}:${r.toString().padStart(2, "0")}` : `${r}s`;
 }
 
-export function Leaderboard({ variant = "panel" }: { variant?: "panel" | "poster" }) {
-  const { data: scores = [], isLoading } = useQuery(leaderboardQuery);
+function ModeChip({ mode, tone = "dark" }: { mode: "before" | "after"; tone?: "dark" | "light" }) {
+  const light = tone === "light";
+  return (
+    <span
+      className={`text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded shrink-0 ${
+        mode === "after"
+          ? light
+            ? "bg-mn-green/15 text-mn-green"
+            : "bg-mn-green/80 text-white"
+          : light
+            ? "bg-accent-orange/15 text-accent-orange"
+            : "bg-accent-orange/80 text-white"
+      }`}
+    >
+      {mode === "after" ? "current" : "original"}
+    </span>
+  );
+}
+
+/**
+ * Top-3 board.
+ *
+ * `variant="poster"` is the dark kiosk styling shown on the admin poster
+ * screen; `variant="panel"` is the light in-page styling. Both show medals,
+ * name and score only, and both link out to the full list.
+ */
+export function Leaderboard({
+  variant = "panel",
+  showViewAll = true,
+}: {
+  variant?: "panel" | "poster";
+  showViewAll?: boolean;
+}) {
+  const { data: scores = [], isLoading } = useQuery(topScoresQuery);
 
   if (variant === "poster") {
     return (
       <div className="flex flex-col h-full min-h-0">
         <header className="bg-accent-gold text-mn-blue px-3 py-1.5 border-b-2 border-accent-orange/60">
-          <span className="font-display uppercase tracking-widest text-xs">
+          <span className="font-display uppercase tracking-widest text-sm">
             ★ Live High Scores · Top 3
           </span>
         </header>
-        <ol className="flex-1 min-h-0 overflow-auto p-1.5 space-y-1">
+        <ol className="flex-1 min-h-0 overflow-hidden p-2 space-y-1.5">
           {isLoading && (
-            <li className="text-cream/60 italic text-xs text-center py-3">Loading…</li>
+            <li className="text-cream/70 italic text-sm text-center py-3">Loading…</li>
           )}
           {!isLoading && scores.length === 0 && (
-            <li className="text-cream/60 italic text-xs text-center py-3">
+            <li className="text-cream/70 italic text-sm text-center py-3">
               Be the first to finish the trail!
             </li>
           )}
           {scores.map((s, i) => (
             <li
               key={s.id}
-              className="flex items-center gap-2 bg-white/5 border border-white/10 rounded px-2 py-1"
+              className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-white/10 border border-white/15 rounded px-2 py-1.5"
             >
-              <span
-                className={`w-5 h-5 grid place-items-center rounded text-[10px] font-black tabular-nums shrink-0 ${
-                  i === 0
-                    ? "bg-accent-gold text-mn-blue"
-                    : i < 3
-                      ? "bg-accent-orange text-white"
-                      : "bg-white/15 text-cream"
-                }`}
-              >
-                {i + 1}
+              <span aria-hidden="true" className="text-lg leading-none shrink-0">
+                {MEDALS[i]}
               </span>
-              <span className="flex-1 min-w-0 truncate font-bold text-cream text-xs">
+              <span className="min-w-0 truncate font-bold text-cream text-base">
                 {s.display_name}
               </span>
-              <span
-                className={`text-[8px] font-bold uppercase tracking-widest px-1 py-0.5 rounded ${
-                  s.mode === "after" ? "bg-mn-green/80 text-white" : "bg-accent-orange/80 text-white"
-                }`}
-              >
-                {s.mode === "after" ? "current" : "original"}
-              </span>
-              <span className="text-cream/70 text-[10px] tabular-nums shrink-0 w-9 text-right">
-                {fmtDuration(s.duration_ms)}
-              </span>
-              <span className="text-accent-gold font-black text-xs tabular-nums shrink-0 w-12 text-right">
+              <span className="text-accent-gold font-black text-lg tabular-nums shrink-0">
                 {s.score}
               </span>
             </li>
           ))}
         </ol>
-        <footer className="text-center text-[9px] font-bold uppercase tracking-widest text-cream/60 py-1 border-t border-white/10">
+        <footer className="text-center text-[10px] font-bold uppercase tracking-widest text-cream/70 py-1 border-t border-white/10">
           Auto-refresh · every 5s
         </footer>
       </div>
@@ -98,58 +136,136 @@ export function Leaderboard({ variant = "panel" }: { variant?: "panel" | "poster
 
   return (
     <section className="mt-6 rounded-lg border-2 border-accent-gold/60 bg-cream/60 overflow-hidden">
-      <header className="bg-accent-gold text-mn-blue px-4 py-2 flex items-center justify-between">
+      <header className="bg-accent-gold text-mn-blue px-4 py-2 flex flex-wrap items-center justify-between gap-2">
         <span className="font-display uppercase tracking-widest text-sm">
           ★ High Scores · Top 3
         </span>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-mn-blue/70">
+        <span className="text-[11px] font-bold uppercase tracking-widest text-mn-blue/70">
           Updates every 5s
         </span>
       </header>
       <ol className="divide-y divide-mn-blue/10">
         {isLoading && (
-          <li className="px-4 py-3 text-sm text-dark-gray/60 italic">Loading…</li>
+          <li className="px-4 py-3 text-sm text-dark-gray/70 italic">Loading…</li>
         )}
         {!isLoading && scores.length === 0 && (
-          <li className="px-4 py-3 text-sm text-dark-gray/60 italic">
+          <li className="px-4 py-3 text-sm text-dark-gray/70 italic">
             No finishers yet — be the first!
           </li>
         )}
         {scores.map((s, i) => (
           <li
             key={s.id}
-            className="px-4 py-2 flex items-center gap-3 text-sm"
+            className="px-4 py-2.5 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 text-base"
           >
-            <span
-              className={`w-6 h-6 grid place-items-center rounded text-[11px] font-black tabular-nums shrink-0 ${
-                i === 0
-                  ? "bg-accent-gold text-mn-blue"
-                  : i < 3
-                    ? "bg-accent-orange text-white"
-                    : "bg-mn-blue/10 text-mn-blue"
-              }`}
-            >
-              {i + 1}
+            <span aria-hidden="true" className="text-xl leading-none shrink-0">
+              {MEDALS[i]}
             </span>
-            <span className="flex-1 min-w-0 truncate font-bold">{s.display_name}</span>
-            <span
-              className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${
-                s.mode === "after"
-                  ? "bg-mn-green/15 text-mn-green"
-                  : "bg-accent-orange/15 text-accent-orange"
-              }`}
-            >
-              {s.mode === "after" ? "current" : "original"}
-            </span>
-            <span className="text-dark-gray/60 text-xs tabular-nums w-10 text-right">
-              {fmtDuration(s.duration_ms)}
-            </span>
-            <span className="font-black tabular-nums w-14 text-right text-mn-blue">
-              {s.score}
-            </span>
+            <span className="min-w-0 truncate font-bold">{s.display_name}</span>
+            <span className="font-black tabular-nums text-right text-mn-blue">{s.score}</span>
           </li>
         ))}
       </ol>
+      {showViewAll && (
+        <div className="border-t border-mn-blue/10 bg-white/50 px-4 py-2 text-right">
+          <Link
+            to="/scores"
+            className="text-sm font-bold uppercase tracking-wide text-mn-blue underline underline-offset-2 hover:text-accent-orange"
+          >
+            View all scores →
+          </Link>
+        </div>
+      )}
+    </section>
+  );
+}
+
+const PAGE_SIZE = 25;
+
+/**
+ * Full leaderboard: every submitted score, highest first, with name search and
+ * "load more" paging so a conference-sized list stays fast. Nothing is ever
+ * filtered out of the underlying data.
+ */
+export function FullLeaderboard() {
+  const { data: scores = [], isLoading } = useQuery(allScoresQuery);
+  const [query, setQuery] = useState("");
+  const [visible, setVisible] = useState(PAGE_SIZE);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return scores;
+    return scores.filter((s) => s.display_name.toLowerCase().includes(q));
+  }, [scores, query]);
+
+  const rows = filtered.slice(0, visible);
+
+  return (
+    <section className="mt-6 rounded-lg border-2 border-mn-blue/30 bg-white overflow-hidden">
+      <header className="bg-mn-blue text-white px-4 py-3 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:flex sm:flex-wrap sm:justify-between">
+        <span className="font-display uppercase tracking-widest text-sm truncate">
+          All scores · {scores.length}
+        </span>
+        <label className="shrink-0">
+          <span className="sr-only">Search by player name</span>
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setVisible(PAGE_SIZE);
+            }}
+            placeholder="Search names…"
+            className="w-40 sm:w-56 rounded border-2 border-white/30 bg-white px-3 py-1.5 text-sm text-dark-gray placeholder:text-dark-gray/50 focus:outline-none focus:ring-2 focus:ring-accent-gold"
+          />
+        </label>
+      </header>
+
+      <ol className="divide-y divide-mn-blue/10">
+        {isLoading && <li className="px-4 py-3 text-sm text-dark-gray/70 italic">Loading…</li>}
+        {!isLoading && filtered.length === 0 && (
+          <li className="px-4 py-3 text-sm text-dark-gray/70 italic">
+            {query ? `No players match “${query}”.` : "No scores yet — be the first!"}
+          </li>
+        )}
+        {rows.map((s) => {
+          const rank = scores.indexOf(s) + 1;
+          return (
+            <li
+              key={s.id}
+              className="px-3 sm:px-4 py-2.5 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-base"
+            >
+              <span className="w-8 shrink-0 text-right font-black tabular-nums text-mn-blue/70">
+                {rank <= 3 ? MEDALS[rank - 1] : rank}
+              </span>
+              <span className="min-w-0 truncate font-bold">{s.display_name}</span>
+              <span className="font-black tabular-nums text-right text-mn-blue">{s.score}</span>
+              <span className="col-start-2 col-span-2 flex items-center gap-2 text-xs text-dark-gray/70">
+                <ModeChip mode={s.mode} tone="light" />
+                <span className="tabular-nums">{fmtDuration(s.duration_ms)}</span>
+                <span className="truncate">
+                  {new Date(s.created_at).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+
+      {visible < filtered.length && (
+        <div className="border-t border-mn-blue/10 px-4 py-3 text-center">
+          <button
+            type="button"
+            onClick={() => setVisible((v) => v + PAGE_SIZE)}
+            className="rounded-lg border-2 border-mn-blue/30 px-5 py-2 text-sm font-bold uppercase tracking-wide text-mn-blue hover:bg-cream transition min-h-11"
+          >
+            Load more ({filtered.length - visible} left)
+          </button>
+        </div>
+      )}
     </section>
   );
 }

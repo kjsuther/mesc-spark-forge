@@ -5,8 +5,6 @@ import { GameMusic, type MusicTheme } from "@/lib/game-music";
 import { setSfxEnabled } from "@/lib/game-sfx";
 import type { GameFlags, WinResult } from "./game-scenes";
 import trailMapBg from "@/assets/game/trail-map-bg-v2.png.asset.json";
-import mescLogo from "@/assets/game/mesc-2026-logo-16bit.png";
-import dhsLogo from "@/assets/game/mn-dhs-logo-16bit.png";
 
 import { clampResumeZone, shouldRecoverGameAfterResume } from "./lifecycle";
 import { selectViewportSnapshot } from "./viewport";
@@ -876,55 +874,30 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                     - PRESS START -
                   </p>
                 </div>
-                <div className="mx-auto flex items-center justify-center gap-4 sm:gap-8">
-                  <img
-                    src={mescLogo}
-                    alt="MESC 2026"
-                    className="hidden w-16 shrink-0 sm:block sm:w-24"
-                    style={{ imageRendering: "pixelated" }}
-                  />
-                  <div
-                    className="flex w-full max-w-xs flex-col gap-3"
-                    style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
+                <div
+                  className="mx-auto flex w-full max-w-xs flex-col gap-3"
+                  style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
+                >
+                  <MenuButton
+                    onClick={() => {
+                      setMenuScreen("explainer");
+                      setMusicOn(true);
+                      enterFullscreenOnFirstTap();
+                      try {
+                        music.start();
+                      } catch (err) {
+                        console.warn("[game] music start failed", err);
+                      }
+                    }}
                   >
-                    <MenuButton
-                      onClick={() => {
-                        setMenuScreen("explainer");
-                        setMusicOn(true);
-                        enterFullscreenOnFirstTap();
-                        try {
-                          music.start();
-                        } catch (err) {
-                          console.warn("[game] music start failed", err);
-                        }
-                      }}
-                    >
-                      ▶ Start Game
-                    </MenuButton>
-                    <MenuButton onClick={() => { enterFullscreenOnFirstTap(); setMenuScreen("scores"); }}>★ High Scores</MenuButton>
-                    {/* Full screen is a first-class title-screen option, not a
-                        hidden control that only appears mid-run. */}
-                    <MenuButton onClick={() => { autoFsDoneRef.current = true; void toggleFullscreen(); }}>
-                      {isFullscreen || fauxFullscreen ? "⤡ Exit Full Screen" : "⛶ Full Screen"}
-                    </MenuButton>
-                  </div>
-                  <img
-                    src={dhsLogo}
-                    alt="Minnesota Department of Human Services"
-                    className="hidden w-32 shrink-0 sm:block sm:w-48 lg:w-56"
-                    style={{ imageRendering: "pixelated" }}
-                  />
-                </div>
-                {/* Narrow screens stack the two badges under the menu instead. */}
-                <div className="mt-5 flex items-center justify-center gap-6 sm:hidden">
-                  <img src={mescLogo} alt="MESC 2026" className="w-14" style={{ imageRendering: "pixelated" }} />
-                  <img
-                    src={dhsLogo}
-                    alt="Minnesota Department of Human Services"
-                    className="w-40"
-                    style={{ imageRendering: "pixelated" }}
-                  />
-
+                    ▶ Start Game
+                  </MenuButton>
+                  <MenuButton onClick={() => { enterFullscreenOnFirstTap(); setMenuScreen("scores"); }}>★ High Scores</MenuButton>
+                  {/* Full screen is a first-class title-screen option, not a
+                      hidden control that only appears mid-run. */}
+                  <MenuButton onClick={() => { autoFsDoneRef.current = true; void toggleFullscreen(); }}>
+                    {isFullscreen || fauxFullscreen ? "⤡ Exit Full Screen" : "⛶ Full Screen"}
+                  </MenuButton>
                 </div>
               </div>
             )}

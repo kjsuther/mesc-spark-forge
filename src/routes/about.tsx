@@ -125,7 +125,7 @@ function AboutPage() {
             real product change.
           </p>
 
-          <div className="grid gap-3">
+          <Accordion type="multiple" className="grid gap-3">
             {[
               {
                 g: "Smashing bricks to find the right application",
@@ -153,31 +153,39 @@ function AboutPage() {
                 f: "Plain-language notices with clear next steps and appeal paths.",
               },
             ].map((r) => (
-              <div
+              <AccordionItem
                 key={r.g}
-                className="grid md:grid-cols-3 gap-3 md:gap-5 p-5 rounded-2xl border-2 border-mn-blue/20 bg-cream/60"
+                value={r.g}
+                className="rounded-2xl border-2 border-mn-blue/20 bg-cream/60 px-5"
               >
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-accent-orange mb-1">
-                    In the game
-                  </p>
-                  <p className="text-sm font-bold text-mn-blue">{r.g}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-dark-gray/60 mb-1">
-                    Real-world pain point
-                  </p>
-                  <p className="text-sm text-dark-gray/80">{r.p}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-mn-green mb-1">
-                    What it points at
-                  </p>
-                  <p className="text-sm text-dark-gray/80">{r.f}</p>
-                </div>
-              </div>
+                <AccordionTrigger className="hover:no-underline text-left">
+                  <span>
+                    <span className="block text-[10px] font-bold uppercase tracking-widest text-accent-orange mb-1">
+                      In the game
+                    </span>
+                    <span className="block text-sm font-bold text-mn-blue">{r.g}</span>
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  <div className="grid md:grid-cols-2 gap-4 pb-2">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-dark-gray/60 mb-1">
+                        Real-world pain point
+                      </p>
+                      <p className="text-sm text-dark-gray/80">{r.p}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-mn-green mb-1">
+                        What it points at
+                      </p>
+                      <p className="text-sm text-dark-gray/80">{r.f}</p>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
             ))}
-          </div>
+          </Accordion>
+
 
           <p className="text-dark-gray/80 max-w-3xl leading-relaxed mt-6">
             This is how a game becomes more than a game. Playing it surfaces the friction faster

@@ -3328,9 +3328,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.score += item.bonus ?? 800;
       // Remove every plan pedestal (including the collided one).
       k.get("plan-pick").forEach((o) => (o as { destroy: () => void }).destroy());
-      // Spawn the paperwork-ogre boss — 3 "+" hits before the key drops.
-      spawnPlanBoss();
-      showHint(`Picked ${label} — a claims-denial boss appeared! You're firing + now.`);
+      showHint(`Picked ${label} — get ready, something is coming through the trees...`);
+      // Ready card, then the bear charges in, then the fight begins.
+      showBossReadyPrompt(() => {
+        spawnPlanBoss();
+        showHint("The bear attacks! You're firing + now — dodge his paperwork.");
+      });
+
     });
 
     // ----- Zone 7 boss battle: dodge the paperwork, land 3 "+" hits -----

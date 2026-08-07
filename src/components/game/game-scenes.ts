@@ -2367,7 +2367,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
       appIcons.push({ cells });
     }
-    }
     const docsHud = pixelHudText({
       x: k.width() - 12, y: 12, size: 14, color: [255, 255, 255], anchor: "topright",
     });

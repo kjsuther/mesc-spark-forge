@@ -2792,22 +2792,28 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.vel.y = Math.max(0, player.vel.y);
       // Pop the method icon out of the brick — falls to the ground and can be
       // collected by walking into it.
-      const iw = 28, ih = 28;
+      const iw = 30, ih = 30;
       const icon = k.add([
-        k.rect(iw, ih),
+        k.rect(iw, ih, { radius: 3 }),
         k.pos(brick.pos.x, brick.pos.y - 18),
         k.anchor("center"),
-        k.color(255, 210, 60), k.outline(2, k.rgb(90, 60, 10)),
+        k.color(250, 240, 210), k.outline(2, k.rgb(60, 45, 25)),
         k.area({ shape: new k.Rect(k.vec2(0, 0), iw, ih) }),
         k.z(LAYERS.PROP + 1),
         "method",
         { methodLabel: brick.methodLabel, vy: -180, landed: false },
       ]) as AnyObj;
-      const iconText = k.add([
-        k.text(brick.methodIcon, { size: 7, font: "sans-serif" }),
-        k.pos(brick.pos.x, brick.pos.y - 18),
-        k.anchor("center"), k.color(30, 20, 10), k.z(LAYERS.PROP + 2),
-      ]) as AnyObj;
+      // 16-bit pixel art of the chosen channel, drawn as children so it
+      // travels with the icon: letter / cell phone / office / laptop.
+      for (const part of METHOD_ICON_PIXELS[brick.methodIcon] ?? []) {
+        icon.add([
+          k.rect(part.w, part.h),
+          k.pos(part.x, part.y),
+          k.anchor("center"),
+          k.color(part.c[0], part.c[1], part.c[2]),
+          k.z(LAYERS.PROP + 2),
+        ]);
+      }
       icon.onUpdate(() => {
         if (!icon.landed) {
           icon.vy += 500 * k.dt();
@@ -2818,9 +2824,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             icon.vy = 0;
           }
         }
-        iconText.pos.x = icon.pos.x;
-        iconText.pos.y = icon.pos.y;
       });
+
     });
     player.onCollide("method", (m) => {
       if (zoneState.methodTouched) return;

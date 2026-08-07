@@ -1330,78 +1330,108 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       spawnDecor(k, "laptop", sizes, { x: lx, z: LAYERS.PROP });
     }
 
-    // --- Background cameo: the boss bear prowling the campground, hunting ---
+    // --- Background cameos: the boss bear glimpsed hunting through Zones 1-6 -
     // Purely decorative: drawn behind the play plane, no area/collision, no
-    // damage. He patrols, stops to look around, sniffs the air, and moves on.
+    // damage. Each zone gets its own perch, scale and haze tint so he blends
+    // into that backdrop and never reads as an obstacle on the player's path.
     {
-      const bearL = sx0 + 140;
-      const bearR = sx0 + 880;
-      // Sits further back than the play plane: smaller, higher on screen.
-      const bearScale = 0.9;
-      const bearBaseH = DISPLAY_H["bear-scout-walk-0"];
-      const bearDisp = displaySize("bear-scout-walk-0", sizes);
-      const bearGroundY = GROUND_Y - 161;
-      const bear = k.add([
-        k.sprite("bear-scout-walk-0", {
-          width: Math.max(8, bearDisp.w * bearScale),
-          height: Math.max(8, bearBaseH * bearScale),
-        }),
-        k.pos(px(bearL), px(bearGroundY)),
-        k.anchor("bot"),
-        k.color(190, 190, 205), // atmospheric haze so he reads as distance
-        k.opacity(0.9),
-        k.z(LAYERS.DECOR_BACK),
-      ]) as AnyObj;
-
-      type BearMode = "walk" | "look" | "sniff";
-      let bearMode: BearMode = "walk";
-      let bearDir = 1;
-      let bearTimer = 0;
-      let bearStepT = 0;
-      let bearStep = 0;
-
-      const setBearFrame = (name: string) => {
-        const d = displaySize(name, sizes);
-        bear.use(
-          k.sprite(name, {
-            width: Math.max(8, d.w * bearScale),
-            height: Math.max(8, (DISPLAY_H[name] ?? bearBaseH) * bearScale),
-          }),
-        );
-        // Sheet art faces right; flip when he patrols left.
-        bear.flipX = bearDir < 0;
+      type BearCameo = {
+        zone: number;      // 0-based zone index
+        left: number;      // patrol bounds, relative to the zone start
+        right: number;
+        rise: number;      // pixels above the player's ground line
+        scale: number;
+        speed: number;
+        tint: [number, number, number];
+        opacity: number;
+        pauseBias: number; // 0 = always walking, 1 = mostly stopped & looking
       };
+      const BEAR_CAMEOS: BearCameo[] = [
+        // Zone 1 — peeks out of the far treeline, sniffs, slips back.
+        { zone: 0, left: 620,  right: 900,  rise: 196, scale: 0.55, speed: 26, tint: [150, 165, 170], opacity: 0.72, pauseBias: 0.75 },
+        // Zone 2 — pacing the campfire terrace (the original cameo).
+        { zone: 1, left: 140,  right: 880,  rise: 161, scale: 0.9,  speed: 42, tint: [190, 190, 205], opacity: 0.9,  pauseBias: 0.45 },
+        // Zone 3 — the far riverbank ledge across the rapids.
+        { zone: 2, left: 320,  right: 1000, rise: 214, scale: 0.5,  speed: 30, tint: [160, 180, 200], opacity: 0.7,  pauseBias: 0.55 },
+        // Zone 4 — crossing a rooftop gap in the distant town.
+        { zone: 3, left: 260,  right: 1120, rise: 246, scale: 0.42, speed: 34, tint: [170, 170, 195], opacity: 0.62, pauseBias: 0.3  },
+        // Zone 5 — climbing the upper ridge silhouette.
+        { zone: 4, left: 420,  right: 1080, rise: 262, scale: 0.46, speed: 24, tint: [150, 160, 190], opacity: 0.66, pauseBias: 0.6  },
+        // Zone 6 — standing on the distant storm cliff, scanning.
+        { zone: 5, left: 380,  right: 860,  rise: 236, scale: 0.5,  speed: 20, tint: [140, 150, 180], opacity: 0.6,  pauseBias: 0.8  },
+      ];
 
-      bear.onUpdate(() => {
-        const dt = k.dt();
-        bearTimer -= dt;
-        if (bearMode === "walk") {
-          bear.pos.x += bearDir * 42 * dt;
-          if (bear.pos.x > bearR) { bear.pos.x = bearR; bearDir = -1; }
-          if (bear.pos.x < bearL) { bear.pos.x = bearL; bearDir = 1; }
-          bearStepT += dt;
-          if (bearStepT > 0.22) {
-            bearStepT = 0;
-            bearStep = 1 - bearStep;
+      const bearBaseH = DISPLAY_H["bear-scout-walk-0"];
+      for (const cam of BEAR_CAMEOS) {
+        const zx = BIOME_W * cam.zone;
+        const bearL = zx + cam.left;
+        const bearR = zx + cam.right;
+        const bearScale = cam.scale;
+        const bearDisp = displaySize("bear-scout-walk-0", sizes);
+        const bearGroundY = GROUND_Y - cam.rise;
+        const bear = k.add([
+          k.sprite("bear-scout-walk-0", {
+            width: Math.max(8, bearDisp.w * bearScale),
+            height: Math.max(8, bearBaseH * bearScale),
+          }),
+          k.pos(px(bearL), px(bearGroundY)),
+          k.anchor("bot"),
+          k.color(cam.tint[0], cam.tint[1], cam.tint[2]), // atmospheric haze
+          k.opacity(cam.opacity),
+          k.z(LAYERS.DECOR_BACK),
+        ]) as AnyObj;
+
+        type BearMode = "walk" | "look" | "sniff";
+        let bearMode: BearMode = "walk";
+        let bearDir = 1;
+        let bearTimer = 0;
+        let bearStepT = 0;
+        let bearStep = 0;
+
+        const setBearFrame = (name: string) => {
+          const d = displaySize(name, sizes);
+          bear.use(
+            k.sprite(name, {
+              width: Math.max(8, d.w * bearScale),
+              height: Math.max(8, (DISPLAY_H[name] ?? bearBaseH) * bearScale),
+            }),
+          );
+          // Sheet art faces right; flip when he patrols left.
+          bear.flipX = bearDir < 0;
+        };
+
+        bear.onUpdate(() => {
+          const dt = k.dt();
+          bearTimer -= dt;
+          if (bearMode === "walk") {
+            bear.pos.x += bearDir * cam.speed * dt;
+            if (bear.pos.x > bearR) { bear.pos.x = bearR; bearDir = -1; }
+            if (bear.pos.x < bearL) { bear.pos.x = bearL; bearDir = 1; }
+            bearStepT += dt;
+            if (bearStepT > 0.22) {
+              bearStepT = 0;
+              bearStep = 1 - bearStep;
+              setBearFrame(`bear-scout-walk-${bearStep}`);
+            }
+            if (bearTimer <= 0) {
+              bearMode = Math.random() < 0.5 ? "look" : "sniff";
+              bearTimer = (1.1 + Math.random() * 1.2) * (0.6 + cam.pauseBias);
+              setBearFrame(bearMode === "look" ? "bear-scout-look" : "bear-scout-sniff");
+            }
+          } else if (bearTimer <= 0) {
+            // Searching pause over: often turn around, as if casting about.
+            if (Math.random() < 0.55) bearDir = -bearDir;
+            bearMode = "walk";
+            bearTimer = (2.2 + Math.random() * 2.4) * (1.4 - cam.pauseBias);
             setBearFrame(`bear-scout-walk-${bearStep}`);
           }
-          if (bearTimer <= 0) {
-            bearMode = Math.random() < 0.5 ? "look" : "sniff";
-            bearTimer = 1.1 + Math.random() * 1.2;
-            setBearFrame(bearMode === "look" ? "bear-scout-look" : "bear-scout-sniff");
-          }
-        } else if (bearTimer <= 0) {
-          // Searching pause over: often turn around, as if casting about.
-          if (Math.random() < 0.55) bearDir = -bearDir;
-          bearMode = "walk";
-          bearTimer = 2.2 + Math.random() * 2.4;
-          setBearFrame(`bear-scout-walk-${bearStep}`);
-        }
-      });
+        });
 
-      bearTimer = 2.4;
-      setBearFrame("bear-scout-walk-0");
+        bearTimer = 2.4;
+        setBearFrame("bear-scout-walk-0");
+      }
     }
+
     // Username collectible — floats above ground
     {
       const ux = sx0 + 300;

@@ -2770,9 +2770,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         subtitle: "Choosing Your Path",
         lines: [
           "Select one of the three managed care plans.",
-          "Selecting a plan causes the boss to appear.",
-          "Dodge the boss's attacks.",
-          "Defeat the boss by hitting it three times with \"+\" projectiles.",
+          "Selecting a plan brings the bear charging out of the woods.",
+          "You choose when the battle starts.",
+          "Dodge his paperwork — your \"+\" shots can't stop it.",
+          "Defeat him with five \"+\" hits.",
+
         ],
         icons: [
           { sprite: "plan-blue", label: "PLAN" },

@@ -1224,30 +1224,39 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           });
         }
         // --- Flashing "the way is open" arrow above the door ---------------
-        const doorTopY = d.obj.pos.y - DISPLAY_H["door-open"] - 18;
+        const doorTopY = d.obj.pos.y - DISPLAY_H["door-open"] - 22;
         const parts: AnyObj[] = [];
-        const mk = (ox: number, oy: number, w: number, h: number) =>
-          parts.push(k.add([
+        const mk = (ox: number, oy: number, w: number, h: number) => {
+          const p = k.add([
             k.rect(w, h),
             k.pos(d.obj.pos.x + ox, doorTopY + oy),
             k.color(255, 214, 64),
-            k.outline(2, k.rgb(40, 26, 0)),
+            k.outline(3, k.rgb(40, 26, 0)),
             k.anchor("center"),
             k.z(LAYERS.EFFECT),
             k.opacity(1),
-          ]) as AnyObj);
-        // Shaft + chevron head, drawn from blocks so it stays 16-bit.
-        mk(-14, 0, 26, 10);
-        mk(2, -10, 10, 10);
-        mk(2, 10, 10, 10);
-        mk(10, 0, 10, 10);
+          ]) as AnyObj;
+          p.__oy = oy;
+          p.__ox = ox;
+          parts.push(p);
+          return p;
+        };
+        // A real arrow: long shaft, then a stepped triangular head. Built from
+        // blocks so it stays true 16-bit, but reads unmistakably as "go right".
+        mk(-30, 0, 40, 14);              // shaft
+        mk(-2, 0, 14, 42);               // head base
+        mk(10, 0, 12, 30);               // head mid
+        mk(20, 0, 12, 18);               // head tip
+        mk(29, 0, 8, 8);                 // point
         const baseY = doorTopY;
         const arrowCtl = k.onUpdate(() => {
           const t = k.time();
-          const bob = Math.sin(t * 5) * 5;
-          const flash = Math.floor(t * 4) % 2 === 0 ? 1 : 0.35;
+          const bob = Math.sin(t * 5) * 6;
+          const nudge = (Math.sin(t * 5) + 1) * 4; // slides right, urging you on
+          const flash = Math.floor(t * 4) % 2 === 0 ? 1 : 0.4;
           for (const p of parts) {
             p.pos.y = baseY + bob + (p.__oy ?? 0);
+            p.pos.x = d.obj.pos.x + (p.__ox ?? 0) + nudge;
             p.opacity = flash;
           }
           // Retire the cue once the player has stepped through the doorway.
@@ -1257,7 +1266,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             parts.length = 0;
           }
         });
-        parts[0].__oy = 0; parts[1].__oy = -10; parts[2].__oy = 10; parts[3].__oy = 0;
+
 
         // Brief on-screen cue so it reads even when the door is off-camera.
         const cue = k.add([
@@ -1330,78 +1339,108 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       spawnDecor(k, "laptop", sizes, { x: lx, z: LAYERS.PROP });
     }
 
-    // --- Background cameo: the boss bear prowling the campground, hunting ---
+    // --- Background cameos: the boss bear glimpsed hunting through Zones 1-6 -
     // Purely decorative: drawn behind the play plane, no area/collision, no
-    // damage. He patrols, stops to look around, sniffs the air, and moves on.
+    // damage. Each zone gets its own perch, scale and haze tint so he blends
+    // into that backdrop and never reads as an obstacle on the player's path.
     {
-      const bearL = sx0 + 140;
-      const bearR = sx0 + 880;
-      // Sits further back than the play plane: smaller, higher on screen.
-      const bearScale = 0.9;
-      const bearBaseH = DISPLAY_H["bear-scout-walk-0"];
-      const bearDisp = displaySize("bear-scout-walk-0", sizes);
-      const bearGroundY = GROUND_Y - 161;
-      const bear = k.add([
-        k.sprite("bear-scout-walk-0", {
-          width: Math.max(8, bearDisp.w * bearScale),
-          height: Math.max(8, bearBaseH * bearScale),
-        }),
-        k.pos(px(bearL), px(bearGroundY)),
-        k.anchor("bot"),
-        k.color(190, 190, 205), // atmospheric haze so he reads as distance
-        k.opacity(0.9),
-        k.z(LAYERS.DECOR_BACK),
-      ]) as AnyObj;
-
-      type BearMode = "walk" | "look" | "sniff";
-      let bearMode: BearMode = "walk";
-      let bearDir = 1;
-      let bearTimer = 0;
-      let bearStepT = 0;
-      let bearStep = 0;
-
-      const setBearFrame = (name: string) => {
-        const d = displaySize(name, sizes);
-        bear.use(
-          k.sprite(name, {
-            width: Math.max(8, d.w * bearScale),
-            height: Math.max(8, (DISPLAY_H[name] ?? bearBaseH) * bearScale),
-          }),
-        );
-        // Sheet art faces right; flip when he patrols left.
-        bear.flipX = bearDir < 0;
+      type BearCameo = {
+        zone: number;      // 0-based zone index
+        left: number;      // patrol bounds, relative to the zone start
+        right: number;
+        rise: number;      // pixels above the player's ground line
+        scale: number;
+        speed: number;
+        tint: [number, number, number];
+        opacity: number;
+        pauseBias: number; // 0 = always walking, 1 = mostly stopped & looking
       };
+      const BEAR_CAMEOS: BearCameo[] = [
+        // Zone 1 — peeks out of the far treeline, sniffs, slips back.
+        { zone: 0, left: 620,  right: 900,  rise: 196, scale: 0.55, speed: 26, tint: [150, 165, 170], opacity: 0.72, pauseBias: 0.75 },
+        // Zone 2 — pacing the campfire terrace (the original cameo).
+        { zone: 1, left: 140,  right: 880,  rise: 161, scale: 0.9,  speed: 42, tint: [190, 190, 205], opacity: 0.9,  pauseBias: 0.45 },
+        // Zone 3 — the far riverbank ledge across the rapids.
+        { zone: 2, left: 320,  right: 1000, rise: 214, scale: 0.5,  speed: 30, tint: [160, 180, 200], opacity: 0.7,  pauseBias: 0.55 },
+        // Zone 4 — crossing a rooftop gap in the distant town.
+        { zone: 3, left: 700,  right: 1060, rise: 196, scale: 0.40, speed: 34, tint: [170, 170, 195], opacity: 0.62, pauseBias: 0.3  },
+        // Zone 5 — climbing the upper ridge silhouette.
+        { zone: 4, left: 420,  right: 1080, rise: 262, scale: 0.46, speed: 24, tint: [150, 160, 190], opacity: 0.66, pauseBias: 0.6  },
+        // Zone 6 — standing on the distant storm cliff, scanning.
+        { zone: 5, left: 300,  right: 780,  rise: 186, scale: 0.46,  speed: 20, tint: [140, 150, 180], opacity: 0.6,  pauseBias: 0.8  },
+      ];
 
-      bear.onUpdate(() => {
-        const dt = k.dt();
-        bearTimer -= dt;
-        if (bearMode === "walk") {
-          bear.pos.x += bearDir * 42 * dt;
-          if (bear.pos.x > bearR) { bear.pos.x = bearR; bearDir = -1; }
-          if (bear.pos.x < bearL) { bear.pos.x = bearL; bearDir = 1; }
-          bearStepT += dt;
-          if (bearStepT > 0.22) {
-            bearStepT = 0;
-            bearStep = 1 - bearStep;
+      const bearBaseH = DISPLAY_H["bear-scout-walk-0"];
+      for (const cam of BEAR_CAMEOS) {
+        const zx = BIOME_W * cam.zone;
+        const bearL = zx + cam.left;
+        const bearR = zx + cam.right;
+        const bearScale = cam.scale;
+        const bearDisp = displaySize("bear-scout-walk-0", sizes);
+        const bearGroundY = GROUND_Y - cam.rise;
+        const bear = k.add([
+          k.sprite("bear-scout-walk-0", {
+            width: Math.max(8, bearDisp.w * bearScale),
+            height: Math.max(8, bearBaseH * bearScale),
+          }),
+          k.pos(px(bearL), px(bearGroundY)),
+          k.anchor("bot"),
+          k.color(cam.tint[0], cam.tint[1], cam.tint[2]), // atmospheric haze
+          k.opacity(cam.opacity),
+          k.z(LAYERS.DECOR_BACK),
+        ]) as AnyObj;
+
+        type BearMode = "walk" | "look" | "sniff";
+        let bearMode: BearMode = "walk";
+        let bearDir = 1;
+        let bearTimer = 0;
+        let bearStepT = 0;
+        let bearStep = 0;
+
+        const setBearFrame = (name: string) => {
+          const d = displaySize(name, sizes);
+          bear.use(
+            k.sprite(name, {
+              width: Math.max(8, d.w * bearScale),
+              height: Math.max(8, (DISPLAY_H[name] ?? bearBaseH) * bearScale),
+            }),
+          );
+          // Sheet art faces right; flip when he patrols left.
+          bear.flipX = bearDir < 0;
+        };
+
+        bear.onUpdate(() => {
+          const dt = k.dt();
+          bearTimer -= dt;
+          if (bearMode === "walk") {
+            bear.pos.x += bearDir * cam.speed * dt;
+            if (bear.pos.x > bearR) { bear.pos.x = bearR; bearDir = -1; }
+            if (bear.pos.x < bearL) { bear.pos.x = bearL; bearDir = 1; }
+            bearStepT += dt;
+            if (bearStepT > 0.22) {
+              bearStepT = 0;
+              bearStep = 1 - bearStep;
+              setBearFrame(`bear-scout-walk-${bearStep}`);
+            }
+            if (bearTimer <= 0) {
+              bearMode = Math.random() < 0.5 ? "look" : "sniff";
+              bearTimer = (1.1 + Math.random() * 1.2) * (0.6 + cam.pauseBias);
+              setBearFrame(bearMode === "look" ? "bear-scout-look" : "bear-scout-sniff");
+            }
+          } else if (bearTimer <= 0) {
+            // Searching pause over: often turn around, as if casting about.
+            if (Math.random() < 0.55) bearDir = -bearDir;
+            bearMode = "walk";
+            bearTimer = (2.2 + Math.random() * 2.4) * (1.4 - cam.pauseBias);
             setBearFrame(`bear-scout-walk-${bearStep}`);
           }
-          if (bearTimer <= 0) {
-            bearMode = Math.random() < 0.5 ? "look" : "sniff";
-            bearTimer = 1.1 + Math.random() * 1.2;
-            setBearFrame(bearMode === "look" ? "bear-scout-look" : "bear-scout-sniff");
-          }
-        } else if (bearTimer <= 0) {
-          // Searching pause over: often turn around, as if casting about.
-          if (Math.random() < 0.55) bearDir = -bearDir;
-          bearMode = "walk";
-          bearTimer = 2.2 + Math.random() * 2.4;
-          setBearFrame(`bear-scout-walk-${bearStep}`);
-        }
-      });
+        });
 
-      bearTimer = 2.4;
-      setBearFrame("bear-scout-walk-0");
+        bearTimer = 2.4;
+        setBearFrame("bear-scout-walk-0");
+      }
     }
+
     // Username collectible — floats above ground
     {
       const ux = sx0 + 300;
@@ -2731,9 +2770,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         subtitle: "Choosing Your Path",
         lines: [
           "Select one of the three managed care plans.",
-          "Selecting a plan causes the boss to appear.",
-          "Dodge the boss's attacks.",
-          "Defeat the boss by hitting it three times with \"+\" projectiles.",
+          "Selecting a plan brings the bear charging out of the woods.",
+          "You choose when the battle starts.",
+          "Dodge his paperwork — your \"+\" shots can't stop it.",
+          "Defeat him with five \"+\" hits.",
+
         ],
         icons: [
           { sprite: "plan-blue", label: "PLAN" },
@@ -2909,6 +2950,157 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       hitArea.onClick(() => close());
     }
+
+    /**
+     * Zone 7: "get ready" card, then a short scripted charge-in so the boss
+     * fight never starts out of nowhere. Calls `onReady()` when the bear has
+     * arrived and control should return to the player.
+     */
+    function showBossReadyPrompt(onReady: () => void) {
+      if (stepScreenOpen) { onReady(); return; }
+      stepScreenOpen = true;
+      pauseGameplay();
+
+      const W = k.width();
+      const H = k.height();
+      UI_TEXT_SCALE = computeUiTextScale(opts.canvas, W);
+      const S = UI_TEXT_SCALE;
+      const px = (n: number) => Math.round(n * S);
+      const nodes: AnyObj[] = [];
+      const put = (parts: unknown[]) => {
+        const o = k.add(parts as never) as AnyObj;
+        nodes.push(o);
+        return o;
+      };
+
+      put([k.rect(W, H), k.pos(0, 0), k.color(0, 0, 0), k.opacity(0.86), k.fixed(), k.z(300)]);
+      const panelW = Math.min(px(660), W - px(32));
+      const panelH = Math.min(px(300), H - px(20));
+      const panelX = Math.floor(W / 2 - panelW / 2);
+      const panelY = Math.floor(H / 2 - panelH / 2);
+      put([
+        k.rect(panelW, panelH, { radius: 6 }), k.pos(panelX, panelY),
+        k.color(16, 22, 52), k.outline(4, k.rgb(255, 220, 90)), k.fixed(), k.z(301),
+      ]);
+      const cx = Math.floor(panelX + panelW / 2);
+      let y = panelY + px(30);
+      const label = (text: string, size: number, rgb: [number, number, number], width?: number) => {
+        const fs = Math.max(15, px(size));
+        put([
+          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
+          k.pos(cx + 1, y + 1), k.anchor("top"), k.color(0, 0, 0), k.fixed(), k.z(302),
+        ]);
+        const main = put([
+          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
+          k.pos(cx, y), k.anchor("top"), k.color(...rgb), k.fixed(), k.z(303),
+        ]);
+        y += (main.height ?? fs) + px(10);
+      };
+      label("THE BEAR IS CLOSE", 26, [255, 220, 90], panelW - px(48));
+      label("Boss Battle · Choosing Your Path", 16, [180, 205, 255], panelW - px(48));
+      y += px(6);
+      label(
+        "• Dodge the paperwork he throws — your \"+\" shots won't stop it.\n• He fires when he jumps, so watch his height.\n• Land 5 hits to win.",
+        18, [245, 245, 245], panelW - px(70),
+      );
+
+      const promptNode = put([
+        k.text(isCoarsePointer() ? "Tap when you're READY" : "Press Enter, Space, or Click when you're READY",
+          { size: Math.max(14, px(16)), font: "sans-serif", align: "center", width: panelW - px(40) }),
+        k.pos(cx, panelY + panelH - px(34)), k.anchor("center"), k.opacity(1),
+        k.color(255, 235, 120), k.fixed(), k.z(303),
+      ]);
+      const hitArea = put([
+        k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305),
+      ]);
+      const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
+        k.onKeyPress(key as never, () => close()),
+      );
+      const blink = k.onUpdate(() => {
+        promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.35;
+      });
+      let closed = false;
+      function close() {
+        if (closed) return;
+        closed = true;
+        for (const h of keyHandlers) { try { h.cancel(); } catch { /* ignore */ } }
+        try { blink.cancel(); } catch { /* ignore */ }
+        for (const n of nodes) { try { n.destroy(); } catch { /* ignore */ } }
+        stepScreenOpen = false;
+        leftArmed = false;
+        rightArmed = false;
+        if (w?.__gameInput) w.__gameInput.jumpReq = false;
+        playBossEntrance(onReady);
+      }
+      hitArea.onClick(() => close());
+    }
+
+    /** ~3s scripted entrance: the bear charges in from the woods and roars. */
+    function playBossEntrance(onDone: () => void) {
+      // Gameplay stays frozen (the ready card already paused it) so the player
+      // can just watch; objects created here are not part of that snapshot.
+      setMusic("boss");
+      const targetX = BIOME_W * 6 + 1050;
+      const bh = DISPLAY_H["boss-idle"];
+      const bw = displaySize("boss-idle", sizes).w;
+      const startX = targetX + 620;
+      const runner = k.add([
+        k.sprite("boss-idle", { width: bw, height: bh }),
+        k.pos(startX, GROUND_Y),
+        k.anchor("bot"),
+        k.z(LAYERS.ACTOR),
+      ]) as AnyObj;
+      runner.flipX = true;
+      let t = 0;
+      let roared = false;
+      const ctl = k.onUpdate(() => {
+        const dt = k.dt();
+        t += dt;
+        if (runner.pos.x > targetX) {
+          runner.pos.x = Math.max(targetX, runner.pos.x - 420 * dt);
+          // Heavy running gait + puffs of trail dust.
+          runner.pos.y = GROUND_Y - Math.abs(Math.sin(t * 14)) * 10;
+          if (Math.floor(t * 12) % 3 === 0) {
+            const dust = k.add([
+              k.rect(6, 6), k.pos(runner.pos.x + bw / 2, GROUND_Y - 4),
+              k.color(210, 200, 180), k.opacity(0.8), k.anchor("center"), k.z(LAYERS.EFFECT),
+              { life: 0 },
+            ]) as AnyObj;
+            dust.onUpdate(() => {
+              dust.life += k.dt();
+              dust.pos.x += 40 * k.dt();
+              dust.pos.y -= 24 * k.dt();
+              dust.opacity = Math.max(0, 0.8 - dust.life * 2);
+              if (dust.life > 0.45) dust.destroy();
+            });
+          }
+          return;
+        }
+        runner.pos.y = GROUND_Y;
+        if (!roared) {
+          roared = true;
+          const roar = k.add([
+            k.text("ROAAR!", { size: 34, font: "sans-serif" }),
+            k.pos(targetX, GROUND_Y - bh - 30),
+            k.anchor("center"), k.color(255, 90, 80), k.outline(4, k.rgb(30, 0, 0)),
+            k.z(LAYERS.HUD - 1),
+          ]) as AnyObj;
+          sparkleBurst(targetX, GROUND_Y - bh / 2, [255, 160, 90]);
+          k.wait(1.1, () => { try { roar.destroy(); } catch { /* gone */ } });
+        }
+        if (t > 0 && roared && k.time() >= 0) {
+          // Hold the roar beat, then hand the fight over.
+          if ((runner.__holdUntil ?? 0) === 0) runner.__holdUntil = k.time() + 1.1;
+          if (k.time() >= runner.__holdUntil) {
+            try { ctl.cancel(); } catch { /* ignore */ }
+            try { runner.destroy(); } catch { /* ignore */ }
+            resumeGameplay();
+            onDone();
+          }
+        }
+      });
+    }
+
 
 
 
@@ -3138,9 +3330,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.score += item.bonus ?? 800;
       // Remove every plan pedestal (including the collided one).
       k.get("plan-pick").forEach((o) => (o as { destroy: () => void }).destroy());
-      // Spawn the paperwork-ogre boss — 3 "+" hits before the key drops.
-      spawnPlanBoss();
-      showHint(`Picked ${label} — a claims-denial boss appeared! You're firing + now.`);
+      showHint(`Picked ${label} — get ready, something is coming through the trees...`);
+      // Ready card, then the bear charges in, then the fight begins.
+      showBossReadyPrompt(() => {
+        spawnPlanBoss();
+        showHint("The bear attacks! You're firing + now — dodge his paperwork.");
+      });
+
     });
 
     // ----- Zone 7 boss battle: dodge the paperwork, land 3 "+" hits -----
@@ -3203,11 +3399,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         registerBossHit?.(shot.pos.x, shot.pos.y);
         shot.destroy();
       });
-      // A well-aimed "+" also knocks incoming paperwork out of the air.
-      shot.onCollide("boss-shot", (o: unknown) => {
-        (o as unknown as { destroy: () => void }).destroy();
-        shot.destroy();
-      });
+      // Your "+" shots pass straight through his paperwork — it must be
+      // dodged, not shot down.
+
     }
 
     // Auto-fire loop: no fire button, the power-up comes with the plan choice.
@@ -3240,7 +3434,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         x: bx, z: LAYERS.ACTOR, tag: "boss",
         props: {
           dir: -1, home: bx, range: 150, hits: 0, hurtUntil: 0, dead: false,
-          vy: 0, nextShot: 0, nextHop: 0,
+          vy: 0, nextShot: 0, nextHop: 0, armedShot: false,
         },
         hitboxScale: { x: -bw / 2, w: bw, h: bh },
       });
@@ -3295,9 +3489,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.pos.x > boss.home + boss.range) { boss.pos.x = boss.home + boss.range; boss.dir = -1; boss.flipX = true; }
         if (boss.pos.x < boss.home - boss.range) { boss.pos.x = boss.home - boss.range; boss.dir = 1; boss.flipX = false; }
         // Occasional hop.
+        const wasAirborne = boss.pos.y < GROUND_Y;
         if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
           boss.vy = -430;
           boss.nextHop = now + 0.5 + Math.random() * 0.35;
+          boss.armedShot = true; // this jump will throw once he's up
         }
 
         boss.vy += 1300 * dt;
@@ -3305,12 +3501,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.pos.y >= GROUND_Y) { boss.pos.y = GROUND_Y; boss.vy = 0; }
         hearts.pos.x = boss.pos.x;
         hearts.pos.y = boss.pos.y - bh - 40;
-        // Throw paperwork toward the player, never while flashing.
-        if (now >= boss.nextShot && now >= boss.hurtUntil) {
+        // Paperwork is thrown from mid-air only — released near the top of a
+        // jump, so it arrives at a different height every time. Less frequent
+        // than the old ground barrage, but far harder to read.
+        const nearApex = wasAirborne && boss.vy > -80;
+        if (boss.armedShot && nearApex && now >= boss.nextShot && now >= boss.hurtUntil) {
+          boss.armedShot = false;
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
-          spawnBossShot(boss.pos.x + toward * (bw / 2), GROUND_Y - 34, toward);
-          boss.nextShot = now + 0.62 + Math.random() * 0.3;
+          spawnBossShot(boss.pos.x + toward * (bw / 2), boss.pos.y - 34, toward);
+          boss.nextShot = now + 1.15 + Math.random() * 0.5;
         }
+
         // Flash while invulnerable.
         const wantHurt = now < boss.hurtUntil;
         const nextBossSprite = wantHurt ? "boss-hurt" : "boss-idle";
@@ -4051,39 +4252,51 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.add([k.rect(bw + 8, bh + 8), k.pos(bx - 4, by - 4), k.color(0, 0, 0), k.fixed(), k.z(8)]);
     k.add([k.rect(bw, bh), k.pos(bx, by), k.color(252, 250, 235), k.fixed(), k.z(9)]);
     if (msg) msg.pos = k.vec2(Math.floor(W / 2), by + Math.floor(bh / 2));
-    // Bubble tail pointing down toward the hero.
+    // Map a point in the backdrop art (0-1) to canvas space, accounting for
+    // the COVER scaling above — used to sit the hero exactly on the exam bed.
+    const bgPt = (fx: number, fy: number) => ({
+      x: W / 2 + (fx - 0.5) * BG_W * bgScale,
+      y: H / 2 + (fy - 0.5) * BG_H * bgScale,
+    });
+    const bed = bgPt(0.795, 0.70);
+
+    // Bubble tail pointing down toward the hero on the bed.
     k.add([
       k.rect(22, 16),
-      k.pos(Math.floor(W * 0.30), by + bh - 1),
+      k.pos(Math.floor(Math.min(W - 30, Math.max(30, bed.x - 40))), by + bh - 1),
       k.color(252, 250, 235),
       k.outline(3, k.rgb(0, 0, 0)),
       k.fixed(),
       k.z(9),
     ]);
 
-    // Hero sitting on the exam bed, bottom-left (sized to the space left
-    // under the speech bubble) so he reads as part of the office scene.
+    // Hero sitting on the exam bed at the right of the room, covering the
+    // empty bed in the art so he reads as actually sitting on it.
     const bottomLimit = H - SAFE_Y - 26;
     const heroTop = by + bh + 8;
-    const portraitH = Math.max(90, Math.min(260, bottomLimit - heroTop));
+    const portraitH = Math.max(90, Math.min(250, bottomLimit - heroTop));
     k.add([
       k.sprite("hero-sitting", { width: portraitH, height: portraitH }),
-      k.pos(Math.floor(W * 0.24), bottomLimit),
+      k.pos(
+        Math.floor(Math.min(W - portraitH * 0.35, bed.x)),
+        Math.floor(Math.min(bottomLimit, bed.y + portraitH * 0.18)),
+      ),
       k.anchor("bot"),
       k.fixed(),
       k.z(5),
     ]);
 
     // Conference badge + MN DHS badge, stacked BELOW the speech bubble on the
-    // right so they are never clipped, on opaque backing plates.
+    // LEFT so they never overlap the waving hero, on opaque backing plates.
     const logoTop = by + bh + 12;
     const logoBottom = bottomLimit;
     const availH = Math.max(50, logoBottom - logoTop);
 
-    const dhsW = Math.floor(Math.min(W * 0.34, 300));
+    const dhsW = Math.floor(Math.min(W * 0.30, 260));
     const dhsH = Math.max(20, Math.floor(dhsW * 0.148));
     const logoS = Math.floor(Math.min(140, Math.max(44, availH - dhsH - 18)));
-    const badgeX = Math.floor(W - Math.max(logoS, dhsW) / 2 - 18);
+    const badgeX = Math.floor(Math.max(logoS, dhsW) / 2 + 18);
+
     const stackH = logoS + dhsH + 14;
     const stackTop = logoTop + Math.max(0, Math.floor((availH - stackH) / 2));
     const mescY = stackTop + Math.floor(logoS / 2);

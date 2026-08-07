@@ -1206,30 +1206,38 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           });
         }
         // --- Flashing "the way is open" arrow above the door ---------------
-        const doorTopY = d.obj.pos.y - DISPLAY_H["door-open"] - 18;
+        const doorTopY = d.obj.pos.y - DISPLAY_H["door-open"] - 22;
         const parts: AnyObj[] = [];
-        const mk = (ox: number, oy: number, w: number, h: number) =>
-          parts.push(k.add([
+        const mk = (ox: number, oy: number, w: number, h: number) => {
+          const p = k.add([
             k.rect(w, h),
             k.pos(d.obj.pos.x + ox, doorTopY + oy),
             k.color(255, 214, 64),
-            k.outline(2, k.rgb(40, 26, 0)),
+            k.outline(3, k.rgb(40, 26, 0)),
             k.anchor("center"),
             k.z(LAYERS.EFFECT),
             k.opacity(1),
-          ]) as AnyObj);
-        // Shaft + chevron head, drawn from blocks so it stays 16-bit.
-        mk(-14, 0, 26, 10);
-        mk(2, -10, 10, 10);
-        mk(2, 10, 10, 10);
-        mk(10, 0, 10, 10);
+          ]) as AnyObj;
+          p.__oy = oy;
+          p.__ox = ox;
+          parts.push(p);
+          return p;
+        };
+        // A real arrow: long shaft, then a stepped triangular head.
+        mk(-30, 0, 40, 14);
+        mk(-2, 0, 14, 42);
+        mk(10, 0, 12, 30);
+        mk(20, 0, 12, 18);
+        mk(29, 0, 8, 8);
         const baseY = doorTopY;
         const arrowCtl = k.onUpdate(() => {
           const t = k.time();
-          const bob = Math.sin(t * 5) * 5;
-          const flash = Math.floor(t * 4) % 2 === 0 ? 1 : 0.35;
+          const bob = Math.sin(t * 5) * 6;
+          const nudge = (Math.sin(t * 5) + 1) * 4;
+          const flash = Math.floor(t * 4) % 2 === 0 ? 1 : 0.4;
           for (const p of parts) {
             p.pos.y = baseY + bob + (p.__oy ?? 0);
+            p.pos.x = d.obj.pos.x + (p.__ox ?? 0) + nudge;
             p.opacity = flash;
           }
           // Retire the cue once the player has stepped through the doorway.
@@ -1239,7 +1247,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             parts.length = 0;
           }
         });
-        parts[0].__oy = 0; parts[1].__oy = -10; parts[2].__oy = 10; parts[3].__oy = 0;
+
 
         // Brief on-screen cue so it reads even when the door is off-camera.
         const cue = k.add([
@@ -3942,39 +3950,50 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.add([k.rect(bw + 8, bh + 8), k.pos(bx - 4, by - 4), k.color(0, 0, 0), k.fixed(), k.z(8)]);
     k.add([k.rect(bw, bh), k.pos(bx, by), k.color(252, 250, 235), k.fixed(), k.z(9)]);
     if (msg) msg.pos = k.vec2(Math.floor(W / 2), by + Math.floor(bh / 2));
-    // Bubble tail pointing down toward the hero.
+    // Map a point in the backdrop art (0-1) to canvas space, accounting for
+    // the COVER scaling above — used to sit the hero exactly on the exam bed.
+    const bgPt = (fx: number, fy: number) => ({
+      x: W / 2 + (fx - 0.5) * BG_W * bgScale,
+      y: H / 2 + (fy - 0.5) * BG_H * bgScale,
+    });
+    const bed = bgPt(0.795, 0.70);
+
+    // Bubble tail pointing down toward the hero on the bed.
     k.add([
       k.rect(22, 16),
-      k.pos(Math.floor(W * 0.30), by + bh - 1),
+      k.pos(Math.floor(Math.min(W - 30, Math.max(30, bed.x - 40))), by + bh - 1),
       k.color(252, 250, 235),
       k.outline(3, k.rgb(0, 0, 0)),
       k.fixed(),
       k.z(9),
     ]);
 
-    // Hero sitting on the exam bed, bottom-left (sized to the space left
-    // under the speech bubble) so he reads as part of the office scene.
+    // Hero sitting on the exam bed at the right of the room.
     const bottomLimit = H - SAFE_Y - 26;
     const heroTop = by + bh + 8;
-    const portraitH = Math.max(90, Math.min(260, bottomLimit - heroTop));
+    const portraitH = Math.max(90, Math.min(250, bottomLimit - heroTop));
     k.add([
       k.sprite("hero-sitting", { width: portraitH, height: portraitH }),
-      k.pos(Math.floor(W * 0.24), bottomLimit),
+      k.pos(
+        Math.floor(Math.min(W - portraitH * 0.35, bed.x)),
+        Math.floor(Math.min(bottomLimit, bed.y + portraitH * 0.18)),
+      ),
       k.anchor("bot"),
       k.fixed(),
       k.z(5),
     ]);
 
     // Conference badge + MN DHS badge, stacked BELOW the speech bubble on the
-    // right so they are never clipped, on opaque backing plates.
+    // LEFT so they never overlap the waving hero, on opaque backing plates.
     const logoTop = by + bh + 12;
     const logoBottom = bottomLimit;
     const availH = Math.max(50, logoBottom - logoTop);
 
-    const dhsW = Math.floor(Math.min(W * 0.34, 300));
+    const dhsW = Math.floor(Math.min(W * 0.30, 260));
     const dhsH = Math.max(20, Math.floor(dhsW * 0.148));
     const logoS = Math.floor(Math.min(140, Math.max(44, availH - dhsH - 18)));
-    const badgeX = Math.floor(W - Math.max(logoS, dhsW) / 2 - 18);
+    const badgeX = Math.floor(Math.max(logoS, dhsW) / 2 + 18);
+
     const stackH = logoS + dhsH + 14;
     const stackTop = logoTop + Math.max(0, Math.floor((availH - stackH) / 2));
     const mescY = stackTop + Math.floor(logoS / 2);

@@ -1590,7 +1590,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const rearm = () => {
         b.falling = false;
         b.pos = k.vec2((CAL_L + CAL_R) / 2, -600);
-        b.armAt = k.time() + 0.15 + Math.random() * 0.75;
+        b.armAt = k.time() + 0.1 + Math.random() * 0.5;
       };
       rearm();
       b.onUpdate(() => {
@@ -1604,7 +1604,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           const nx = pickCalX();
           b.baseX = nx;
           b.pos = k.vec2(nx, -80);
-          b.spd = 210 + Math.random() * 70; // slower than before (was 290-460)
+          b.spd = 265 + Math.random() * 85;
           b.spin = (Math.random() < 0.5 ? -1 : 1) * (25 + Math.random() * 35);
           b.driftAmp = 8 + Math.random() * 12;
           b.driftSpd = 0.7 + Math.random() * 0.6;

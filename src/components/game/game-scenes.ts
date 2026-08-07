@@ -1833,12 +1833,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const mw = displaySize("form-monster", sizes).w;
       // Difficulty pass: three clipboards instead of four, spaced further
       // apart and patrolling slower so gaps between them stay walkable.
-      const baseSpeed = active.plain_language ? 26 : 42;
+      const baseSpeed = active.plain_language ? 34 : 56;
       const monsterSpots: Array<{ x: number; speed: number; range: number }> = [
-        { x: tx0 + 360,  speed: active.plain_language ? 22 : 38, range: 90 },
+        { x: tx0 + 360,  speed: active.plain_language ? 30 : 50, range: 90 },
         { x: tx0 + 700,  speed: baseSpeed,                        range: 105 },
-        { x: tx0 + 1040, speed: active.plain_language ? 22 : 36, range: 95 },
+        { x: tx0 + 1040, speed: active.plain_language ? 30 : 48, range: 95 },
       ];
+
 
       for (const s of monsterSpots) {
         const m = spawnGrounded(k, "form-monster", sizes, {

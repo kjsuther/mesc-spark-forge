@@ -1550,7 +1550,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const CAL_COUNT = 8;
     const CAL_L = mx0 + 80;
     const CAL_R = mx0 + BIOME_W - 80;
-    const CAL_MIN_GAP = 0.5; // seconds between two pages starting to fall
+    const CAL_MIN_GAP = 0.32; // seconds between two pages starting to fall
     const CAL_TELEGRAPH = 0.35; // seconds a warning marker shows before the drop
     let calNextDropAt = 0;
     let calLastX = (CAL_L + CAL_R) / 2;
@@ -2995,15 +2995,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         },
         hitboxScale: { x: -bw / 2, w: bw, h: bh },
       });
-      const BOSS_MAX_HITS = 3;
-      // Hearts HUD above the boss (3 hits to defeat).
+      const BOSS_MAX_HITS = 5;
+      // Hearts HUD above the boss (5 hits to defeat).
       const hearts = k.add([
-        k.text("♥♥♥", { size: 16, font: "sans-serif" }),
+        k.text("♥".repeat(BOSS_MAX_HITS), { size: 16, font: "sans-serif" }),
         k.pos(bx, GROUND_Y - bh - 40),
         k.anchor("center"), k.color(230, 60, 80), k.z(LAYERS.HUD - 1),
       ]) as AnyObj;
-      boss.nextShot = k.time() + 1.4;
-      boss.nextHop = k.time() + 2.2;
+      boss.nextShot = k.time() + 1.0;
+      boss.nextHop = k.time() + 1.2;
 
       function defeatBoss() {
         boss.dead = true;
@@ -3048,7 +3048,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // Occasional hop.
         if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
           boss.vy = -430;
-          boss.nextHop = now + 0.85 + Math.random() * 0.55;
+          boss.nextHop = now + 0.5 + Math.random() * 0.35;
         }
 
         boss.vy += 1300 * dt;
@@ -3060,7 +3060,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (now >= boss.nextShot && now >= boss.hurtUntil) {
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
           spawnBossShot(boss.pos.x + toward * (bw / 2), GROUND_Y - 34, toward);
-          boss.nextShot = now + 1.05 + Math.random() * 0.45;
+          boss.nextShot = now + 0.62 + Math.random() * 0.3;
         }
         // Flash while invulnerable.
         const wantHurt = now < boss.hurtUntil;

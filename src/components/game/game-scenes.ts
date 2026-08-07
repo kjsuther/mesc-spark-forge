@@ -2658,7 +2658,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     pixelHudText({
       x: 12, y: 12, size: 14,
       color: opts.mode === "after" ? [30, 160, 60] : [220, 60, 60],
-      initial: opts.mode === "after" ? "AFTER FEEDBACK" : "BEFORE FEEDBACK",
+      initial: opts.mode === "after" ? "CURRENT VERSION" : "ORIGINAL VERSION",
     });
     // Score row (above the applications-as-lives row).
     const scoreHud = pixelHudText({ x: 12, y: 34, size: 16, color: [255, 235, 120], initial: "SCORE 0" });
@@ -4183,17 +4183,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     function buildResult(won: boolean): WinResult {
       const durationMs = Math.round(runClock() * 1000);
-      // Pace matters twice: per-zone speed bonuses were already banked during
-      // play, and the whole run is then scaled against a pro-rated par time.
-      // The multiplier is continuous (no flat tiers) so near-identical runs
-      // still separate, and a millisecond-derived tiebreaker keeps totals
-      // from colliding outright.
-      const zonesReached = Math.min(8, Math.max(1, player.farthestZone + 1));
-      const parMs = (150_000 * zonesReached) / 8;
-      const ratio = Math.max(0.15, durationMs / parMs);
-      // ratio 0.5 -> ~x2.4, 1.0 -> x1.0, 2.0 -> ~x0.42
-      const speedMult = Math.max(0.35, Math.min(2.5, Math.pow(1 / ratio, 1.25)));
+      // Pace already paid off during the run through per-zone speed bonuses.
+      // The whole-run multiplier is reserved for completed runs so that dying
+      // quickly can never out-score playing well and finishing.
+      const parMs = 150_000;
+      const ratio = Math.max(0.35, durationMs / parMs);
+      // ratio 0.5 -> ~x1.9, 1.0 -> x1.0, 2.0 -> ~x0.42
+      const speedMult = won
+        ? Math.max(0.5, Math.min(2.2, Math.pow(1 / ratio, 1.25)))
+        : 1;
       let finalScore = player.score * speedMult;
+
       if (won) {
         finalScore += 2000;
         finalScore += player.lives * 500;

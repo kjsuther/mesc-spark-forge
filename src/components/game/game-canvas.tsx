@@ -148,11 +148,16 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const music = useMemo(() => new GameMusic(), []);
   const [musicOn, setMusicOn] = useState(false);
   useEffect(() => () => { music.stop(); }, [music]);
+  /** Set once the player uses the sound toggle themselves — after that we
+   *  never override their choice when a run starts. */
+  const soundChoiceRef = useRef(false);
   const toggleMusic = useCallback(() => {
+    soundChoiceRef.current = true;
     const on = music.toggle();
     setSfxEnabled(on);
     setMusicOn(on);
   }, [music]);
+
 
   // The scene drives the mood: boss battle in Zone 7, fanfare on the finale.
   const handleMusicTheme = useCallback(
@@ -413,6 +418,16 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
   const focusCanvas = () => canvasRef.current?.focus();
 
+  // The engine listens for keys on the canvas, so hand it focus as soon as a
+  // run is live (and again after each restart). Without this the player has to
+  // click the canvas before the arrow keys do anything.
+  useEffect(() => {
+    if (!launchMode || loading) return;
+    const t = window.setTimeout(() => canvasRef.current?.focus(), 60);
+    return () => window.clearTimeout(t);
+  }, [launchMode, loading, engineGeneration]);
+
+
   const nativeFullscreenSupported = useCallback(() => {
     const el = containerRef.current;
     if (!el) return false;
@@ -562,15 +577,18 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   // or a tap anywhere on touch devices.
   const advanceMenu = useCallback(() => {
     if (menuScreen === "title") {
-      try {
-        music.start();
-      } catch (err) {
-        console.warn("[game] music start failed", err);
+      if (!soundChoiceRef.current) {
+        try {
+          music.start();
+        } catch (err) {
+          console.warn("[game] music start failed", err);
+        }
+        setMusicOn(true);
       }
-      setMusicOn(true);
       setMenuScreen("explainer");
       return;
     }
+
     if (menuScreen === "explainer") {
       setMenuScreen("trailmap");
       return;
@@ -897,14 +915,18 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                   <MenuButton
                     onClick={() => {
                       setMenuScreen("explainer");
-                      setMusicOn(true);
                       enterFullscreenOnFirstTap();
-                      try {
-                        music.start();
-                      } catch (err) {
-                        console.warn("[game] music start failed", err);
+                      // Respect an explicit mute made with the sound toggle.
+                      if (!soundChoiceRef.current) {
+                        setMusicOn(true);
+                        try {
+                          music.start();
+                        } catch (err) {
+                          console.warn("[game] music start failed", err);
+                        }
                       }
                     }}
+
                   >
                     ▶ Start Game
                   </MenuButton>
@@ -1067,8 +1089,9 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       </div>
 
       {/* Sound + fullscreen controls, outside the canvas at its lower-right
-          corner so they never sit on top of the game. */}
-      {launchMode && !overlayFs && !presentation && (
+          corner so they never sit on top of the game. Available from the very
+          first screen (title menu), not just once a run has started. */}
+      {!overlayFs && !presentation && (
         <div className="mt-2 flex flex-wrap items-center justify-end gap-3 select-none">
           <button
             type="button"
@@ -1081,21 +1104,23 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
           </button>
           <button
             type="button"
-            aria-label="Enter fullscreen"
+            aria-label={isFullscreen || fauxFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
             onPointerDown={(e) => {
               e.preventDefault();
               e.stopPropagation();
+              autoFsDoneRef.current = true;
               toggleFullscreen();
             }}
             onContextMenu={(e) => e.preventDefault()}
             className="inline-flex touch-none items-center gap-2 rounded-md border-2 border-mn-blue/40 bg-cream px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-mn-blue hover:bg-white"
             style={{ touchAction: "none" }}
           >
-            <span aria-hidden>⛶</span>
-            Full screen
+            <span aria-hidden>{isFullscreen || fauxFullscreen ? "⤡" : "⛶"}</span>
+            {isFullscreen || fauxFullscreen ? "Exit full screen" : "Full screen"}
           </button>
         </div>
       )}
+
 
       {/* Inline touch controls (non-fullscreen mobile) */}
       {launchMode && !overlayFs && !presentation && (

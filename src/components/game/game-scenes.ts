@@ -1043,6 +1043,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   k.scene("trail", (spawnX: number = 40, lives: number = 1) => {
     const startTime = k.time();
+    // ---- Run clock + per-zone split timing -------------------------------
+    // Every zone is timed in the background. Clearing a zone under its par
+    // time pays a speed bonus, so two players with identical play still end
+    // up with clearly different scores.
+    let pausedTotal = 0;
+    /** Wall-clock seconds of actual play (pauses/briefings excluded). */
+    const runClock = () => Math.max(0, k.time() - startTime - pausedTotal);
+    /** Par (seconds) to clear each of the 8 zones. */
+    const ZONE_PAR_S = [24, 28, 28, 34, 28, 40, 38, 24];
+    const zoneSplitsMs: number[] = new Array(8).fill(0);
+    let zoneClockStart = 0;
+    let timeBonusTotal = 0;
+
 
     // ---- Sky backdrops (per-zone solid color behind the painted bg so
     //      images with transparent or off-color edges don't leave whitespace).

@@ -4607,7 +4607,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ]);
 
     const MSG =
-      "Thanks for blazing the trail with me!\nEvery idea you share makes the next journey a little less bumpy.\n\nIf this ride made you smile, vote for our poster session!\n\nHave a great time at MESC 2026!";
+      "Thanks for blazing the trail with me!\nEvery idea you share makes the next journey a little less bumpy.\n\nIf this ride made you smile, vote for our poster session!\n\nHave a great time at MESC 2026!\nYour friends at Minnesota Department of Human Services!";
 
     // The canvas can be cropped top/bottom when the CSS box is wider than the
     // logical 16:9 buffer, so keep everything inside a vertical safe inset.
@@ -4683,53 +4683,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(5),
     ]);
 
-    // Conference badge + MN DHS badge, stacked BELOW the speech bubble on the
-    // LEFT so they never overlap the waving hero, on opaque backing plates.
-    const logoTop = by + bh + 12;
-    const logoBottom = H - SAFE_Y - 26;
-    const availH = Math.max(50, logoBottom - logoTop);
+    // Logos were removed from this screen — the sign-off now lives in the
+    // speech bubble copy so nothing overlaps the waving hero.
 
-    const dhsW = Math.floor(Math.min(W * 0.30, 260));
-    const dhsH = Math.max(20, Math.floor(dhsW * 0.148));
-    const logoS = Math.floor(Math.min(140, Math.max(44, availH - dhsH - 18)));
-    const badgeX = Math.floor(Math.max(logoS, dhsW) / 2 + 18);
-
-    const stackH = logoS + dhsH + 14;
-    const stackTop = logoTop + Math.max(0, Math.floor((availH - stackH) / 2));
-    const mescY = stackTop + Math.floor(logoS / 2);
-    const dhsY = mescY + Math.floor(logoS / 2) + Math.floor(dhsH / 2) + 12;
-    k.add([
-      k.rect(logoS + 8, logoS + 8),
-      k.pos(badgeX, mescY),
-      k.anchor("center"),
-      k.color(12, 18, 44),
-      k.fixed(),
-      k.z(4),
-    ]);
-    k.add([
-      k.sprite("mesc-logo-16bit", { width: logoS, height: logoS }),
-      k.pos(badgeX, mescY),
-      k.anchor("center"),
-      k.fixed(),
-      k.z(5),
-    ]);
-    k.add([
-      k.rect(dhsW + 8, dhsH + 8),
-      k.pos(badgeX, dhsY),
-      k.anchor("center"),
-      k.color(12, 18, 44),
-      k.opacity(1),
-      k.fixed(),
-      k.z(4),
-    ]);
-    k.add([
-      k.sprite("dhs-logo-16bit", { width: dhsW, height: dhsH }),
-      k.pos(badgeX, dhsY),
-      k.anchor("center"),
-      k.opacity(1),
-      k.fixed(),
-      k.z(5),
-    ]);
 
 
 

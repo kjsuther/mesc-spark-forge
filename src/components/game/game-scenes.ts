@@ -790,6 +790,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadBackground(k, "hero-portrait", heroPortraitUrl),
     safeLoadBackground(k, "hero-sitting", heroSittingUrl),
     safeLoadBackground(k, "ranger-guide", rangerGuideUrl),
+    safeLoadBackground(k, "hero-sad", heroSadUrl),
     safeLoadBackground(k, "mesc-logo-16bit", mescLogo16Url),
     safeLoadBackground(k, "dhs-logo-16bit", dhsLogo16Url),
   ]);

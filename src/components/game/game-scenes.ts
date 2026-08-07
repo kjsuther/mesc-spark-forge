@@ -2862,9 +2862,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= Pause + interactive step screens =================
     // A step screen is a true pause: every game object stops updating, the
     // wait timer stops counting, and nothing resumes until the player says so.
-    let pausedNow = false;
     let pausedObjs: AnyObj[] = [];
-    let pauseStartedAt = 0;
+
     const isPaused = () => pausedNow;
 
     function pauseGameplay() {

@@ -993,6 +993,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     touchToMouse: true,
   });
 
+  // Kaplay's `crisp` flag also stamps `image-rendering: pixelated` onto the
+  // canvas ELEMENT, which nearest-neighbour-resamples the finished frame when
+  // the backing buffer and the CSS box are not an exact integer multiple —
+  // that is what makes text look jagged in windowed mode. Sprite sampling
+  // stays crisp inside the GL pipeline; only the final present is smoothed.
+  if (opts.canvas) opts.canvas.style.imageRendering = "auto";
+
+
 
   k.setGravity(1800);
 

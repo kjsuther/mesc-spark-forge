@@ -1737,11 +1737,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Difficulty pass: slower, shallower bobbing gives a wider landing
       // window on every crossing platform (~25% gentler than before).
       const platforms = [
-        { x: rx0 + 30,  y: GROUND_Y - 72,  amp: 50, spd: 3.3, label: "ABOUT YOU" },
-        { x: rx0 + 200, y: GROUND_Y - 92,  amp: 68, spd: 2.9, label: "HOUSEHOLD" },
-        { x: rx0 + 370, y: GROUND_Y - 86,  amp: 62, spd: 3.6, label: "INCOME" },
-        { x: rx0 + 540, y: GROUND_Y - 72,  amp: 50, spd: 3.2, label: "SIGNATURE" },
+        { x: rx0 + 30,  y: GROUND_Y - 72,  amp: 72, spd: 4.3, label: "ABOUT YOU" },
+        { x: rx0 + 200, y: GROUND_Y - 92,  amp: 94, spd: 3.8, label: "HOUSEHOLD" },
+        { x: rx0 + 370, y: GROUND_Y - 86,  amp: 86, spd: 4.7, label: "INCOME" },
+        { x: rx0 + 540, y: GROUND_Y - 72,  amp: 72, spd: 4.2, label: "SIGNATURE" },
       ];
+
 
       for (const p of platforms) {
         const PLAT_W = 108;

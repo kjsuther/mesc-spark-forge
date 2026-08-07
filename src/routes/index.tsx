@@ -139,22 +139,23 @@ function WelcomePage() {
 
         {/* The loop, stated plainly */}
         <section className="max-w-6xl w-full mx-auto px-5 sm:px-6 -mt-8 sm:-mt-12 relative z-10">
-          <div className="rounded-3xl bg-mn-blue text-white p-7 sm:p-10 shadow-xl">
-            <p className="text-accent-gold text-[11px] sm:text-xs font-bold uppercase tracking-widest mb-3">
+          <div className="rounded-2xl bg-mn-blue text-white p-5 sm:p-7 shadow-xl">
+            <p className="text-accent-gold text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mb-2">
               What's the Concept?
             </p>
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold leading-tight max-w-4xl">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold leading-snug max-w-3xl">
               Start with a real player. Listen to the feedback.
               <br className="hidden sm:block" /> Make the change today. Ship it while they wait.
             </h2>
-            <ul className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4">
+            <ul className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
               {LOOP_CARDS.map((item) => (
-                <li key={item} className="bg-white/10 rounded-xl p-4 border border-white/10">
-                  <p className="text-sm font-bold leading-snug">{item}</p>
+                <li key={item} className="bg-white/10 rounded-lg px-3 py-2 border border-white/10">
+                  <p className="text-xs sm:text-sm font-bold leading-snug">{item}</p>
                 </li>
               ))}
             </ul>
           </div>
+
         </section>
 
         <section id="how-it-works" className="max-w-6xl w-full mx-auto py-12 sm:py-16 px-5 sm:px-6 scroll-mt-24">

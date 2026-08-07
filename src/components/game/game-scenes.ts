@@ -1664,7 +1664,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const px = sx0 + 900;
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
-      const speed = 40;
+      const speed = 54;
       const m = spawnGrounded(k, "padlock", sizes, {
         x: px, z: LAYERS.ACTOR, tag: "monster",
         props: { dir: 1, home: px, range: 60 },

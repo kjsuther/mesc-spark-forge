@@ -2265,13 +2265,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             k.add([
               k.rect(HEART_PX, HEART_PX),
               k.pos(bx + rx * HEART_PX, by + ry * HEART_PX),
-              k.color(
-                ...(edge
-                  ? ([40, 20, 30] as const)
-                  : shine
-                    ? ([255, 170, 180] as const)
-                    : ([220, 45, 60] as const)),
-              ),
+              edge
+                ? k.color(40, 20, 30)
+                : shine
+                  ? k.color(255, 170, 180)
+                  : k.color(220, 45, 60),
               k.fixed(),
               k.z(LAYERS.HUD),
             ]) as AnyObj,

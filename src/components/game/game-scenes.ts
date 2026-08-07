@@ -1946,21 +1946,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const CAL_MIN_GAP = 0.13; // seconds between two pages starting to fall
     const CAL_TELEGRAPH = 0.35; // seconds a warning marker shows before the drop
     let calNextDropAt = 0;
-    let calLastX = (CAL_L + CAL_R) / 2;
-    /** Pick a drop column: away from the player and from the previous drop. */
-    function pickCalX(): number {
-      let best = CAL_L + Math.random() * (CAL_R - CAL_L);
-      let bestScore = -1;
-      for (let i = 0; i < 8; i++) {
-        const cand = CAL_L + Math.random() * (CAL_R - CAL_L);
-        const dPlayer = Math.abs(cand - player.pos.x);
-        const dPrev = Math.abs(cand - calLastX);
-        if (dPlayer < 76) continue; // never right on top of the player
-        const score = Math.min(dPlayer, dPrev * 1.4);
-        if (score > bestScore) { bestScore = score; best = cand; }
+    // Full-width coverage: the zone is sliced into columns and every column is
+    // used once per shuffled sweep, so no lane ever stays safe — the player has
+    // to keep moving instead of parking in a dead spot.
+    const CAL_COLS = 16;
+    const CAL_COL_W = (CAL_R - CAL_L) / CAL_COLS;
+    let calBag: number[] = [];
+    function refillCalBag() {
+      calBag = Array.from({ length: CAL_COLS }, (_, i) => i);
+      for (let i = calBag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [calBag[i], calBag[j]] = [calBag[j], calBag[i]];
       }
-      calLastX = best;
-      return best;
+    }
+    refillCalBag();
+    /** Next drop column from the shuffled sweep (jittered inside the column). */
+    function pickCalX(): number {
+      if (calBag.length === 0) refillCalBag();
+      const col = calBag.pop() as number;
+      return CAL_L + col * CAL_COL_W + CAL_COL_W * (0.2 + Math.random() * 0.6);
     }
     for (let i = 0; i < CAL_COUNT; i++) {
       const b = spawnAirborne(k, "calendar-page", sizes, {
@@ -3699,10 +3703,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // reaching into the spawner's closure.
     let registerBossHit: ((shotX: number, shotY: number) => void) | null = null;
 
-    /** Denial letters / bills the boss throws. Horizontal, jumpable, spaced. */
-    function spawnBossShot(x: number, y: number, dirX: 1 | -1) {
+    /**
+     * Denial letters / bills the boss throws. Whatever height they leave his
+     * paws at, they glide down to a low "must jump" lane just above the ground
+     * so they always reach the player instead of sailing overhead.
+     */
+    function spawnBossShot(x: number, y: number, dirX: 1 | -1, laneOffset = 26) {
       const sw = displaySize("denied", sizes).w;
       const sh = DISPLAY_H["denied"];
+      const targetY = GROUND_Y - laneOffset;
       const shot = k.add([
         k.sprite("denied", { width: sw, height: sh }),
         k.pos(x, y),
@@ -3713,8 +3722,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { vx: dirX * 470, born: k.time() },
       ]) as AnyObj;
       shot.onUpdate(() => {
-        shot.pos.x += shot.vx * k.dt();
-        shot.pos.y += Math.sin(k.time() * 6) * 0.6;
+        const dt = k.dt();
+        shot.pos.x += shot.vx * dt;
+        // Descend toward the low lane, then bob gently along it.
+        if (shot.pos.y < targetY - 1) {
+          shot.pos.y = Math.min(targetY, shot.pos.y + 320 * dt);
+        } else {
+          shot.pos.y = targetY + Math.sin(k.time() * 6) * 3;
+        }
         // Live long enough to cross the whole arena — the player has to
         // dodge or shoot the paperwork down, not out-walk it.
         if (k.time() - shot.born > 14) shot.destroy();
@@ -3865,19 +3880,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.armedShot && nearApex && now >= boss.nextShot && now >= boss.hurtUntil) {
           boss.armedShot = false;
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
-          // Short burst: one at chest height now, a second lower a beat later,
-          // so a single jump forces both a duck and a hop.
-          spawnBossShot(boss.pos.x + toward * (bw / 2), boss.pos.y - 34, toward);
+          // Short burst thrown from the air but always settling into a low
+          // lane, so every one of them has to be jumped over.
+          spawnBossShot(boss.pos.x + toward * (bw / 2), boss.pos.y - 34, toward, 22);
           const burstY = boss.pos.y - 6;
           const burstX = boss.pos.x;
           k.wait(0.22, () => {
             if (boss.dead) return;
-            spawnBossShot(burstX + toward * (bw / 2), burstY, toward);
+            spawnBossShot(burstX + toward * (bw / 2), burstY, toward, 44);
           });
           if (rage > 1) {
             k.wait(0.44, () => {
               if (boss.dead) return;
-              spawnBossShot(burstX + toward * (bw / 2), burstY - 60, toward);
+              spawnBossShot(burstX + toward * (bw / 2), burstY - 60, toward, 30);
             });
           }
           boss.nextShot = now + (0.62 + Math.random() * 0.22) / rage;
@@ -4612,7 +4627,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ]);
 
     const MSG =
-      "Thanks for blazing the trail with me!\nEvery idea you share makes the next journey a little less bumpy.\n\nIf this ride made you smile, vote for our poster session!\n\nHave a great time at MESC 2026!\nYour friends at Minnesota Department of Human Services!";
+      "Thanks for blazing the trail with me!\nEvery idea you share makes the next journey a little less bumpy.\n\nIf you enjoyed this game, vote for our poster session!\n\nHave a great time at MESC 2026!\nYour friends at Minnesota Department of Human Services!";
 
     // The canvas can be cropped top/bottom when the CSS box is wider than the
     // logical 16:9 buffer, so keep everything inside a vertical safe inset.

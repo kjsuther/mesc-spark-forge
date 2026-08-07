@@ -4350,12 +4350,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const z = Math.min(ZONES.length - 1, Math.max(0, Math.floor(player.pos.x / BIOME_W)));
       if (z > player.farthestZone) player.farthestZone = z;
       if (z !== currentZone) {
+        // Close the split for the zone we're leaving and pay the speed bonus.
+        if (z > currentZone) closeZoneSplit(currentZone);
         currentZone = z;
+        zoneClockStart = runClock();
         opts.onSafeProgress?.(currentZone);
         if (!player.visitedZones.has(z)) {
           player.visitedZones.add(z);
           player.score += 1000;
         }
+
         const openBriefing = () =>
           showStepScreen(z, () => {
             // Start the wait clock only once the player has read the briefing.

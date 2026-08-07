@@ -16,8 +16,8 @@
 // fix the trim/pad step instead.
 
 import type { KAPLAYCtx } from "kaplay";
-import type { ImprovementKey } from "./features";
-import { FeatureFlags } from "./features";
+import type { ImprovementKey } from "@/lib/game.functions";
+import { FeatureFlags } from "@/lib/game-features";
 import {
   PlayerManager,
   PowerUpManager,
@@ -30,7 +30,7 @@ import {
   ZONE_INDEX,
   type PowerUpKind,
   type CheckpointSnapshot,
-} from "./managers";
+} from "@/components/game/managers";
 import charSheetUrl from "@/assets/game/character-sheet.png";
 import heroSlideSheetUrl from "@/assets/game/hero-slide-sheet.png";
 import propsSheetUrl from "@/assets/game/props-sheet.png";
@@ -54,15 +54,19 @@ import paperAirplaneUrl from "@/assets/game/paper-airplane.png";
 import brickBlockSheetUrl from "@/assets/game/brick-block-sheet.png";
 import envelopeGremlinSheetUrl from "@/assets/game/envelope-gremlin-sheet.png";
 import bossSheetUrl from "@/assets/game/boss-sheet.png";
+import bearScoutSheetUrl from "@/assets/game/bear-scout-sheet.png";
+import bearPosesSheetUrl from "@/assets/game/bear-poses-sheet.png";
 import doorLockUrl from "@/assets/game/door-lock.png";
 import heroPortraitUrl from "@/assets/game/hero-portrait.png";
 import heroSittingUrl from "@/assets/game/hero-sitting.png";
 import rangerGuideUrl from "@/assets/game/ranger-guide.png";
+import heroSadUrl from "@/assets/game/hero-sad.png";
 import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
 import dhsLogo16Url from "@/assets/game/mn-dhs-logo-16bit.png";
 
 import docIdAsset from "@/assets/game/doc-id.png.asset.json";
-import { EXPLORATION_THEMES, ZONE_THEMES, type MusicTheme } from "@/lib/game-music";
+import { ZONE_THEMES, type MusicTheme } from "@/lib/game-music";
+import { playSfx } from "@/lib/game-sfx";
 import docPaystubAsset from "@/assets/game/doc-paystub.png.asset.json";
 import docEnvelopeAsset from "@/assets/game/doc-envelope.png.asset.json";
 import formMonsterV2Asset from "@/assets/game/form-monster-v2.png.asset.json";
@@ -85,6 +89,11 @@ export type WinResult = {
   jumpsLanded: number;
   enemiesPassed: number;
   deaths: number;
+  /** Total speed bonus banked from clearing zones under par. */
+  timeBonus?: number;
+  /** Per-zone split times in ms (0 = zone never cleared). */
+  zoneSplitsMs?: number[];
+
 };
 
 export type StartGameOpts = {
@@ -153,8 +162,9 @@ function computePixelDensity(canvas: HTMLCanvasElement | null, logicalW: number)
   const cssW = canvas?.getBoundingClientRect().width || 0;
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
   if (cssW <= 0) return 1;
-  // Exact device-pixel match — no half-step rounding, so glyphs rasterise at
-  // their true on-screen size instead of being resampled afterwards.
+  // Exact device-pixel match — no half-step rounding. Rounding used to leave
+  // the buffer slightly under (or over) the real on-screen size, and the
+  // leftover fractional upscale is what made glyph edges chunky.
   const need = (cssW * Math.min(dpr, 2)) / logicalW;
   return Math.max(1, Math.min(PIXEL_DENSITY_MAX, need));
 }
@@ -165,8 +175,14 @@ function computePixelDensity(canvas: HTMLCanvasElement | null, logicalW: number)
  *  toggle a sprite between two adjacent integer positions. */
 const px = (n: number): number => Math.floor(n);
 
-/** Keeps UI type at a constant physical size when the canvas is drawn
- *  smaller than its logical buffer (windowed, non-fullscreen play). */
+/**
+ * How much to enlarge UI type so it keeps a constant PHYSICAL size no matter
+ * how small the canvas is drawn on screen. The engine renders into a fixed
+ * logical buffer, so a canvas displayed at half its logical width halves every
+ * glyph. Multiplying font sizes by (logical width / CSS width) cancels that
+ * out, which is what makes briefing text readable when the player is NOT in
+ * fullscreen. Clamped so the panel can never outgrow the screen.
+ */
 let UI_TEXT_SCALE = 1;
 function computeUiTextScale(canvas: HTMLCanvasElement | null, logicalW: number): number {
   const cssW = canvas?.getBoundingClientRect().width || 0;
@@ -358,6 +374,15 @@ const DISPLAY_H: Record<string, number> = {
   "boss-idle": 96,
   "boss-hurt": 96,
   "boss-defeat": 54,
+  "bear-scout-walk-0": 54,
+  "bear-scout-walk-1": 54,
+  "bear-scout-look": 54,
+  "bear-scout-sniff": 58,
+  "bear-pose-limb": 54,
+  "bear-pose-drink": 54,
+  "bear-pose-rear": 54,
+  "bear-pose-peek": 54,
+  "bear-pose-lean": 54,
   "door-lock": 26,
 };
 
@@ -690,8 +715,23 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "boss-defeat", frame: 2 },
   ];
   const lockFrames: FrameSpec[] = [{ name: "door-lock", frame: 0 }];
+  // Zone 2 background cameo: the boss bear roaming the campground, searching.
+  const bearScoutFrames: FrameSpec[] = [
+    { name: "bear-scout-walk-0", frame: 0 },
+    { name: "bear-scout-walk-1", frame: 1 },
+    { name: "bear-scout-look", frame: 2 },
+    { name: "bear-scout-sniff", frame: 3 },
+  ];
+  // Per-zone background sighting poses (one distinct pose per zone 1-6).
+  const bearPoseFrames: FrameSpec[] = [
+    { name: "bear-pose-limb", frame: 0 },
+    { name: "bear-pose-drink", frame: 1 },
+    { name: "bear-pose-rear", frame: 2 },
+    { name: "bear-pose-peek", frame: 3 },
+    { name: "bear-pose-lean", frame: 4 },
+  ];
 
-  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, lockSizes, docIdSizes, docPaystubSizes, docEnvelopeSizes, formMonsterSizes] = await Promise.all([
+  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, bearScoutSizes, bearPoseSizes, lockSizes, docIdSizes, docPaystubSizes, docEnvelopeSizes, formMonsterSizes] = await Promise.all([
     safeLoadSheet(k, {
       url: charSheetUrl,
       cols: 3,
@@ -722,6 +762,10 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadSheet(k, { url: envelopeGremlinSheetUrl, cols: 2, rows: 1, frames: gremlinFrames,
       groups: [gremlinFrames.map((f) => f.name)], label: "envelope-gremlin-sheet.png" }),
     safeLoadSheet(k, { url: bossSheetUrl,        cols: 3, rows: 1, frames: bossFrames, label: "boss-sheet.png" }),
+    safeLoadSheet(k, { url: bearScoutSheetUrl,   cols: 4, rows: 1, frames: bearScoutFrames,
+      groups: [bearScoutFrames.map((f) => f.name)], label: "bear-scout-sheet.png" }),
+    safeLoadSheet(k, { url: bearPosesSheetUrl,   cols: 5, rows: 1, frames: bearPoseFrames,
+      groups: [bearPoseFrames.map((f) => f.name)], label: "bear-poses-sheet.png" }),
     safeLoadSheet(k, { url: doorLockUrl,         cols: 1, rows: 1, frames: lockFrames, label: "door-lock.png" }),
     safeLoadSheet(k, { url: docIdUrl,            cols: 1, rows: 1, frames: docIdFrames,       label: "doc-id.png" }),
     safeLoadSheet(k, { url: docPaystubUrl,       cols: 1, rows: 1, frames: docPaystubFrames,  label: "doc-paystub.png" }),
@@ -751,6 +795,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadBackground(k, "hero-portrait", heroPortraitUrl),
     safeLoadBackground(k, "hero-sitting", heroSittingUrl),
     safeLoadBackground(k, "ranger-guide", rangerGuideUrl),
+    safeLoadBackground(k, "hero-sad", heroSadUrl),
     safeLoadBackground(k, "mesc-logo-16bit", mescLogo16Url),
     safeLoadBackground(k, "dhs-logo-16bit", dhsLogo16Url),
   ]);
@@ -761,7 +806,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     (window as unknown as { __gameAssetReport?: AssetReport }).__gameAssetReport = ASSET_REPORT;
   }
 
-  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes, ...brickSizes, ...gremlinSizes, ...bossSizes, ...lockSizes, ...docIdSizes, ...docPaystubSizes, ...docEnvelopeSizes, ...formMonsterSizes };
+  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes, ...brickSizes, ...gremlinSizes, ...bossSizes, ...bearScoutSizes, ...bearPoseSizes, ...lockSizes, ...docIdSizes, ...docPaystubSizes, ...docEnvelopeSizes, ...formMonsterSizes };
 }
 
 /** Load already-registered sprites' backing images from the sheets by pulling
@@ -950,16 +995,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     musicTheme = theme;
     opts.onMusicTheme?.(theme);
   };
-  // Rotate the exploration tunes by a random offset per run so the same zone
-  // doesn't always play the same song across repeat plays.
-  const musicRotation = Math.floor(Math.random() * EXPLORATION_THEMES.length);
-  /** The tune that belongs to a zone, after this run's rotation. */
-  const zoneMusic = (zoneIdx: number): MusicTheme => {
-    const base = ZONE_THEMES[Math.max(0, Math.min(ZONE_THEMES.length - 1, zoneIdx))] ?? "adventure";
-    const at = EXPLORATION_THEMES.indexOf(base);
-    if (at < 0) return base; // boss / victory / waiting stay put
-    return EXPLORATION_THEMES[(at + musicRotation) % EXPLORATION_THEMES.length];
-  };
+  /** Every zone owns a distinct tune — no rotation, no repeats within a run. */
+  const zoneMusic = (zoneIdx: number): MusicTheme =>
+    ZONE_THEMES[Math.max(0, Math.min(ZONE_THEMES.length - 1, zoneIdx))] ?? "adventure";
+
 
 
 
@@ -984,8 +1023,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     touchToMouse: true,
   });
 
-  // See the current build: `crisp` also sets `image-rendering: pixelated` on
-  // the canvas element, which resamples the finished frame and roughens text.
+  // Kaplay's `crisp` flag also stamps `image-rendering: pixelated` onto the
+  // canvas ELEMENT, which nearest-neighbour-resamples the finished frame when
+  // the backing buffer and the CSS box are not an exact integer multiple —
+  // that is what makes text look jagged in windowed mode. Sprite sampling
+  // stays crisp inside the GL pipeline; only the final present is smoothed.
   if (opts.canvas) opts.canvas.style.imageRendering = "auto";
 
 
@@ -1006,6 +1048,29 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   k.scene("trail", (spawnX: number = 40, lives: number = 1) => {
     const startTime = k.time();
+    // ---- Run clock + per-zone split timing -------------------------------
+    // Every zone is timed in the background. Clearing a zone under its par
+    // time pays a speed bonus, so two players with identical play still end
+    // up with clearly different scores.
+    let pausedTotal = 0;
+    let pausedNow = false;
+    let pauseStartedAt = 0;
+    /** Wall-clock seconds of actual play (pauses/briefings excluded). The
+     *  currently-open pause is subtracted too, so the HUD clock visibly stops
+     *  while a briefing is on screen instead of jumping back on resume. */
+    const runClock = () =>
+      Math.max(
+        0,
+        k.time() - startTime - pausedTotal - (pausedNow ? k.time() - pauseStartedAt : 0),
+      );
+
+
+    /** Par (seconds) to clear each of the 8 zones. */
+    const ZONE_PAR_S = [24, 28, 28, 34, 28, 40, 38, 24];
+    const zoneSplitsMs: number[] = new Array(8).fill(0);
+    let zoneClockStart = 0;
+    let timeBonusTotal = 0;
+
 
     // ---- Sky backdrops (per-zone solid color behind the painted bg so
     //      images with transparent or off-color edges don't leave whitespace).
@@ -1189,10 +1254,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (!d || d.unlocked) return;
       d.unlocked = true;
       // Unlock animation: brief shake, chime, then swap sprite + drop barrier.
+      playSfx("door-unlock");
       d.obj.color = k.rgb(255, 240, 120);
       k.wait(0.25, () => { d.obj.color = k.rgb(255, 255, 255); });
       k.wait(0.5, () => {
+        playSfx("door-open");
         setGameObjSprite(d.obj, "door-open");
+
         d.barrier?.destroy();
         d.barrier = null;
         // Sparkle burst above door
@@ -1233,17 +1301,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           parts.push(p);
           return p;
         };
-        // A real arrow: long shaft, then a stepped triangular head.
-        mk(-30, 0, 40, 14);
-        mk(-2, 0, 14, 42);
-        mk(10, 0, 12, 30);
-        mk(20, 0, 12, 18);
-        mk(29, 0, 8, 8);
+        // A real arrow: long shaft, then a stepped triangular head. Built from
+        // blocks so it stays true 16-bit, but reads unmistakably as "go right".
+        mk(-30, 0, 40, 14);              // shaft
+        mk(-2, 0, 14, 42);               // head base
+        mk(10, 0, 12, 30);               // head mid
+        mk(20, 0, 12, 18);               // head tip
+        mk(29, 0, 8, 8);                 // point
         const baseY = doorTopY;
         const arrowCtl = k.onUpdate(() => {
           const t = k.time();
           const bob = Math.sin(t * 5) * 6;
-          const nudge = (Math.sin(t * 5) + 1) * 4;
+          const nudge = (Math.sin(t * 5) + 1) * 4; // slides right, urging you on
           const flash = Math.floor(t * 4) % 2 === 0 ? 1 : 0.4;
           for (const p of parts) {
             p.pos.y = baseY + bob + (p.__oy ?? 0);
@@ -1282,7 +1351,128 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
 
+    // ---- Doorway transition ------------------------------------------------
+    // Completing a zone no longer teleports the player: they walk into the
+    // doorway, vanish inside, the door swings shut behind them, the screen
+    // fades, and the next zone opens at its official start. Once through, the
+    // door is sealed for good — the journey only ever moves forward.
+    let transitioning = false;
+    /** Hard floor on X: the far side of the last door walked through. */
+    let progressFloorX = 0;
+
+    function walkThroughDoor(zoneIdx: number) {
+      const d = doors[zoneIdx];
+      if (!d || !d.unlocked || transitioning) return;
+      if (zoneIdx >= 7) return;
+      transitioning = true;
+      pauseGameplay();
+
+      const doorX = d.obj.pos.x;
+      const p = player as AnyObj;
+      const startX = player.pos.x;
+      const startScale = 1;
+      let t = 0;
+      let stepAt = 0;
+      p.vel = k.vec2(0, 0);
+      player.flipX = false;
+
+      const ctl = k.onUpdate(() => {
+        const dt = k.dt();
+        t += dt;
+        // Phase 1 (0.55s): stride into the doorway, footsteps on the boards.
+        if (t < 0.55) {
+          const f = t / 0.55;
+          player.pos.x = startX + (doorX - startX) * f;
+          player.pos.y = GROUND_Y;
+          if (t - stepAt > 0.18) { stepAt = t; playSfx("footstep"); }
+          return;
+        }
+        // Phase 2 (0.45s): step inside — shrink into the frame and fade out.
+        if (t < 1.0) {
+          const f = (t - 0.55) / 0.45;
+          player.pos.x = doorX;
+          p.opacity = Math.max(0, 1 - f);
+          p.scale = k.vec2(startScale * (1 - f * 0.35), startScale * (1 - f * 0.15));
+          return;
+        }
+        try { ctl.cancel(); } catch { /* ignore */ }
+
+        // Door swings shut behind them, with a solid thump.
+        setGameObjSprite(d.obj, "door-closed");
+        playSfx("door-close");
+        for (let i = 0; i < 6; i++) {
+          const dust = k.add([
+            k.rect(5, 5),
+            k.pos(doorX - 20 + i * 8, GROUND_Y - 4),
+            k.color(190, 175, 150),
+            k.opacity(0.8),
+            k.anchor("center"),
+            k.z(LAYERS.EFFECT),
+            { life: 0, vx: (i - 3) * 22 },
+          ]) as AnyObj;
+          dust.onUpdate(() => {
+            dust.life += k.dt();
+            dust.pos.x += dust.vx * k.dt();
+            dust.pos.y -= 26 * k.dt();
+            dust.opacity = Math.max(0, 0.8 - dust.life * 1.8);
+            if (dust.life > 0.5) dust.destroy();
+          });
+        }
+
+        // Fade to black, move to the start of the next zone, fade back in.
+        const fade = k.add([
+          k.rect(k.width(), k.height()),
+          k.pos(0, 0),
+          k.color(0, 0, 0),
+          k.opacity(0),
+          k.fixed(),
+          k.z(320),
+        ]) as AnyObj;
+        let ft = 0;
+        let moved = false;
+        const fadeCtl = k.onUpdate(() => {
+          ft += k.dt();
+          if (ft < 0.45) { fade.opacity = ft / 0.45; return; }
+          if (!moved) {
+            moved = true;
+            fade.opacity = 1;
+            // Official start of the next zone, on solid ground.
+            player.pos.x = (zoneIdx + 1) * BIOME_W + 46;
+            player.pos.y = GROUND_Y - 4;
+            p.vel = k.vec2(0, 0);
+            p.opacity = 1;
+            p.scale = k.vec2(1, 1);
+            // Seal the completed zone: nothing can walk back through.
+            progressFloorX = (zoneIdx + 1) * BIOME_W + 12;
+            const seal = k.add([
+              k.rect(16, 620),
+              k.pos(progressFloorX - 24, GROUND_Y - 620),
+              k.opacity(0),
+              k.area({ shape: new k.Rect(k.vec2(0, 0), 16, 620) }),
+              k.body({ isStatic: true }),
+              k.z(LAYERS.PROP),
+            ]);
+            seal.paused = false;
+            return;
+          }
+          if (ft < 0.75) return; // hold on black while the new zone settles
+          fade.opacity = Math.max(0, 1 - (ft - 0.75) / 0.4);
+          if (ft > 1.2) {
+            try { fadeCtl.cancel(); } catch { /* ignore */ }
+            try { fade.destroy(); } catch { /* ignore */ }
+            resumeGameplay();
+            transitioning = false;
+            leftArmed = false;
+            rightArmed = false;
+            if (w?.__gameInput) w.__gameInput.jumpReq = false;
+            // The main loop notices the new zone and opens its briefing.
+          }
+        });
+      });
+    }
+
     // Spawn doors for zones 0..6 (zone 7 = finale, uses fire pole instead).
+
     for (let i = 0; i < 7; i++) doors[i] = spawnDoor(i);
 
     // ================= ZONE 0: Finding the Trail — smash a brick to pick your apply method =================
@@ -1329,6 +1519,112 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     for (const lx of laptopSpots) {
       spawnDecor(k, "laptop", sizes, { x: lx, z: LAYERS.PROP });
     }
+
+    // --- Background sightings: the boss bear glimpsed through Zones 1-6 ------
+    // Purely decorative and painted INTO the backdrop: no drawn ledges, no
+    // invented geometry, no patrol across empty sky. Each zone gets one short,
+    // mostly-stationary beat at a spot that already reads as terrain in that
+    // zone's art. He fades in out of the haze, does a small organic beat
+    // (sniff / look / head turn), then fades back out and waits a long time.
+    {
+      type BearMotion = "sway" | "bob" | "dip" | "peer" | "rise" | "ghost";
+      type BearSighting = {
+        zone: number;      // 0-based zone index
+        x: number;         // spot within the zone
+        rise: number;      // pixels above the player's ground line
+        scale: number;
+        tint: [number, number, number];
+        opacity: number;   // peak opacity while visible
+        frame: string;     // pose sprite for this zone
+        motion: BearMotion;
+        hold: number;      // seconds visible
+        gap: number;       // seconds hidden between sightings
+        faceLeft: boolean;
+      };
+      const BEAR_SIGHTINGS: BearSighting[] = [
+        // Zone 1 — draped along the big pine limb on the left of the backdrop.
+        { zone: 0, x: 232,  rise: 254, scale: 1.55, tint: [178, 190, 196], opacity: 0.98, frame: "bear-pose-limb",  motion: "sway",  hold: 11.0, gap: 2.0, faceLeft: false },
+        // Zone 2 — leaning out from behind the RIGHT post of the signboard so
+        // he never covers the "LOOK OUT FOR BEARS!" lettering.
+        { zone: 1, x: 1148, rise: 150, scale: 1.75, tint: [206, 208, 214], opacity: 1,    frame: "bear-pose-peek",  motion: "peer",  hold: 11.0, gap: 2.0, faceLeft: true },
+        // Zone 3 — on the far riverbank where the water meets the rock.
+        { zone: 2, x: 214,  rise: 84,  scale: 1.35, tint: [188, 202, 214], opacity: 0.95, frame: "bear-pose-drink", motion: "dip",   hold: 11.0, gap: 2.0, faceLeft: false },
+        // Zone 4 — leaning out from the edge of the lodge building.
+        { zone: 3, x: 676,  rise: 52,  scale: 1.32, tint: [182, 182, 196], opacity: 0.93, frame: "bear-pose-lean",  motion: "bob",   hold: 10.0, gap: 2.5, faceLeft: true  },
+        // Zone 5 — reared up on the painted hill crest behind the fields.
+        { zone: 4, x: 430,  rise: 192, scale: 1.40, tint: [164, 182, 198], opacity: 0.92, frame: "bear-pose-rear",  motion: "rise",  hold: 10.5, gap: 2.5, faceLeft: true  },
+        // Zone 6 — half-behind a dead pine trunk in the storm haze.
+        { zone: 5, x: 172,  rise: 92,  scale: 1.45, tint: [156, 148, 186], opacity: 0.88, frame: "bear-pose-lean",  motion: "ghost", hold: 11.0, gap: 2.5, faceLeft: false },
+
+
+      ];
+
+      for (const cam of BEAR_SIGHTINGS) {
+        const zx = BIOME_W * cam.zone;
+        const baseX = zx + cam.x;
+        const baseY = GROUND_Y - cam.rise;
+        const disp = displaySize(cam.frame, sizes);
+        const bearW = Math.max(8, disp.w * cam.scale);
+        const bearH = Math.max(8, (DISPLAY_H[cam.frame] ?? 54) * cam.scale);
+
+        const bear = k.add([
+          k.sprite(cam.frame, { width: bearW, height: bearH }),
+          k.pos(px(baseX), px(baseY)),
+          k.anchor("bot"),
+          k.color(cam.tint[0], cam.tint[1], cam.tint[2]), // atmospheric haze
+          k.opacity(0),
+          k.z(LAYERS.DECOR_BACK),
+        ]) as AnyObj;
+        bear.flipX = cam.faceLeft;
+
+        const FADE = 1.1;
+        const cycle = cam.hold + cam.gap;
+        let t = Math.random() * cycle;
+
+        bear.onUpdate(() => {
+          t = (t + k.dt()) % cycle;
+          if (t > cam.hold) {
+            bear.opacity = 0;
+            return;
+          }
+          const fadeIn = Math.min(1, t / FADE);
+          const fadeOut = Math.min(1, (cam.hold - t) / FADE);
+          let alpha = cam.opacity * Math.min(fadeIn, fadeOut);
+
+          const p = t / cam.hold;   // 0..1 through the visible window
+          let dx = 0;
+          let dy = 0;
+          switch (cam.motion) {
+            case "sway":  // branch rocking under his weight
+              dx = Math.sin(t * 1.5) * 5;
+              dy = Math.sin(t * 1.5 + 0.6) * 4;
+              break;
+            case "peer":  // pops up behind cover, ducks back down twice
+              dy = 16 * (1 - Math.abs(Math.sin(p * Math.PI * 2)));
+              dx = Math.sin(t * 2.2) * 2;
+              break;
+            case "dip":   // muzzle dips to the water and lifts again
+              dy = Math.sin(t * 1.1) * 5;
+              break;
+            case "bob":   // leans further out of the gap, then back
+              dx = (cam.faceLeft ? -1 : 1) * 14 * Math.sin(p * Math.PI);
+              break;
+            case "rise":  // climbs into ridge silhouette, holds, drops away
+              dy = 34 * Math.max(0, 1 - Math.sin(Math.min(1, p * 1.6) * Math.PI * 0.5));
+              break;
+            case "ghost": // drifts sideways in the storm, pulsing faintly
+              dx = Math.sin(t * 0.5) * 18;
+              alpha *= 0.75 + Math.sin(t * 1.7) * 0.25;
+              break;
+          }
+          bear.opacity = alpha;
+          bear.pos.x = px(baseX + dx);
+          bear.pos.y = px(baseY + dy);
+        });
+      }
+    }
+
+
     // Username collectible — floats above ground
     {
       const ux = sx0 + 300;
@@ -1368,7 +1664,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const px = sx0 + 900;
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
-      const speed = 40;
+      const speed = 54;
       const m = spawnGrounded(k, "padlock", sizes, {
         x: px, z: LAYERS.ACTOR, tag: "monster",
         props: { dir: 1, home: px, range: 60 },
@@ -1388,9 +1684,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
       const spots: Array<{ x: number; dir: 1 | -1; speed: number; range: number }> = [
-        { x: sx0 + 490, dir:  1, speed: 95, range: 240 },
+        { x: sx0 + 490, dir:  1, speed: 122, range: 240 },
         // Padlock guarding the approach to the door on the right.
-        { x: sx0 + 1000, dir: -1, speed: 90, range: 140 },
+        { x: sx0 + 1000, dir: -1, speed: 116, range: 140 },
+
       ];
       for (const s of spots) {
         const m = spawnGrounded(k, "padlock", sizes, {
@@ -1440,11 +1737,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Difficulty pass: slower, shallower bobbing gives a wider landing
       // window on every crossing platform (~25% gentler than before).
       const platforms = [
-        { x: rx0 + 30,  y: GROUND_Y - 72,  amp: 50, spd: 3.3, label: "ABOUT YOU" },
-        { x: rx0 + 200, y: GROUND_Y - 92,  amp: 68, spd: 2.9, label: "HOUSEHOLD" },
-        { x: rx0 + 370, y: GROUND_Y - 86,  amp: 62, spd: 3.6, label: "INCOME" },
-        { x: rx0 + 540, y: GROUND_Y - 72,  amp: 50, spd: 3.2, label: "SIGNATURE" },
+        { x: rx0 + 30,  y: GROUND_Y - 72,  amp: 72, spd: 4.3, label: "ABOUT YOU" },
+        { x: rx0 + 200, y: GROUND_Y - 92,  amp: 94, spd: 3.8, label: "HOUSEHOLD" },
+        { x: rx0 + 370, y: GROUND_Y - 86,  amp: 86, spd: 4.7, label: "INCOME" },
+        { x: rx0 + 540, y: GROUND_Y - 72,  amp: 72, spd: 4.2, label: "SIGNATURE" },
       ];
+
 
       for (const p of platforms) {
         const PLAT_W = 108;
@@ -1535,12 +1833,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const mw = displaySize("form-monster", sizes).w;
       // Difficulty pass: three clipboards instead of four, spaced further
       // apart and patrolling slower so gaps between them stay walkable.
-      const baseSpeed = active.plain_language ? 26 : 42;
+      const baseSpeed = active.plain_language ? 34 : 56;
       const monsterSpots: Array<{ x: number; speed: number; range: number }> = [
-        { x: tx0 + 360,  speed: active.plain_language ? 22 : 38, range: 90 },
+        { x: tx0 + 360,  speed: active.plain_language ? 30 : 50, range: 90 },
         { x: tx0 + 700,  speed: baseSpeed,                        range: 105 },
-        { x: tx0 + 1040, speed: active.plain_language ? 22 : 36, range: 95 },
+        { x: tx0 + 1040, speed: active.plain_language ? 30 : 48, range: 95 },
       ];
+
 
       for (const s of monsterSpots) {
         const m = spawnGrounded(k, "form-monster", sizes, {
@@ -1574,21 +1873,26 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
     {
-      // Difficulty pass: two Envelope-Gremlins (was three), starting further
-      // apart and roaming a little slower.
+      // Difficulty pass: three Envelope-Gremlins, each patrolling its own
+      // third of the relay stretch so they can't bunch into one wall.
       const mh = DISPLAY_H["envelope-gremlin-0"];
       const mw = displaySize("envelope-gremlin-0", sizes).w;
       const zoneL = relayBase + 80;
       const zoneR = relayBase + BIOME_W - 80;
-      const startXs = [relayBase + 340, relayBase + 940];
+      const laneW = (zoneR - zoneL) / 3;
+      const startXs = [relayBase + 340, relayBase + 660, relayBase + 940];
+      let nextDiveAllowedAt = 3;
+
       for (let gi = 0; gi < startXs.length; gi++) {
         const sx = startXs[gi];
+        const laneL = zoneL + laneW * gi + 20;
+        const laneR = zoneL + laneW * (gi + 1) - 20;
         const m = spawnGrounded(k, "envelope-gremlin-0", sizes, {
           x: sx, z: LAYERS.ACTOR, tag: "monster",
           props: {
             dir: (Math.random() < 0.5 ? -1 : 1) as 1 | -1,
             speed: 42 + Math.random() * 40,
-            targetX: zoneL + Math.random() * (zoneR - zoneL),
+            targetX: laneL + Math.random() * (laneR - laneL),
             nextRoll: 0.7 + Math.random() * 0.6,
             rollT: 0,
             baseY: GROUND_Y,
@@ -1596,7 +1900,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             animT: 0,
             gremlinFrame: 0,
             diveUntil: 0,
-            nextDive: 2.5 + Math.random() * 2.0,
+            nextDive: 3 + gi * 1.6 + Math.random() * 2.0,
           },
           hitboxScale: { x: -mw / 2, w: mw, h: mh },
         });
@@ -1604,24 +1908,30 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           const dt = k.dt();
           const now = k.time();
           m.rollT += dt;
-          // Occasionally lock onto the player for a short dive burst.
+          // Occasionally lock onto the player for a short dive burst — but
+          // only one gremlin may be diving at a time.
           if (now >= m.nextDive) {
-            m.diveUntil = now + 0.6;
-            m.nextDive = now + 2.5 + Math.random() * 2.0;
+            if (now >= nextDiveAllowedAt) {
+              m.diveUntil = now + 0.6;
+              nextDiveAllowedAt = now + 1.8;
+              m.nextDive = now + 3.0 + Math.random() * 2.5;
+            } else {
+              m.nextDive = now + 0.5;
+            }
           }
           if (now < m.diveUntil) {
-            m.targetX = player.pos.x;
+            m.targetX = k.clamp(player.pos.x, laneL, laneR);
             m.speed = 150;
           } else if (m.rollT >= m.nextRoll || Math.abs(m.pos.x - m.targetX) < 8) {
-            m.targetX = zoneL + Math.random() * (zoneR - zoneL);
+            m.targetX = laneL + Math.random() * (laneR - laneL);
             m.speed = 55 + Math.random() * 55;
             m.nextRoll = 0.7 + Math.random() * 0.6;
             m.rollT = 0;
           }
           m.dir = m.pos.x < m.targetX ? 1 : -1;
           m.pos.x += m.dir * m.speed * dt;
-          if (m.pos.x < zoneL) m.pos.x = zoneL;
-          if (m.pos.x > zoneR) m.pos.x = zoneR;
+          if (m.pos.x < laneL) m.pos.x = laneL;
+          if (m.pos.x > laneR) m.pos.x = laneR;
           m.pos.y = m.baseY + Math.sin(k.time() * 3 + m.bobPhase) * 8;
           m.flipX = m.dir < 0;
           m.animT += dt;
@@ -1675,34 +1985,38 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // scheduler instead of raining continuously. Every drop is telegraphed,
     // never lands on the column the player is standing in, and keeps a minimum
     // horizontal gap from the previous drop, so there is always a safe lane.
-    const CAL_COUNT = 8;
-    const CAL_L = mx0 + 80;
-    const CAL_R = mx0 + BIOME_W - 80;
-    const CAL_MIN_GAP = 0.85; // seconds between two pages starting to fall
-    const CAL_TELEGRAPH = 0.5; // seconds a warning marker shows before the drop
+    const CAL_COUNT = 20;
+    const CAL_L = mx0 + 40;
+    const CAL_R = mx0 + BIOME_W - 40;
+    const CAL_MIN_GAP = 0.13; // seconds between two pages starting to fall
+    const CAL_TELEGRAPH = 0.35; // seconds a warning marker shows before the drop
     let calNextDropAt = 0;
-    let calLastX = (CAL_L + CAL_R) / 2;
-    /** Pick a drop column: away from the player and from the previous drop. */
-    function pickCalX(): number {
-      let best = CAL_L + Math.random() * (CAL_R - CAL_L);
-      let bestScore = -1;
-      for (let i = 0; i < 8; i++) {
-        const cand = CAL_L + Math.random() * (CAL_R - CAL_L);
-        const dPlayer = Math.abs(cand - player.pos.x);
-        const dPrev = Math.abs(cand - calLastX);
-        if (dPlayer < 120) continue; // never right on top of the player
-        const score = Math.min(dPlayer, dPrev * 1.4);
-        if (score > bestScore) { bestScore = score; best = cand; }
+    // Full-width coverage: the zone is sliced into columns and every column is
+    // used once per shuffled sweep, so no lane ever stays safe — the player has
+    // to keep moving instead of parking in a dead spot.
+    const CAL_COLS = 16;
+    const CAL_COL_W = (CAL_R - CAL_L) / CAL_COLS;
+    let calBag: number[] = [];
+    function refillCalBag() {
+      calBag = Array.from({ length: CAL_COLS }, (_, i) => i);
+      for (let i = calBag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [calBag[i], calBag[j]] = [calBag[j], calBag[i]];
       }
-      calLastX = best;
-      return best;
+    }
+    refillCalBag();
+    /** Next drop column from the shuffled sweep (jittered inside the column). */
+    function pickCalX(): number {
+      if (calBag.length === 0) refillCalBag();
+      const col = calBag.pop() as number;
+      return CAL_L + col * CAL_COL_W + CAL_COL_W * (0.2 + Math.random() * 0.6);
     }
     for (let i = 0; i < CAL_COUNT; i++) {
       const b = spawnAirborne(k, "calendar-page", sizes, {
         x: (CAL_L + CAL_R) / 2, y: -400, z: LAYERS.ACTOR,
         tag: "boulder",
         props: {
-          spd: 230,
+          spd: 340,
           spin: 40,
           driftAmp: 10,
           driftSpd: 1,
@@ -1718,7 +2032,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const rearm = () => {
         b.falling = false;
         b.pos = k.vec2((CAL_L + CAL_R) / 2, -600);
-        b.armAt = k.time() + 0.2 + Math.random() * 1.6;
+        b.armAt = k.time() + 0.05 + Math.random() * 0.28;
       };
       rearm();
       b.onUpdate(() => {
@@ -1732,7 +2046,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           const nx = pickCalX();
           b.baseX = nx;
           b.pos = k.vec2(nx, -80);
-          b.spd = 210 + Math.random() * 70; // slower than before (was 290-460)
+          b.spd = 470 + Math.random() * 150;
           b.spin = (Math.random() < 0.5 ? -1 : 1) * (25 + Math.random() * 35);
           b.driftAmp = 8 + Math.random() * 12;
           b.driftSpd = 0.7 + Math.random() * 0.6;
@@ -2368,10 +2682,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     pixelHudText({
       x: 12, y: 12, size: 14,
       color: opts.mode === "after" ? [30, 160, 60] : [220, 60, 60],
-      initial: opts.mode === "after" ? "AFTER FEEDBACK" : "BEFORE FEEDBACK",
+      initial: opts.mode === "after" ? "CURRENT VERSION" : "ORIGINAL VERSION",
     });
     // Score row (above the applications-as-lives row).
     const scoreHud = pixelHudText({ x: 12, y: 34, size: 16, color: [255, 235, 120], initial: "SCORE 0" });
+    // Run clock — the whole run is timed, and faster steps pay bonus points.
+    const timeHud = pixelHudText({ x: 190, y: 34, size: 16, color: [180, 235, 255], initial: "TIME 0:00" });
+
     // Applications row: little application icons that represent lives.
     // Each icon is a paper card with three horizontal "form field" lines.
     // Lives row: classic 16-bit pixel hearts.
@@ -2508,6 +2825,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
+      {
+        const t = runClock();
+        timeHud.text = `TIME ${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+      }
+
       appIcons.forEach((g, i) => {
         const op = i < player.lives ? 1 : i < player.maxLives ? 0.25 : 0;
         g.cells.forEach((c: AnyObj) => (c.opacity = op));
@@ -2554,9 +2876,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= Pause + interactive step screens =================
     // A step screen is a true pause: every game object stops updating, the
     // wait timer stops counting, and nothing resumes until the player says so.
-    let pausedNow = false;
     let pausedObjs: AnyObj[] = [];
-    let pauseStartedAt = 0;
+
     const isPaused = () => pausedNow;
 
     function pauseGameplay() {
@@ -2570,6 +2891,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function resumeGameplay() {
       if (!pausedNow) return;
       const frozenFor = k.time() - pauseStartedAt;
+      pausedTotal += frozenFor;
+
       pausedNow = false;
       for (const o of pausedObjs) {
         try { o.paused = false; } catch { /* destroyed while paused */ }
@@ -2658,9 +2981,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         subtitle: "Choosing Your Path",
         lines: [
           "Select one of the three managed care plans.",
-          "Selecting a plan causes the boss to appear.",
-          "Dodge the boss's attacks.",
-          "Defeat the boss by hitting it three times with \"+\" projectiles.",
+          "Selecting a plan brings the bear charging out of the woods.",
+          "You choose when the battle starts.",
+          "Dodge his paperwork — your \"+\" shots can't stop it.",
+          "Defeat him with five \"+\" hits.",
+
         ],
         icons: [
           { sprite: "plan-blue", label: "PLAN" },
@@ -2700,8 +3025,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       const W = k.width();
       const H = k.height();
-      // Wide phones stretch the logical viewport past 960; scale the panel
-      // and its type by the same factor so text keeps a constant on-screen size.
+      // On wide phones the logical viewport stretches past 960, which would
+      // shrink every glyph on screen. Scale the panel and its type by the
+      // same factor so text keeps a constant physical size.
       UI_TEXT_SCALE = computeUiTextScale(opts.canvas, W);
       const S = UI_TEXT_SCALE;
       const px = (n: number) => Math.round(n * S);
@@ -2753,6 +3079,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       y += px(4);
       label(data.lines.map((l) => `• ${l}`).join("\n"), 19, [245, 245, 245], textW - px(60));
 
+
       // Sprite strip: what you'll meet in this zone.
       const iconTop = Math.min(y + px(8), panelY + panelH - px(124));
       const iconBox = px(52);
@@ -2783,7 +3110,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             ]);
           }
         }
-        // Captions must never wrap mid-word: shrink to fit one line.
+        // Captions must never wrap mid-word ("APPLICATIO / N"): shrink the
+        // font until the whole label fits the cell on a single line.
         const cellW = Math.min(iconBox + gap, (textW - px(24)) / data.icons.length);
         const capSize = Math.max(
           9,
@@ -2793,6 +3121,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.text(icon.label, { size: capSize, font: "sans-serif", align: "center" }),
           k.pos(ix, centerY + iconBox / 2 + px(12)), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
         ]);
+
+
         ix += iconBox + gap;
       }
 
@@ -2802,11 +3132,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.color(255, 235, 120), k.fixed(), k.z(303),
       ]);
 
-
       // Continue: Enter / Space / click on desktop, tap anywhere on mobile.
       const hitArea = put([
         k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305),
       ]);
+
       const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
         k.onKeyPress(key as never, () => close()),
       );
@@ -2822,6 +3152,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         for (const n of nodes) { try { n.destroy(); } catch { /* ignore */ } }
         stepScreenOpen = false;
         resumeGameplay();
+        // Zone 2 onward: a one-second grace window so nothing parked near the
+        // entrance can land a hit the instant the briefing closes.
+        if (z >= 1) player.invulnUntil = Math.max(player.invulnUntil, k.time() + 1);
         // Movement must be re-armed: a finger already on the D-pad when the
         // panel was dismissed should not launch the hero.
         leftArmed = false;
@@ -2831,6 +3164,351 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       hitArea.onClick(() => close());
     }
+
+    /**
+     * Zone 7: "get ready" card, then a short scripted charge-in so the boss
+     * fight never starts out of nowhere. Calls `onReady()` when the bear has
+     * arrived and control should return to the player.
+     */
+    function showBossReadyPrompt(onReady: () => void) {
+      if (stepScreenOpen) { onReady(); return; }
+      stepScreenOpen = true;
+      pauseGameplay();
+
+      const W = k.width();
+      const H = k.height();
+      UI_TEXT_SCALE = computeUiTextScale(opts.canvas, W);
+      const S = UI_TEXT_SCALE;
+      const px = (n: number) => Math.round(n * S);
+      const nodes: AnyObj[] = [];
+      const put = (parts: unknown[]) => {
+        const o = k.add(parts as never) as AnyObj;
+        nodes.push(o);
+        return o;
+      };
+
+      put([k.rect(W, H), k.pos(0, 0), k.color(0, 0, 0), k.opacity(0.86), k.fixed(), k.z(300)]);
+      const panelW = Math.min(px(660), W - px(32));
+      const panelH = Math.min(px(300), H - px(20));
+      const panelX = Math.floor(W / 2 - panelW / 2);
+      const panelY = Math.floor(H / 2 - panelH / 2);
+      put([
+        k.rect(panelW, panelH, { radius: 6 }), k.pos(panelX, panelY),
+        k.color(16, 22, 52), k.outline(4, k.rgb(255, 220, 90)), k.fixed(), k.z(301),
+      ]);
+      const cx = Math.floor(panelX + panelW / 2);
+      let y = panelY + px(30);
+      const label = (text: string, size: number, rgb: [number, number, number], width?: number) => {
+        const fs = Math.max(15, px(size));
+        put([
+          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
+          k.pos(cx + 1, y + 1), k.anchor("top"), k.color(0, 0, 0), k.fixed(), k.z(302),
+        ]);
+        const main = put([
+          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
+          k.pos(cx, y), k.anchor("top"), k.color(...rgb), k.fixed(), k.z(303),
+        ]);
+        y += (main.height ?? fs) + px(10);
+      };
+      label("THE BEAR IS CLOSE", 26, [255, 220, 90], panelW - px(48));
+      label("Boss Battle · Choosing Your Path", 16, [180, 205, 255], panelW - px(48));
+      y += px(6);
+      label(
+        "• Dodge the paperwork he throws — your \"+\" shots won't stop it.\n• He fires when he jumps, so watch his height.\n• Land 5 hits to win.",
+        18, [245, 245, 245], panelW - px(70),
+      );
+
+      const promptNode = put([
+        k.text(isCoarsePointer() ? "Tap when you're READY" : "Press Enter, Space, or Click when you're READY",
+          { size: Math.max(14, px(16)), font: "sans-serif", align: "center", width: panelW - px(40) }),
+        k.pos(cx, panelY + panelH - px(34)), k.anchor("center"), k.opacity(1),
+        k.color(255, 235, 120), k.fixed(), k.z(303),
+      ]);
+      const hitArea = put([
+        k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305),
+      ]);
+      const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
+        k.onKeyPress(key as never, () => close()),
+      );
+      const blink = k.onUpdate(() => {
+        promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.35;
+      });
+      let closed = false;
+      function close() {
+        if (closed) return;
+        closed = true;
+        for (const h of keyHandlers) { try { h.cancel(); } catch { /* ignore */ } }
+        try { blink.cancel(); } catch { /* ignore */ }
+        for (const n of nodes) { try { n.destroy(); } catch { /* ignore */ } }
+        stepScreenOpen = false;
+        // The card paused gameplay; hand control straight back so the player
+        // can move and fight the moment the briefing closes.
+        resumeGameplay();
+
+        leftArmed = false;
+        rightArmed = false;
+        if (w?.__gameInput) w.__gameInput.jumpReq = false;
+        onReady();
+      }
+      hitArea.onClick(() => close());
+    }
+
+    /** ~3s scripted entrance: the bear charges in from the woods and roars. */
+    /** Zone 7 only plays its cinematic once per run. */
+    let bossCinematicPlayed = false;
+
+    /**
+     * ~5s in-engine cinematic that opens Zone 7. Five one-second beats:
+     * hush, rumble + falling leaves, the bear stalking in, the hero recoiling
+     * in fear, then the rear-up roar that hands over to the boss theme.
+     * Everything is drawn with the existing pixel sprites and blocky particles
+     * so it sits inside the 16-bit look; nothing is pre-rendered video.
+     */
+    function playBossCinematic(onDone: () => void) {
+      pauseGameplay();
+      const p = player as AnyObj;
+      const heroX = player.pos.x;
+      const bh = DISPLAY_H["boss-idle"];
+      const bw = displaySize("boss-idle", sizes).w;
+      // He stalks in from off-camera on the right and stops a respectful,
+      // very unrespectful, distance away.
+      const bearTargetX = heroX + 300;
+      const bear = k.add([
+        k.sprite("boss-idle", { width: bw, height: bh }),
+        k.pos(heroX + 720, GROUND_Y),
+        k.anchor("bot"),
+        k.opacity(0),
+        k.z(LAYERS.ACTOR),
+      ]) as AnyObj;
+      bear.flipX = true;
+
+      const spawned: AnyObj[] = [bear];
+      const shakeUntilRef = { t: 0 };
+      let t = 0;
+      let beat = 0;
+      let stepAt = 0;
+      const baseCamY = LOGICAL_H / 2;
+
+      const leaf = () => {
+        const lx = heroX - 180 + Math.random() * 620;
+        const l = k.add([
+          k.rect(6, 4),
+          k.pos(lx, GROUND_Y - 300 - Math.random() * 80),
+          k.color(Math.random() < 0.5 ? 168 : 196, Math.random() < 0.5 ? 120 : 88, 48),
+          k.anchor("center"),
+          k.opacity(0.95),
+          k.z(LAYERS.EFFECT),
+          { life: 0, sway: Math.random() * 6 },
+        ]) as AnyObj;
+        l.onUpdate(() => {
+          l.life += k.dt();
+          l.pos.y += 70 * k.dt();
+          l.pos.x += Math.sin(l.life * 3 + l.sway) * 30 * k.dt();
+          l.angle = (l.angle ?? 0) + 120 * k.dt();
+          if (l.pos.y > GROUND_Y - 2) { l.opacity -= k.dt() * 3; }
+          if (l.opacity <= 0 || l.life > 5) l.destroy();
+        });
+        spawned.push(l);
+      };
+
+      const dustPuff = (x: number) => {
+        const d = k.add([
+          k.rect(7, 7),
+          k.pos(x, GROUND_Y - 4),
+          k.color(206, 194, 168),
+          k.opacity(0.85),
+          k.anchor("center"),
+          k.z(LAYERS.EFFECT),
+          { life: 0 },
+        ]) as AnyObj;
+        d.onUpdate(() => {
+          d.life += k.dt();
+          d.pos.x += 26 * k.dt();
+          d.pos.y -= 22 * k.dt();
+          d.opacity = Math.max(0, 0.85 - d.life * 1.9);
+          if (d.life > 0.5) d.destroy();
+        });
+        spawned.push(d);
+      };
+
+      let bang: AnyObj | null = null;
+
+      const ctl = k.onUpdate(() => {
+        const dt = k.dt();
+        t += dt;
+
+        // Camera holds on the clearing, with impact shakes layered on top.
+        const shake = shakeUntilRef.t > t ? Math.sin(t * 60) * 5 : 0;
+        const camX = Math.max(VIEW_W / 2, Math.min(heroX + 90, LEVEL_END - VIEW_W / 2));
+        k.setCamPos(px(camX), px(baseCamY + shake));
+
+        // --- Beat 1 (0.0-1.0s): the clearing goes quiet ----------------------
+        if (beat === 0 && t > 1.0) {
+          // --- Beat 2: the ground shakes, leaves fall, something growls ------
+          beat = 1;
+          playSfx("rumble");
+          shakeUntilRef.t = t + 0.9;
+        }
+        if (beat >= 1 && beat < 3 && Math.random() < 0.35) leaf();
+
+        if (beat === 1 && t > 2.0) {
+          // --- Beat 3: heavy footsteps, the bear walks into frame ------------
+          beat = 2;
+          bear.opacity = 1;
+        }
+        if (beat === 2) {
+          bear.pos.x = Math.max(bearTargetX, bear.pos.x - 260 * dt);
+          bear.pos.y = GROUND_Y - Math.abs(Math.sin(t * 8)) * 5;
+          if (t - stepAt > 0.36) {
+            stepAt = t;
+            playSfx("bear-step");
+            dustPuff(bear.pos.x + bw / 2);
+            shakeUntilRef.t = t + 0.12;
+          }
+          if (t > 3.0) {
+            beat = 3;
+            bear.pos.y = GROUND_Y;
+            // --- Beat 4: the hero recoils --------------------------------
+            bang = k.add([
+              k.text("!", { size: 34, font: "sans-serif" }),
+              k.pos(player.pos.x, GROUND_Y - 130),
+              k.anchor("center"),
+              k.color(255, 236, 120),
+              k.outline(4, k.rgb(30, 20, 0)),
+              k.z(LAYERS.HUD - 1),
+            ]) as AnyObj;
+            spawned.push(bang);
+          }
+        }
+        if (beat === 3) {
+          // Steps backward, trembling, eyes on the bear.
+          player.pos.x = Math.max(heroX - 46, player.pos.x - 60 * dt);
+          p.pos.y = GROUND_Y + Math.sin(t * 40) * 1.5;
+          player.flipX = false;
+          if (bang) bang.pos.x = player.pos.x + Math.sin(t * 30) * 2;
+          if (t > 4.0) {
+            beat = 4;
+            p.pos.y = GROUND_Y;
+            // --- Beat 5: he rears up and roars ------------------------------
+            playSfx("roar");
+            playSfx("impact");
+            shakeUntilRef.t = t + 0.8;
+            setMusic("boss");
+            bear.height = bh * 1.18;
+            const roar = k.add([
+              k.text("ROAAR!", { size: 36, font: "sans-serif" }),
+              k.pos(bear.pos.x, GROUND_Y - bh - 34),
+              k.anchor("center"),
+              k.color(255, 90, 80),
+              k.outline(4, k.rgb(30, 0, 0)),
+              k.z(LAYERS.HUD - 1),
+            ]) as AnyObj;
+            spawned.push(roar);
+            sparkleBurst(bear.pos.x, GROUND_Y - bh / 2, [255, 160, 90]);
+          }
+        }
+        if (beat === 4 && t > 5.0) {
+          beat = 5;
+          try { ctl.cancel(); } catch { /* ignore */ }
+          // Fade the clearing out, clean up, hand over to the briefing card.
+          const fade = k.add([
+            k.rect(k.width(), k.height()),
+            k.pos(0, 0), k.color(0, 0, 0), k.opacity(0), k.fixed(), k.z(320),
+          ]) as AnyObj;
+          let ft = 0;
+          const fadeCtl = k.onUpdate(() => {
+            ft += k.dt();
+            if (ft < 0.4) { fade.opacity = ft / 0.4; return; }
+            if (ft < 0.75) {
+              fade.opacity = 1;
+              for (const o of spawned) { try { o.destroy(); } catch { /* gone */ } }
+              spawned.length = 0;
+              player.pos.x = heroX;
+              player.pos.y = GROUND_Y;
+              p.vel = k.vec2(0, 0);
+              return;
+            }
+            fade.opacity = Math.max(0, 1 - (ft - 0.75) / 0.35);
+            if (ft > 1.15) {
+              try { fadeCtl.cancel(); } catch { /* ignore */ }
+              try { fade.destroy(); } catch { /* ignore */ }
+              resumeGameplay();
+              leftArmed = false;
+              rightArmed = false;
+              if (w?.__gameInput) w.__gameInput.jumpReq = false;
+              onDone();
+            }
+          });
+        }
+      });
+    }
+
+    function playBossEntrance(onDone: () => void) {
+
+      // Gameplay stays frozen (the ready card already paused it) so the player
+      // can just watch; objects created here are not part of that snapshot.
+      setMusic("boss");
+      const targetX = BIOME_W * 6 + 1050;
+      const bh = DISPLAY_H["boss-idle"];
+      const bw = displaySize("boss-idle", sizes).w;
+      const startX = targetX + 620;
+      const runner = k.add([
+        k.sprite("boss-idle", { width: bw, height: bh }),
+        k.pos(startX, GROUND_Y),
+        k.anchor("bot"),
+        k.z(LAYERS.ACTOR),
+      ]) as AnyObj;
+      runner.flipX = true;
+      let t = 0;
+      let roared = false;
+      const ctl = k.onUpdate(() => {
+        const dt = k.dt();
+        t += dt;
+        if (runner.pos.x > targetX) {
+          runner.pos.x = Math.max(targetX, runner.pos.x - 420 * dt);
+          // Heavy running gait + puffs of trail dust.
+          runner.pos.y = GROUND_Y - Math.abs(Math.sin(t * 14)) * 10;
+          if (Math.floor(t * 12) % 3 === 0) {
+            const dust = k.add([
+              k.rect(6, 6), k.pos(runner.pos.x + bw / 2, GROUND_Y - 4),
+              k.color(210, 200, 180), k.opacity(0.8), k.anchor("center"), k.z(LAYERS.EFFECT),
+              { life: 0 },
+            ]) as AnyObj;
+            dust.onUpdate(() => {
+              dust.life += k.dt();
+              dust.pos.x += 40 * k.dt();
+              dust.pos.y -= 24 * k.dt();
+              dust.opacity = Math.max(0, 0.8 - dust.life * 2);
+              if (dust.life > 0.45) dust.destroy();
+            });
+          }
+          return;
+        }
+        runner.pos.y = GROUND_Y;
+        if (!roared) {
+          roared = true;
+          const roar = k.add([
+            k.text("ROAAR!", { size: 34, font: "sans-serif" }),
+            k.pos(targetX, GROUND_Y - bh - 30),
+            k.anchor("center"), k.color(255, 90, 80), k.outline(4, k.rgb(30, 0, 0)),
+            k.z(LAYERS.HUD - 1),
+          ]) as AnyObj;
+          sparkleBurst(targetX, GROUND_Y - bh / 2, [255, 160, 90]);
+          k.wait(1.1, () => { try { roar.destroy(); } catch { /* gone */ } });
+        }
+        if (t > 0 && roared && k.time() >= 0) {
+          // Hold the roar beat, then hand the fight over.
+          if ((runner.__holdUntil ?? 0) === 0) runner.__holdUntil = k.time() + 1.1;
+          if (k.time() >= runner.__holdUntil) {
+            try { ctl.cancel(); } catch { /* ignore */ }
+            try { runner.destroy(); } catch { /* ignore */ }
+            resumeGameplay();
+            onDone();
+          }
+        }
+      });
+    }
+
 
 
 
@@ -2958,22 +3636,28 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.vel.y = Math.max(0, player.vel.y);
       // Pop the method icon out of the brick — falls to the ground and can be
       // collected by walking into it.
-      const iw = 28, ih = 28;
+      const iw = 30, ih = 30;
       const icon = k.add([
-        k.rect(iw, ih),
+        k.rect(iw, ih, { radius: 3 }),
         k.pos(brick.pos.x, brick.pos.y - 18),
         k.anchor("center"),
-        k.color(255, 210, 60), k.outline(2, k.rgb(90, 60, 10)),
+        k.color(250, 240, 210), k.outline(2, k.rgb(60, 45, 25)),
         k.area({ shape: new k.Rect(k.vec2(0, 0), iw, ih) }),
         k.z(LAYERS.PROP + 1),
         "method",
         { methodLabel: brick.methodLabel, vy: -180, landed: false },
       ]) as AnyObj;
-      const iconText = k.add([
-        k.text(brick.methodIcon, { size: 7, font: "sans-serif" }),
-        k.pos(brick.pos.x, brick.pos.y - 18),
-        k.anchor("center"), k.color(30, 20, 10), k.z(LAYERS.PROP + 2),
-      ]) as AnyObj;
+      // 16-bit pixel art of the chosen channel, drawn as children so it
+      // travels with the icon: letter / cell phone / office / laptop.
+      for (const part of METHOD_ICON_PIXELS[brick.methodIcon] ?? []) {
+        icon.add([
+          k.rect(part.w, part.h),
+          k.pos(part.x, part.y),
+          k.anchor("center"),
+          k.color(part.c[0], part.c[1], part.c[2]),
+          k.z(LAYERS.PROP + 2),
+        ]);
+      }
       icon.onUpdate(() => {
         if (!icon.landed) {
           icon.vy += 500 * k.dt();
@@ -2984,9 +3668,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             icon.vy = 0;
           }
         }
-        iconText.pos.x = icon.pos.x;
-        iconText.pos.y = icon.pos.y;
       });
+
     });
     player.onCollide("method", (m) => {
       if (zoneState.methodTouched) return;
@@ -3055,9 +3738,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.score += item.bonus ?? 800;
       // Remove every plan pedestal (including the collided one).
       k.get("plan-pick").forEach((o) => (o as { destroy: () => void }).destroy());
-      // Spawn the paperwork-ogre boss — 3 "+" hits before the key drops.
-      spawnPlanBoss();
-      showHint(`Picked ${label} — a claims-denial boss appeared! You're firing + now.`);
+      showHint(`Picked ${label} — get ready, something is coming through the trees...`);
+      // Plan chosen -> the bear charges in (once), then the ready card, then
+      // the fight begins.
+      const startFight = () =>
+        showBossReadyPrompt(() => {
+          spawnPlanBoss();
+          showHint("The bear attacks! You're firing + now — dodge his paperwork.");
+        });
+      if (!bossCinematicPlayed) {
+        bossCinematicPlayed = true;
+        playBossCinematic(startFight);
+      } else {
+        startFight();
+      }
+
     });
 
     // ----- Zone 7 boss battle: dodge the paperwork, land 3 "+" hits -----
@@ -3065,10 +3760,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // reaching into the spawner's closure.
     let registerBossHit: ((shotX: number, shotY: number) => void) | null = null;
 
-    /** Denial letters / bills the boss throws. Horizontal, jumpable, spaced. */
-    function spawnBossShot(x: number, y: number, dirX: 1 | -1) {
+    /**
+     * Denial letters / bills the boss throws. Whatever height they leave his
+     * paws at, they glide down to a low "must jump" lane just above the ground
+     * so they always reach the player instead of sailing overhead.
+     */
+    function spawnBossShot(x: number, y: number, dirX: 1 | -1, laneOffset = 26) {
+      // Never more than three pieces of paperwork in the air at once —
+      // beyond that the low lane becomes impossible to jump.
+      if (k.get("boss-shot").length >= 3) return;
       const sw = displaySize("denied", sizes).w;
       const sh = DISPLAY_H["denied"];
+      const targetY = GROUND_Y - laneOffset;
       const shot = k.add([
         k.sprite("denied", { width: sw, height: sh }),
         k.pos(x, y),
@@ -3076,12 +3779,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.area({ shape: new k.Rect(k.vec2(0, 0), sw - 8, sh - 8) }),
         k.z(LAYERS.EFFECT),
         "boss-shot",
-        { vx: dirX * 210, born: k.time() },
+        { vx: dirX * 470, born: k.time() },
       ]) as AnyObj;
       shot.onUpdate(() => {
-        shot.pos.x += shot.vx * k.dt();
-        shot.pos.y += Math.sin(k.time() * 6) * 0.6;
-        if (k.time() - shot.born > 6) shot.destroy();
+        const dt = k.dt();
+        shot.pos.x += shot.vx * dt;
+        // Descend toward the low lane, then bob gently along it.
+        if (shot.pos.y < targetY - 1) {
+          shot.pos.y = Math.min(targetY, shot.pos.y + 320 * dt);
+        } else {
+          shot.pos.y = targetY + Math.sin(k.time() * 6) * 3;
+        }
+        // Live long enough to cross the whole arena — the player has to
+        // dodge or shoot the paperwork down, not out-walk it.
+        if (k.time() - shot.born > 14) shot.destroy();
       });
     }
 
@@ -3118,11 +3829,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         registerBossHit?.(shot.pos.x, shot.pos.y);
         shot.destroy();
       });
-      // A well-aimed "+" also knocks incoming paperwork out of the air.
-      shot.onCollide("boss-shot", (o: unknown) => {
-        (o as unknown as { destroy: () => void }).destroy();
-        shot.destroy();
-      });
+      // Your "+" shots pass straight through his paperwork — it must be
+      // dodged, not shot down.
+
     }
 
     // Auto-fire loop: no fire button, the power-up comes with the plan choice.
@@ -3154,20 +3863,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const boss = spawnGrounded(k, "boss-idle", sizes, {
         x: bx, z: LAYERS.ACTOR, tag: "boss",
         props: {
-          dir: -1, home: bx, range: 150, hits: 0, hurtUntil: 0, dead: false,
-          vy: 0, nextShot: 0, nextHop: 0,
+          dir: -1, home: bx, range: 210, hits: 0, hurtUntil: 0, dead: false,
+          vy: 0, nextShot: 0, nextHop: 0, armedShot: false,
         },
         hitboxScale: { x: -bw / 2, w: bw, h: bh },
       });
-      const BOSS_MAX_HITS = 3;
-      // Hearts HUD above the boss (3 hits to defeat).
+      const BOSS_MAX_HITS = 6;
+      // Hearts HUD above the boss (5 hits to defeat).
       const hearts = k.add([
-        k.text("♥♥♥", { size: 16, font: "sans-serif" }),
+        k.text("♥".repeat(BOSS_MAX_HITS), { size: 16, font: "sans-serif" }),
         k.pos(bx, GROUND_Y - bh - 40),
         k.anchor("center"), k.color(230, 60, 80), k.z(LAYERS.HUD - 1),
       ]) as AnyObj;
-      boss.nextShot = k.time() + 1.4;
-      boss.nextHop = k.time() + 2.2;
+      boss.nextShot = k.time() + 1.0;
+      boss.nextHop = k.time() + 1.2;
 
       function defeatBoss() {
         boss.dead = true;
@@ -3192,7 +3901,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // Brief invulnerability window after every hit.
         if (now < boss.hurtUntil) return;
         boss.hits += 1;
-        boss.hurtUntil = now + 0.9;
+        boss.hurtUntil = now + 1.05;
         zoneState.bossHits = boss.hits;
         player.score += 400;
         hearts.text = "♥".repeat(Math.max(0, BOSS_MAX_HITS - boss.hits));
@@ -3205,26 +3914,50 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.dead) return;
         const dt = k.dt();
         const now = k.time();
-        const speed = 70;
+        // Rage phase: once he is down to his last two hearts he speeds up.
+        const rage = boss.hits >= BOSS_MAX_HITS - 2 ? 1.32 : 1;
+        const speed = 132 * rage;
         boss.pos.x += boss.dir * speed * dt;
         if (boss.pos.x > boss.home + boss.range) { boss.pos.x = boss.home + boss.range; boss.dir = -1; boss.flipX = true; }
         if (boss.pos.x < boss.home - boss.range) { boss.pos.x = boss.home - boss.range; boss.dir = 1; boss.flipX = false; }
         // Occasional hop.
+        const wasAirborne = boss.pos.y < GROUND_Y;
         if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
-          boss.vy = -430;
-          boss.nextHop = now + 3.2 + Math.random() * 1.8;
+          boss.vy = -470;
+          boss.nextHop = now + (0.22 + Math.random() * 0.18) / rage;
+          boss.armedShot = true; // this jump will throw on the way up and down
         }
+
         boss.vy += 1300 * dt;
         boss.pos.y = Math.min(GROUND_Y, boss.pos.y + boss.vy * dt);
         if (boss.pos.y >= GROUND_Y) { boss.pos.y = GROUND_Y; boss.vy = 0; }
         hearts.pos.x = boss.pos.x;
         hearts.pos.y = boss.pos.y - bh - 40;
-        // Throw paperwork toward the player, never while flashing.
-        if (now >= boss.nextShot && now >= boss.hurtUntil) {
+        // Paperwork is thrown from mid-air only — released near the top of a
+        // jump, so it arrives at a different height every time. Less frequent
+        // than the old ground barrage, but far harder to read.
+        const nearApex = wasAirborne && boss.vy > -140;
+        if (boss.armedShot && nearApex && now >= boss.nextShot && now >= boss.hurtUntil) {
+          boss.armedShot = false;
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
-          spawnBossShot(boss.pos.x + toward * (bw / 2), GROUND_Y - 34, toward);
-          boss.nextShot = now + 2.1 + Math.random() * 0.7;
+          // Short burst thrown from the air but always settling into a low
+          // lane, so every one of them has to be jumped over.
+          spawnBossShot(boss.pos.x + toward * (bw / 2), boss.pos.y - 34, toward, 22);
+          const burstY = boss.pos.y - 6;
+          const burstX = boss.pos.x;
+          k.wait(0.22, () => {
+            if (boss.dead) return;
+            spawnBossShot(burstX + toward * (bw / 2), burstY, toward, 44);
+          });
+          if (rage > 1) {
+            k.wait(0.44, () => {
+              if (boss.dead) return;
+              spawnBossShot(burstX + toward * (bw / 2), burstY - 60, toward, 30);
+            });
+          }
+          boss.nextShot = now + (0.62 + Math.random() * 0.22) / rage;
         }
+
         // Flash while invulnerable.
         const wantHurt = now < boss.hurtUntil;
         const nextBossSprite = wantHurt ? "boss-hurt" : "boss-idle";
@@ -3318,8 +4051,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
 
 
-    // Single owner of "the slide just finished" — see the main build for the
-    // stranded-cutscene defect this replaces.
+    // Single owner of "the slide just finished". Both the pole-base collider
+    // and the update-loop safety net funnel through here — previously the
+    // collider set firePoleDone without advancing the cutscene, which stranded
+    // the finale in the "slide" phase forever and the WIN screen never fired.
     let slideDoneAt = 0;
     function completeSlide() {
       if (zoneState.firePoleDone || player.won) return;
@@ -3439,24 +4174,62 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
 
+    // Failure results are held until the player acknowledges the failure
+    // screen, so the score / feedback panel never covers the message.
+    let pendingLose: WinResult | null = null;
+    function flushPendingLose() {
+      if (!pendingLose) return;
+      const r = pendingLose;
+      pendingLose = null;
+      opts.onLose?.(r);
+    }
+
+    /**
+     * Stamps the split time for a finished zone and pays a speed bonus.
+     * The bonus curve is steep and uses odd multipliers so that two runs that
+     * play the same but move at different speeds land on clearly different
+     * totals instead of clustering around the same round number.
+     */
+    function closeZoneSplit(zone: number) {
+      if (zone < 0 || zone > 7) return;
+      if (zoneSplitsMs[zone] > 0) return; // already stamped
+      const split = Math.max(0.5, runClock() - zoneClockStart);
+      zoneSplitsMs[zone] = Math.round(split * 1000);
+      const par = ZONE_PAR_S[zone] ?? 30;
+      // 0 at 2x par, 1 at instant; squared so quick clears pay much more.
+      const pace = Math.max(0, Math.min(1, (par * 2 - split) / (par * 2)));
+      const bonus = Math.round(pace * pace * 2600 + pace * 400);
+      if (bonus > 0) {
+        timeBonusTotal += bonus;
+        player.score += bonus;
+        showHint(`Step cleared in ${split.toFixed(1)}s — speed bonus +${bonus}`);
+      }
+      updateHud();
+    }
+
     function buildResult(won: boolean): WinResult {
-      const durationMs = Math.round((k.time() - startTime) * 1000);
-      // Pace matters: the accumulated play score is scaled by how fast the run
-      // was against a par time (~2:30 for all 8 zones, pro-rated for how far
-      // the player actually got). Fast runs earn up to x2, slow runs floor x0.5.
-      const zonesReached = Math.min(8, Math.max(1, player.farthestZone + 1));
-      const parMs = (150_000 * zonesReached) / 8;
-      const ratio = durationMs / parMs;
-      let speedMult: number;
-      if (ratio <= 0.4) speedMult = 2;
-      else if (ratio <= 1) speedMult = 2 - ((ratio - 0.4) / 0.6) * 1;
-      else if (ratio <= 2) speedMult = 1 - ((ratio - 1) / 1) * 0.5;
-      else speedMult = 0.5;
+      const durationMs = Math.round(runClock() * 1000);
+      // Pace already paid off during the run through per-zone speed bonuses.
+      // The whole-run multiplier is reserved for completed runs so that dying
+      // quickly can never out-score playing well and finishing.
+      const parMs = 150_000;
+      const ratio = Math.max(0.35, durationMs / parMs);
+      // ratio 0.5 -> ~x1.9, 1.0 -> x1.0, 2.0 -> ~x0.42
+      const speedMult = won
+        ? Math.max(0.5, Math.min(2.2, Math.pow(1 / ratio, 1.25)))
+        : 1;
       let finalScore = player.score * speedMult;
+
       if (won) {
         finalScore += 2000;
         finalScore += player.lives * 500;
+        // Finishing fast is the headline achievement: up to +5000.
+        const finishBonus = Math.round(Math.max(0, 300_000 - durationMs) / 60);
+        finalScore += Math.min(5000, finishBonus);
       }
+      // Sub-point tiebreaker from the exact finish time (0-99), so two runs
+      // never share a leaderboard number by coincidence.
+      finalScore += 99 - Math.floor((durationMs % 1000) / 10.11);
       return {
         durationMs,
         docs: player.docs.size,
@@ -3469,8 +4242,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         jumpsLanded: player.jumpsLanded,
         enemiesPassed: player.enemiesPassed,
         deaths: player.deaths,
+        timeBonus: timeBonusTotal,
+        zoneSplitsMs: [...zoneSplitsMs],
       };
     }
+
 
     // (Old fixed-finish collision removed — the clinic zone now ends at the
     //  fire-pole base which sets zoneState.firePoleDone in the update loop.)
@@ -3478,7 +4254,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function tryWin() {
       if (player.won || player.dead) return;
       player.won = true;
+      closeZoneSplit(currentZone);
       pendingWin = buildResult(true);
+
       showTitleCard(k, "STEP 8 · ENROLLED", "★ COVERED ★", [255, 220, 90], 2.4);
       showEnd(true);
     }
@@ -3502,7 +4280,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.fixed(),
         k.z(LAYERS.OVERLAY),
       ]);
-      if (!win) overlay.onClick(() => k.go("trail", START_X(), 1));
+      if (!win) overlay.onClick(() => flushPendingLose());
       k.add([
         k.text(title, { size: Math.round(30 * T), font: "sans-serif" }),
         k.pos(k.width() / 2, k.height() / 2 - 78),
@@ -3529,15 +4307,32 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // cutscene — that scene owns the restart prompt.
         k.wait(5, () => k.go("thanks"));
       } else {
+        // A dejected hero stands at the edge of the failure screen — he did
+        // not get through this step of the coverage journey.
+        const sadH = Math.max(120, Math.min(k.height() * 0.52, 240));
         k.add([
-          k.text("Tap screen or press R to try again", { size: Math.round(14 * T), font: "sans-serif" }),
+          k.sprite("hero-sad", { width: Math.floor(sadH * 0.677), height: Math.floor(sadH) }),
+          k.pos(18, k.height() - 14),
+          k.anchor("botleft"),
+          k.opacity(0.95),
+          k.fixed(),
+          k.z(LAYERS.OVERLAY_TEXT),
+        ]);
+        k.add([
+          k.text("Tap Screen, Press R or Enter\nto enter your score and provide feedback", {
+            size: Math.round(14 * T),
+            font: "sans-serif",
+            align: "center",
+          }),
           k.pos(k.width() / 2, k.height() / 2 + 100),
           k.anchor("center"),
           k.color(220, 220, 220),
           k.fixed(),
           k.z(LAYERS.OVERLAY_TEXT),
         ]);
-        opts.onLose?.(buildResult(false));
+        // The name-entry / feedback panel is held back until the player
+        // acknowledges the failure screen.
+        pendingLose = buildResult(false);
       }
     }
 
@@ -3611,6 +4406,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       // A step screen (or any other pause) freezes the whole simulation.
       if (isPaused()) return;
+      if (transitioning) return;
       if (player.dead || player.won) return;
 
       const now = k.time();
@@ -3628,17 +4424,24 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const z = Math.min(ZONES.length - 1, Math.max(0, Math.floor(player.pos.x / BIOME_W)));
       if (z > player.farthestZone) player.farthestZone = z;
       if (z !== currentZone) {
+        // Close the split for the zone we're leaving and pay the speed bonus.
+        if (z > currentZone) closeZoneSplit(currentZone);
         currentZone = z;
+        zoneClockStart = runClock();
         opts.onSafeProgress?.(currentZone);
         if (!player.visitedZones.has(z)) {
           player.visitedZones.add(z);
           player.score += 1000;
         }
-        // Interactive step briefing instead of a fading title card.
-        showStepScreen(z, () => {
-          // Start the wait clock only once the player has read the briefing.
-          if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
-        });
+
+        const openBriefing = () =>
+          showStepScreen(z, () => {
+            // Start the wait clock only once the player has read the briefing.
+            if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
+          });
+        // Zone 7 opens with its normal briefing; the bear's charge-in cinematic
+        // now waits until the player has actually chosen a health plan.
+        openBriefing();
         // Each zone gets its own tune; the boss arena overrides this itself.
         if (z !== 6) setMusic(zoneMusic(z));
       }
@@ -3653,6 +4456,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (obj.met()) unlockDoor(i);
       }
 
+      // Reaching an unlocked doorway starts the walk-through transition.
+      for (let i = 0; i < 7; i++) {
+        const d = doors[i];
+        if (!d || !d.unlocked) continue;
+        const dx = d.obj.pos.x;
+        if (player.pos.x >= dx - 16 && player.pos.x <= dx + 90 && i === currentZone) {
+          walkThroughDoor(i);
+          break;
+        }
+      }
+
+
       // Fire-pole slide: freeze x, descend at controlled speed until base.
       // Safety-net: complete when Y reaches GROUND_Y even if the base
       // collider is missed on a dropped frame.
@@ -3662,7 +4477,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (player.pos.y >= GROUND_Y) completeSlide();
       }
 
-      // Backstop so the WIN overlay can never be blocked by a missed transition.
+      // Backstop: the WIN overlay can never be blocked by a missed cutscene
+      // transition — force the finale to finish a few seconds after landing.
       if (
         zoneState.firePoleDone &&
         zoneState.cutscene &&
@@ -3807,8 +4623,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         setSprite(want);
       } else if (dir !== 0) {
         setAnim("walk");
-        // Contact / passing / contact / passing at a 12px stride so the run
-        // reads as steps, not a glide.
+        // Distance-based cycle: legs advance in lockstep with real movement.
+        // Contact / passing / contact / passing at a 12px stride turns the legs
+        // over fast enough that the run reads as steps, not a glide.
         const CYCLE = [0, 1, 2, 3];
         const STRIDE_PX = 12;
         const idx = Math.floor(Math.abs(player.pos.x) / STRIDE_PX) % CYCLE.length;
@@ -3818,8 +4635,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           player.walkFrame = target;
           setSprite(want);
         }
-        // Footfall weight: 2px squash on contact frames. Anchor is "bot" and the
-        // area rect is explicit, so this is purely visual.
+        // Footfall weight: squash 2px on the contact frames, full height on the
+        // passing frames. Anchor is "bot" so the feet stay planted, and the
+        // explicit area rect is untouched — purely visual.
         const baseH = DISPLAY_H[`hero-walk-${target}`] ?? player.height;
         player.height = baseH - (idx % 2 === 0 ? 2 : 0);
       } else {
@@ -3848,11 +4666,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     for (const key of jumpKeys) k.onKeyPress(key as never, () => tryJump());
+    const ackFail = () => {
+      if (!pendingLose) return false;
+      flushPendingLose();
+      return true;
+    };
     k.onKeyPress("r", () => {
       // While the win sequence is playing the player must watch the
       // thank-you cutscene before restarting.
       if (player.won) return;
+      if (ackFail()) return;
       k.go("trail", START_X(), 1);
+    });
+    k.onKeyPress("enter", () => {
+      if (player.won) return;
+      ackFail();
     });
 
 
@@ -3872,7 +4700,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // is still on the "wrong" side of the nearest locked door — anywhere
       // before the door itself or within the door's own zone boundary if they
       // tunneled through in one frame.
+      // Completed zones are sealed: never let the player drift back through a
+      // door they already walked into.
+      if (progressFloorX > 0 && player.pos.x < progressFloorX) {
+        player.pos.x = progressFloorX;
+        if (p.vel && p.vel.x < 0) p.vel.x = 0;
+      }
       const HITBOX_HALF = 12;
+
       for (let i = 0; i < doors.length; i++) {
         const d = doors[i];
         if (!d || d.unlocked) continue;
@@ -3900,7 +4735,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   // Plays 5s after the WIN overlay. Close-up of the hero thanking the player,
   // with the 16-bit MESC 2026 conference badge. Only exit is "try again".
   k.scene("thanks", () => {
-    // Continuing from the Thank You screen is what finally reports the win.
+    // Continuing from the Thank You screen is what finally reports the win —
+    // that is when the high-score / suggestion overlay is allowed to appear.
     let leftThanks = false;
     const leaveThanks = () => {
       if (leftThanks) return;
@@ -3969,7 +4805,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.add([k.rect(bw, bh), k.pos(bx, by), k.color(252, 250, 235), k.fixed(), k.z(9)]);
     if (msg) msg.pos = k.vec2(Math.floor(W / 2), by + Math.floor(bh / 2));
     // Map a point in the backdrop art (0-1) to canvas space, accounting for
-    // the COVER scaling above — used to sit the hero exactly on the exam bed.
+    // the COVER scaling above — used to stand the hero-on-bed sprite on the
+    // room's floor where the painted exam bed used to be.
     const bgPt = (fx: number, fy: number) => ({
       x: W / 2 + (fx - 0.5) * BG_W * bgScale,
       y: H / 2 + (fy - 0.5) * BG_H * bgScale,
@@ -3986,8 +4823,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(9),
     ]);
 
-    // The bed is no longer painted into the backdrop — this sprite is the
-    // whole bed-and-hero element, standing on the room's floor.
+    // The bed itself is no longer painted into the backdrop — this sprite is
+    // the whole bed-and-hero element, standing on the room's floor.
     const bottomLimit = H - SAFE_Y * 0.2;
     const heroTop = by + bh + 8;
     const heroFootY = Math.floor(Math.min(bottomLimit, bed.y));
@@ -4050,6 +4887,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
   });
+
+
 
   const resumeZone = Math.min(
     ZONES.length - 1,
@@ -4192,6 +5031,45 @@ function showTitleCard(
   return total;
 }
 
+/** Chunky 16-bit icons for each Zone 1 apply method, drawn as flat pixel
+ *  blocks in a 30x30 space centred on the collectible (offsets are relative). */
+type IconPixel = { x: number; y: number; w: number; h: number; c: [number, number, number] };
+const METHOD_ICON_PIXELS: Record<string, IconPixel[]> = {
+  // Envelope
+  MAIL: [
+    { x: 0, y: 0, w: 22, h: 15, c: [252, 252, 245] },
+    { x: 0, y: -7, w: 22, h: 2, c: [180, 170, 150] },
+    { x: -5, y: -4, w: 5, h: 3, c: [120, 110, 95] },
+    { x: 0, y: -1, w: 5, h: 3, c: [120, 110, 95] },
+    { x: 5, y: -4, w: 5, h: 3, c: [120, 110, 95] },
+    { x: 0, y: 5, w: 14, h: 2, c: [200, 195, 180] },
+  ],
+  // Cell phone
+  PHONE: [
+    { x: 0, y: 0, w: 14, h: 24, c: [40, 45, 60] },
+    { x: 0, y: -1, w: 10, h: 16, c: [120, 220, 240] },
+    { x: 0, y: 9, w: 4, h: 3, c: [180, 190, 205] },
+    { x: 0, y: -10, w: 5, h: 2, c: [180, 190, 205] },
+  ],
+  // Public assistance office building
+  "IN PERSON": [
+    { x: 0, y: 3, w: 22, h: 18, c: [176, 172, 165] },
+    { x: 0, y: -8, w: 24, h: 5, c: [110, 118, 135] },
+    { x: -6, y: -1, w: 5, h: 5, c: [130, 205, 235] },
+    { x: 6, y: -1, w: 5, h: 5, c: [130, 205, 235] },
+    { x: -6, y: 7, w: 5, h: 5, c: [130, 205, 235] },
+    { x: 6, y: 7, w: 5, h: 5, c: [130, 205, 235] },
+    { x: 0, y: 8, w: 6, h: 9, c: [90, 65, 40] },
+  ],
+  // Laptop
+  ONLINE: [
+    { x: 0, y: -4, w: 22, h: 15, c: [70, 78, 95] },
+    { x: 0, y: -4, w: 17, h: 10, c: [130, 215, 235] },
+    { x: 0, y: 6, w: 26, h: 4, c: [150, 158, 175] },
+  ],
+};
+
+
 /** High-contrast wooden trail-sign plaque used for Zone 1 apply methods.
  *  Draws a solid cream card with a dark outline, an icon badge on top, and
  *  the sign label in dark brown so it stays readable over the foggy forest. */
@@ -4270,6 +5148,7 @@ function addSpeech(
 ) {
   // High-contrast world label: dark plaque behind gold text with 1-px shadow.
   // (rgb argument ignored — standardized on gold-on-navy for legibility.)
+  // Sized up so the sign stays readable in windowed (non-fullscreen) play.
   const size = Math.round(16 * UI_TEXT_SCALE);
   const charW = size * 0.62;
   const w = Math.max(72, Math.ceil(text.length * charW) + 22);
@@ -4285,7 +5164,7 @@ function addSpeech(
   ]);
   k.add([
     k.text(text, { size, font: "sans-serif", align: "center" }),
-    k.pos(x + 1, y + 1),
+    k.pos(x + 2, y + 2),
     k.anchor("center"),
     k.color(0, 0, 0),
     k.z(LAYERS.EFFECT + 1),
@@ -4294,9 +5173,10 @@ function addSpeech(
     k.text(text, { size, font: "sans-serif", align: "center" }),
     k.pos(x, y),
     k.anchor("center"),
-    k.color(255, 220, 90),
+    k.color(255, 232, 130),
     k.z(LAYERS.EFFECT + 2),
   ]);
+
 }
 
 /** Floating pixel-art thought bubble drawn in the sky. Purely decorative —

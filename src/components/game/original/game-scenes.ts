@@ -56,6 +56,8 @@ import envelopeGremlinSheetUrl from "@/assets/game/envelope-gremlin-sheet.png";
 import bossSheetUrl from "@/assets/game/boss-sheet.png";
 import doorLockUrl from "@/assets/game/door-lock.png";
 import heroPortraitUrl from "@/assets/game/hero-portrait.png";
+import heroSittingUrl from "@/assets/game/hero-sitting.png";
+import rangerGuideUrl from "@/assets/game/ranger-guide.png";
 import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
 import dhsLogo16Url from "@/assets/game/mn-dhs-logo-16bit.png";
 
@@ -747,6 +749,8 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadBackground(k, "bg-clinic",   bgClinicUrl),
     safeLoadBackground(k, "bg-thanks",   bgThanksUrl),
     safeLoadBackground(k, "hero-portrait", heroPortraitUrl),
+    safeLoadBackground(k, "hero-sitting", heroSittingUrl),
+    safeLoadBackground(k, "ranger-guide", rangerGuideUrl),
     safeLoadBackground(k, "mesc-logo-16bit", mescLogo16Url),
     safeLoadBackground(k, "dhs-logo-16bit", dhsLogo16Url),
   ]);

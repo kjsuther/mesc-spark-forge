@@ -1363,11 +1363,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // Zone 3 — the far riverbank ledge across the rapids.
         { zone: 2, left: 320,  right: 1000, rise: 214, scale: 0.5,  speed: 30, tint: [160, 180, 200], opacity: 0.7,  pauseBias: 0.55 },
         // Zone 4 — crossing a rooftop gap in the distant town.
-        { zone: 3, left: 260,  right: 1120, rise: 246, scale: 0.42, speed: 34, tint: [170, 170, 195], opacity: 0.62, pauseBias: 0.3  },
+        { zone: 3, left: 700,  right: 1060, rise: 196, scale: 0.40, speed: 34, tint: [170, 170, 195], opacity: 0.62, pauseBias: 0.3  },
         // Zone 5 — climbing the upper ridge silhouette.
         { zone: 4, left: 420,  right: 1080, rise: 262, scale: 0.46, speed: 24, tint: [150, 160, 190], opacity: 0.66, pauseBias: 0.6  },
         // Zone 6 — standing on the distant storm cliff, scanning.
-        { zone: 5, left: 380,  right: 860,  rise: 236, scale: 0.5,  speed: 20, tint: [140, 150, 180], opacity: 0.6,  pauseBias: 0.8  },
+        { zone: 5, left: 300,  right: 780,  rise: 186, scale: 0.46,  speed: 20, tint: [140, 150, 180], opacity: 0.6,  pauseBias: 0.8  },
       ];
 
       const bearBaseH = DISPLAY_H["bear-scout-walk-0"];

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteChrome } from "@/components/site-chrome";
 import { SiteFooter } from "@/components/site-footer";
 import { SectionHeading } from "@/components/trail/section-heading";
-import { Leaderboard } from "@/components/game/leaderboard";
+import { Leaderboard, FullLeaderboard } from "@/components/game/leaderboard";
 
 export const Route = createFileRoute("/scores")({
   head: () => ({
@@ -34,12 +34,14 @@ function ScoresPage() {
         <header className="mb-2">
           <SectionHeading as="h1">High scores</SectionHeading>
           <p className="text-lg text-dark-gray/80 max-w-2xl mt-3">
-            The three best runs on the trail, updated live. Ties break in favour of whoever got
-            there first.
+            The podium up top, then every run ever submitted below. Ties break in favour of whoever
+            got there first.
           </p>
         </header>
 
-        <Leaderboard variant="panel" />
+        <Leaderboard variant="panel" showViewAll={false} />
+        <FullLeaderboard />
+
 
         <div className="mt-8 flex flex-wrap gap-3">
           <Link

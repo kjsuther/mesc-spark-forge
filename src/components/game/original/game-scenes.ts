@@ -137,7 +137,22 @@ function computeViewW(canvas: HTMLCanvasElement): number {
 // (iOS Safari kills the WebGL context around ~64MB of backing store).
 // Combined with `imageRendering: pixelated` on the canvas, this is
 // visually indistinguishable from 2 for pixel-art content.
-const PIXEL_DENSITY = 1;
+/**
+ * Backing-buffer density. A logical 960px buffer displayed in a 1400px CSS box
+ * used to be upscaled 1.46x with `image-rendering: pixelated`, which is what
+ * made every glyph look soft and chunky. Matching the buffer to the box (up to
+ * 2x) means text is rasterised at its real on-screen size and stays sharp,
+ * while sprites still land on whole pixels. Clamped at 2 so the WebGL backing
+ * store stays inside the ~64MB iOS Safari budget.
+ */
+const PIXEL_DENSITY_MAX = 2;
+function computePixelDensity(canvas: HTMLCanvasElement | null, logicalW: number): number {
+  const cssW = canvas?.getBoundingClientRect().width || 0;
+  const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  if (cssW <= 0) return 1;
+  const need = (cssW * Math.min(dpr, 2)) / logicalW;
+  return Math.max(1, Math.min(PIXEL_DENSITY_MAX, Math.round(need * 2) / 2));
+}
 /** Snap any world coordinate or computed sprite dimension to an integer.
  *  Using `floor` (not `round`) is deterministic across renders: a value of
  *  N.4999 and N.5001 both collapse to N, so a sub-pixel jitter can never
@@ -151,8 +166,22 @@ function computeUiTextScale(canvas: HTMLCanvasElement | null, logicalW: number):
   const cssW = canvas?.getBoundingClientRect().width || 0;
   const shrink = cssW > 0 ? logicalW / cssW : 1;
   const wide = logicalW / LOGICAL_W;
-  return Math.max(0.9, Math.min(2, Math.max(wide, shrink)));
+  return Math.max(1, Math.min(2.4, Math.max(wide, shrink)));
 }
+
+/**
+ * Where a run begins inside a zone.
+ *
+ * On touch devices the on-screen D-pad and action buttons occupy the lower
+ * LEFT and lower RIGHT of the canvas, so a hero spawned at x=40 starts
+ * underneath the D-pad. Pushing the start position right by ~18% of the
+ * visible width (about an inch and a half on a typical phone, and it scales
+ * with the device because it is a proportion of the viewport) puts the hero
+ * clear of every control before the player touches anything. Desktop is
+ * unchanged at 40.
+ */
+const START_X = (): number =>
+  isCoarsePointer() ? 40 + Math.round(VIEW_W * 0.18) : 40;
 
 /** Touch-first device? Drives the wording of every "continue" prompt. */
 const isCoarsePointer = (): boolean =>
@@ -941,7 +970,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // CONSTANT pixel density — not derived from devicePixelRatio. This is the
     // whole reason sprites stay aligned across DPR changes (rotation, zoom,
     // external displays). The browser handles all CSS-pixel scaling uniformly.
-    pixelDensity: PIXEL_DENSITY,
+    pixelDensity: computePixelDensity(opts.canvas, VIEW_W),
     crisp: true,
     touchToMouse: true,
   });
@@ -2192,9 +2221,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       initial?: string;
       opacity?: number;
     };
+    // HUD type is scaled by the same factor as the briefing panels (capped
+    // lower, since the HUD must not eat the playfield) so score / timer /
+    // docs stay legible when the canvas is drawn small in a browser window.
+    const HUD_S = Math.max(1, Math.min(1.55, UI_TEXT_SCALE));
     function pixelHudText(o: HudTextOpts) {
-      const textOpts: Record<string, unknown> = { size: o.size, font: "sans-serif" };
-      if (o.width !== undefined) textOpts.width = o.width;
+      const fs = Math.round(o.size * HUD_S);
+      const textOpts: Record<string, unknown> = { size: fs, font: "sans-serif" };
+      if (o.width !== undefined) textOpts.width = Math.round(o.width * HUD_S);
       if (o.align !== undefined) textOpts.align = o.align;
       const initial = o.initial ?? "";
       const mkNode = (dx: number, dy: number, rgb: [number, number, number], z: number) => {
@@ -2209,7 +2243,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (o.anchor) parts.push(k.anchor(o.anchor));
         return k.add(parts as never) as AnyObj;
       };
-      const shadow = mkNode(1, 1, [0, 0, 0], LAYERS.HUD);
+      // A full dark halo (not just a drop shadow) is what keeps white HUD text
+      // readable over bright skies, snow, and the market awnings.
+      const d = Math.max(1, Math.round(HUD_S));
+      const halo = [
+        mkNode(-d, 0, [0, 0, 0], LAYERS.HUD),
+        mkNode(d, 0, [0, 0, 0], LAYERS.HUD),
+        mkNode(0, -d, [0, 0, 0], LAYERS.HUD),
+        mkNode(0, d, [0, 0, 0], LAYERS.HUD),
+        mkNode(d, d, [0, 0, 0], LAYERS.HUD),
+      ];
+      const shadow = {
+        set text(v: string) { for (const n of halo) n.text = v; },
+        set opacity(v: number) { for (const n of halo) n.opacity = v; },
+        setPos(x: number, y: number) {
+          halo[0].pos = k.vec2(x - d, y);
+          halo[1].pos = k.vec2(x + d, y);
+          halo[2].pos = k.vec2(x, y - d);
+          halo[3].pos = k.vec2(x, y + d);
+          halo[4].pos = k.vec2(x + d, y + d);
+        },
+      };
       const main = mkNode(0, 0, o.color, LAYERS.HUD + 1);
       return {
         get text() { return main.text as string; },
@@ -2218,7 +2272,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         set opacity(v: number) { main.opacity = v; shadow.opacity = v; },
         setPos(x: number, y: number) {
           main.pos = k.vec2(x, y);
-          shadow.pos = k.vec2(x + 1, y + 1);
+          shadow.setPos(x, y);
         },
       };
     }
@@ -2322,7 +2376,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Sits to the RIGHT of the score/lives block in the top-left HUD cluster so
     // it never covers the player or the playfield floor.
     const UPG_ROWS = 5;
-    const UPG_X = 150;   // just right of the 5 application-life icons
+    const UPG_X = Math.round(150 * HUD_S);   // just right of the 5 life hearts
     const UPG_Y = 30;    // aligned with the SCORE row
     const UPG_W = 158;
     const UPG_ROW_H = 13;
@@ -3349,7 +3403,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.fixed(),
         k.z(LAYERS.OVERLAY),
       ]);
-      if (!win) overlay.onClick(() => k.go("trail", 40, 1));
+      if (!win) overlay.onClick(() => k.go("trail", START_X(), 1));
       k.add([
         k.text(title, { size: Math.round(30 * T), font: "sans-serif" }),
         k.pos(k.width() / 2, k.height() / 2 - 78),
@@ -3453,7 +3507,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         checkpointMgr.clear();
         powerUps.reset();
         setMusic(zoneMusic(currentZone));
-        k.go("trail", 40, 1);
+        k.go("trail", START_X(), 1);
         return;
       }
       // A step screen (or any other pause) freezes the whole simulation.
@@ -3699,7 +3753,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // While the win sequence is playing the player must watch the
       // thank-you cutscene before restarting.
       if (player.won) return;
-      k.go("trail", 40, 1);
+      k.go("trail", START_X(), 1);
     });
 
 
@@ -3915,7 +3969,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       (prompt as AnyObj).opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.15;
       if (winReset?.__gameInput?.resetReq) {
         winReset.__gameInput.resetReq = false;
-        k.go("trail", 40, 1);
+        k.go("trail", START_X(), 1);
       }
     });
 
@@ -3928,9 +3982,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.fixed(),
       k.z(20),
     ]);
-    hit.onClick(() => k.go("trail", 40, 1));
+    hit.onClick(() => k.go("trail", START_X(), 1));
     for (const key of ["r", "space", "enter"]) {
-      k.onKeyPress(key as never, () => k.go("trail", 40, 1));
+      k.onKeyPress(key as never, () => k.go("trail", START_X(), 1));
     }
 
   });
@@ -3939,7 +3993,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ZONES.length - 1,
     Math.max(0, Math.floor(opts.resumeZone ?? 0)),
   );
-  k.go("trail", resumeZone * BIOME_W + 40, 1);
+  k.go("trail", resumeZone * BIOME_W + START_X(), 1);
 
 
   return () => {

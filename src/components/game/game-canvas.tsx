@@ -5,6 +5,9 @@ import { GameMusic, type MusicTheme } from "@/lib/game-music";
 import { setSfxEnabled } from "@/lib/game-sfx";
 import type { GameFlags, WinResult } from "./game-scenes";
 import trailMapBg from "@/assets/game/trail-map-bg-v2.png.asset.json";
+import mescLogo from "@/assets/game/mesc-2026-logo-16bit.png";
+import dhsLogo from "@/assets/game/mn-dhs-logo-16bit.png";
+
 import { clampResumeZone, shouldRecoverGameAfterResume } from "./lifecycle";
 import { selectViewportSnapshot } from "./viewport";
 

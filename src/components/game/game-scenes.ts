@@ -2855,6 +2855,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function resumeGameplay() {
       if (!pausedNow) return;
       const frozenFor = k.time() - pauseStartedAt;
+      pausedTotal += frozenFor;
+
       pausedNow = false;
       for (const o of pausedObjs) {
         try { o.paused = false; } catch { /* destroyed while paused */ }

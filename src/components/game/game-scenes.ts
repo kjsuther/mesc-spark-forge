@@ -151,9 +151,13 @@ function computePixelDensity(canvas: HTMLCanvasElement | null, logicalW: number)
   const cssW = canvas?.getBoundingClientRect().width || 0;
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
   if (cssW <= 0) return 1;
+  // Exact device-pixel match — no half-step rounding. Rounding used to leave
+  // the buffer slightly under (or over) the real on-screen size, and the
+  // leftover fractional upscale is what made glyph edges chunky.
   const need = (cssW * Math.min(dpr, 2)) / logicalW;
-  return Math.max(1, Math.min(PIXEL_DENSITY_MAX, Math.round(need * 2) / 2));
+  return Math.max(1, Math.min(PIXEL_DENSITY_MAX, need));
 }
+
 /** Snap any world coordinate or computed sprite dimension to an integer.
  *  Using `floor` (not `round`) is deterministic across renders: a value of
  *  N.4999 and N.5001 both collapse to N, so a sub-pixel jitter can never

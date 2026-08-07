@@ -2613,8 +2613,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             ]);
           }
         }
+        // Captions must never wrap mid-word: shrink to fit one line.
+        const cellW = Math.min(iconBox + gap, (panelW - px(24)) / data.icons.length);
+        const capSize = Math.max(
+          8,
+          Math.min(px(12), Math.floor(cellW / Math.max(1, icon.label.length * 0.58))),
+        );
         put([
-          k.text(icon.label, { size: Math.max(11, px(12)), font: "sans-serif", width: iconBox + gap - px(4), align: "center" }),
+          k.text(icon.label, { size: capSize, font: "sans-serif", align: "center" }),
           k.pos(ix, centerY + iconBox / 2 + px(6)), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
         ]);
         ix += iconBox + gap;
@@ -4122,17 +4128,17 @@ function addSpeech(
 ) {
   // High-contrast world label: dark plaque behind gold text with 1-px shadow.
   // (rgb argument ignored — standardized on gold-on-navy for legibility.)
-  const size = 12;
+  const size = 16;
   const charW = size * 0.62;
-  const w = Math.max(56, Math.ceil(text.length * charW) + 16);
-  const h = size + 12;
+  const w = Math.max(72, Math.ceil(text.length * charW) + 22);
+  const h = size + 16;
   k.add([
     k.rect(w, h, { radius: 3 }),
     k.pos(x, y),
     k.anchor("center"),
-    k.color(20, 25, 45),
-    k.outline(2, k.rgb(255, 220, 90)),
-    k.opacity(0.92),
+    k.color(10, 14, 32),
+    k.outline(3, k.rgb(255, 220, 90)),
+    k.opacity(1),
     k.z(LAYERS.EFFECT),
   ]);
   k.add([

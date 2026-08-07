@@ -12,28 +12,39 @@ export type MusicTheme =
   | "adventure"
   | "town"
   | "river"
+  | "supplies"
+  | "callback"
   | "waiting"
+  | "crossroads"
   | "boss"
   | "victory";
 
-/** Exploration themes that may be shuffled between runs. */
-export const EXPLORATION_THEMES: MusicTheme[] = ["adventure", "town", "river"];
+/** Exploration themes, one per zone — kept distinct, never shuffled. */
+export const EXPLORATION_THEMES: MusicTheme[] = [
+  "adventure",
+  "town",
+  "river",
+  "supplies",
+  "callback",
+  "waiting",
+  "crossroads",
+];
 
 /**
- * Which theme plays in each zone (0-based). Zones share a small rotation so
- * the trail keeps changing mood without whiplash; the caller may rotate the
- * exploration set so repeat runs don't start on the same tune.
+ * Which theme plays in each zone (0-based). Every zone gets its own tune so
+ * no melody is ever heard twice on a single run.
  */
 export const ZONE_THEMES: MusicTheme[] = [
-  "adventure", // 1 Finding the Trail
-  "town",      // 2 Setting Up Camp
-  "river",     // 3 Crossing the River of Paperwork
-  "town",      // 4 Gathering Supplies
-  "adventure", // 5 Answering the Call
-  "waiting",   // 6 Waiting Mountain
-  "boss",      // 7 Choosing Your Path (boss arena sets this itself)
-  "victory",   // 8 Coverage Begins
+  "adventure",  // 1 Finding the Trail
+  "town",       // 2 Setting Up Camp
+  "river",      // 3 Crossing the River of Paperwork
+  "supplies",   // 4 Gathering Supplies
+  "callback",   // 5 Answering the Call
+  "waiting",    // 6 Waiting Mountain
+  "crossroads", // 7 Choosing Your Path (boss arena sets "boss" itself)
+  "victory",    // 8 Coverage Begins
 ];
+
 
 type ThemeDef = {
   melody: NoteEvt[];
@@ -237,6 +248,83 @@ const WAITING_BASS: NoteEvt[] = [
   [45, 2], [45, 2], [47, 2], [47, 2],
 ];
 
+// ---------------------------------------------------------------------------
+// SUPPLIES — brisk, tidy G-major checklist march for gathering documents.
+// ---------------------------------------------------------------------------
+const SUPPLIES_MELODY: NoteEvt[] = [
+  [67, 0.5], [71, 0.5], [74, 1], [72, 0.5], [71, 0.5], [69, 1],
+  [67, 0.5], [69, 0.5], [71, 1], [74, 1], [76, 1],
+  [74, 0.5], [72, 0.5], [71, 1], [69, 0.5], [67, 0.5], [66, 1],
+  [67, 2], [0, 1],
+  [74, 0.5], [76, 0.5], [79, 1], [78, 0.5], [76, 0.5], [74, 1],
+  [72, 0.5], [74, 0.5], [76, 1], [71, 1], [69, 1],
+  [67, 0.5], [71, 0.5], [74, 1], [76, 1], [79, 1],
+  [78, 1], [76, 1], [74, 2],
+];
+const SUPPLIES_BASS: NoteEvt[] = [
+  [43, 1], [50, 1], [43, 1], [47, 1],
+  [45, 1], [52, 1], [45, 1], [48, 1],
+  [41, 1], [48, 1], [41, 1], [45, 1],
+  [43, 1], [50, 1], [43, 1], [43, 1],
+  [43, 1], [50, 1], [43, 1], [47, 1],
+  [45, 1], [52, 1], [45, 1], [48, 1],
+  [38, 1], [45, 1], [38, 1], [42, 1],
+  [43, 1], [47, 1], [50, 1], [43, 1],
+];
+const SUPPLIES_HARMONY: NoteEvt[] = [
+  [59, 2], [62, 2], [64, 2], [59, 2],
+  [57, 2], [60, 2], [62, 2], [59, 2],
+];
+
+// ---------------------------------------------------------------------------
+// CALLBACK — ringing, hold-music A-mixolydian arpeggios for the phone zone.
+// ---------------------------------------------------------------------------
+const CALLBACK_MELODY: NoteEvt[] = [
+  [69, 0.5], [73, 0.5], [76, 0.5], [73, 0.5], [69, 1], [67, 1],
+  [71, 0.5], [74, 0.5], [78, 0.5], [74, 0.5], [71, 1], [69, 1],
+  [76, 0.5], [73, 0.5], [69, 0.5], [73, 0.5], [76, 1], [78, 1],
+  [76, 1], [73, 1], [69, 2],
+  [72, 0.5], [76, 0.5], [79, 0.5], [76, 0.5], [72, 1], [71, 1],
+  [69, 0.5], [71, 0.5], [73, 1], [76, 1], [74, 1],
+  [73, 0.5], [71, 0.5], [69, 1], [67, 1], [69, 1],
+  [69, 4],
+];
+const CALLBACK_BASS: NoteEvt[] = [
+  [45, 1.5], [45, 0.5], [52, 1], [45, 1],
+  [47, 1.5], [47, 0.5], [54, 1], [47, 1],
+  [50, 1.5], [50, 0.5], [57, 1], [50, 1],
+  [45, 2], [40, 2],
+  [48, 1.5], [48, 0.5], [55, 1], [48, 1],
+  [45, 1.5], [45, 0.5], [52, 1], [45, 1],
+  [43, 2], [45, 2],
+  [45, 4],
+];
+
+// ---------------------------------------------------------------------------
+// CROSSROADS — decisive E-minor march for the plan-choosing zone.
+// ---------------------------------------------------------------------------
+const CROSSROADS_MELODY: NoteEvt[] = [
+  [64, 1], [67, 0.5], [71, 0.5], [72, 1], [71, 1],
+  [69, 1], [67, 0.5], [64, 0.5], [66, 2],
+  [64, 1], [71, 0.5], [74, 0.5], [76, 1], [74, 1],
+  [72, 1], [71, 1], [67, 2],
+  [76, 0.5], [74, 0.5], [72, 1], [71, 1], [69, 1],
+  [67, 1], [66, 1], [64, 2],
+  [64, 0.5], [66, 0.5], [67, 1], [71, 1], [72, 1],
+  [71, 2], [64, 2],
+];
+const CROSSROADS_BASS: NoteEvt[] = [
+  [40, 1], [47, 1], [40, 1], [44, 1],
+  [45, 1], [52, 1], [45, 1], [48, 1],
+  [40, 1], [47, 1], [40, 1], [43, 1],
+  [42, 1], [49, 1], [42, 1], [45, 1],
+  [40, 1], [47, 1], [40, 1], [44, 1],
+  [43, 1], [50, 1], [43, 1], [47, 1],
+  [45, 1], [40, 1], [45, 1], [47, 1],
+  [40, 2], [40, 2],
+];
+
+
 const THEMES: Record<MusicTheme, ThemeDef> = {
   adventure: {
     melody: ADVENTURE_MELODY,
@@ -272,7 +360,42 @@ const THEMES: Record<MusicTheme, ThemeDef> = {
     bassGain: 0.2,
     percussion: "offbeat",
   },
+  supplies: {
+    melody: SUPPLIES_MELODY,
+    bass: SUPPLIES_BASS,
+    harmony: SUPPLIES_HARMONY,
+    bpm: 160,
+    volume: 0.19,
+    leadWave: "square",
+    leadGain: 0.12,
+    bassWave: "triangle",
+    bassGain: 0.21,
+    percussion: "offbeat",
+  },
+  callback: {
+    melody: CALLBACK_MELODY,
+    bass: CALLBACK_BASS,
+    bpm: 126,
+    volume: 0.19,
+    leadWave: "triangle",
+    leadGain: 0.15,
+    bassWave: "sine",
+    bassGain: 0.22,
+    percussion: "offbeat",
+  },
+  crossroads: {
+    melody: CROSSROADS_MELODY,
+    bass: CROSSROADS_BASS,
+    bpm: 140,
+    volume: 0.2,
+    leadWave: "square",
+    leadGain: 0.13,
+    bassWave: "triangle",
+    bassGain: 0.24,
+    percussion: "downbeat",
+  },
   waiting: {
+
     melody: WAITING_MELODY,
     bass: WAITING_BASS,
     bpm: 112,

@@ -59,7 +59,7 @@ import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
 import dhsLogo16Url from "@/assets/game/mn-dhs-logo-16bit.png";
 
 import docIdAsset from "@/assets/game/doc-id.png.asset.json";
-import { EXPLORATION_THEMES, ZONE_THEMES, type MusicTheme } from "@/lib/game-music";
+import { ZONE_THEMES, type MusicTheme } from "@/lib/game-music";
 import docPaystubAsset from "@/assets/game/doc-paystub.png.asset.json";
 import docEnvelopeAsset from "@/assets/game/doc-envelope.png.asset.json";
 import formMonsterV2Asset from "@/assets/game/form-monster-v2.png.asset.json";
@@ -901,16 +901,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     musicTheme = theme;
     opts.onMusicTheme?.(theme);
   };
-  // Rotate the exploration tunes by a random offset per run so the same zone
-  // doesn't always play the same song across repeat plays.
-  const musicRotation = Math.floor(Math.random() * EXPLORATION_THEMES.length);
-  /** The tune that belongs to a zone, after this run's rotation. */
-  const zoneMusic = (zoneIdx: number): MusicTheme => {
-    const base = ZONE_THEMES[Math.max(0, Math.min(ZONE_THEMES.length - 1, zoneIdx))] ?? "adventure";
-    const at = EXPLORATION_THEMES.indexOf(base);
-    if (at < 0) return base; // boss / victory / waiting stay put
-    return EXPLORATION_THEMES[(at + musicRotation) % EXPLORATION_THEMES.length];
-  };
+  /** Every zone owns a distinct tune — no rotation, no repeats within a run. */
+  const zoneMusic = (zoneIdx: number): MusicTheme =>
+    ZONE_THEMES[Math.max(0, Math.min(ZONE_THEMES.length - 1, zoneIdx))] ?? "adventure";
+
 
 
 
@@ -1550,7 +1544,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const CAL_COUNT = 8;
     const CAL_L = mx0 + 80;
     const CAL_R = mx0 + BIOME_W - 80;
-    const CAL_MIN_GAP = 0.5; // seconds between two pages starting to fall
+    const CAL_MIN_GAP = 0.32; // seconds between two pages starting to fall
     const CAL_TELEGRAPH = 0.35; // seconds a warning marker shows before the drop
     let calNextDropAt = 0;
     let calLastX = (CAL_L + CAL_R) / 2;
@@ -1590,7 +1584,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const rearm = () => {
         b.falling = false;
         b.pos = k.vec2((CAL_L + CAL_R) / 2, -600);
-        b.armAt = k.time() + 0.15 + Math.random() * 0.75;
+        b.armAt = k.time() + 0.1 + Math.random() * 0.5;
       };
       rearm();
       b.onUpdate(() => {
@@ -1604,7 +1598,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           const nx = pickCalX();
           b.baseX = nx;
           b.pos = k.vec2(nx, -80);
-          b.spd = 210 + Math.random() * 70; // slower than before (was 290-460)
+          b.spd = 265 + Math.random() * 85;
           b.spin = (Math.random() < 0.5 ? -1 : 1) * (25 + Math.random() * 35);
           b.driftAmp = 8 + Math.random() * 12;
           b.driftSpd = 0.7 + Math.random() * 0.6;
@@ -2615,10 +2609,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             ]);
           }
         }
+        // Captions must never wrap mid-word ("APPLICATIO / N"): shrink the
+        // font until the whole label fits the cell on a single line.
+        const cellW = Math.min(iconBox + gap, (panelW - px(24)) / data.icons.length);
+        const capSize = Math.max(
+          8,
+          Math.min(px(12), Math.floor(cellW / Math.max(1, icon.label.length * 0.58))),
+        );
         put([
-          k.text(icon.label, { size: Math.max(11, px(12)), font: "sans-serif", width: iconBox + gap - px(4), align: "center" }),
+          k.text(icon.label, { size: capSize, font: "sans-serif", align: "center" }),
           k.pos(ix, centerY + iconBox / 2 + px(6)), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
         ]);
+
         ix += iconBox + gap;
       }
 
@@ -2784,22 +2786,28 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.vel.y = Math.max(0, player.vel.y);
       // Pop the method icon out of the brick — falls to the ground and can be
       // collected by walking into it.
-      const iw = 28, ih = 28;
+      const iw = 30, ih = 30;
       const icon = k.add([
-        k.rect(iw, ih),
+        k.rect(iw, ih, { radius: 3 }),
         k.pos(brick.pos.x, brick.pos.y - 18),
         k.anchor("center"),
-        k.color(255, 210, 60), k.outline(2, k.rgb(90, 60, 10)),
+        k.color(250, 240, 210), k.outline(2, k.rgb(60, 45, 25)),
         k.area({ shape: new k.Rect(k.vec2(0, 0), iw, ih) }),
         k.z(LAYERS.PROP + 1),
         "method",
         { methodLabel: brick.methodLabel, vy: -180, landed: false },
       ]) as AnyObj;
-      const iconText = k.add([
-        k.text(brick.methodIcon, { size: 7, font: "sans-serif" }),
-        k.pos(brick.pos.x, brick.pos.y - 18),
-        k.anchor("center"), k.color(30, 20, 10), k.z(LAYERS.PROP + 2),
-      ]) as AnyObj;
+      // 16-bit pixel art of the chosen channel, drawn as children so it
+      // travels with the icon: letter / cell phone / office / laptop.
+      for (const part of METHOD_ICON_PIXELS[brick.methodIcon] ?? []) {
+        icon.add([
+          k.rect(part.w, part.h),
+          k.pos(part.x, part.y),
+          k.anchor("center"),
+          k.color(part.c[0], part.c[1], part.c[2]),
+          k.z(LAYERS.PROP + 2),
+        ]);
+      }
       icon.onUpdate(() => {
         if (!icon.landed) {
           icon.vy += 500 * k.dt();
@@ -2810,9 +2818,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             icon.vy = 0;
           }
         }
-        iconText.pos.x = icon.pos.x;
-        iconText.pos.y = icon.pos.y;
       });
+
     });
     player.onCollide("method", (m) => {
       if (zoneState.methodTouched) return;
@@ -2987,15 +2994,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         },
         hitboxScale: { x: -bw / 2, w: bw, h: bh },
       });
-      const BOSS_MAX_HITS = 3;
-      // Hearts HUD above the boss (3 hits to defeat).
+      const BOSS_MAX_HITS = 5;
+      // Hearts HUD above the boss (5 hits to defeat).
       const hearts = k.add([
-        k.text("♥♥♥", { size: 16, font: "sans-serif" }),
+        k.text("♥".repeat(BOSS_MAX_HITS), { size: 16, font: "sans-serif" }),
         k.pos(bx, GROUND_Y - bh - 40),
         k.anchor("center"), k.color(230, 60, 80), k.z(LAYERS.HUD - 1),
       ]) as AnyObj;
-      boss.nextShot = k.time() + 1.4;
-      boss.nextHop = k.time() + 2.2;
+      boss.nextShot = k.time() + 1.0;
+      boss.nextHop = k.time() + 1.2;
 
       function defeatBoss() {
         boss.dead = true;
@@ -3040,7 +3047,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // Occasional hop.
         if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
           boss.vy = -430;
-          boss.nextHop = now + 0.85 + Math.random() * 0.55;
+          boss.nextHop = now + 0.5 + Math.random() * 0.35;
         }
 
         boss.vy += 1300 * dt;
@@ -3052,7 +3059,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (now >= boss.nextShot && now >= boss.hurtUntil) {
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
           spawnBossShot(boss.pos.x + toward * (bw / 2), GROUND_Y - 34, toward);
-          boss.nextShot = now + 1.05 + Math.random() * 0.45;
+          boss.nextShot = now + 0.62 + Math.random() * 0.3;
         }
         // Flash while invulnerable.
         const wantHurt = now < boss.hurtUntil;
@@ -4059,6 +4066,45 @@ function showTitleCard(
   return total;
 }
 
+/** Chunky 16-bit icons for each Zone 1 apply method, drawn as flat pixel
+ *  blocks in a 30x30 space centred on the collectible (offsets are relative). */
+type IconPixel = { x: number; y: number; w: number; h: number; c: [number, number, number] };
+const METHOD_ICON_PIXELS: Record<string, IconPixel[]> = {
+  // Envelope
+  MAIL: [
+    { x: 0, y: 0, w: 22, h: 15, c: [252, 252, 245] },
+    { x: 0, y: -7, w: 22, h: 2, c: [180, 170, 150] },
+    { x: -5, y: -4, w: 5, h: 3, c: [120, 110, 95] },
+    { x: 0, y: -1, w: 5, h: 3, c: [120, 110, 95] },
+    { x: 5, y: -4, w: 5, h: 3, c: [120, 110, 95] },
+    { x: 0, y: 5, w: 14, h: 2, c: [200, 195, 180] },
+  ],
+  // Cell phone
+  PHONE: [
+    { x: 0, y: 0, w: 14, h: 24, c: [40, 45, 60] },
+    { x: 0, y: -1, w: 10, h: 16, c: [120, 220, 240] },
+    { x: 0, y: 9, w: 4, h: 3, c: [180, 190, 205] },
+    { x: 0, y: -10, w: 5, h: 2, c: [180, 190, 205] },
+  ],
+  // Public assistance office building
+  "IN PERSON": [
+    { x: 0, y: 3, w: 22, h: 18, c: [176, 172, 165] },
+    { x: 0, y: -8, w: 24, h: 5, c: [110, 118, 135] },
+    { x: -6, y: -1, w: 5, h: 5, c: [130, 205, 235] },
+    { x: 6, y: -1, w: 5, h: 5, c: [130, 205, 235] },
+    { x: -6, y: 7, w: 5, h: 5, c: [130, 205, 235] },
+    { x: 6, y: 7, w: 5, h: 5, c: [130, 205, 235] },
+    { x: 0, y: 8, w: 6, h: 9, c: [90, 65, 40] },
+  ],
+  // Laptop
+  ONLINE: [
+    { x: 0, y: -4, w: 22, h: 15, c: [70, 78, 95] },
+    { x: 0, y: -4, w: 17, h: 10, c: [130, 215, 235] },
+    { x: 0, y: 6, w: 26, h: 4, c: [150, 158, 175] },
+  ],
+};
+
+
 /** High-contrast wooden trail-sign plaque used for Zone 1 apply methods.
  *  Draws a solid cream card with a dark outline, an icon badge on top, and
  *  the sign label in dark brown so it stays readable over the foggy forest. */
@@ -4134,22 +4180,23 @@ function addSpeech(
 ) {
   // High-contrast world label: dark plaque behind gold text with 1-px shadow.
   // (rgb argument ignored — standardized on gold-on-navy for legibility.)
-  const size = 12;
+  // Sized up so the sign stays readable in windowed (non-fullscreen) play.
+  const size = 16;
   const charW = size * 0.62;
-  const w = Math.max(56, Math.ceil(text.length * charW) + 16);
-  const h = size + 12;
+  const w = Math.max(72, Math.ceil(text.length * charW) + 22);
+  const h = size + 16;
   k.add([
     k.rect(w, h, { radius: 3 }),
     k.pos(x, y),
     k.anchor("center"),
-    k.color(20, 25, 45),
-    k.outline(2, k.rgb(255, 220, 90)),
-    k.opacity(0.92),
+    k.color(10, 14, 32),
+    k.outline(3, k.rgb(255, 220, 90)),
+    k.opacity(1),
     k.z(LAYERS.EFFECT),
   ]);
   k.add([
     k.text(text, { size, font: "sans-serif", align: "center" }),
-    k.pos(x + 1, y + 1),
+    k.pos(x + 2, y + 2),
     k.anchor("center"),
     k.color(0, 0, 0),
     k.z(LAYERS.EFFECT + 1),
@@ -4158,9 +4205,10 @@ function addSpeech(
     k.text(text, { size, font: "sans-serif", align: "center" }),
     k.pos(x, y),
     k.anchor("center"),
-    k.color(255, 220, 90),
+    k.color(255, 232, 130),
     k.z(LAYERS.EFFECT + 2),
   ]);
+
 }
 
 /** Floating pixel-art thought bubble drawn in the sky. Purely decorative —

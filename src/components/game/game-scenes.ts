@@ -4641,7 +4641,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Conference badge + MN DHS badge, stacked BELOW the speech bubble on the
     // LEFT so they never overlap the waving hero, on opaque backing plates.
     const logoTop = by + bh + 12;
-    const logoBottom = bottomLimit;
+    const logoBottom = H - SAFE_Y - 26;
     const availH = Math.max(50, logoBottom - logoTop);
 
     const dhsW = Math.floor(Math.min(W * 0.30, 260));

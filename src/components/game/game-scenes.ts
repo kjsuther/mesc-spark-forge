@@ -4562,11 +4562,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     for (const key of jumpKeys) k.onKeyPress(key as never, () => tryJump());
+    const ackFail = () => {
+      if (!pendingLose) return false;
+      flushPendingLose();
+      return true;
+    };
     k.onKeyPress("r", () => {
       // While the win sequence is playing the player must watch the
       // thank-you cutscene before restarting.
       if (player.won) return;
+      if (ackFail()) return;
       k.go("trail", START_X(), 1);
+    });
+    k.onKeyPress("enter", () => {
+      if (player.won) return;
+      ackFail();
     });
 
 

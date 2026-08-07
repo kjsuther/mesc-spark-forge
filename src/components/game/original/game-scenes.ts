@@ -2232,43 +2232,51 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const scoreHud = pixelHudText({ x: 12, y: 34, size: 16, color: [255, 235, 120], initial: "SCORE 0" });
     // Applications row: little application icons that represent lives.
     // Each icon is a paper card with three horizontal "form field" lines.
-    const APP_ICON_W = 18;
-    const APP_ICON_H = 22;
+    // Lives row: classic 16-bit pixel hearts.
+    const HEART_PX = 3;              // size of one pixel-art cell
+    const HEART_MAP = [
+      "0110110",
+      "1111111",
+      "1111111",
+      "0111110",
+      "0011100",
+      "0001000",
+    ];
+    const HEART_W = HEART_MAP[0].length * HEART_PX;
     const appIcons: AnyObj[] = [];
     const MAX_POSSIBLE_LIVES = 5;
     for (let i = 0; i < MAX_POSSIBLE_LIVES; i++) {
-      const bx = 12 + i * (APP_ICON_W + 6);
+      const bx = 12 + i * (HEART_W + 6);
       const by = 58;
-      const card = k.add([
-        k.rect(APP_ICON_W, APP_ICON_H),
-        k.pos(bx, by),
-        k.color(250, 245, 220),
-        k.outline(2, k.rgb(40, 40, 60)),
-        k.fixed(),
-        k.z(LAYERS.HUD),
-      ]);
-      const line1 = k.add([
-        k.rect(APP_ICON_W - 8, 2),
-        k.pos(bx + 4, by + 5),
-        k.color(80, 80, 120),
-        k.fixed(),
-        k.z(LAYERS.HUD + 1),
-      ]);
-      const line2 = k.add([
-        k.rect(APP_ICON_W - 8, 2),
-        k.pos(bx + 4, by + 10),
-        k.color(80, 80, 120),
-        k.fixed(),
-        k.z(LAYERS.HUD + 1),
-      ]);
-      const line3 = k.add([
-        k.rect(APP_ICON_W - 8, 2),
-        k.pos(bx + 4, by + 15),
-        k.color(80, 80, 120),
-        k.fixed(),
-        k.z(LAYERS.HUD + 1),
-      ]);
-      appIcons.push({ card, line1, line2, line3 });
+      const cells: AnyObj[] = [];
+      HEART_MAP.forEach((row, ry) => {
+        for (let rx = 0; rx < row.length; rx++) {
+          if (row[rx] !== "1") continue;
+          const edge =
+            ry === 0 ||
+            rx === 0 ||
+            rx === row.length - 1 ||
+            row[rx - 1] !== "1" ||
+            row[rx + 1] !== "1" ||
+            (HEART_MAP[ry - 1]?.[rx] ?? "0") !== "1" ||
+            (HEART_MAP[ry + 1]?.[rx] ?? "0") !== "1";
+          const shine = ry <= 1 && rx >= 1 && rx <= 2;
+          cells.push(
+            k.add([
+              k.rect(HEART_PX, HEART_PX),
+              k.pos(bx + rx * HEART_PX, by + ry * HEART_PX),
+              edge
+                ? k.color(40, 20, 30)
+                : shine
+                  ? k.color(255, 170, 180)
+                  : k.color(220, 45, 60),
+              k.fixed(),
+              k.z(LAYERS.HUD),
+            ]) as AnyObj,
+          );
+        }
+      });
+      appIcons.push({ cells });
     }
     const docsHud = pixelHudText({
       x: k.width() - 12, y: 12, size: 14, color: [255, 255, 255], anchor: "topright",
@@ -2359,11 +2367,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
       appIcons.forEach((g, i) => {
-        const op = i < player.lives ? 1 : i < player.maxLives ? 0.18 : 0;
-        g.card.opacity = op;
-        g.line1.opacity = op;
-        g.line2.opacity = op;
-        g.line3.opacity = op;
+        const op = i < player.lives ? 1 : i < player.maxLives ? 0.25 : 0;
+        g.cells.forEach((c: AnyObj) => (c.opacity = op));
       });
       updateUpgradePanel();
       const need = ["ID", "Income", "Household"].filter((d) => !player.docs.has(d));

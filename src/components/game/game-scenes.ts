@@ -2796,7 +2796,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.color(16, 22, 52), k.outline(4, k.rgb(255, 220, 90)), k.fixed(), k.z(301),
       ]);
 
-      const cx = Math.floor(W / 2);
+      // Ranger guide stands at the left edge of the panel and "delivers" the
+      // briefing; the text column shifts right so nothing overlaps him.
+      const rangerW = Math.max(px(70), Math.min(px(130), Math.floor(panelW * 0.19)));
+      const rangerH = Math.min(panelH - px(56), Math.floor(rangerW / 0.677));
+      put([
+        k.sprite("ranger-guide", { width: Math.floor(rangerH * 0.677), height: rangerH }),
+        k.pos(panelX + px(10) + rangerW / 2, panelY + panelH - px(14)),
+        k.anchor("bot"), k.fixed(), k.z(302),
+      ]);
+
+      const textW = panelW - rangerW;
+      const cx = Math.floor(panelX + rangerW + textW / 2);
       let y = panelY + px(26);
       const label = (text: string, size: number, rgb: [number, number, number], width?: number) => {
         const fs = Math.max(15, px(size));
@@ -2811,10 +2822,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         y += (main.height ?? fs) + px(8);
       };
 
-      label(data.title, 24, [255, 220, 90], panelW - px(48));
-      label(data.subtitle, 17, [180, 205, 255], panelW - px(48));
+      label(data.title, 24, [255, 220, 90], textW - px(48));
+      label(data.subtitle, 17, [180, 205, 255], textW - px(48));
       y += px(4);
-      label(data.lines.map((l) => `• ${l}`).join("\n"), 19, [245, 245, 245], panelW - px(60));
+      label(data.lines.map((l) => `• ${l}`).join("\n"), 19, [245, 245, 245], textW - px(60));
 
 
       // Sprite strip: what you'll meet in this zone.
@@ -2849,7 +2860,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
         // Captions must never wrap mid-word ("APPLICATIO / N"): shrink the
         // font until the whole label fits the cell on a single line.
-        const cellW = Math.min(iconBox + gap, (panelW - px(24)) / data.icons.length);
+        const cellW = Math.min(iconBox + gap, (textW - px(24)) / data.icons.length);
         const capSize = Math.max(
           9,
           Math.min(px(12), Math.floor(cellW / Math.max(1, icon.label.length * 0.58))),

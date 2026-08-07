@@ -2662,6 +2662,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
     // Score row (above the applications-as-lives row).
     const scoreHud = pixelHudText({ x: 12, y: 34, size: 16, color: [255, 235, 120], initial: "SCORE 0" });
+    // Run clock — the whole run is timed, and faster steps pay bonus points.
+    const timeHud = pixelHudText({ x: 190, y: 34, size: 16, color: [180, 235, 255], initial: "TIME 0:00" });
+
     // Applications row: little application icons that represent lives.
     // Each icon is a paper card with three horizontal "form field" lines.
     // Lives row: classic 16-bit pixel hearts.

@@ -2376,7 +2376,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Sits to the RIGHT of the score/lives block in the top-left HUD cluster so
     // it never covers the player or the playfield floor.
     const UPG_ROWS = 5;
-    const UPG_X = 150;   // just right of the 5 application-life icons
+    const UPG_X = Math.round(150 * HUD_S);   // just right of the 5 life hearts
     const UPG_Y = 30;    // aligned with the SCORE row
     const UPG_W = 158;
     const UPG_ROW_H = 13;

@@ -55,6 +55,7 @@ import brickBlockSheetUrl from "@/assets/game/brick-block-sheet.png";
 import envelopeGremlinSheetUrl from "@/assets/game/envelope-gremlin-sheet.png";
 import bossSheetUrl from "@/assets/game/boss-sheet.png";
 import bearScoutSheetUrl from "@/assets/game/bear-scout-sheet.png";
+import bearPosesSheetUrl from "@/assets/game/bear-poses-sheet.png";
 import doorLockUrl from "@/assets/game/door-lock.png";
 import heroPortraitUrl from "@/assets/game/hero-portrait.png";
 import heroSittingUrl from "@/assets/game/hero-sitting.png";
@@ -371,6 +372,11 @@ const DISPLAY_H: Record<string, number> = {
   "bear-scout-walk-1": 54,
   "bear-scout-look": 54,
   "bear-scout-sniff": 58,
+  "bear-pose-limb": 54,
+  "bear-pose-drink": 54,
+  "bear-pose-rear": 54,
+  "bear-pose-peek": 54,
+  "bear-pose-lean": 54,
   "door-lock": 26,
 };
 
@@ -710,8 +716,16 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "bear-scout-look", frame: 2 },
     { name: "bear-scout-sniff", frame: 3 },
   ];
+  // Per-zone background sighting poses (one distinct pose per zone 1-6).
+  const bearPoseFrames: FrameSpec[] = [
+    { name: "bear-pose-limb", frame: 0 },
+    { name: "bear-pose-drink", frame: 1 },
+    { name: "bear-pose-rear", frame: 2 },
+    { name: "bear-pose-peek", frame: 3 },
+    { name: "bear-pose-lean", frame: 4 },
+  ];
 
-  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, bearScoutSizes, lockSizes, docIdSizes, docPaystubSizes, docEnvelopeSizes, formMonsterSizes] = await Promise.all([
+  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, bearScoutSizes, bearPoseSizes, lockSizes, docIdSizes, docPaystubSizes, docEnvelopeSizes, formMonsterSizes] = await Promise.all([
     safeLoadSheet(k, {
       url: charSheetUrl,
       cols: 3,
@@ -744,6 +758,8 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadSheet(k, { url: bossSheetUrl,        cols: 3, rows: 1, frames: bossFrames, label: "boss-sheet.png" }),
     safeLoadSheet(k, { url: bearScoutSheetUrl,   cols: 4, rows: 1, frames: bearScoutFrames,
       groups: [bearScoutFrames.map((f) => f.name)], label: "bear-scout-sheet.png" }),
+    safeLoadSheet(k, { url: bearPosesSheetUrl,   cols: 5, rows: 1, frames: bearPoseFrames,
+      groups: [bearPoseFrames.map((f) => f.name)], label: "bear-poses-sheet.png" }),
     safeLoadSheet(k, { url: doorLockUrl,         cols: 1, rows: 1, frames: lockFrames, label: "door-lock.png" }),
     safeLoadSheet(k, { url: docIdUrl,            cols: 1, rows: 1, frames: docIdFrames,       label: "doc-id.png" }),
     safeLoadSheet(k, { url: docPaystubUrl,       cols: 1, rows: 1, frames: docPaystubFrames,  label: "doc-paystub.png" }),
@@ -783,7 +799,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     (window as unknown as { __gameAssetReport?: AssetReport }).__gameAssetReport = ASSET_REPORT;
   }
 
-  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes, ...brickSizes, ...gremlinSizes, ...bossSizes, ...bearScoutSizes, ...lockSizes, ...docIdSizes, ...docPaystubSizes, ...docEnvelopeSizes, ...formMonsterSizes };
+  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes, ...brickSizes, ...gremlinSizes, ...bossSizes, ...bearScoutSizes, ...bearPoseSizes, ...lockSizes, ...docIdSizes, ...docPaystubSizes, ...docEnvelopeSizes, ...formMonsterSizes };
 }
 
 /** Load already-registered sprites' backing images from the sheets by pulling
@@ -1471,6 +1487,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // zone's art. He fades in out of the haze, does a small organic beat
     // (sniff / look / head turn), then fades back out and waits a long time.
     {
+      type BearMotion = "sway" | "bob" | "dip" | "peer" | "rise" | "ghost";
       type BearSighting = {
         zone: number;      // 0-based zone index
         x: number;         // spot within the zone
@@ -1478,41 +1495,37 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         scale: number;
         tint: [number, number, number];
         opacity: number;   // peak opacity while visible
-        /** "peek" = holds in place; "cross" = drifts a short distance. */
-        beat: "peek" | "cross";
-        drift: number;     // px travelled during a "cross" beat (signed)
+        frame: string;     // pose sprite for this zone
+        motion: BearMotion;
         hold: number;      // seconds visible
         gap: number;       // seconds hidden between sightings
         faceLeft: boolean;
       };
       const BEAR_SIGHTINGS: BearSighting[] = [
-        // Zone 1 — half-hidden between two distant pines: lean out, sniff, gone.
-        { zone: 0, x: 760,  rise: 150, scale: 0.44, tint: [150, 165, 172], opacity: 0.72, beat: "peek",  drift: 14,   hold: 4.5, gap: 6.0, faceLeft: false },
-        // Zone 2 — behind the far campsite treeline, looking over the brush.
-        { zone: 1, x: 520,  rise: 168, scale: 0.62, tint: [186, 190, 200], opacity: 0.85, beat: "peek",  drift: 10,   hold: 5.5, gap: 4.5, faceLeft: true  },
-        // Zone 3 — low on the far riverbank, dipping his head to the water.
-        { zone: 2, x: 760,  rise: 132, scale: 0.42, tint: [162, 182, 202], opacity: 0.7,  beat: "peek",  drift: 8,    hold: 5.0, gap: 6.0, faceLeft: true  },
-        // Zone 4 — a slow silhouette crossing one distant alley gap.
-        { zone: 3, x: 840,  rise: 122, scale: 0.34, tint: [150, 152, 176], opacity: 0.55, beat: "cross", drift: 70,   hold: 4.5, gap: 7.0, faceLeft: false },
-        // Zone 5 — ridge-crest silhouette on the painted hill line.
-        { zone: 4, x: 700,  rise: 228, scale: 0.38, tint: [140, 152, 184], opacity: 0.58, beat: "cross", drift: -52,  hold: 5.0, gap: 6.5, faceLeft: true  },
-        // Zone 6 — faint shape in the storm haze behind the distant trees.
-        { zone: 5, x: 560,  rise: 158, scale: 0.40, tint: [132, 142, 172], opacity: 0.45, beat: "peek",  drift: 0,    hold: 5.5, gap: 7.5, faceLeft: true  },
+        // Zone 1 — draped over a high pine limb, paws dangling, branch swaying.
+        { zone: 0, x: 760,  rise: 268, scale: 0.50, tint: [150, 165, 172], opacity: 0.78, frame: "bear-pose-limb",  motion: "sway",  hold: 6.0, gap: 5.0, faceLeft: false },
+        // Zone 2 — peeking out from behind the camp signboard, ducking down.
+        { zone: 1, x: 560,  rise: 150, scale: 0.66, tint: [186, 190, 200], opacity: 0.9,  frame: "bear-pose-peek",  motion: "peer",  hold: 5.5, gap: 4.0, faceLeft: true  },
+        // Zone 3 — down on the far riverbank, drinking from the water.
+        { zone: 2, x: 760,  rise: 128, scale: 0.46, tint: [162, 182, 202], opacity: 0.72, frame: "bear-pose-drink", motion: "dip",   hold: 6.0, gap: 5.0, faceLeft: true  },
+        // Zone 4 — leaning out of a distant alley gap between the buildings.
+        { zone: 3, x: 840,  rise: 118, scale: 0.36, tint: [150, 152, 176], opacity: 0.6,  frame: "bear-pose-lean",  motion: "bob",   hold: 5.0, gap: 6.0, faceLeft: false },
+        // Zone 5 — reared up on the ridge crest, rising into silhouette.
+        { zone: 4, x: 700,  rise: 236, scale: 0.44, tint: [140, 152, 184], opacity: 0.62, frame: "bear-pose-rear",  motion: "rise",  hold: 5.5, gap: 6.0, faceLeft: true  },
+        // Zone 6 — a faint standing shape drifting in the storm haze.
+        { zone: 5, x: 560,  rise: 162, scale: 0.44, tint: [132, 142, 172], opacity: 0.5,  frame: "bear-pose-rear",  motion: "ghost", hold: 6.0, gap: 6.5, faceLeft: true  },
       ];
 
-      const bearBaseH = DISPLAY_H["bear-scout-walk-0"];
       for (const cam of BEAR_SIGHTINGS) {
         const zx = BIOME_W * cam.zone;
         const baseX = zx + cam.x;
         const baseY = GROUND_Y - cam.rise;
-        const bearDisp = displaySize("bear-scout-walk-0", sizes);
-        const bearW = Math.max(8, bearDisp.w * cam.scale);
+        const disp = displaySize(cam.frame, sizes);
+        const bearW = Math.max(8, disp.w * cam.scale);
+        const bearH = Math.max(8, (DISPLAY_H[cam.frame] ?? 54) * cam.scale);
 
         const bear = k.add([
-          k.sprite("bear-scout-walk-0", {
-            width: bearW,
-            height: Math.max(8, bearBaseH * cam.scale),
-          }),
+          k.sprite(cam.frame, { width: bearW, height: bearH }),
           k.pos(px(baseX), px(baseY)),
           k.anchor("bot"),
           k.color(cam.tint[0], cam.tint[1], cam.tint[2]), // atmospheric haze
@@ -1521,28 +1534,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         ]) as AnyObj;
         bear.flipX = cam.faceLeft;
 
-        const setBearFrame = (name: string) => {
-          const d = displaySize(name, sizes);
-          bear.use(
-            k.sprite(name, {
-              width: Math.max(8, d.w * cam.scale),
-              height: Math.max(8, (DISPLAY_H[name] ?? bearBaseH) * cam.scale),
-            }),
-          );
-          bear.flipX = cam.faceLeft;
-        };
-
-        // Beat script: a looping timeline of (elapsed -> pose) with a fade
-        // envelope at both ends so he emerges from and dissolves into the art.
         const FADE = 1.1;
         const cycle = cam.hold + cam.gap;
         let t = Math.random() * cycle;
-        let lastFrame = "";
-        const showFrame = (name: string) => {
-          if (name === lastFrame) return;
-          lastFrame = name;
-          setBearFrame(name);
-        };
 
         bear.onUpdate(() => {
           t = (t + k.dt()) % cycle;
@@ -1550,24 +1544,39 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             bear.opacity = 0;
             return;
           }
-          // Fade envelope.
           const fadeIn = Math.min(1, t / FADE);
           const fadeOut = Math.min(1, (cam.hold - t) / FADE);
-          bear.opacity = cam.opacity * Math.min(fadeIn, fadeOut);
+          let alpha = cam.opacity * Math.min(fadeIn, fadeOut);
 
-          const p = t / cam.hold; // 0..1 through the visible window
-          if (cam.beat === "cross") {
-            // A slow, steady drift across the gap — two-frame walk cycle.
-            bear.pos.x = px(baseX + cam.drift * p);
-            showFrame(`bear-scout-walk-${Math.floor(t / 0.26) % 2}`);
-          } else {
-            // Stationary beat: lean out, sniff, lift head, look around.
-            bear.pos.x = px(baseX + cam.drift * Math.sin(p * Math.PI));
-            if (p < 0.28) showFrame("bear-scout-look");
-            else if (p < 0.62) showFrame("bear-scout-sniff");
-            else showFrame("bear-scout-look");
+          const p = t / cam.hold;   // 0..1 through the visible window
+          let dx = 0;
+          let dy = 0;
+          switch (cam.motion) {
+            case "sway":  // branch rocking under his weight
+              dx = Math.sin(t * 1.5) * 5;
+              dy = Math.sin(t * 1.5 + 0.6) * 4;
+              break;
+            case "peer":  // pops up behind cover, ducks back down twice
+              dy = 16 * (1 - Math.abs(Math.sin(p * Math.PI * 2)));
+              dx = Math.sin(t * 2.2) * 2;
+              break;
+            case "dip":   // muzzle dips to the water and lifts again
+              dy = Math.sin(t * 1.1) * 5;
+              break;
+            case "bob":   // leans further out of the gap, then back
+              dx = (cam.faceLeft ? -1 : 1) * 14 * Math.sin(p * Math.PI);
+              break;
+            case "rise":  // climbs into ridge silhouette, holds, drops away
+              dy = 34 * Math.max(0, 1 - Math.sin(Math.min(1, p * 1.6) * Math.PI * 0.5));
+              break;
+            case "ghost": // drifts sideways in the storm, pulsing faintly
+              dx = Math.sin(t * 0.5) * 18;
+              alpha *= 0.75 + Math.sin(t * 1.7) * 0.25;
+              break;
           }
-          bear.pos.y = px(baseY);
+          bear.opacity = alpha;
+          bear.pos.x = px(baseX + dx);
+          bear.pos.y = px(baseY + dy);
         });
       }
     }
@@ -1919,10 +1928,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // scheduler instead of raining continuously. Every drop is telegraphed,
     // never lands on the column the player is standing in, and keeps a minimum
     // horizontal gap from the previous drop, so there is always a safe lane.
-    const CAL_COUNT = 8;
-    const CAL_L = mx0 + 80;
-    const CAL_R = mx0 + BIOME_W - 80;
-    const CAL_MIN_GAP = 0.32; // seconds between two pages starting to fall
+    const CAL_COUNT = 14;
+    const CAL_L = mx0 + 40;
+    const CAL_R = mx0 + BIOME_W - 40;
+    const CAL_MIN_GAP = 0.19; // seconds between two pages starting to fall
     const CAL_TELEGRAPH = 0.35; // seconds a warning marker shows before the drop
     let calNextDropAt = 0;
     let calLastX = (CAL_L + CAL_R) / 2;
@@ -1934,7 +1943,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const cand = CAL_L + Math.random() * (CAL_R - CAL_L);
         const dPlayer = Math.abs(cand - player.pos.x);
         const dPrev = Math.abs(cand - calLastX);
-        if (dPlayer < 120) continue; // never right on top of the player
+        if (dPlayer < 90) continue; // never right on top of the player
         const score = Math.min(dPlayer, dPrev * 1.4);
         if (score > bestScore) { bestScore = score; best = cand; }
       }
@@ -1962,7 +1971,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const rearm = () => {
         b.falling = false;
         b.pos = k.vec2((CAL_L + CAL_R) / 2, -600);
-        b.armAt = k.time() + 0.1 + Math.random() * 0.5;
+        b.armAt = k.time() + 0.05 + Math.random() * 0.28;
       };
       rearm();
       b.onUpdate(() => {
@@ -1976,7 +1985,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           const nx = pickCalX();
           b.baseX = nx;
           b.pos = k.vec2(nx, -80);
-          b.spd = 265 + Math.random() * 85;
+          b.spd = 380 + Math.random() * 120;
           b.spin = (Math.random() < 0.5 ? -1 : 1) * (25 + Math.random() * 35);
           b.driftAmp = 8 + Math.random() * 12;
           b.driftSpd = 0.7 + Math.random() * 0.6;
@@ -3685,7 +3694,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.area({ shape: new k.Rect(k.vec2(0, 0), sw - 8, sh - 8) }),
         k.z(LAYERS.EFFECT),
         "boss-shot",
-        { vx: dirX * 300, born: k.time() },
+        { vx: dirX * 385, born: k.time() },
       ]) as AnyObj;
       shot.onUpdate(() => {
         shot.pos.x += shot.vx * k.dt();
@@ -3763,12 +3772,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const boss = spawnGrounded(k, "boss-idle", sizes, {
         x: bx, z: LAYERS.ACTOR, tag: "boss",
         props: {
-          dir: -1, home: bx, range: 150, hits: 0, hurtUntil: 0, dead: false,
+          dir: -1, home: bx, range: 210, hits: 0, hurtUntil: 0, dead: false,
           vy: 0, nextShot: 0, nextHop: 0, armedShot: false,
         },
         hitboxScale: { x: -bw / 2, w: bw, h: bh },
       });
-      const BOSS_MAX_HITS = 5;
+      const BOSS_MAX_HITS = 6;
       // Hearts HUD above the boss (5 hits to defeat).
       const hearts = k.add([
         k.text("♥".repeat(BOSS_MAX_HITS), { size: 16, font: "sans-serif" }),
@@ -3801,7 +3810,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // Brief invulnerability window after every hit.
         if (now < boss.hurtUntil) return;
         boss.hits += 1;
-        boss.hurtUntil = now + 0.9;
+        boss.hurtUntil = now + 1.05;
         zoneState.bossHits = boss.hits;
         player.score += 400;
         hearts.text = "♥".repeat(Math.max(0, BOSS_MAX_HITS - boss.hits));
@@ -3814,7 +3823,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.dead) return;
         const dt = k.dt();
         const now = k.time();
-        const speed = 70;
+        const speed = 105;
         boss.pos.x += boss.dir * speed * dt;
         if (boss.pos.x > boss.home + boss.range) { boss.pos.x = boss.home + boss.range; boss.dir = -1; boss.flipX = true; }
         if (boss.pos.x < boss.home - boss.range) { boss.pos.x = boss.home - boss.range; boss.dir = 1; boss.flipX = false; }
@@ -3822,7 +3831,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const wasAirborne = boss.pos.y < GROUND_Y;
         if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
           boss.vy = -430;
-          boss.nextHop = now + 0.5 + Math.random() * 0.35;
+          boss.nextHop = now + 0.34 + Math.random() * 0.26;
           boss.armedShot = true; // this jump will throw once he's up
         }
 
@@ -3839,7 +3848,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           boss.armedShot = false;
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
           spawnBossShot(boss.pos.x + toward * (bw / 2), boss.pos.y - 34, toward);
-          boss.nextShot = now + 1.15 + Math.random() * 0.5;
+          boss.nextShot = now + 0.78 + Math.random() * 0.35;
         }
 
         // Flash while invulnerable.

@@ -59,7 +59,7 @@ import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
 import dhsLogo16Url from "@/assets/game/mn-dhs-logo-16bit.png";
 
 import docIdAsset from "@/assets/game/doc-id.png.asset.json";
-import { EXPLORATION_THEMES, ZONE_THEMES, type MusicTheme } from "@/lib/game-music";
+import { ZONE_THEMES, type MusicTheme } from "@/lib/game-music";
 import docPaystubAsset from "@/assets/game/doc-paystub.png.asset.json";
 import docEnvelopeAsset from "@/assets/game/doc-envelope.png.asset.json";
 import formMonsterV2Asset from "@/assets/game/form-monster-v2.png.asset.json";

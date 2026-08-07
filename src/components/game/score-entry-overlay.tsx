@@ -224,23 +224,43 @@ export function ScoreEntryOverlay({
               >
                 SCORE SAVED!
               </p>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  onRestart?.();
-                }}
-                className="mb-2 min-h-[44px] border-4 px-5 py-3 text-[9px] tracking-widest"
-                style={{
-                  fontFamily: PIXEL_FONT,
-                  color: "var(--color-mn-blue)",
-                  background: "var(--color-cream)",
-                  borderColor: "var(--color-accent-gold)",
-                  touchAction: "manipulation",
-                }}
-              >
-                ⟳ PLAY AGAIN
-              </button>
+              <div className="mt-2 flex flex-col items-center gap-3">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onRestart?.();
+                  }}
+                  className="min-h-[44px] border-4 px-5 py-3 text-[9px] tracking-widest"
+                  style={{
+                    fontFamily: PIXEL_FONT,
+                    color: "var(--color-mn-blue)",
+                    background: "var(--color-cream)",
+                    borderColor: "var(--color-accent-gold)",
+                    touchAction: "manipulation",
+                  }}
+                >
+                  ⟳ PLAY AGAIN
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onClose();
+                  }}
+                  className="min-h-[44px] border-4 px-5 py-3 text-[9px] tracking-widest"
+                  style={{
+                    fontFamily: PIXEL_FONT,
+                    color: "var(--color-cream)",
+                    background: "rgba(0,0,0,0.35)",
+                    borderColor: "rgba(255,255,255,0.5)",
+                    textShadow: "1px 1px 0 #000",
+                    touchAction: "manipulation",
+                  }}
+                >
+                  TITLE SCREEN
+                </button>
+              </div>
             </>
           ) : (
             <>

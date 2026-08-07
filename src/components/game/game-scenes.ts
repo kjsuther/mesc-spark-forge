@@ -3393,11 +3393,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         registerBossHit?.(shot.pos.x, shot.pos.y);
         shot.destroy();
       });
-      // A well-aimed "+" also knocks incoming paperwork out of the air.
-      shot.onCollide("boss-shot", (o: unknown) => {
-        (o as unknown as { destroy: () => void }).destroy();
-        shot.destroy();
-      });
+      // Your "+" shots pass straight through his paperwork — it must be
+      // dodged, not shot down.
+
     }
 
     // Auto-fire loop: no fire button, the power-up comes with the plan choice.

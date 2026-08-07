@@ -911,7 +911,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                   <img
                     src={dhsLogo}
                     alt="Minnesota Department of Human Services"
-                    className="hidden w-20 shrink-0 sm:block sm:w-28"
+                    className="hidden w-32 shrink-0 sm:block sm:w-48 lg:w-56"
                     style={{ imageRendering: "pixelated" }}
                   />
                 </div>
@@ -921,9 +921,10 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                   <img
                     src={dhsLogo}
                     alt="Minnesota Department of Human Services"
-                    className="w-24"
+                    className="w-40"
                     style={{ imageRendering: "pixelated" }}
                   />
+
                 </div>
               </div>
             )}

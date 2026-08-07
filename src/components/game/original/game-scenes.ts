@@ -1205,6 +1205,62 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             if (sp.life > 0.8) sp.destroy();
           });
         }
+        // --- Flashing "the way is open" arrow above the door ---------------
+        const doorTopY = d.obj.pos.y - DISPLAY_H["door-open"] - 18;
+        const parts: AnyObj[] = [];
+        const mk = (ox: number, oy: number, w: number, h: number) =>
+          parts.push(k.add([
+            k.rect(w, h),
+            k.pos(d.obj.pos.x + ox, doorTopY + oy),
+            k.color(255, 214, 64),
+            k.outline(2, k.rgb(40, 26, 0)),
+            k.anchor("center"),
+            k.z(LAYERS.EFFECT),
+            k.opacity(1),
+          ]) as AnyObj);
+        // Shaft + chevron head, drawn from blocks so it stays 16-bit.
+        mk(-14, 0, 26, 10);
+        mk(2, -10, 10, 10);
+        mk(2, 10, 10, 10);
+        mk(10, 0, 10, 10);
+        const baseY = doorTopY;
+        const arrowCtl = k.onUpdate(() => {
+          const t = k.time();
+          const bob = Math.sin(t * 5) * 5;
+          const flash = Math.floor(t * 4) % 2 === 0 ? 1 : 0.35;
+          for (const p of parts) {
+            p.pos.y = baseY + bob + (p.__oy ?? 0);
+            p.opacity = flash;
+          }
+          // Retire the cue once the player has stepped through the doorway.
+          if (player && player.pos.x > d.obj.pos.x + 24) {
+            try { arrowCtl.cancel(); } catch { /* ignore */ }
+            for (const p of parts) { try { p.destroy(); } catch { /* ignore */ } }
+            parts.length = 0;
+          }
+        });
+        parts[0].__oy = 0; parts[1].__oy = -10; parts[2].__oy = 10; parts[3].__oy = 0;
+
+        // Brief on-screen cue so it reads even when the door is off-camera.
+        const cue = k.add([
+          k.text("DOOR OPEN  \u2192", { size: 18, font: "sans-serif" }),
+          k.pos(k.width() / 2, 74),
+          k.anchor("center"),
+          k.color(255, 214, 64),
+          k.outline(3, k.rgb(0, 0, 0)),
+          k.fixed(),
+          k.z(LAYERS.HUD + 8),
+          k.opacity(1),
+        ]) as AnyObj;
+        const cueStart = k.time();
+        const cueCtl = k.onUpdate(() => {
+          const el = k.time() - cueStart;
+          cue.opacity = el > 2.2 ? Math.max(0, 1 - (el - 2.2) * 2) : (Math.floor(el * 4) % 2 === 0 ? 1 : 0.4);
+          if (el > 2.8) {
+            try { cueCtl.cancel(); } catch { /* ignore */ }
+            try { cue.destroy(); } catch { /* ignore */ }
+          }
+        });
       });
     }
 

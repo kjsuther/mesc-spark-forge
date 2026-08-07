@@ -3950,39 +3950,50 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.add([k.rect(bw + 8, bh + 8), k.pos(bx - 4, by - 4), k.color(0, 0, 0), k.fixed(), k.z(8)]);
     k.add([k.rect(bw, bh), k.pos(bx, by), k.color(252, 250, 235), k.fixed(), k.z(9)]);
     if (msg) msg.pos = k.vec2(Math.floor(W / 2), by + Math.floor(bh / 2));
-    // Bubble tail pointing down toward the hero.
+    // Map a point in the backdrop art (0-1) to canvas space, accounting for
+    // the COVER scaling above — used to sit the hero exactly on the exam bed.
+    const bgPt = (fx: number, fy: number) => ({
+      x: W / 2 + (fx - 0.5) * BG_W * bgScale,
+      y: H / 2 + (fy - 0.5) * BG_H * bgScale,
+    });
+    const bed = bgPt(0.795, 0.70);
+
+    // Bubble tail pointing down toward the hero on the bed.
     k.add([
       k.rect(22, 16),
-      k.pos(Math.floor(W * 0.30), by + bh - 1),
+      k.pos(Math.floor(Math.min(W - 30, Math.max(30, bed.x - 40))), by + bh - 1),
       k.color(252, 250, 235),
       k.outline(3, k.rgb(0, 0, 0)),
       k.fixed(),
       k.z(9),
     ]);
 
-    // Hero sitting on the exam bed, bottom-left (sized to the space left
-    // under the speech bubble) so he reads as part of the office scene.
+    // Hero sitting on the exam bed at the right of the room.
     const bottomLimit = H - SAFE_Y - 26;
     const heroTop = by + bh + 8;
-    const portraitH = Math.max(90, Math.min(260, bottomLimit - heroTop));
+    const portraitH = Math.max(90, Math.min(250, bottomLimit - heroTop));
     k.add([
       k.sprite("hero-sitting", { width: portraitH, height: portraitH }),
-      k.pos(Math.floor(W * 0.24), bottomLimit),
+      k.pos(
+        Math.floor(Math.min(W - portraitH * 0.35, bed.x)),
+        Math.floor(Math.min(bottomLimit, bed.y + portraitH * 0.18)),
+      ),
       k.anchor("bot"),
       k.fixed(),
       k.z(5),
     ]);
 
     // Conference badge + MN DHS badge, stacked BELOW the speech bubble on the
-    // right so they are never clipped, on opaque backing plates.
+    // LEFT so they never overlap the waving hero, on opaque backing plates.
     const logoTop = by + bh + 12;
     const logoBottom = bottomLimit;
     const availH = Math.max(50, logoBottom - logoTop);
 
-    const dhsW = Math.floor(Math.min(W * 0.34, 300));
+    const dhsW = Math.floor(Math.min(W * 0.30, 260));
     const dhsH = Math.max(20, Math.floor(dhsW * 0.148));
     const logoS = Math.floor(Math.min(140, Math.max(44, availH - dhsH - 18)));
-    const badgeX = Math.floor(W - Math.max(logoS, dhsW) / 2 - 18);
+    const badgeX = Math.floor(Math.max(logoS, dhsW) / 2 + 18);
+
     const stackH = logoS + dhsH + 14;
     const stackTop = logoTop + Math.max(0, Math.floor((availH - stackH) / 2));
     const mescY = stackTop + Math.floor(logoS / 2);

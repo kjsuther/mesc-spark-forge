@@ -3880,19 +3880,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.armedShot && nearApex && now >= boss.nextShot && now >= boss.hurtUntil) {
           boss.armedShot = false;
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
-          // Short burst: one at chest height now, a second lower a beat later,
-          // so a single jump forces both a duck and a hop.
-          spawnBossShot(boss.pos.x + toward * (bw / 2), boss.pos.y - 34, toward);
+          // Short burst thrown from the air but always settling into a low
+          // lane, so every one of them has to be jumped over.
+          spawnBossShot(boss.pos.x + toward * (bw / 2), boss.pos.y - 34, toward, 22);
           const burstY = boss.pos.y - 6;
           const burstX = boss.pos.x;
           k.wait(0.22, () => {
             if (boss.dead) return;
-            spawnBossShot(burstX + toward * (bw / 2), burstY, toward);
+            spawnBossShot(burstX + toward * (bw / 2), burstY, toward, 44);
           });
           if (rage > 1) {
             k.wait(0.44, () => {
               if (boss.dead) return;
-              spawnBossShot(burstX + toward * (bw / 2), burstY - 60, toward);
+              spawnBossShot(burstX + toward * (bw / 2), burstY - 60, toward, 30);
             });
           }
           boss.nextShot = now + (0.62 + Math.random() * 0.22) / rage;

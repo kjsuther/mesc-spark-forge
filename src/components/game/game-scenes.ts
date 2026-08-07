@@ -60,6 +60,7 @@ import doorLockUrl from "@/assets/game/door-lock.png";
 import heroPortraitUrl from "@/assets/game/hero-portrait.png";
 import heroSittingUrl from "@/assets/game/hero-sitting.png";
 import rangerGuideUrl from "@/assets/game/ranger-guide.png";
+import heroSadUrl from "@/assets/game/hero-sad.png";
 import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
 import dhsLogo16Url from "@/assets/game/mn-dhs-logo-16bit.png";
 

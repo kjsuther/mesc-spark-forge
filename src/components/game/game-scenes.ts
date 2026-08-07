@@ -1514,8 +1514,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const BEAR_SIGHTINGS: BearSighting[] = [
         // Zone 1 — draped along the big pine limb on the left of the backdrop.
         { zone: 0, x: 232,  rise: 254, scale: 1.55, tint: [178, 190, 196], opacity: 0.98, frame: "bear-pose-limb",  motion: "sway",  hold: 11.0, gap: 2.0, faceLeft: false },
-        // Zone 2 — right behind the "LOOK OUT FOR BEARS!" signboard.
-        { zone: 1, x: 966,  rise: 176, scale: 1.75, tint: [206, 208, 214], opacity: 1,    frame: "bear-pose-peek",  motion: "peer",  hold: 11.0, gap: 2.0, faceLeft: true  },
+        // Zone 2 — leaning out from behind the LEFT post of the signboard so
+        // he never covers the "LOOK OUT FOR BEARS!" lettering.
+        { zone: 1, x: 872,  rise: 150, scale: 1.75, tint: [206, 208, 214], opacity: 1,    frame: "bear-pose-peek",  motion: "peer",  hold: 11.0, gap: 2.0, faceLeft: false },
         // Zone 3 — on the far riverbank where the water meets the rock.
         { zone: 2, x: 214,  rise: 84,  scale: 1.35, tint: [188, 202, 214], opacity: 0.95, frame: "bear-pose-drink", motion: "dip",   hold: 11.0, gap: 2.0, faceLeft: false },
         // Zone 4 — leaning out from the edge of the lodge building.
@@ -3709,6 +3710,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
      * so they always reach the player instead of sailing overhead.
      */
     function spawnBossShot(x: number, y: number, dirX: 1 | -1, laneOffset = 26) {
+      // Never more than three pieces of paperwork in the air at once —
+      // beyond that the low lane becomes impossible to jump.
+      if (k.get("boss-shot").length >= 3) return;
       const sw = displaySize("denied", sizes).w;
       const sh = DISPLAY_H["denied"];
       const targetY = GROUND_Y - laneOffset;
@@ -4114,6 +4118,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
 
+    // Failure results are held until the player acknowledges the failure
+    // screen, so the score / feedback panel never covers the message.
+    let pendingLose: WinResult | null = null;
+    function flushPendingLose() {
+      if (!pendingLose) return;
+      const r = pendingLose;
+      pendingLose = null;
+      opts.onLose?.(r);
+    }
+
     function buildResult(won: boolean): WinResult {
       const durationMs = Math.round((k.time() - startTime) * 1000);
       // Pace matters: the accumulated play score is scaled by how fast the run
@@ -4177,7 +4191,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.fixed(),
         k.z(LAYERS.OVERLAY),
       ]);
-      if (!win) overlay.onClick(() => k.go("trail", START_X(), 1));
+      if (!win) overlay.onClick(() => flushPendingLose());
       k.add([
         k.text(title, { size: Math.round(30 * T), font: "sans-serif" }),
         k.pos(k.width() / 2, k.height() / 2 - 78),
@@ -4205,14 +4219,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.wait(5, () => k.go("thanks"));
       } else {
         k.add([
-          k.text("Tap screen or press R to try again", { size: Math.round(14 * T), font: "sans-serif" }),
+          k.text("Tap Screen, Press R or Enter\nto enter your score and provide feedback", {
+            size: Math.round(14 * T),
+            font: "sans-serif",
+            align: "center",
+          }),
           k.pos(k.width() / 2, k.height() / 2 + 100),
           k.anchor("center"),
           k.color(220, 220, 220),
           k.fixed(),
           k.z(LAYERS.OVERLAY_TEXT),
         ]);
-        opts.onLose?.(buildResult(false));
+        // The name-entry / feedback panel is held back until the player
+        // acknowledges the failure screen.
+        pendingLose = buildResult(false);
       }
     }
 
@@ -4542,11 +4562,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     for (const key of jumpKeys) k.onKeyPress(key as never, () => tryJump());
+    const ackFail = () => {
+      if (!pendingLose) return false;
+      flushPendingLose();
+      return true;
+    };
     k.onKeyPress("r", () => {
       // While the win sequence is playing the player must watch the
       // thank-you cutscene before restarting.
       if (player.won) return;
+      if (ackFail()) return;
       k.go("trail", START_X(), 1);
+    });
+    k.onKeyPress("enter", () => {
+      if (player.won) return;
+      ackFail();
     });
 
 

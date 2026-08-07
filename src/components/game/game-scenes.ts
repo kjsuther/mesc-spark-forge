@@ -4061,13 +4061,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(9),
     ]);
 
-    // Hero portrait, bottom-left (sized to whatever space is left under bubble).
+    // Hero sitting on the exam bed, bottom-left (sized to the space left
+    // under the speech bubble) so he reads as part of the office scene.
     const bottomLimit = H - SAFE_Y - 26;
     const heroTop = by + bh + 8;
-    const portraitH = Math.max(80, Math.min(240, bottomLimit - heroTop));
+    const portraitH = Math.max(90, Math.min(260, bottomLimit - heroTop));
     k.add([
-      k.sprite("hero-portrait", { width: portraitH, height: portraitH }),
-      k.pos(Math.floor(W * 0.22), bottomLimit),
+      k.sprite("hero-sitting", { width: portraitH, height: portraitH }),
+      k.pos(Math.floor(W * 0.24), bottomLimit),
       k.anchor("bot"),
       k.fixed(),
       k.z(5),

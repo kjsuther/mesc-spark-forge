@@ -4606,12 +4606,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.add([k.rect(bw, bh), k.pos(bx, by), k.color(252, 250, 235), k.fixed(), k.z(9)]);
     if (msg) msg.pos = k.vec2(Math.floor(W / 2), by + Math.floor(bh / 2));
     // Map a point in the backdrop art (0-1) to canvas space, accounting for
-    // the COVER scaling above — used to sit the hero exactly on the exam bed.
+    // the COVER scaling above — used to stand the hero-on-bed sprite on the
+    // room's floor where the painted exam bed used to be.
     const bgPt = (fx: number, fy: number) => ({
       x: W / 2 + (fx - 0.5) * BG_W * bgScale,
       y: H / 2 + (fy - 0.5) * BG_H * bgScale,
     });
-    const bed = bgPt(0.795, 0.70);
+    const bed = bgPt(0.80, 0.99);
 
     // Bubble tail pointing down toward the hero on the bed.
     k.add([
@@ -4623,17 +4624,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(9),
     ]);
 
-    // Hero sitting on the exam bed at the right of the room, covering the
-    // empty bed in the art so he reads as actually sitting on it.
-    const bottomLimit = H - SAFE_Y - 26;
+    // The bed itself is no longer painted into the backdrop — this sprite is
+    // the whole bed-and-hero element, standing on the room's floor.
+    const bottomLimit = H - SAFE_Y * 0.2;
     const heroTop = by + bh + 8;
-    const portraitH = Math.max(90, Math.min(250, bottomLimit - heroTop));
+    const heroFootY = Math.floor(Math.min(bottomLimit, bed.y));
+    const portraitH = Math.max(120, Math.min(300, heroFootY - heroTop));
     k.add([
       k.sprite("hero-sitting", { width: portraitH, height: portraitH }),
-      k.pos(
-        Math.floor(Math.min(W - portraitH * 0.35, bed.x)),
-        Math.floor(Math.min(bottomLimit, bed.y + portraitH * 0.18)),
-      ),
+      k.pos(Math.floor(Math.min(W - portraitH * 0.35, bed.x)), heroFootY),
       k.anchor("bot"),
       k.fixed(),
       k.z(5),

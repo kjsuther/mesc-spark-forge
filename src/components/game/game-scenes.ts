@@ -3434,7 +3434,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         x: bx, z: LAYERS.ACTOR, tag: "boss",
         props: {
           dir: -1, home: bx, range: 150, hits: 0, hurtUntil: 0, dead: false,
-          vy: 0, nextShot: 0, nextHop: 0,
+          vy: 0, nextShot: 0, nextHop: 0, armedShot: false,
         },
         hitboxScale: { x: -bw / 2, w: bw, h: bh },
       });

@@ -2665,7 +2665,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Sprite strip: what you'll meet in this zone.
       const iconTop = Math.min(y + px(8), panelY + panelH - px(124));
       const iconBox = px(52);
-      const gap = px(26);
+      const gap = px(40);
       const totalW = data.icons.length * iconBox + (data.icons.length - 1) * gap;
       let ix = cx - totalW / 2 + iconBox / 2;
       for (const icon of data.icons) {
@@ -2695,12 +2695,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // Captions must never wrap mid-word: shrink to fit one line.
         const cellW = Math.min(iconBox + gap, (panelW - px(24)) / data.icons.length);
         const capSize = Math.max(
-          8,
+          9,
           Math.min(px(12), Math.floor(cellW / Math.max(1, icon.label.length * 0.58))),
         );
         put([
           k.text(icon.label, { size: capSize, font: "sans-serif", align: "center" }),
-          k.pos(ix, centerY + iconBox / 2 + px(6)), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
+          k.pos(ix, centerY + iconBox / 2 + px(12)), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
         ]);
         ix += iconBox + gap;
       }

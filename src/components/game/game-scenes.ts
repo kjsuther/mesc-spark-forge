@@ -3487,9 +3487,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.pos.x > boss.home + boss.range) { boss.pos.x = boss.home + boss.range; boss.dir = -1; boss.flipX = true; }
         if (boss.pos.x < boss.home - boss.range) { boss.pos.x = boss.home - boss.range; boss.dir = 1; boss.flipX = false; }
         // Occasional hop.
+        const wasAirborne = boss.pos.y < GROUND_Y;
         if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
           boss.vy = -430;
           boss.nextHop = now + 0.5 + Math.random() * 0.35;
+          boss.armedShot = true; // this jump will throw once he's up
         }
 
         boss.vy += 1300 * dt;
@@ -3497,12 +3499,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.pos.y >= GROUND_Y) { boss.pos.y = GROUND_Y; boss.vy = 0; }
         hearts.pos.x = boss.pos.x;
         hearts.pos.y = boss.pos.y - bh - 40;
-        // Throw paperwork toward the player, never while flashing.
-        if (now >= boss.nextShot && now >= boss.hurtUntil) {
+        // Paperwork is thrown from mid-air only — released near the top of a
+        // jump, so it arrives at a different height every time. Less frequent
+        // than the old ground barrage, but far harder to read.
+        const nearApex = wasAirborne && boss.vy > -80;
+        if (boss.armedShot && nearApex && now >= boss.nextShot && now >= boss.hurtUntil) {
+          boss.armedShot = false;
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
-          spawnBossShot(boss.pos.x + toward * (bw / 2), GROUND_Y - 34, toward);
-          boss.nextShot = now + 0.62 + Math.random() * 0.3;
+          spawnBossShot(boss.pos.x + toward * (bw / 2), boss.pos.y - 34, toward);
+          boss.nextShot = now + 1.15 + Math.random() * 0.5;
         }
+
         // Flash while invulnerable.
         const wantHurt = now < boss.hurtUntil;
         const nextBossSprite = wantHurt ? "boss-hurt" : "boss-idle";

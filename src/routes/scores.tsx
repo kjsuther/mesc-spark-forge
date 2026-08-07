@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { SiteChrome } from "@/components/site-chrome";
 import { SiteFooter } from "@/components/site-footer";
 import { SectionHeading } from "@/components/trail/section-heading";
-import { Leaderboard } from "@/components/game/leaderboard";
+import { Leaderboard, FullLeaderboard } from "@/components/game/leaderboard";
 
 export const Route = createFileRoute("/scores")({
   head: () => ({

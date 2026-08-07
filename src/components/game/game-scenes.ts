@@ -4251,15 +4251,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             // Start the wait clock only once the player has read the briefing.
             if (z === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
           });
-        // Zone 7 opens with a short cinematic the first time only — dying and
-        // retrying drops straight into the briefing so it never nags.
-        if (z === 6 && !bossCinematicPlayed) {
-          bossCinematicPlayed = true;
-          playBossCinematic(openBriefing);
-        } else {
-          // Interactive step briefing instead of a fading title card.
-          openBriefing();
-        }
+        // Zone 7 opens with its normal briefing; the bear's charge-in cinematic
+        // now waits until the player has actually chosen a health plan.
+        openBriefing();
         // Each zone gets its own tune; the boss arena overrides this itself.
         if (z !== 6) setMusic(zoneMusic(z));
       }

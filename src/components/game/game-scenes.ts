@@ -1053,8 +1053,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // time pays a speed bonus, so two players with identical play still end
     // up with clearly different scores.
     let pausedTotal = 0;
-    /** Wall-clock seconds of actual play (pauses/briefings excluded). */
-    const runClock = () => Math.max(0, k.time() - startTime - pausedTotal);
+    /** Wall-clock seconds of actual play (pauses/briefings excluded). The
+     *  currently-open pause is subtracted too, so the HUD clock visibly stops
+     *  while a briefing is on screen instead of jumping back on resume. */
+    const runClock = () =>
+      Math.max(
+        0,
+        k.time() - startTime - pausedTotal - (pausedNow ? k.time() - pauseStartedAt : 0),
+      );
+
     /** Par (seconds) to clear each of the 8 zones. */
     const ZONE_PAR_S = [24, 28, 28, 34, 28, 40, 38, 24];
     const zoneSplitsMs: number[] = new Array(8).fill(0);

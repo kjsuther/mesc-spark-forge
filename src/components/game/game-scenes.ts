@@ -89,6 +89,11 @@ export type WinResult = {
   jumpsLanded: number;
   enemiesPassed: number;
   deaths: number;
+  /** Total speed bonus banked from clearing zones under par. */
+  timeBonus?: number;
+  /** Per-zone split times in ms (0 = zone never cleared). */
+  zoneSplitsMs?: number[];
+
 };
 
 export type StartGameOpts = {

@@ -89,6 +89,11 @@ export type WinResult = {
   jumpsLanded: number;
   enemiesPassed: number;
   deaths: number;
+  /** Total speed bonus banked from clearing zones under par. */
+  timeBonus?: number;
+  /** Per-zone split times in ms (0 = zone never cleared). */
+  zoneSplitsMs?: number[];
+
 };
 
 export type StartGameOpts = {
@@ -1043,6 +1048,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   k.scene("trail", (spawnX: number = 40, lives: number = 1) => {
     const startTime = k.time();
+    // ---- Run clock + per-zone split timing -------------------------------
+    // Every zone is timed in the background. Clearing a zone under its par
+    // time pays a speed bonus, so two players with identical play still end
+    // up with clearly different scores.
+    let pausedTotal = 0;
+    /** Wall-clock seconds of actual play (pauses/briefings excluded). */
+    const runClock = () => Math.max(0, k.time() - startTime - pausedTotal);
+    /** Par (seconds) to clear each of the 8 zones. */
+    const ZONE_PAR_S = [24, 28, 28, 34, 28, 40, 38, 24];
+    const zoneSplitsMs: number[] = new Array(8).fill(0);
+    let zoneClockStart = 0;
+    let timeBonusTotal = 0;
+
 
     // ---- Sky backdrops (per-zone solid color behind the painted bg so
     //      images with transparent or off-color edges don't leave whitespace).
@@ -2644,6 +2662,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
     // Score row (above the applications-as-lives row).
     const scoreHud = pixelHudText({ x: 12, y: 34, size: 16, color: [255, 235, 120], initial: "SCORE 0" });
+    // Run clock — the whole run is timed, and faster steps pay bonus points.
+    const timeHud = pixelHudText({ x: 190, y: 34, size: 16, color: [180, 235, 255], initial: "TIME 0:00" });
+
     // Applications row: little application icons that represent lives.
     // Each icon is a paper card with three horizontal "form field" lines.
     // Lives row: classic 16-bit pixel hearts.
@@ -2780,6 +2801,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
+      {
+        const t = runClock();
+        timeHud.text = `TIME ${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+      }
+
       appIcons.forEach((g, i) => {
         const op = i < player.lives ? 1 : i < player.maxLives ? 0.25 : 0;
         g.cells.forEach((c: AnyObj) => (c.opacity = op));
@@ -2842,6 +2868,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function resumeGameplay() {
       if (!pausedNow) return;
       const frozenFor = k.time() - pauseStartedAt;
+      pausedTotal += frozenFor;
+
       pausedNow = false;
       for (const o of pausedObjs) {
         try { o.paused = false; } catch { /* destroyed while paused */ }
@@ -4130,24 +4158,52 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       opts.onLose?.(r);
     }
 
+    /**
+     * Stamps the split time for a finished zone and pays a speed bonus.
+     * The bonus curve is steep and uses odd multipliers so that two runs that
+     * play the same but move at different speeds land on clearly different
+     * totals instead of clustering around the same round number.
+     */
+    function closeZoneSplit(zone: number) {
+      if (zone < 0 || zone > 7) return;
+      if (zoneSplitsMs[zone] > 0) return; // already stamped
+      const split = Math.max(0.5, runClock() - zoneClockStart);
+      zoneSplitsMs[zone] = Math.round(split * 1000);
+      const par = ZONE_PAR_S[zone] ?? 30;
+      // 0 at 2x par, 1 at instant; squared so quick clears pay much more.
+      const pace = Math.max(0, Math.min(1, (par * 2 - split) / (par * 2)));
+      const bonus = Math.round(pace * pace * 2600 + pace * 400);
+      if (bonus > 0) {
+        timeBonusTotal += bonus;
+        player.score += bonus;
+        showHint(`Step cleared in ${split.toFixed(1)}s — speed bonus +${bonus}`);
+      }
+      updateHud();
+    }
+
     function buildResult(won: boolean): WinResult {
-      const durationMs = Math.round((k.time() - startTime) * 1000);
-      // Pace matters: the accumulated play score is scaled by how fast the run
-      // was against a par time (~2:30 for all 8 zones, pro-rated for how far
-      // the player actually got). Fast runs earn up to x2, slow runs floor x0.5.
+      const durationMs = Math.round(runClock() * 1000);
+      // Pace matters twice: per-zone speed bonuses were already banked during
+      // play, and the whole run is then scaled against a pro-rated par time.
+      // The multiplier is continuous (no flat tiers) so near-identical runs
+      // still separate, and a millisecond-derived tiebreaker keeps totals
+      // from colliding outright.
       const zonesReached = Math.min(8, Math.max(1, player.farthestZone + 1));
       const parMs = (150_000 * zonesReached) / 8;
-      const ratio = durationMs / parMs;
-      let speedMult: number;
-      if (ratio <= 0.4) speedMult = 2;
-      else if (ratio <= 1) speedMult = 2 - ((ratio - 0.4) / 0.6) * 1;
-      else if (ratio <= 2) speedMult = 1 - ((ratio - 1) / 1) * 0.5;
-      else speedMult = 0.5;
+      const ratio = Math.max(0.15, durationMs / parMs);
+      // ratio 0.5 -> ~x2.4, 1.0 -> x1.0, 2.0 -> ~x0.42
+      const speedMult = Math.max(0.35, Math.min(2.5, Math.pow(1 / ratio, 1.25)));
       let finalScore = player.score * speedMult;
       if (won) {
         finalScore += 2000;
         finalScore += player.lives * 500;
+        // Finishing fast is the headline achievement: up to +5000.
+        const finishBonus = Math.round(Math.max(0, 300_000 - durationMs) / 60);
+        finalScore += Math.min(5000, finishBonus);
       }
+      // Sub-point tiebreaker from the exact finish time (0-99), so two runs
+      // never share a leaderboard number by coincidence.
+      finalScore += 99 - Math.floor((durationMs % 1000) / 10.11);
       return {
         durationMs,
         docs: player.docs.size,
@@ -4160,8 +4216,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         jumpsLanded: player.jumpsLanded,
         enemiesPassed: player.enemiesPassed,
         deaths: player.deaths,
+        timeBonus: timeBonusTotal,
+        zoneSplitsMs: [...zoneSplitsMs],
       };
     }
+
 
     // (Old fixed-finish collision removed — the clinic zone now ends at the
     //  fire-pole base which sets zoneState.firePoleDone in the update loop.)
@@ -4169,7 +4228,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function tryWin() {
       if (player.won || player.dead) return;
       player.won = true;
+      closeZoneSplit(currentZone);
       pendingWin = buildResult(true);
+
       showTitleCard(k, "STEP 8 · ENROLLED", "★ COVERED ★", [255, 220, 90], 2.4);
       showEnd(true);
     }
@@ -4337,12 +4398,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const z = Math.min(ZONES.length - 1, Math.max(0, Math.floor(player.pos.x / BIOME_W)));
       if (z > player.farthestZone) player.farthestZone = z;
       if (z !== currentZone) {
+        // Close the split for the zone we're leaving and pay the speed bonus.
+        if (z > currentZone) closeZoneSplit(currentZone);
         currentZone = z;
+        zoneClockStart = runClock();
         opts.onSafeProgress?.(currentZone);
         if (!player.visitedZones.has(z)) {
           player.visitedZones.add(z);
           player.score += 1000;
         }
+
         const openBriefing = () =>
           showStepScreen(z, () => {
             // Start the wait clock only once the player has read the briefing.

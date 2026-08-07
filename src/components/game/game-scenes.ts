@@ -60,6 +60,7 @@ import doorLockUrl from "@/assets/game/door-lock.png";
 import heroPortraitUrl from "@/assets/game/hero-portrait.png";
 import heroSittingUrl from "@/assets/game/hero-sitting.png";
 import rangerGuideUrl from "@/assets/game/ranger-guide.png";
+import heroSadUrl from "@/assets/game/hero-sad.png";
 import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
 import dhsLogo16Url from "@/assets/game/mn-dhs-logo-16bit.png";
 
@@ -789,6 +790,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadBackground(k, "hero-portrait", heroPortraitUrl),
     safeLoadBackground(k, "hero-sitting", heroSittingUrl),
     safeLoadBackground(k, "ranger-guide", rangerGuideUrl),
+    safeLoadBackground(k, "hero-sad", heroSadUrl),
     safeLoadBackground(k, "mesc-logo-16bit", mescLogo16Url),
     safeLoadBackground(k, "dhs-logo-16bit", dhsLogo16Url),
   ]);
@@ -1514,9 +1516,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const BEAR_SIGHTINGS: BearSighting[] = [
         // Zone 1 — draped along the big pine limb on the left of the backdrop.
         { zone: 0, x: 232,  rise: 254, scale: 1.55, tint: [178, 190, 196], opacity: 0.98, frame: "bear-pose-limb",  motion: "sway",  hold: 11.0, gap: 2.0, faceLeft: false },
-        // Zone 2 — leaning out from behind the LEFT post of the signboard so
+        // Zone 2 — leaning out from behind the RIGHT post of the signboard so
         // he never covers the "LOOK OUT FOR BEARS!" lettering.
-        { zone: 1, x: 872,  rise: 150, scale: 1.75, tint: [206, 208, 214], opacity: 1,    frame: "bear-pose-peek",  motion: "peer",  hold: 11.0, gap: 2.0, faceLeft: false },
+        { zone: 1, x: 1148, rise: 150, scale: 1.75, tint: [206, 208, 214], opacity: 1,    frame: "bear-pose-peek",  motion: "peer",  hold: 11.0, gap: 2.0, faceLeft: true },
         // Zone 3 — on the far riverbank where the water meets the rock.
         { zone: 2, x: 214,  rise: 84,  scale: 1.35, tint: [188, 202, 214], opacity: 0.95, frame: "bear-pose-drink", motion: "dip",   hold: 11.0, gap: 2.0, faceLeft: false },
         // Zone 4 — leaning out from the edge of the lodge building.
@@ -4218,6 +4220,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // cutscene — that scene owns the restart prompt.
         k.wait(5, () => k.go("thanks"));
       } else {
+        // A dejected hero stands at the edge of the failure screen — he did
+        // not get through this step of the coverage journey.
+        const sadH = Math.max(120, Math.min(k.height() * 0.52, 240));
+        k.add([
+          k.sprite("hero-sad", { width: Math.floor(sadH * 0.677), height: Math.floor(sadH) }),
+          k.pos(18, k.height() - 14),
+          k.anchor("botleft"),
+          k.opacity(0.95),
+          k.fixed(),
+          k.z(LAYERS.OVERLAY_TEXT),
+        ]);
         k.add([
           k.text("Tap Screen, Press R or Enter\nto enter your score and provide feedback", {
             size: Math.round(14 * T),

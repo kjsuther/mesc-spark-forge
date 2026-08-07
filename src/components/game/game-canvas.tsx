@@ -806,7 +806,17 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
         {/* In-window SNES name entry the moment a run ends */}
         {endResult && !presentation && launchMode && (
-          <ScoreEntryOverlay result={endResult} onClose={() => setEndResult(null)} uiScale={uiScale} />
+          <ScoreEntryOverlay
+            result={endResult}
+            onClose={() => setEndResult(null)}
+            onRestart={() => {
+              setEndResult(null);
+              const gw = window as unknown as { __gameInput?: TouchInput };
+              if (gw.__gameInput) gw.__gameInput.resetReq = true;
+              canvasRef.current?.focus();
+            }}
+            uiScale={uiScale}
+          />
         )}
 
         {/* SNES-style title / launch / high-score screen */}

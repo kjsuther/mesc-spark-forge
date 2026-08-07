@@ -4181,7 +4181,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.fixed(),
         k.z(LAYERS.OVERLAY),
       ]);
-      if (!win) overlay.onClick(() => k.go("trail", START_X(), 1));
+      if (!win) overlay.onClick(() => flushPendingLose());
       k.add([
         k.text(title, { size: Math.round(30 * T), font: "sans-serif" }),
         k.pos(k.width() / 2, k.height() / 2 - 78),

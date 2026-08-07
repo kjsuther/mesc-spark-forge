@@ -93,7 +93,6 @@ const LOOP_CARDS = [
   "Suggest improvements",
   "We build it live",
   "Replay the better version",
-  "Repeat the loop",
 ];
 
 function WelcomePage() {

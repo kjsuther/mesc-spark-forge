@@ -56,6 +56,8 @@ import envelopeGremlinSheetUrl from "@/assets/game/envelope-gremlin-sheet.png";
 import bossSheetUrl from "@/assets/game/boss-sheet.png";
 import doorLockUrl from "@/assets/game/door-lock.png";
 import heroPortraitUrl from "@/assets/game/hero-portrait.png";
+import heroSittingUrl from "@/assets/game/hero-sitting.png";
+import rangerGuideUrl from "@/assets/game/ranger-guide.png";
 import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
 import dhsLogo16Url from "@/assets/game/mn-dhs-logo-16bit.png";
 
@@ -747,6 +749,8 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadBackground(k, "bg-clinic",   bgClinicUrl),
     safeLoadBackground(k, "bg-thanks",   bgThanksUrl),
     safeLoadBackground(k, "hero-portrait", heroPortraitUrl),
+    safeLoadBackground(k, "hero-sitting", heroSittingUrl),
+    safeLoadBackground(k, "ranger-guide", rangerGuideUrl),
     safeLoadBackground(k, "mesc-logo-16bit", mescLogo16Url),
     safeLoadBackground(k, "dhs-logo-16bit", dhsLogo16Url),
   ]);
@@ -1201,6 +1205,62 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             if (sp.life > 0.8) sp.destroy();
           });
         }
+        // --- Flashing "the way is open" arrow above the door ---------------
+        const doorTopY = d.obj.pos.y - DISPLAY_H["door-open"] - 18;
+        const parts: AnyObj[] = [];
+        const mk = (ox: number, oy: number, w: number, h: number) =>
+          parts.push(k.add([
+            k.rect(w, h),
+            k.pos(d.obj.pos.x + ox, doorTopY + oy),
+            k.color(255, 214, 64),
+            k.outline(2, k.rgb(40, 26, 0)),
+            k.anchor("center"),
+            k.z(LAYERS.EFFECT),
+            k.opacity(1),
+          ]) as AnyObj);
+        // Shaft + chevron head, drawn from blocks so it stays 16-bit.
+        mk(-14, 0, 26, 10);
+        mk(2, -10, 10, 10);
+        mk(2, 10, 10, 10);
+        mk(10, 0, 10, 10);
+        const baseY = doorTopY;
+        const arrowCtl = k.onUpdate(() => {
+          const t = k.time();
+          const bob = Math.sin(t * 5) * 5;
+          const flash = Math.floor(t * 4) % 2 === 0 ? 1 : 0.35;
+          for (const p of parts) {
+            p.pos.y = baseY + bob + (p.__oy ?? 0);
+            p.opacity = flash;
+          }
+          // Retire the cue once the player has stepped through the doorway.
+          if (player && player.pos.x > d.obj.pos.x + 24) {
+            try { arrowCtl.cancel(); } catch { /* ignore */ }
+            for (const p of parts) { try { p.destroy(); } catch { /* ignore */ } }
+            parts.length = 0;
+          }
+        });
+        parts[0].__oy = 0; parts[1].__oy = -10; parts[2].__oy = 10; parts[3].__oy = 0;
+
+        // Brief on-screen cue so it reads even when the door is off-camera.
+        const cue = k.add([
+          k.text("DOOR OPEN  \u2192", { size: 18, font: "sans-serif" }),
+          k.pos(k.width() / 2, 74),
+          k.anchor("center"),
+          k.color(255, 214, 64),
+          k.outline(3, k.rgb(0, 0, 0)),
+          k.fixed(),
+          k.z(LAYERS.HUD + 8),
+          k.opacity(1),
+        ]) as AnyObj;
+        const cueStart = k.time();
+        const cueCtl = k.onUpdate(() => {
+          const el = k.time() - cueStart;
+          cue.opacity = el > 2.2 ? Math.max(0, 1 - (el - 2.2) * 2) : (Math.floor(el * 4) % 2 === 0 ? 1 : 0.4);
+          if (el > 2.8) {
+            try { cueCtl.cancel(); } catch { /* ignore */ }
+            try { cue.destroy(); } catch { /* ignore */ }
+          }
+        });
       });
     }
 
@@ -2644,7 +2704,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.color(16, 22, 52), k.outline(4, k.rgb(255, 220, 90)), k.fixed(), k.z(301),
       ]);
 
-      const cx = Math.floor(W / 2);
+      // Ranger guide stands at the left edge of the panel and "delivers" the
+      // briefing; the text column shifts right so nothing overlaps him.
+      const rangerW = Math.max(px(70), Math.min(px(130), Math.floor(panelW * 0.19)));
+      const rangerH = Math.min(panelH - px(56), Math.floor(rangerW / 0.677));
+      put([
+        k.sprite("ranger-guide", { width: Math.floor(rangerH * 0.677), height: rangerH }),
+        k.pos(panelX + px(10) + rangerW / 2, panelY + panelH - px(14)),
+        k.anchor("bot"), k.fixed(), k.z(302),
+      ]);
+
+      const textW = panelW - rangerW;
+      const cx = Math.floor(panelX + rangerW + textW / 2);
       let y = panelY + px(26);
       const label = (text: string, size: number, rgb: [number, number, number], width?: number) => {
         const fs = Math.max(15, px(size));
@@ -2659,10 +2730,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         y += (main.height ?? fs) + px(8);
       };
 
-      label(data.title, 24, [255, 220, 90], panelW - px(48));
-      label(data.subtitle, 17, [180, 205, 255], panelW - px(48));
+      label(data.title, 24, [255, 220, 90], textW - px(48));
+      label(data.subtitle, 17, [180, 205, 255], textW - px(48));
       y += px(4);
-      label(data.lines.map((l) => `• ${l}`).join("\n"), 19, [245, 245, 245], panelW - px(60));
+      label(data.lines.map((l) => `• ${l}`).join("\n"), 19, [245, 245, 245], textW - px(60));
 
       // Sprite strip: what you'll meet in this zone.
       const iconTop = Math.min(y + px(8), panelY + panelH - px(124));
@@ -2695,7 +2766,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           }
         }
         // Captions must never wrap mid-word: shrink to fit one line.
-        const cellW = Math.min(iconBox + gap, (panelW - px(24)) / data.icons.length);
+        const cellW = Math.min(iconBox + gap, (textW - px(24)) / data.icons.length);
         const capSize = Math.max(
           9,
           Math.min(px(12), Math.floor(cellW / Math.max(1, icon.label.length * 0.58))),
@@ -3881,13 +3952,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(9),
     ]);
 
-    // Hero portrait, bottom-left (sized to whatever space is left under bubble).
+    // Hero sitting on the exam bed, bottom-left (sized to the space left
+    // under the speech bubble) so he reads as part of the office scene.
     const bottomLimit = H - SAFE_Y - 26;
     const heroTop = by + bh + 8;
-    const portraitH = Math.max(80, Math.min(240, bottomLimit - heroTop));
+    const portraitH = Math.max(90, Math.min(260, bottomLimit - heroTop));
     k.add([
-      k.sprite("hero-portrait", { width: portraitH, height: portraitH }),
-      k.pos(Math.floor(W * 0.22), bottomLimit),
+      k.sprite("hero-sitting", { width: portraitH, height: portraitH }),
+      k.pos(Math.floor(W * 0.24), bottomLimit),
       k.anchor("bot"),
       k.fixed(),
       k.z(5),

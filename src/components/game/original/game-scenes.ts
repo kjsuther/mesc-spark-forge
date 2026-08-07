@@ -978,6 +978,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     touchToMouse: true,
   });
 
+  // See the current build: `crisp` also sets `image-rendering: pixelated` on
+  // the canvas element, which resamples the finished frame and roughens text.
+  if (opts.canvas) opts.canvas.style.imageRendering = "auto";
+
+
 
   k.setGravity(1800);
 

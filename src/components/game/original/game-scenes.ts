@@ -3814,30 +3814,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const W = k.width();
     const H = k.height();
 
-    // Night-sky gradient backdrop (bands, SNES style) + starfield.
-    const bands = [
-      [16, 22, 58], [22, 32, 78], [30, 46, 100], [40, 62, 122], [52, 80, 142],
-    ];
-    bands.forEach((c, i) => {
-      k.add([
-        k.rect(W, Math.ceil(H / bands.length) + 1),
-        k.pos(0, Math.floor((H / bands.length) * i)),
-        k.color(c[0], c[1], c[2]),
-        k.fixed(),
-        k.z(0),
-      ]);
-    });
-    for (let i = 0; i < 60; i++) {
-      const s = 2 + ((i * 7) % 2);
-      k.add([
-        k.rect(s, s),
-        k.pos(((i * 137) % W), ((i * 89) % (H - 40))),
-        k.color(255, 255, 220),
-        k.opacity(0.25 + ((i * 13) % 60) / 100),
-        k.fixed(),
-        k.z(1),
-      ]);
-    }
+    // Doctor's-office backdrop (16-bit interior with a Portland skyline window).
+    // Scaled to COVER the canvas so no gaps appear at any aspect ratio.
+    const BG_W = 1280;
+    const BG_H = 427;
+    const bgScale = Math.max(W / BG_W, H / BG_H);
+    k.add([
+      k.sprite("bg-thanks", { width: BG_W * bgScale, height: BG_H * bgScale }),
+      k.pos(W / 2, H / 2),
+      k.anchor("center"),
+      k.fixed(),
+      k.z(0),
+    ]);
 
     const MSG =
       "Thanks for blazing the trail with me!\nEvery idea you share makes the next journey a little less bumpy.\n\nIf this ride made you smile, vote for our poster session!\n\nHave a great time at MESC 2026!";

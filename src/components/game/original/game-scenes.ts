@@ -3925,7 +3925,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ]);
 
     const MSG =
-      "Thanks for blazing the trail with me!\nEvery idea you share makes the next journey a little less bumpy.\n\nIf this ride made you smile, vote for our poster session!\n\nHave a great time at MESC 2026!";
+      "Thanks for blazing the trail with me!\nEvery idea you share makes the next journey a little less bumpy.\n\nIf this ride made you smile, vote for our poster session!\n\nHave a great time at MESC 2026!\nYour friends at Minnesota Department of Human Services!";
 
     // The canvas can be cropped top/bottom when the CSS box is wider than the
     // logical 16:9 buffer, so keep everything inside a vertical safe inset.

@@ -1053,8 +1053,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // time pays a speed bonus, so two players with identical play still end
     // up with clearly different scores.
     let pausedTotal = 0;
-    /** Wall-clock seconds of actual play (pauses/briefings excluded). */
-    const runClock = () => Math.max(0, k.time() - startTime - pausedTotal);
+    let pausedNow = false;
+    let pauseStartedAt = 0;
+    /** Wall-clock seconds of actual play (pauses/briefings excluded). The
+     *  currently-open pause is subtracted too, so the HUD clock visibly stops
+     *  while a briefing is on screen instead of jumping back on resume. */
+    const runClock = () =>
+      Math.max(
+        0,
+        k.time() - startTime - pausedTotal - (pausedNow ? k.time() - pauseStartedAt : 0),
+      );
+
+
     /** Par (seconds) to clear each of the 8 zones. */
     const ZONE_PAR_S = [24, 28, 28, 34, 28, 40, 38, 24];
     const zoneSplitsMs: number[] = new Array(8).fill(0);
@@ -2658,7 +2668,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     pixelHudText({
       x: 12, y: 12, size: 14,
       color: opts.mode === "after" ? [30, 160, 60] : [220, 60, 60],
-      initial: opts.mode === "after" ? "AFTER FEEDBACK" : "BEFORE FEEDBACK",
+      initial: opts.mode === "after" ? "CURRENT VERSION" : "ORIGINAL VERSION",
     });
     // Score row (above the applications-as-lives row).
     const scoreHud = pixelHudText({ x: 12, y: 34, size: 16, color: [255, 235, 120], initial: "SCORE 0" });
@@ -2852,9 +2862,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= Pause + interactive step screens =================
     // A step screen is a true pause: every game object stops updating, the
     // wait timer stops counting, and nothing resumes until the player says so.
-    let pausedNow = false;
     let pausedObjs: AnyObj[] = [];
-    let pauseStartedAt = 0;
+
     const isPaused = () => pausedNow;
 
     function pauseGameplay() {
@@ -4183,17 +4192,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     function buildResult(won: boolean): WinResult {
       const durationMs = Math.round(runClock() * 1000);
-      // Pace matters twice: per-zone speed bonuses were already banked during
-      // play, and the whole run is then scaled against a pro-rated par time.
-      // The multiplier is continuous (no flat tiers) so near-identical runs
-      // still separate, and a millisecond-derived tiebreaker keeps totals
-      // from colliding outright.
-      const zonesReached = Math.min(8, Math.max(1, player.farthestZone + 1));
-      const parMs = (150_000 * zonesReached) / 8;
-      const ratio = Math.max(0.15, durationMs / parMs);
-      // ratio 0.5 -> ~x2.4, 1.0 -> x1.0, 2.0 -> ~x0.42
-      const speedMult = Math.max(0.35, Math.min(2.5, Math.pow(1 / ratio, 1.25)));
+      // Pace already paid off during the run through per-zone speed bonuses.
+      // The whole-run multiplier is reserved for completed runs so that dying
+      // quickly can never out-score playing well and finishing.
+      const parMs = 150_000;
+      const ratio = Math.max(0.35, durationMs / parMs);
+      // ratio 0.5 -> ~x1.9, 1.0 -> x1.0, 2.0 -> ~x0.42
+      const speedMult = won
+        ? Math.max(0.5, Math.min(2.2, Math.pow(1 / ratio, 1.25)))
+        : 1;
       let finalScore = player.score * speedMult;
+
       if (won) {
         finalScore += 2000;
         finalScore += player.lives * 500;

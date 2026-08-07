@@ -1929,10 +1929,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // scheduler instead of raining continuously. Every drop is telegraphed,
     // never lands on the column the player is standing in, and keeps a minimum
     // horizontal gap from the previous drop, so there is always a safe lane.
-    const CAL_COUNT = 14;
+    const CAL_COUNT = 20;
     const CAL_L = mx0 + 40;
     const CAL_R = mx0 + BIOME_W - 40;
-    const CAL_MIN_GAP = 0.19; // seconds between two pages starting to fall
+    const CAL_MIN_GAP = 0.13; // seconds between two pages starting to fall
     const CAL_TELEGRAPH = 0.35; // seconds a warning marker shows before the drop
     let calNextDropAt = 0;
     let calLastX = (CAL_L + CAL_R) / 2;
@@ -1944,7 +1944,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const cand = CAL_L + Math.random() * (CAL_R - CAL_L);
         const dPlayer = Math.abs(cand - player.pos.x);
         const dPrev = Math.abs(cand - calLastX);
-        if (dPlayer < 90) continue; // never right on top of the player
+        if (dPlayer < 76) continue; // never right on top of the player
         const score = Math.min(dPlayer, dPrev * 1.4);
         if (score > bestScore) { bestScore = score; best = cand; }
       }
@@ -1986,7 +1986,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           const nx = pickCalX();
           b.baseX = nx;
           b.pos = k.vec2(nx, -80);
-          b.spd = 380 + Math.random() * 120;
+          b.spd = 470 + Math.random() * 150;
           b.spin = (Math.random() < 0.5 ? -1 : 1) * (25 + Math.random() * 35);
           b.driftAmp = 8 + Math.random() * 12;
           b.driftSpd = 0.7 + Math.random() * 0.6;
@@ -3172,7 +3172,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         leftArmed = false;
         rightArmed = false;
         if (w?.__gameInput) w.__gameInput.jumpReq = false;
-        playBossEntrance(onReady);
+        onReady();
       }
       hitArea.onClick(() => close());
     }

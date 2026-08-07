@@ -3179,6 +3179,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         try { blink.cancel(); } catch { /* ignore */ }
         for (const n of nodes) { try { n.destroy(); } catch { /* ignore */ } }
         stepScreenOpen = false;
+        // The card paused gameplay; hand control straight back so the player
+        // can move and fight the moment the briefing closes.
+        resumeGameplay();
+
         leftArmed = false;
         rightArmed = false;
         if (w?.__gameInput) w.__gameInput.jumpReq = false;

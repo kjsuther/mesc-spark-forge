@@ -1514,8 +1514,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const BEAR_SIGHTINGS: BearSighting[] = [
         // Zone 1 — draped along the big pine limb on the left of the backdrop.
         { zone: 0, x: 232,  rise: 254, scale: 1.55, tint: [178, 190, 196], opacity: 0.98, frame: "bear-pose-limb",  motion: "sway",  hold: 11.0, gap: 2.0, faceLeft: false },
-        // Zone 2 — right behind the "LOOK OUT FOR BEARS!" signboard.
-        { zone: 1, x: 966,  rise: 176, scale: 1.75, tint: [206, 208, 214], opacity: 1,    frame: "bear-pose-peek",  motion: "peer",  hold: 11.0, gap: 2.0, faceLeft: true  },
+        // Zone 2 — leaning out from behind the LEFT post of the signboard so
+        // he never covers the "LOOK OUT FOR BEARS!" lettering.
+        { zone: 1, x: 872,  rise: 150, scale: 1.75, tint: [206, 208, 214], opacity: 1,    frame: "bear-pose-peek",  motion: "peer",  hold: 11.0, gap: 2.0, faceLeft: false },
         // Zone 3 — on the far riverbank where the water meets the rock.
         { zone: 2, x: 214,  rise: 84,  scale: 1.35, tint: [188, 202, 214], opacity: 0.95, frame: "bear-pose-drink", motion: "dip",   hold: 11.0, gap: 2.0, faceLeft: false },
         // Zone 4 — leaning out from the edge of the lodge building.

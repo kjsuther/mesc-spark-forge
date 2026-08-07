@@ -2801,6 +2801,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
+      {
+        const t = runClock();
+        timeHud.text = `TIME ${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+      }
+
       appIcons.forEach((g, i) => {
         const op = i < player.lives ? 1 : i < player.maxLives ? 0.25 : 0;
         g.cells.forEach((c: AnyObj) => (c.opacity = op));

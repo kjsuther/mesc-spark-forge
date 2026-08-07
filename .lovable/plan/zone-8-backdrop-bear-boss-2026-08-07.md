@@ -3,11 +3,15 @@
 ## What changes
 
 **Zone 8 background (Coverage Begins)**
+
 - Add a Portland, Oregon skyline into the existing 16-bit clinic backdrop: recognizable downtown towers, a bridge silhouette across the river, and Mt. Hood on the horizon, all kept in the current muted pixel palette so it reads as background, not foreground clutter.
 - Add a yellow pennant flag on a pole at the very top of the hospital building.
 - Same image size (1280x426) and same file path, so no code changes are needed and both the Current Version and Original Version pick it up automatically.
 
+Show the proposed image before moving on and require approval of the drafted replacement image
+
 **Boss redesign**
+
 - Replace the green paperwork ogre with a mean-looking brown bear wearing a red scarf: snarling muzzle, bared teeth, angry brow, 16-bit SNES shading.
 - Rebuild the existing 3-frame boss sheet in place (same 1536x512 sheet, 3 columns):
   1. idle — bear standing tall, menacing

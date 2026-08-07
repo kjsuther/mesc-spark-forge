@@ -1234,10 +1234,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const bearL = sx0 + 140;
       const bearR = sx0 + 880;
       // Sits further back than the play plane: smaller, higher on screen.
-      const bearScale = 1.05;
+      const bearScale = 0.9;
       const bearBaseH = DISPLAY_H["bear-scout-walk-0"];
       const bearDisp = displaySize("bear-scout-walk-0", sizes);
-      const bearGroundY = GROUND_Y - 400;
+      const bearGroundY = GROUND_Y - 161;
       const bear = k.add([
         k.sprite("bear-scout-walk-0", {
           width: Math.max(8, bearDisp.w * bearScale),

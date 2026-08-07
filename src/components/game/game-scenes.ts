@@ -1237,7 +1237,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const bearScale = 1.05;
       const bearBaseH = DISPLAY_H["bear-scout-walk-0"];
       const bearDisp = displaySize("bear-scout-walk-0", sizes);
-      const bearGroundY = GROUND_Y - 171;
+      const bearGroundY = GROUND_Y - 400;
       const bear = k.add([
         k.sprite("bear-scout-walk-0", {
           width: Math.max(8, bearDisp.w * bearScale),

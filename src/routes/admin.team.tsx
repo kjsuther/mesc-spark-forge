@@ -37,7 +37,9 @@ type Draft = {
 
 const EMPTY: Draft = {
   full_name: "",
+  goes_by: "",
   title: "",
+  organization: "",
   bio: "",
   hidden: false,
   photo_data_url: null,

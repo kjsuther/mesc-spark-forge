@@ -1500,8 +1500,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       bossSpawned: false,
     };
 
+    // Zone 3 collapsing platforms — registered on build so a life loss can
+    // restore every one of them for the next attempt.
+    const riverPlatforms: Array<() => void> = [];
+    function resetRiverPlatforms() {
+      for (const reset of riverPlatforms) reset();
+    }
+
     type Door = { obj: AnyObj; barrier: AnyObj | null; unlocked: boolean; playedAnim: boolean };
     const doors: (Door | null)[] = new Array(ZONES.length).fill(null);
+
 
     function setGameObjSprite(obj: AnyObj, name: string) {
       const ds = displaySize(name, sizes);

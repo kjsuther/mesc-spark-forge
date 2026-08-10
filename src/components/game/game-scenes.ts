@@ -33,6 +33,13 @@ import {
   type PowerUpKind,
   type CheckpointSnapshot,
 } from "./managers";
+import {
+  continuePrompt,
+  isTouchDevice,
+  jumpPrompt,
+  readyPrompt,
+  restartPrompt,
+} from "@/lib/device";
 import charSheetUrl from "@/assets/game/character-sheet.webp";
 import heroSlideSheetUrl from "@/assets/game/hero-slide-sheet.webp";
 import propsSheetUrl from "@/assets/game/props-sheet.webp";

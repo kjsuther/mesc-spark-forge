@@ -1102,22 +1102,25 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
           </div>
         )}
 
-        {/* Overlay touch controls — sit ON TOP of the canvas in fullscreen so
-            the game fills the whole viewport. Only shown on touch devices. */}
-        {launchMode && overlayFs && isTouch && (
+        {/* Overlay touch controls — always ON TOP of the canvas on touch
+            devices, in windowed play as well as fullscreen, so they can never
+            scroll out of reach. Gated on real touch capability, never on a
+            width breakpoint (a landscape phone is 900px wide). */}
+        {launchMode && isTouch && !presentation && !endResult && (
           <>
             {/* D-pad, bottom-left */}
             <div
-              className="pointer-events-none absolute z-30 flex gap-1"
+              className="pointer-events-none absolute z-30 flex"
               style={{
-                left: "calc(env(safe-area-inset-left, 0px) + 12px)",
-                bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+                gap: padGap,
+                left: `calc(env(safe-area-inset-left, 0px) + ${padEdge}px)`,
+                bottom: `calc(env(safe-area-inset-bottom, 0px) + ${padEdge}px)`,
               }}
             >
               <PadButton
                 label="LEFT"
                 aria="Move left"
-                size={72}
+                size={padUnit}
                 onDown={() => setBtn("left", true)}
                 onUp={() => setBtn("left", false)}
               >
@@ -1126,7 +1129,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
               <PadButton
                 label="RIGHT"
                 aria="Move right"
-                size={72}
+                size={padUnit}
                 onDown={() => setBtn("right", true)}
                 onUp={() => setBtn("right", false)}
               >
@@ -1135,16 +1138,17 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
             </div>
             {/* Action cluster, bottom-right */}
             <div
-              className="pointer-events-none absolute z-30 flex items-end gap-2"
+              className="pointer-events-none absolute z-30 flex items-end"
               style={{
-                right: "calc(env(safe-area-inset-right, 0px) + 12px)",
-                bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+                gap: padGap + 4,
+                right: `calc(env(safe-area-inset-right, 0px) + ${padEdge}px)`,
+                bottom: `calc(env(safe-area-inset-bottom, 0px) + ${padEdge}px)`,
               }}
             >
-              <PadButton label="RESET" aria="Restart" size={52} dim onDown={reset}>
+              <PadButton label="RESET" aria="Restart" size={resetSize} dim onDown={reset}>
                 ⟳
               </PadButton>
-              <PadButton label="JUMP" aria="Jump" size={92} accent onDown={jump}>
+              <PadButton label="JUMP" aria="Jump" size={jumpSize} accent onDown={jump}>
                 JUMP
               </PadButton>
             </div>

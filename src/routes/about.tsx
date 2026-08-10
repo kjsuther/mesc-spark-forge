@@ -101,7 +101,9 @@ function SectionJumpNav() {
         return (
           <button
             key={id}
-            ref={(el) => (buttonRefs.current[id] = el)}
+            ref={(el) => {
+              buttonRefs.current[id] = el;
+            }}
             onClick={() => handleClick(id)}
             aria-current={active ? "true" : undefined}
             className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide transition whitespace-nowrap sm:text-sm ${

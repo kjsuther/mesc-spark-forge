@@ -82,7 +82,7 @@ export function Leaderboard({
             ★ Live High Scores · Top 3
           </span>
         </header>
-        <ol className="flex-1 min-h-0 overflow-hidden p-2 space-y-1.5">
+        <ol className="flex-1 min-h-0 overflow-hidden p-2 space-y-1">
           {isLoading && <li className="text-cream/70 italic text-sm text-center py-3">Loading…</li>}
           {!isLoading && scores.length === 0 && (
             <li className="text-cream/70 italic text-sm text-center py-3">

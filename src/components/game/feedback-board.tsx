@@ -6,7 +6,7 @@ type Props = {
   variant?: "page" | "poster" | "poster-implemented";
 };
 
-const POSTER_LIMIT = 3;
+const POSTER_LIMIT = 4;
 
 export function FeedbackBoard({ variant = "page" }: Props) {
   const { data: rows = [] } = useQuery(gameFeedbackQuery);
@@ -109,14 +109,21 @@ function PosterPanel({
         {items.length === 0 ? (
           <p className="p-6 text-center text-sm text-cream/70">{empty}</p>
         ) : (
-          <ol className="space-y-1.5">
+          <ol className="space-y-1">
             {items.map((f, i) => (
               <li
                 key={f.id}
-                className="flex items-start gap-2 rounded border border-white/10 bg-white/5 px-2 py-1.5"
+                className="flex items-start gap-2 rounded border border-white/10 bg-white/5 px-2 py-1"
               >
                 {marker(i)}
-                <span className="min-w-0 flex-1 text-sm text-cream">
+                <span
+                  className="min-w-0 flex-1 overflow-hidden text-[13px] leading-snug text-cream"
+                  style={{
+                    display: "-webkit-box",
+                    WebkitBoxOrient: "vertical",
+                    WebkitLineClamp: 2,
+                  }}
+                >
                   {f.description}
                   <span className="ml-1 text-[11px] text-cream/60">— {f.submitter_name}</span>
                 </span>

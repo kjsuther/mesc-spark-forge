@@ -319,6 +319,29 @@ export type Database = {
         }
         Relationships: []
       }
+      vote_tallies: {
+        Row: {
+          bucket: string | null
+          feedback_id: string | null
+          vote_count: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "votes_feedback_id_fkey"
+            columns: ["feedback_id"]
+            isOneToOne: false
+            referencedRelation: "feedback"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "votes_feedback_id_fkey"
+            columns: ["feedback_id"]
+            isOneToOne: false
+            referencedRelation: "feedback_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       get_my_votes: {

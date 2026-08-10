@@ -1,4 +1,4 @@
-const CACHE_NAME = "mesc-trail-v1";
+const CACHE_NAME = "mesc-trail-v2";
 const APP_SHELL = [
   "/tool",
   "/manifest.json",

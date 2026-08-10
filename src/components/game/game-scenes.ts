@@ -4724,15 +4724,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
         hearts.pos.x = boss.pos.x;
         hearts.pos.y = boss.pos.y - bh - 40;
-        // Paperwork comes in repeating waves until he is beaten. Most waves
-        // are released near the top of a jump (so they arrive at varying
-        // heights); if a jump wave hasn't happened by the time the cooldown is
-        // well past, he throws one from the ground instead, so the barrage
-        // never dries up between hops.
-        const nearApex = wasAirborne && boss.vy > -140;
-        const overdue = now >= boss.nextShot + 0.55;
-        const canThrow = now >= boss.nextShot && now >= boss.hurtUntil;
-        if (canThrow && ((boss.armedShot && nearApex) || overdue)) {
+        // Paperwork comes in repeating waves until he is beaten. The wave is
+        // on a pure timer — being mid-jump, on the ground or flashing from a
+        // hit never stops it. His jump height still varies where the shots
+        // leave from, so waves arrive at different heights.
+        if (now >= boss.nextShot) {
           boss.armedShot = false;
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
           // Short burst, spaced so one well-timed jump can clear the wave.
@@ -4753,6 +4749,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           // with a readable gap to land the dodge in.
           boss.nextShot = now + (1.2 + Math.random() * 0.4) / rage;
         }
+
 
         // Flash while invulnerable.
         const wantHurt = now < boss.hurtUntil;

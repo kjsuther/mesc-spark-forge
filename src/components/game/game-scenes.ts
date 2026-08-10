@@ -2387,12 +2387,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             if (now - plat.trigT >= SHAKE_S) {
               plat.phase = "falling";
               plat.fallVy = 60;
-              plat.untag("platform");
-              plat.unuse("body");
-              plat.unuse("area");
-
+              // Release the hero FIRST: if stripping components throws, the
+              // ride must still be gone or the player floats on nothing.
               if (player.riding === plat) player.riding = null;
+              plat.platformSpeed.x = 0;
+              plat.platformSpeed.y = 0;
+              try {
+                plat.untag("platform");
+                plat.unuse("body");
+                plat.unuse("area");
+              } catch {
+                /* component already gone */
+              }
             }
+
           } else {
             plat.fallVy += FALL_G * dt;
             const ny = plat.pos.y + plat.fallVy * dt;
@@ -3063,13 +3071,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const width = typeof c.width === "number" ? c.width : 0;
       const height = typeof c.height === "number" ? c.height : 0;
       if (width <= 0 || height <= 0) return null;
-      return {
-        pos: c.pos,
-        platformSpeed: c.platformSpeed ?? k.vec2(0, 0),
-        width,
-        height,
-      };
+      // Every rideable platform carries a speed vector; a platform without one
+      // would crash the ride maintenance, so treat it as not rideable.
+      const speed = c.platformSpeed;
+      if (!speed || typeof speed.x !== "number" || typeof speed.y !== "number") return null;
+      // Return the object ITSELF, never a copy. Zone 3's collapsing platforms
+      // compare `player.riding === plat` to release the ride when they let go;
+      // a fresh copy every frame made that check impossible and the hero kept
+      // standing on a platform that had already dropped away.
+      if ((c as { phase?: string }).phase === "falling") return null;
+      return p as PlatformRide;
     }
+
 
     function snapToPlatform(plat: PlatformRide) {
       player.riding = plat;
@@ -5649,12 +5662,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.move(dir * MOVE_SPEED, 0);
       if (dir > 0 && !zoneState.cutscene) player.score += 1;
 
+      // A collapsing Zone 3 platform stops being ground the instant it lets
+      // go — the hero must drop into the new gap, not hover on a memory.
+      if (player.riding && (player.riding as { phase?: string }).phase === "falling") {
+        player.riding = null;
+      }
+
       if (player.riding) {
         const dt = k.dt();
         player.pos.x += player.riding.platformSpeed.x * dt;
         player.pos.y = player.riding.pos.y;
         if (player.vel.y > 0) player.vel.y = 0;
       }
+
 
       const platformContact = findTopPlatformContact();
       if (platformContact) snapToPlatform(platformContact);

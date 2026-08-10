@@ -966,12 +966,10 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
               advanceMenu();
             }}
           >
-            {/* One scale factor for every menu card: keeps text legible on
-                big screens and stops short landscape phones from clipping. */}
-            <div
-              className="grid h-full w-full place-items-center"
-              style={{ transform: `scale(${menuScale})`, transformOrigin: "center" }}
-            >
+            {/* Every menu card measures itself and shrinks to the live canvas
+                box, so windowed desktop play can never clip the buttons off
+                the bottom the way a fixed scale of 1 did. */}
+            <MenuFit baseScale={menuScale} screenKey={menuScreen}>
               {menuScreen === "title" && (
                 <div className="w-full max-w-lg text-center">
                   <div
@@ -1113,7 +1111,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
                   </div>
                 </div>
               )}
-            </div>
+            </MenuFit>
           </div>
         )}
 
@@ -1274,6 +1272,77 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
     </div>
   );
 }
+
+/**
+ * Fits a pre-game menu card inside the live canvas box.
+ *
+ * The card is laid out at its natural size and then scaled down by whatever
+ * factor is needed to fit; a transform does not change layout size, so the
+ * measurement stays stable and never oscillates. Screens differ in height
+ * (title vs. trail map vs. high scores), so the fit is measured per screen and
+ * re-measured on every resize / zoom / fullscreen change through the
+ * ResizeObserver on both the box and the content.
+ */
+function MenuFit({
+  baseScale,
+  screenKey,
+  children,
+}: {
+  baseScale: number;
+  screenKey: string;
+  children: React.ReactNode;
+}) {
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  const [scale, setScale] = useState(baseScale);
+
+  useEffect(() => {
+    const boxEl = boxRef.current;
+    const contentEl = contentRef.current;
+    if (!boxEl || !contentEl) return;
+    const measure = () => {
+      const b = boxEl.getBoundingClientRect();
+      if (b.width <= 0 || b.height <= 0) return;
+      setBox((prev) =>
+        Math.abs(prev.w - b.width) < 1 && Math.abs(prev.h - b.height) < 1
+          ? prev
+          : { w: b.width, h: b.height },
+      );
+      // The card is the layout child; a transform never changes offset sizes,
+      // so this natural size stays stable while we scale it.
+      const card = contentEl.firstElementChild as HTMLElement | null;
+      const cw = card?.offsetWidth ?? 0;
+      const ch = card?.offsetHeight ?? 0;
+      if (cw <= 0 || ch <= 0) return;
+      const fit = Math.min(baseScale, (b.width - 8) / cw, (b.height - 8) / ch);
+      const next = Math.max(0.4, Math.min(baseScale, fit));
+      setScale((prev) => (Math.abs(prev - next) < 0.01 ? prev : next));
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(boxEl);
+    ro.observe(contentEl);
+    return () => ro.disconnect();
+  }, [baseScale, screenKey]);
+
+  return (
+    <div ref={boxRef} className="grid h-full w-full place-items-center overflow-hidden">
+      <div style={{ transform: `scale(${scale})`, transformOrigin: "center" }}>
+        <div
+          ref={contentRef}
+          className="flex items-center justify-center"
+          style={box.w > 0 ? { width: box.w, height: box.h } : undefined}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+
+}
+
 
 function MenuButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   const firedUntilRef = useRef(0);

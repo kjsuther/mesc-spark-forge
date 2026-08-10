@@ -51,7 +51,9 @@ function toDraft(m: TeamMember): Draft {
   return {
     id: m.id,
     full_name: m.full_name,
+    goes_by: m.goes_by ?? "",
     title: m.title,
+    organization: m.organization ?? "",
     bio: m.bio ?? "",
     hidden: m.hidden,
     photo_data_url: null,

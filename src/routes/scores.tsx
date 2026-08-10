@@ -34,8 +34,11 @@ function ScoresPage() {
         <header className="mb-2">
           <SectionHeading as="h1">High scores</SectionHeading>
           <p className="text-lg text-dark-gray/80 max-w-2xl mt-3">
-            The podium up top, then every run ever submitted below. Ties break in favour of whoever
-            got there first.
+            The podium up top wins a prize, then every run ever submitted below. Ties break in favour
+            of whoever got there first.
+          </p>
+          <p className="mt-2 inline-flex items-center gap-2 rounded-lg border-2 border-accent-gold bg-accent-gold/10 px-3 py-1.5 text-sm font-bold uppercase tracking-wide text-mn-blue">
+            ★ Top 3 scores win a prize ★
           </p>
         </header>
 

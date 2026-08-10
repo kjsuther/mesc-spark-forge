@@ -220,6 +220,12 @@ export function ScoreEntryOverlay({
           <p className="mt-1 text-[7px] tracking-wider" style={{ color: "rgba(255,255,255,0.7)" }}>
             {stats}
           </p>
+          <p
+            className="mt-2 text-[8px] tracking-widest"
+            style={{ color: "var(--color-accent-gold)", textShadow: "1px 1px 0 #000" }}
+          >
+            ★ TOP 3 SCORES WIN A PRIZE ★
+          </p>
 
           {saved ? (
             <>

@@ -2179,18 +2179,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Each platform represents an application section. Label baked into the
       // platform surface so the player literally steps on "About You", "Household",
       // "Income", "Signature" to cross the river.
-      // All four sit fully over the water gap (gap is 690px wide, platforms are
-      // 108px wide and end ~40px short of the far bank).
-      // Difficulty pass: slower, shallower bobbing gives a wider landing
-      // window on every crossing platform (~25% gentler than before).
-      // Difficulty pass: platforms now sweep nearly the full height of the
-      // canvas and bob noticeably faster, so every crossing needs real timing.
+      // Difficulty pass: the platforms no longer bob. They sit at fixed,
+      // jumpable heights and COLLAPSE — step on one, it shakes briefly, then
+      // drops away to the bottom of the screen. Keep moving or fall in.
       const platforms = [
-        { x: rx0 + 30, y: GROUND_Y - 175, amp: 168, spd: 6.2, label: "ABOUT YOU" },
-        { x: rx0 + 200, y: GROUND_Y - 185, amp: 178, spd: 5.6, label: "HOUSEHOLD" },
-        { x: rx0 + 370, y: GROUND_Y - 180, amp: 172, spd: 6.7, label: "INCOME" },
-        { x: rx0 + 540, y: GROUND_Y - 175, amp: 168, spd: 6.0, label: "SIGNATURE" },
+        { x: rx0 + 30, y: GROUND_Y - 108, label: "ABOUT YOU" },
+        { x: rx0 + 200, y: GROUND_Y - 140, label: "HOUSEHOLD" },
+        { x: rx0 + 370, y: GROUND_Y - 124, label: "INCOME" },
+        { x: rx0 + 540, y: GROUND_Y - 104, label: "SIGNATURE" },
       ];
+      const SHAKE_S = 0.42; // telegraph window before it lets go
+      const FALL_G = 900;
 
       for (const p of platforms) {
         const PLAT_W = 108;
@@ -2202,16 +2201,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.area(),
           k.body({ isStatic: true }),
           k.z(LAYERS.PLATFORM),
+          k.opacity(1),
           "platform",
           {
+            basX: p.x,
             basY: p.y,
-            amp: p.amp,
-            spd: p.spd,
-            phase: Math.random() * Math.PI * 2,
+            phase: "idle" as "idle" | "shaking" | "falling",
+            trigT: 0,
+            fallVy: 0,
             platformSpeed: k.vec2(0, 0),
             lastPos: k.vec2(p.x, p.y),
           },
-        ]);
+        ]) as AnyObj;
         // Dark plaque + shadowed gold text sitting flush on top of the platform.
         const labelSize = 10;
         const charW = labelSize * 0.62;
@@ -2240,21 +2241,77 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.color(255, 220, 90),
           k.z(LAYERS.PLATFORM + 3),
         ]) as AnyObj;
+
+        function place(x: number, y: number) {
+          plat.pos.x = x;
+          plat.pos.y = y;
+          plaque.pos.x = x + PLAT_W / 2;
+          plaque.pos.y = y + 3;
+          shadow.pos.x = x + PLAT_W / 2 + 1;
+          shadow.pos.y = y + 3 + 1;
+          label.pos.x = x + PLAT_W / 2;
+          label.pos.y = y + 3;
+        }
+
+        // Restores this platform for the next attempt at the crossing.
+        riverPlatforms.push(() => {
+          plat.phase = "idle";
+          plat.trigT = 0;
+          plat.fallVy = 0;
+          plat.platformSpeed.x = 0;
+          plat.platformSpeed.y = 0;
+          plat.lastPos.x = plat.basX;
+          plat.lastPos.y = plat.basY;
+          plat.opacity = 1;
+          plaque.opacity = 0.95;
+          shadow.opacity = 1;
+          label.opacity = 1;
+          if (!plat.is("platform")) plat.tag("platform");
+          place(plat.basX, plat.basY);
+        });
+
         plat.onUpdate(() => {
-          const newY = plat.basY + Math.sin(k.time() * plat.spd + plat.phase) * plat.amp;
           const dt = k.dt();
+          const now = k.time();
+          if (plat.phase === "idle") {
+            // Standing on it (or landing on it) starts the collapse.
+            const standing =
+              player.riding === plat ||
+              (Math.abs(player.pos.y - plat.pos.y) <= 10 &&
+                player.pos.x >= plat.pos.x - PLATFORM_EDGE_TOLERANCE &&
+                player.pos.x <= plat.pos.x + PLAT_W + PLATFORM_EDGE_TOLERANCE);
+            if (standing) {
+              plat.phase = "shaking";
+              plat.trigT = now;
+            }
+          } else if (plat.phase === "shaking") {
+            const wobble = Math.sin((now - plat.trigT) * 60) * 3;
+            place(plat.basX + wobble, plat.basY);
+            if (now - plat.trigT >= SHAKE_S) {
+              plat.phase = "falling";
+              plat.fallVy = 60;
+              plat.untag("platform");
+              if (player.riding === plat) player.riding = null;
+            }
+          } else {
+            plat.fallVy += FALL_G * dt;
+            const ny = plat.pos.y + plat.fallVy * dt;
+            place(plat.basX, ny);
+            const fade = Math.max(0, 1 - (ny - plat.basY) / 420);
+            plat.opacity = fade;
+            plaque.opacity = fade * 0.95;
+            shadow.opacity = fade;
+            label.opacity = fade;
+          }
           if (dt > 0) {
             plat.platformSpeed.x = (plat.pos.x - plat.lastPos.x) / dt;
-            plat.platformSpeed.y = (newY - plat.lastPos.y) / dt;
+            plat.platformSpeed.y = (plat.pos.y - plat.lastPos.y) / dt;
           }
           plat.lastPos.x = plat.pos.x;
-          plat.lastPos.y = newY;
-          plat.pos.y = newY;
-          plaque.pos.y = newY + 3;
-          shadow.pos.y = newY + 3 + 1;
-          label.pos.y = newY + 3;
+          plat.lastPos.y = plat.pos.y;
         });
       }
+
     }
     // Background thought bubbles — decorative "what am I filling out?" chatter.
     {

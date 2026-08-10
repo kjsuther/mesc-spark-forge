@@ -143,8 +143,14 @@ function AdminFeedbackPage() {
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-dark-gray">{f.description}</p>
                   <p className="text-xs font-semibold text-dark-gray/60">
-                    — {f.submitter_name} · {new Date(f.created_at).toLocaleString()}
+                    — {f.submitter_name}
+                    {f.role ? ` · ${f.role === "Other" && f.role_other ? f.role_other : f.role}` : ""}
+                    {f.location_state || f.location_country
+                      ? ` · ${f.location_state ?? f.location_country}`
+                      : ""}{" "}
+                    · {new Date(f.created_at).toLocaleString()}
                   </p>
+
                 </div>
                 <div className="flex flex-wrap items-center gap-1">
                   <button

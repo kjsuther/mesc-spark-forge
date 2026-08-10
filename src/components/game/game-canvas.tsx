@@ -8,6 +8,7 @@ import trailMapBg from "@/assets/game/trail-map-bg-v2.png.asset.json";
 
 import { clampResumeZone, isResumableSnapshot, shouldRecoverGameAfterResume } from "./lifecycle";
 import { selectViewportSnapshot } from "./viewport";
+import { isTouchDevice, useDeviceProfile } from "@/lib/device";
 
 type Props = {
   onWin?: (result: WinResult) => void;
@@ -31,10 +32,8 @@ type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: b
 type LaunchMode = "standard" | "fullscreen";
 type MenuScreen = "title" | "explainer" | "trailmap" | "controls" | "scores";
 
-const isCoarsePointer = () =>
-  typeof window !== "undefined" &&
-  typeof window.matchMedia === "function" &&
-  window.matchMedia("(pointer: coarse)").matches;
+/** Single shared detector — see src/lib/device.ts. */
+const isCoarsePointer = isTouchDevice;
 
 function useOrientation() {
   const [portrait, setPortrait] = useState(() => {
@@ -136,7 +135,26 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   const [endResult, setEndResult] = useState<WinResult | null>(null);
   const { portrait } = useOrientation();
   const { vw, vh, offsetLeft, offsetTop } = useViewportSize();
-  const [isTouch] = useState(() => isCoarsePointer());
+  const device = useDeviceProfile();
+  const isTouch = device.touch;
+  /** Live pixel height of the canvas box — mobile controls size from this so
+   *  they are finger-sized in windowed play and in fullscreen alike. */
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const [stageBox, setStageBox] = useState({ w: 960, h: 540 });
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect();
+      setStageBox((prev) =>
+        Math.abs(prev.w - r.width) < 1 && Math.abs(prev.h - r.height) < 1
+          ? prev
+          : { w: r.width, h: r.height },
+      );
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   /** The player asked for fullscreen; keep them there across browser hiccups. */
   const fsIntentRef = useRef(false);
   const menuTapHandledUntilRef = useRef(0);
@@ -665,10 +683,24 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         isTouch ? 0.56 : 0.82,
         Math.min(1.85, Math.min(vw / 960, vh / (isTouch ? 680 : 540)) * (isTouch ? 1.02 : 1.12)),
       )
-    : 1;
+    : isTouch
+      ? // Windowed mobile: the canvas box is much shorter than the 960x540
+        // design box, so menu cards must scale to the box or they clip.
+        Math.max(0.4, Math.min(1, Math.min(stageBox.w / 960, stageBox.h / 620)))
+      : 1;
   const menuScale =
     overlayFs && isTouch && menuScreen === "trailmap" ? Math.min(uiScale, 0.5) : uiScale;
   const menuSafePadding = overlayFs && isTouch ? 4 : 8;
+
+  // Touch button sizing: proportional to the visible stage, clamped to a
+  // comfortable finger target on the smallest phones and prevented from
+  // swallowing gameplay on tablets.
+  const padUnit = Math.round(Math.max(52, Math.min(84, stageBox.h * 0.2)));
+  const padGap = Math.max(8, Math.round(padUnit * 0.14));
+  const padEdge = Math.max(10, Math.round(padUnit * 0.18));
+  const jumpSize = Math.round(padUnit * 1.15);
+  const resetSize = Math.round(padUnit * 0.7);
+
 
   const containerStyle: React.CSSProperties = overlayFs
     ? {
@@ -776,6 +808,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       )}
 
       <div
+        ref={stageRef}
         className={
           overlayFs
             ? "relative overflow-hidden bg-black"
@@ -1069,22 +1102,25 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
           </div>
         )}
 
-        {/* Overlay touch controls — sit ON TOP of the canvas in fullscreen so
-            the game fills the whole viewport. Only shown on touch devices. */}
-        {launchMode && overlayFs && isTouch && (
+        {/* Overlay touch controls — always ON TOP of the canvas on touch
+            devices, in windowed play as well as fullscreen, so they can never
+            scroll out of reach. Gated on real touch capability, never on a
+            width breakpoint (a landscape phone is 900px wide). */}
+        {launchMode && isTouch && !presentation && !endResult && (
           <>
             {/* D-pad, bottom-left */}
             <div
-              className="pointer-events-none absolute z-30 flex gap-1"
+              className="pointer-events-none absolute z-30 flex"
               style={{
-                left: "calc(env(safe-area-inset-left, 0px) + 12px)",
-                bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+                gap: padGap,
+                left: `calc(env(safe-area-inset-left, 0px) + ${padEdge}px)`,
+                bottom: `calc(env(safe-area-inset-bottom, 0px) + ${padEdge}px)`,
               }}
             >
               <PadButton
                 label="LEFT"
                 aria="Move left"
-                size={72}
+                size={padUnit}
                 onDown={() => setBtn("left", true)}
                 onUp={() => setBtn("left", false)}
               >
@@ -1093,7 +1129,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
               <PadButton
                 label="RIGHT"
                 aria="Move right"
-                size={72}
+                size={padUnit}
                 onDown={() => setBtn("right", true)}
                 onUp={() => setBtn("right", false)}
               >
@@ -1102,16 +1138,17 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
             </div>
             {/* Action cluster, bottom-right */}
             <div
-              className="pointer-events-none absolute z-30 flex items-end gap-2"
+              className="pointer-events-none absolute z-30 flex items-end"
               style={{
-                right: "calc(env(safe-area-inset-right, 0px) + 12px)",
-                bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
+                gap: padGap + 4,
+                right: `calc(env(safe-area-inset-right, 0px) + ${padEdge}px)`,
+                bottom: `calc(env(safe-area-inset-bottom, 0px) + ${padEdge}px)`,
               }}
             >
-              <PadButton label="RESET" aria="Restart" size={52} dim onDown={reset}>
+              <PadButton label="RESET" aria="Restart" size={resetSize} dim onDown={reset}>
                 ⟳
               </PadButton>
-              <PadButton label="JUMP" aria="Jump" size={92} accent onDown={jump}>
+              <PadButton label="JUMP" aria="Jump" size={jumpSize} accent onDown={jump}>
                 JUMP
               </PadButton>
             </div>
@@ -1152,50 +1189,13 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         </div>
       )}
 
-      {/* Inline touch controls (non-fullscreen mobile) */}
+      {/* Control hint below the canvas — worded for the device in use. The
+          touch buttons themselves now overlay the canvas in both modes. */}
       {launchMode && !overlayFs && !presentation && (
-        <>
-          {showHint && (
-            <p className="mt-2 text-center text-[11px] font-semibold text-mn-blue md:hidden">
-              Hold ◀ ▶ to move · JUMP to hop · ⟳ to restart
-            </p>
-          )}
-          <div className="mt-3 flex items-end justify-between gap-2 md:hidden select-none">
-            <div className="flex gap-1">
-              <PadButton
-                label="LEFT"
-                aria="Move left"
-                size={60}
-                onDown={() => setBtn("left", true)}
-                onUp={() => setBtn("left", false)}
-              >
-                ◀
-              </PadButton>
-              <PadButton
-                label="RIGHT"
-                aria="Move right"
-                size={60}
-                onDown={() => setBtn("right", true)}
-                onUp={() => setBtn("right", false)}
-              >
-                ▶
-              </PadButton>
-            </div>
-            <div className="flex items-end gap-2">
-              <PadButton label="RESET" aria="Restart" size={48} dim onDown={reset}>
-                ⟳
-              </PadButton>
-              <PadButton label="JUMP" aria="Jump" size={76} accent onDown={jump}>
-                JUMP
-              </PadButton>
-            </div>
-          </div>
-        </>
-      )}
-
-      {launchMode && !overlayFs && !presentation && (
-        <p className="mt-2 text-xs text-dark-gray/60 text-center hidden md:block">
-          ← → to move · Space / ↑ to jump · R to reset · ⛶ for fullscreen
+        <p className="mt-2 text-center text-xs font-semibold text-dark-gray/70">
+          {isTouch
+            ? "Hold ◀ ▶ to move · JUMP to hop · ⟳ to restart · ⛶ for full screen"
+            : "← → to move · Space / ↑ to jump · R to reset · ⛶ for fullscreen"}
         </p>
       )}
     </div>
@@ -1278,6 +1278,7 @@ function PadButton({
       }}
       onPointerLeave={() => onUp?.()}
       onPointerCancel={() => onUp?.()}
+      onLostPointerCapture={() => onUp?.()}
       onContextMenu={(e) => e.preventDefault()}
       className="pointer-events-auto relative touch-none select-none font-black text-cream active:translate-y-[2px]"
       style={{
@@ -1290,7 +1291,8 @@ function PadButton({
           "inset 0 -4px 0 rgba(0,0,0,0.35), inset 0 3px 0 rgba(255,255,255,0.22), 0 3px 0 rgba(0,0,0,0.5)",
         backdropFilter: "blur(4px)",
         WebkitBackdropFilter: "blur(4px)",
-        fontSize: size >= 88 ? 18 : size >= 68 ? 26 : 20,
+        // Scale the glyph with the button so it stays legible at any size.
+        fontSize: accent ? Math.round(size * 0.2) : Math.round(size * 0.38),
         fontFamily: '"Press Start 2P", ui-monospace, monospace',
         letterSpacing: 1,
         touchAction: "none",

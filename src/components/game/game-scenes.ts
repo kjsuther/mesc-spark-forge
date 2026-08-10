@@ -33,6 +33,13 @@ import {
   type PowerUpKind,
   type CheckpointSnapshot,
 } from "./managers";
+import {
+  continuePrompt,
+  isTouchDevice,
+  jumpPrompt,
+  readyPrompt,
+  restartPrompt,
+} from "@/lib/device";
 import charSheetUrl from "@/assets/game/character-sheet.webp";
 import heroSlideSheetUrl from "@/assets/game/hero-slide-sheet.webp";
 import propsSheetUrl from "@/assets/game/props-sheet.webp";
@@ -231,15 +238,11 @@ function computeUiTextScale(canvas: HTMLCanvasElement | null, logicalW: number):
  */
 const START_X = (): number => (isCoarsePointer() ? 40 + Math.round(VIEW_W * 0.18) : 40);
 
-/** Touch-first device? Drives the wording of every "continue" prompt. */
-const isCoarsePointer = (): boolean =>
-  typeof window !== "undefined" &&
-  typeof window.matchMedia === "function" &&
-  window.matchMedia("(pointer: coarse)").matches;
+/** Touch-first device? Single shared detector (see src/lib/device.ts). */
+const isCoarsePointer = isTouchDevice;
 
 /** One shared continue prompt string for every paused screen. */
-const CONTINUE_PROMPT = (): string =>
-  isCoarsePointer() ? "Tap Anywhere to Continue" : "Press Enter, Space, or Click to Continue";
+const CONTINUE_PROMPT = continuePrompt;
 
 const BIOME_W = 1200;
 
@@ -3463,7 +3466,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         title: "STEP 1 · SELECTING YOUR APPLICATION TYPE",
         subtitle: "Finding the Trail",
         lines: [
-          "Jump (Up Arrow or Space) to hit the brick and collect your application.",
+          `${jumpPrompt()} to hit the brick and collect your application.`,
           "Bring the application to the exit door.",
         ],
         icons: [{ sprite: "brick-idle", label: "APPLICATION" }],
@@ -3608,8 +3611,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const textW = panelW - rangerW;
       const cx = Math.floor(panelX + rangerW + textW / 2);
       let y = panelY + px(26);
-      const label = (text: string, size: number, rgb: [number, number, number], width?: number) => {
-        const fs = Math.max(15, px(size));
+      const label = (
+        text: string,
+        size: number,
+        rgb: [number, number, number],
+        width?: number,
+        opts?: { fit?: boolean; min?: number },
+      ) => {
+        let fs = Math.max(opts?.min ?? 15, px(size));
+        // Headings must never clip on a short landscape phone: shrink a single
+        // long line to the panel width instead of letting it run off the card.
+        if (opts?.fit && width) {
+          const longest = Math.max(...text.split("\n").map((l) => l.length), 1);
+          fs = Math.max(opts.min ?? 11, Math.min(fs, (width * 1.28) / longest));
+        }
+        fs = Math.round(fs);
         put([
           k.text(text, {
             size: fs,
@@ -3639,8 +3655,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         y += (main.height ?? fs) + px(8);
       };
 
-      label(data.title, 24, [255, 220, 90], textW - px(48));
-      label(data.subtitle, 17, [180, 205, 255], textW - px(48));
+      label(data.title, 24, [255, 220, 90], textW - px(48), { fit: true, min: 11 });
+      label(data.subtitle, 17, [180, 205, 255], textW - px(48), { fit: true, min: 10 });
       y += px(4);
       label(data.lines.map((l) => `• ${l}`).join("\n"), 19, [245, 245, 245], textW - px(60));
 
@@ -3865,17 +3881,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       );
 
       const promptNode = put([
-        k.text(
-          isCoarsePointer()
-            ? "Tap when you're READY"
-            : "Press Enter, Space, or Click when you're READY",
-          {
-            size: Math.max(14, px(16)),
-            font: "sans-serif",
-            align: "center",
-            width: panelW - px(40),
-          },
-        ),
+        k.text(readyPrompt(), {
+          size: Math.max(14, px(16)),
+          font: "sans-serif",
+          align: "center",
+          width: panelW - px(40),
+        }),
         k.pos(cx, panelY + panelH - px(34)),
         k.anchor("center"),
         k.opacity(1),
@@ -5049,7 +5060,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.z(LAYERS.OVERLAY_TEXT),
         ]);
         k.add([
-          k.text("Tap Screen, Press R or Enter\nto enter your score and provide feedback", {
+          k.text(restartPrompt(), {
             size: Math.round(14 * T),
             font: "sans-serif",
             align: "center",
@@ -5596,7 +5607,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Blinking restart prompt.
     const prompt = k.add([
       k.text(
-        isCoarsePointer() ? "Tap Anywhere to Continue" : "Press Enter, Space, or Click to Continue",
+        CONTINUE_PROMPT(),
         { size: 16, font: "sans-serif" },
       ),
       k.pos(Math.floor(W / 2), H - SAFE_Y - 6),

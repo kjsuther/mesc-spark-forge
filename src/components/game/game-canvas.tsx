@@ -808,6 +808,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       )}
 
       <div
+        ref={stageRef}
         className={
           overlayFs
             ? "relative overflow-hidden bg-black"

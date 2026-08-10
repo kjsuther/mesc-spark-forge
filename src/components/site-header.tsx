@@ -66,12 +66,6 @@ export function SiteHeader() {
 
       {/* Mobile / tablet: CTA + hamburger */}
       <div className="lg:hidden flex items-center gap-2">
-        <Link
-          to="/tool"
-          className="inline-flex bg-accent-orange text-white px-3 py-2 rounded font-semibold text-xs sm:text-sm hover:brightness-105 transition min-h-11 items-center ring-1 ring-accent-gold/60"
-        >
-          Play the Game
-        </Link>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger
             aria-label="Open menu"

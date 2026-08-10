@@ -683,10 +683,24 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         isTouch ? 0.56 : 0.82,
         Math.min(1.85, Math.min(vw / 960, vh / (isTouch ? 680 : 540)) * (isTouch ? 1.02 : 1.12)),
       )
-    : 1;
+    : isTouch
+      ? // Windowed mobile: the canvas box is much shorter than the 960x540
+        // design box, so menu cards must scale to the box or they clip.
+        Math.max(0.4, Math.min(1, Math.min(stageBox.w / 960, stageBox.h / 620)))
+      : 1;
   const menuScale =
     overlayFs && isTouch && menuScreen === "trailmap" ? Math.min(uiScale, 0.5) : uiScale;
   const menuSafePadding = overlayFs && isTouch ? 4 : 8;
+
+  // Touch button sizing: proportional to the visible stage, clamped to a
+  // comfortable finger target on the smallest phones and prevented from
+  // swallowing gameplay on tablets.
+  const padUnit = Math.round(Math.max(52, Math.min(84, stageBox.h * 0.2)));
+  const padGap = Math.max(8, Math.round(padUnit * 0.14));
+  const padEdge = Math.max(10, Math.round(padUnit * 0.18));
+  const jumpSize = Math.round(padUnit * 1.15);
+  const resetSize = Math.round(padUnit * 0.7);
+
 
   const containerStyle: React.CSSProperties = overlayFs
     ? {

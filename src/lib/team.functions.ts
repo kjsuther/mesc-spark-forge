@@ -4,7 +4,9 @@ import { requireAdmin } from "./admin-session.server";
 export type TeamMember = {
   id: string;
   full_name: string;
+  goes_by: string | null;
   title: string;
+  organization: string | null;
   bio: string | null;
   photo_path: string | null;
   photo_url: string | null;
@@ -37,7 +39,7 @@ export const listTeamMembers = createServerFn({ method: "GET" }).handler(async (
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("team_members")
-    .select("id, full_name, title, bio, photo_path, sort_order, hidden")
+    .select("id, full_name, goes_by, title, organization, bio, photo_path, sort_order, hidden")
     .eq("hidden", false)
     .order("sort_order", { ascending: true })
     .order("full_name", { ascending: true });
@@ -50,7 +52,7 @@ export const listTeamMembersAdmin = createServerFn({ method: "GET" }).handler(as
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("team_members")
-    .select("id, full_name, title, bio, photo_path, sort_order, hidden")
+    .select("id, full_name, goes_by, title, organization, bio, photo_path, sort_order, hidden")
     .order("sort_order", { ascending: true })
     .order("full_name", { ascending: true });
   if (error) throw error;
@@ -60,7 +62,9 @@ export const listTeamMembersAdmin = createServerFn({ method: "GET" }).handler(as
 export type UpsertTeamMemberInput = {
   id?: string;
   full_name: string;
+  goes_by?: string | null;
   title: string;
+  organization?: string | null;
   bio?: string | null;
   hidden?: boolean;
   /** base64 data URL of a new photo; when set it replaces the existing photo */
@@ -80,7 +84,9 @@ export const upsertTeamMember = createServerFn({ method: "POST" })
 
     const fullName = (data.full_name ?? "").trim();
     if (!fullName || fullName.length > 200) throw new Error("Name is required (max 200 chars).");
+    const goesBy = (data.goes_by ?? "").trim().slice(0, 100) || null;
     const title = (data.title ?? "").trim().slice(0, 300);
+    const organization = (data.organization ?? "").trim().slice(0, 300) || null;
     const bio = (data.bio ?? "").trim().slice(0, 1000) || null;
 
     let photoPath: string | null | undefined = undefined;
@@ -106,7 +112,9 @@ export const upsertTeamMember = createServerFn({ method: "POST" })
     if (data.id) {
       const patch = {
         full_name: fullName,
+        goes_by: goesBy,
         title,
+        organization,
         bio,
         hidden: !!data.hidden,
         ...(photoPath !== undefined ? { photo_path: photoPath } : {}),
@@ -127,7 +135,9 @@ export const upsertTeamMember = createServerFn({ method: "POST" })
       .from("team_members")
       .insert({
         full_name: fullName,
+        goes_by: goesBy,
         title,
+        organization,
         bio,
         hidden: !!data.hidden,
         photo_path: photoPath ?? null,

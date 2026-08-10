@@ -98,7 +98,11 @@ export type Database = {
           description: string
           id: string
           implemented_at: string | null
+          location_country: string | null
+          location_state: string | null
           rank: number
+          role: string | null
+          role_other: string | null
           status: string
           submitter_name: string
           updated_at: string
@@ -108,7 +112,11 @@ export type Database = {
           description: string
           id?: string
           implemented_at?: string | null
+          location_country?: string | null
+          location_state?: string | null
           rank?: number
+          role?: string | null
+          role_other?: string | null
           status?: string
           submitter_name: string
           updated_at?: string
@@ -118,7 +126,11 @@ export type Database = {
           description?: string
           id?: string
           implemented_at?: string | null
+          location_country?: string | null
+          location_state?: string | null
           rank?: number
+          role?: string | null
+          role_other?: string | null
           status?: string
           submitter_name?: string
           updated_at?: string

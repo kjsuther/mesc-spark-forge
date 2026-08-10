@@ -4528,9 +4528,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
      * so they always reach the player instead of sailing overhead.
      */
     function spawnBossShot(x: number, y: number, dirX: 1 | -1, laneOffset = 26) {
-      // Never more than three pieces of paperwork in the air at once —
+      // Never more than four pieces of paperwork in the air at once —
       // beyond that the low lane becomes impossible to jump.
-      if (k.get("boss-shot").length >= 3) return;
+      if (k.get("boss-shot").length >= 4) return;
+
       const sw = displaySize("denied", sizes).w;
       const sh = DISPLAY_H["denied"];
       const targetY = GROUND_Y - laneOffset;

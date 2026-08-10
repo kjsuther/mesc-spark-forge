@@ -3749,20 +3749,33 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       stepScreenOpen = true;
       pauseGameplay();
 
-      const W = k.width();
-      const H = k.height();
-      // On wide phones the logical viewport stretches past 960, which would
-      // shrink every glyph on screen. Scale the panel and its type by the
-      // same factor so text keeps a constant physical size.
-      UI_TEXT_SCALE = computeUiTextScale(opts.canvas, W);
-      const S = UI_TEXT_SCALE;
-      const px = (n: number) => Math.round(n * S);
-      const nodes: AnyObj[] = [];
-      const put = (parts: unknown[]) => {
-        const o = k.add(parts as never) as AnyObj;
-        nodes.push(o);
-        return o;
-      };
+      let nodes: AnyObj[] = [];
+      let promptNode: AnyObj | null = null;
+      let closed = false;
+
+      function render() {
+        for (const n of nodes) {
+          try {
+            n.destroy();
+          } catch {
+            /* ignore */
+          }
+        }
+        nodes = [];
+
+        const W = k.width();
+        const H = k.height();
+        // Type is enlarged so it stays physically readable in a small CSS box,
+        // then capped to what the panel can actually hold — otherwise windowed
+        // play pushes headings and the prompt outside the card.
+        const S = computeFittedUiScale(opts.canvas, W, H, 780, 430);
+        UI_TEXT_SCALE = S;
+        const px = (n: number) => Math.round(n * S);
+        const put = (parts: unknown[]) => {
+          const o = k.add(parts as never) as AnyObj;
+          nodes.push(o);
+          return o;
+        };
 
       put([k.rect(W, H), k.pos(0, 0), k.color(0, 0, 0), k.opacity(0.86), k.fixed(), k.z(300)]);
       const panelW = Math.min(px(780), W - px(32));

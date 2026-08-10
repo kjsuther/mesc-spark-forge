@@ -3925,26 +3925,43 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         ix += iconBox + gap;
       }
 
-      const promptNode = put([
-        k.text(CONTINUE_PROMPT(), { size: Math.max(14, px(16)), font: UI_FONT }),
-        k.pos(cx, panelY + panelH - px(30)),
-        k.anchor("center"),
-        k.opacity(1),
-        k.color(255, 235, 120),
-        k.fixed(),
-        k.z(303),
-      ]);
+        promptNode = put([
+          k.text(CONTINUE_PROMPT(), { size: Math.max(14, px(16)), font: UI_FONT }),
+          k.pos(cx, panelY + panelH - px(30)),
+          k.anchor("center"),
+          k.opacity(1),
+          k.color(255, 235, 120),
+          k.fixed(),
+          k.z(303),
+        ]);
 
-      // Continue: Enter / Space / click on desktop, tap anywhere on mobile.
-      const hitArea = put([k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305)]);
+        // Continue: Enter / Space / click on desktop, tap anywhere on mobile.
+        const hitArea = put([
+          k.rect(W, H),
+          k.pos(0, 0),
+          k.opacity(0),
+          k.area(),
+          k.fixed(),
+          k.z(305),
+        ]);
+        hitArea.onClick(() => close());
+      }
+
+      render();
+      // Rebuild at the new size whenever the window resizes or the player
+      // enters / leaves fullscreen while the briefing is up.
+      const relayout = () => {
+        if (closed) return;
+        render();
+      };
+      uiRelayout.add(relayout);
 
       const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
         k.onKeyPress(key as never, () => close()),
       );
       const blink = k.onUpdate(() => {
-        promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.3;
+        if (promptNode) promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.3;
       });
-      let closed = false;
       function close() {
         if (closed) return;
         closed = true;

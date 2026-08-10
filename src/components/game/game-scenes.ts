@@ -4726,30 +4726,36 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
         hearts.pos.x = boss.pos.x;
         hearts.pos.y = boss.pos.y - bh - 40;
-        // Paperwork is thrown from mid-air only — released near the top of a
-        // jump, so it arrives at a different height every time. Less frequent
-        // than the old ground barrage, but far harder to read.
+        // Paperwork comes in repeating waves until he is beaten. Most waves
+        // are released near the top of a jump (so they arrive at varying
+        // heights); if a jump wave hasn't happened by the time the cooldown is
+        // well past, he throws one from the ground instead, so the barrage
+        // never dries up between hops.
         const nearApex = wasAirborne && boss.vy > -140;
-        if (boss.armedShot && nearApex && now >= boss.nextShot && now >= boss.hurtUntil) {
+        const overdue = now >= boss.nextShot + 0.55;
+        const canThrow = now >= boss.nextShot && now >= boss.hurtUntil;
+        if (canThrow && ((boss.armedShot && nearApex) || overdue)) {
           boss.armedShot = false;
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
-          // Short burst thrown from the air but always settling into a low
-          // lane, so every one of them has to be jumped over.
+          // Short burst, spaced so one well-timed jump can clear the wave.
           spawnBossShot(boss.pos.x + toward * (bw / 2), boss.pos.y - 34, toward, 22);
           const burstY = boss.pos.y - 6;
           const burstX = boss.pos.x;
-          k.wait(0.22, () => {
+          k.wait(0.28, () => {
             if (boss.dead) return;
             spawnBossShot(burstX + toward * (bw / 2), burstY, toward, 44);
           });
           if (rage > 1) {
-            k.wait(0.44, () => {
+            k.wait(0.56, () => {
               if (boss.dead) return;
               spawnBossShot(burstX + toward * (bw / 2), burstY - 60, toward, 30);
             });
           }
-          boss.nextShot = now + (0.62 + Math.random() * 0.22) / rage;
+          // Wave every ~1.2-1.6s (tighter in the rage phase) — continuous, but
+          // with a readable gap to land the dodge in.
+          boss.nextShot = now + (1.2 + Math.random() * 0.4) / rage;
         }
+
 
         // Flash while invulnerable.
         const wantHurt = now < boss.hurtUntil;

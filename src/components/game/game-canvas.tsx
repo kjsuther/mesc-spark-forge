@@ -1278,6 +1278,7 @@ function PadButton({
       }}
       onPointerLeave={() => onUp?.()}
       onPointerCancel={() => onUp?.()}
+      onLostPointerCapture={() => onUp?.()}
       onContextMenu={(e) => e.preventDefault()}
       className="pointer-events-auto relative touch-none select-none font-black text-cream active:translate-y-[2px]"
       style={{
@@ -1290,7 +1291,8 @@ function PadButton({
           "inset 0 -4px 0 rgba(0,0,0,0.35), inset 0 3px 0 rgba(255,255,255,0.22), 0 3px 0 rgba(0,0,0,0.5)",
         backdropFilter: "blur(4px)",
         WebkitBackdropFilter: "blur(4px)",
-        fontSize: size >= 88 ? 18 : size >= 68 ? 26 : 20,
+        // Scale the glyph with the button so it stays legible at any size.
+        fontSize: accent ? Math.round(size * 0.2) : Math.round(size * 0.38),
         fontFamily: '"Press Start 2P", ui-monospace, monospace',
         letterSpacing: 1,
         touchAction: "none",

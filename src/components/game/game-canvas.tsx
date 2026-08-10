@@ -31,10 +31,8 @@ type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: b
 type LaunchMode = "standard" | "fullscreen";
 type MenuScreen = "title" | "explainer" | "trailmap" | "controls" | "scores";
 
-const isCoarsePointer = () =>
-  typeof window !== "undefined" &&
-  typeof window.matchMedia === "function" &&
-  window.matchMedia("(pointer: coarse)").matches;
+/** Single shared detector — see src/lib/device.ts. */
+const isCoarsePointer = isTouchDevice;
 
 function useOrientation() {
   const [portrait, setPortrait] = useState(() => {

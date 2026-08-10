@@ -238,15 +238,11 @@ function computeUiTextScale(canvas: HTMLCanvasElement | null, logicalW: number):
  */
 const START_X = (): number => (isCoarsePointer() ? 40 + Math.round(VIEW_W * 0.18) : 40);
 
-/** Touch-first device? Drives the wording of every "continue" prompt. */
-const isCoarsePointer = (): boolean =>
-  typeof window !== "undefined" &&
-  typeof window.matchMedia === "function" &&
-  window.matchMedia("(pointer: coarse)").matches;
+/** Touch-first device? Single shared detector (see src/lib/device.ts). */
+const isCoarsePointer = isTouchDevice;
 
 /** One shared continue prompt string for every paused screen. */
-const CONTINUE_PROMPT = (): string =>
-  isCoarsePointer() ? "Tap Anywhere to Continue" : "Press Enter, Space, or Click to Continue";
+const CONTINUE_PROMPT = continuePrompt;
 
 const BIOME_W = 1200;
 

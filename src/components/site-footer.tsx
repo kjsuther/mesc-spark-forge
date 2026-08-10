@@ -1,7 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { useIsEmbedded } from "@/hooks/use-is-embedded";
 
-const FOOTER_LINKS: ReadonlyArray<{ to: "/" | "/tool" | "/feedback" | "/backlog" | "/scores" | "/about"; label: string }> = [
+const FOOTER_LINKS: ReadonlyArray<{
+  to: "/" | "/tool" | "/feedback" | "/backlog" | "/scores" | "/about";
+  label: string;
+}> = [
   { to: "/", label: "Home" },
   { to: "/tool", label: "Play the Game" },
   { to: "/feedback", label: "Share Feedback" },

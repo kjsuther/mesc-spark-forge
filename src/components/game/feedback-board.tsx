@@ -48,17 +48,15 @@ export function FeedbackBoard({ variant = "page" }: Props) {
     );
   }
 
-
   return (
     <section id="backlog" className="mt-10 scroll-mt-24">
       <h2 className="font-display text-2xl uppercase tracking-wide text-mn-blue">
         The feedback backlog
       </h2>
       <p className="mt-1 text-sm text-dark-gray/80">
-        Everything players have asked for, in the order the team plans to build it — and
-        everything that's already live in the Current Version of the game.
+        Everything players have asked for, in the order the team plans to build it — and everything
+        that's already live in the Current Version of the game.
       </p>
-
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Column
@@ -128,7 +126,9 @@ function PosterPanel({
         )}
       </div>
       <footer className="border-t border-white/10 px-3 py-1 text-center text-[9px] font-bold uppercase tracking-widest text-cream/60">
-        {more > 0 ? `+${more} more · see the full list at mesc.mn-dhs.online` : "Full list at mesc.mn-dhs.online"}
+        {more > 0
+          ? `+${more} more · see the full list at mesc.mn-dhs.online`
+          : "Full list at mesc.mn-dhs.online"}
       </footer>
     </div>
   );
@@ -161,7 +161,9 @@ function Column({
             <li key={f.id} className="flex items-start gap-3 px-4 py-3">
               <span
                 className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded text-xs font-black ${
-                  tone === "orange" ? "bg-accent-orange/15 text-accent-orange" : "bg-mn-green/15 text-mn-green"
+                  tone === "orange"
+                    ? "bg-accent-orange/15 text-accent-orange"
+                    : "bg-mn-green/15 text-mn-green"
                 }`}
               >
                 {numbered ? i + 1 : "✓"}

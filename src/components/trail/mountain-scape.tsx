@@ -29,9 +29,7 @@ export function MountainScape({
         role="presentation"
       >
         {/* faint sun */}
-        {variant === "hero" && (
-          <circle cx="960" cy="70" r="42" fill="#D9A441" opacity="0.25" />
-        )}
+        {variant === "hero" && <circle cx="960" cy="70" r="42" fill="#D9A441" opacity="0.25" />}
         {/* back ridge — deep navy */}
         <path
           d="M0,180 L120,90 L220,150 L340,60 L460,140 L580,80 L720,160 L860,70 L1000,150 L1120,90 L1200,140 L1200,240 L0,240 Z"

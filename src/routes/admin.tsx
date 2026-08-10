@@ -1,7 +1,13 @@
-import { createFileRoute, Outlet, Link, redirect, useRouter, useRouterState } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Outlet,
+  Link,
+  redirect,
+  useRouter,
+  useRouterState,
+} from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { isServer } from "@tanstack/router-core/isServer";
 import { useEffect } from "react";
 import { SiteChrome } from "@/components/site-chrome";
 import { SiteFooter } from "@/components/site-footer";
@@ -18,7 +24,7 @@ export const Route = createFileRoute("/admin")({
   beforeLoad: async ({ location }) => {
     const status = await getAdminStatus();
     if (!status.unlocked && location.pathname !== "/admin/unlock") {
-      if (isServer) return { unlocked: false };
+      if (typeof window === "undefined") return { unlocked: false };
       throw redirect({ to: "/admin/unlock" });
     }
     return { unlocked: status.unlocked };
@@ -101,7 +107,9 @@ function AdminLayout() {
       <main className="flex-1 w-full max-w-6xl mx-auto py-10 px-6">
         {showAdminChrome && !isUnlocked ? (
           <div className="max-w-md mx-auto py-16 text-center">
-            <h1 className="font-display text-2xl text-mn-blue uppercase tracking-wide">Checking admin access…</h1>
+            <h1 className="font-display text-2xl text-mn-blue uppercase tracking-wide">
+              Checking admin access…
+            </h1>
           </div>
         ) : (
           <Outlet />

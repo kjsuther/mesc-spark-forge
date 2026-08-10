@@ -41,12 +41,22 @@ export const listAllFeedbackAdmin = createServerFn({ method: "GET" }).handler(as
   ]);
   if (feedbackRes.error) throw feedbackRes.error;
   if (votesRes.error) throw votesRes.error;
-  const tally = new Map<string, { must: number; should: number; could: number; total: number; weighted: number }>();
+  const tally = new Map<
+    string,
+    { must: number; should: number; could: number; total: number; weighted: number }
+  >();
   for (const v of votesRes.data ?? []) {
     const cur = tally.get(v.feedback_id) ?? { must: 0, should: 0, could: 0, total: 0, weighted: 0 };
-    if (v.bucket === "must") { cur.must += 1; cur.weighted += 3; }
-    else if (v.bucket === "should") { cur.should += 1; cur.weighted += 2; }
-    else if (v.bucket === "could") { cur.could += 1; cur.weighted += 1; }
+    if (v.bucket === "must") {
+      cur.must += 1;
+      cur.weighted += 3;
+    } else if (v.bucket === "should") {
+      cur.should += 1;
+      cur.weighted += 2;
+    } else if (v.bucket === "could") {
+      cur.could += 1;
+      cur.weighted += 1;
+    }
     cur.total += 1;
     tally.set(v.feedback_id, cur);
   }
@@ -75,7 +85,10 @@ export const setFeedbackHidden = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     await requireAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("feedback").update({ hidden: data.hidden }).eq("id", data.id);
+    const { error } = await supabaseAdmin
+      .from("feedback")
+      .update({ hidden: data.hidden })
+      .eq("id", data.id);
     if (error) throw error;
     return { ok: true as const };
   });
@@ -250,7 +263,8 @@ export const deleteVersion = createServerFn({ method: "POST" })
       .maybeSingle();
     if (findErr) throw findErr;
     if (!row) throw new Error("Version not found");
-    if (row.is_current) throw new Error("Cannot delete the current version. Make another version current first.");
+    if (row.is_current)
+      throw new Error("Cannot delete the current version. Make another version current first.");
     const { error } = await supabaseAdmin.from("versions").delete().eq("id", data.id);
     if (error) throw error;
     return { ok: true as const };
@@ -343,5 +357,3 @@ export const unmarkSubscriberNotified = createServerFn({ method: "POST" })
     if (error) throw error;
     return { ok: true as const };
   });
-
-

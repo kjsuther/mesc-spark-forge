@@ -45,18 +45,32 @@ export const ACTIONS: NavigatorAction[] = [
     title: "Apply for Medicaid",
     subtitle: "Start a new Medical Assistance application for you or your family.",
     totalEstimate: "About 30 minutes",
-    proTip: "Have your Social Security numbers and last month of pay stubs ready — it makes this go about twice as fast.",
+    proTip:
+      "Have your Social Security numbers and last month of pay stubs ready — it makes this go about twice as fast.",
     currentStepKey: "current",
     roadmap: STANDARD_ROADMAP,
     iconChar: "+",
     iconBg: "bg-mn-blue",
     iconFg: "text-white",
     checklist: [
-      { title: "Proof of everyone who lives with you", description: "A lease, a utility bill, or mail addressed to the people in your household." },
-      { title: "Photo ID for the main applicant", description: "A driver's license, state ID, tribal ID, or passport works." },
-      { title: "Pay stubs from the last 30 days", description: "For everyone in the household who works. Self-employed? Bring a recent income summary." },
+      {
+        title: "Proof of everyone who lives with you",
+        description: "A lease, a utility bill, or mail addressed to the people in your household.",
+      },
+      {
+        title: "Photo ID for the main applicant",
+        description: "A driver's license, state ID, tribal ID, or passport works.",
+      },
+      {
+        title: "Pay stubs from the last 30 days",
+        description:
+          "For everyone in the household who works. Self-employed? Bring a recent income summary.",
+      },
       { title: "Social Security numbers", description: "For every person applying for coverage." },
-      { title: "Immigration documents if applicable", description: "Only for family members who aren't U.S. citizens." },
+      {
+        title: "Immigration documents if applicable",
+        description: "Only for family members who aren't U.S. citizens.",
+      },
     ],
   },
   {
@@ -65,17 +79,30 @@ export const ACTIONS: NavigatorAction[] = [
     title: "Renew your coverage",
     subtitle: "Confirm your household is still eligible so your Medical Assistance keeps going.",
     totalEstimate: "About 15 minutes",
-    proTip: "Most people finish this step in under 5 minutes if their address and income haven't changed.",
+    proTip:
+      "Most people finish this step in under 5 minutes if their address and income haven't changed.",
     currentStepKey: "current",
     roadmap: STANDARD_ROADMAP,
     iconChar: "↺",
     iconBg: "bg-mn-green",
     iconFg: "text-white",
     checklist: [
-      { title: "Tell us if you moved", description: "We need your new address to send your coverage card." },
-      { title: "Check your monthly income", description: "Find your pay stubs from the last 30 days for everyone in your home." },
-      { title: "Confirm who lives with you", description: "Add or remove anyone whose living situation changed." },
-      { title: "Update your phone and email", description: "So we can text or email you if we need something else." },
+      {
+        title: "Tell us if you moved",
+        description: "We need your new address to send your coverage card.",
+      },
+      {
+        title: "Check your monthly income",
+        description: "Find your pay stubs from the last 30 days for everyone in your home.",
+      },
+      {
+        title: "Confirm who lives with you",
+        description: "Add or remove anyone whose living situation changed.",
+      },
+      {
+        title: "Update your phone and email",
+        description: "So we can text or email you if we need something else.",
+      },
     ],
   },
   {
@@ -92,9 +119,16 @@ export const ACTIONS: NavigatorAction[] = [
     iconFg: "text-white",
     heroImage: reportChangeImg,
     checklist: [
-      { title: "What changed?", description: "Income, address, household size, or something else — pick the one that fits best." },
+      {
+        title: "What changed?",
+        description:
+          "Income, address, household size, or something else — pick the one that fits best.",
+      },
       { title: "When did it change?", description: "The date the new situation started." },
-      { title: "Proof of the change", description: "A pay stub, a lease, or a birth certificate — whatever backs it up." },
+      {
+        title: "Proof of the change",
+        description: "A pay stub, a lease, or a birth certificate — whatever backs it up.",
+      },
     ],
   },
   {
@@ -110,9 +144,19 @@ export const ACTIONS: NavigatorAction[] = [
     iconBg: "bg-accent-gold",
     iconFg: "text-dark-gray",
     checklist: [
-      { title: "Find the notice number", description: "It looks like DHS-####. Top-right of the letter." },
-      { title: "Note the deadline", description: "Most notices ask you to respond within 10 or 30 days." },
-      { title: "Gather what the notice asks for", description: "Usually a document that proves something about your income, address, or family." },
+      {
+        title: "Find the notice number",
+        description: "It looks like DHS-####. Top-right of the letter.",
+      },
+      {
+        title: "Note the deadline",
+        description: "Most notices ask you to respond within 10 or 30 days.",
+      },
+      {
+        title: "Gather what the notice asks for",
+        description:
+          "Usually a document that proves something about your income, address, or family.",
+      },
       { title: "Send it back", description: "You can upload it here, drop it off, or mail it." },
     ],
   },
@@ -122,16 +166,26 @@ export const ACTIONS: NavigatorAction[] = [
     title: "Upload requested documents",
     subtitle: "Send us files a caseworker asked for.",
     totalEstimate: "About 5 minutes",
-    proTip: "A clear phone photo works just as well as a scan. Make sure the whole page is visible.",
+    proTip:
+      "A clear phone photo works just as well as a scan. Make sure the whole page is visible.",
     currentStepKey: "current",
     roadmap: STANDARD_ROADMAP,
     iconChar: "↑",
     iconBg: "bg-sky-blue",
     iconFg: "text-mn-blue",
     checklist: [
-      { title: "Confirm what was asked for", description: "Check your notice or the message from your caseworker." },
-      { title: "Take a clear photo or scan", description: "Make sure the whole document is in the frame and readable." },
-      { title: "Label the file", description: "'Pay stub October 2026' is more useful than 'IMG_0032'." },
+      {
+        title: "Confirm what was asked for",
+        description: "Check your notice or the message from your caseworker.",
+      },
+      {
+        title: "Take a clear photo or scan",
+        description: "Make sure the whole document is in the frame and readable.",
+      },
+      {
+        title: "Label the file",
+        description: "'Pay stub October 2026' is more useful than 'IMG_0032'.",
+      },
     ],
   },
   {
@@ -140,17 +194,30 @@ export const ACTIONS: NavigatorAction[] = [
     title: "Prepare for your interview",
     subtitle: "Get ready for a phone or in-person interview with your caseworker.",
     totalEstimate: "About 25 minutes",
-    proTip: "Most interviews take 20 to 30 minutes. Being ready with your documents cuts that in half.",
+    proTip:
+      "Most interviews take 20 to 30 minutes. Being ready with your documents cuts that in half.",
     currentStepKey: "current",
     roadmap: STANDARD_ROADMAP,
     iconChar: "⚓",
     iconBg: "bg-mn-blue",
     iconFg: "text-white",
     checklist: [
-      { title: "Confirm the time and how they'll call", description: "Phone number, video link, or office address." },
-      { title: "Have your ID and Social Security number nearby", description: "The caseworker will confirm who they're speaking with." },
-      { title: "Have proof of income and housing ready", description: "Pay stubs, lease or mortgage, and utility bills." },
-      { title: "Write down your questions", description: "This is the best moment to ask what happens next and when." },
+      {
+        title: "Confirm the time and how they'll call",
+        description: "Phone number, video link, or office address.",
+      },
+      {
+        title: "Have your ID and Social Security number nearby",
+        description: "The caseworker will confirm who they're speaking with.",
+      },
+      {
+        title: "Have proof of income and housing ready",
+        description: "Pay stubs, lease or mortgage, and utility bills.",
+      },
+      {
+        title: "Write down your questions",
+        description: "This is the best moment to ask what happens next and when.",
+      },
     ],
   },
   {
@@ -167,9 +234,19 @@ export const ACTIONS: NavigatorAction[] = [
     iconFg: "text-white",
     heroImage: checkDocsImg,
     checklist: [
-      { title: "Pick what you're planning to do", description: "Apply, renew, or report a change — each one asks for slightly different things." },
-      { title: "See the standard list", description: "We'll show the documents most people are asked for." },
-      { title: "Save the list", description: "Print it, email it to yourself, or take a screenshot." },
+      {
+        title: "Pick what you're planning to do",
+        description:
+          "Apply, renew, or report a change — each one asks for slightly different things.",
+      },
+      {
+        title: "See the standard list",
+        description: "We'll show the documents most people are asked for.",
+      },
+      {
+        title: "Save the list",
+        description: "Print it, email it to yourself, or take a screenshot.",
+      },
     ],
   },
 ];

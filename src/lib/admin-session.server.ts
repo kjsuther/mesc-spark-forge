@@ -93,7 +93,11 @@ export function passwordMatches(input: string, expected: string): boolean {
 
 export async function getAdminSession() {
   return {
-    data: { unlocked: tokenIsValid(getCookie(SESSION_NAME)) || adminAccessTokenIsValid(getRequestHeader("x-admin-access")) },
+    data: {
+      unlocked:
+        tokenIsValid(getCookie(SESSION_NAME)) ||
+        adminAccessTokenIsValid(getRequestHeader("x-admin-access")),
+    },
     async update(data: AdminSession) {
       if (data.unlocked) {
         setCookie(SESSION_NAME, createAdminToken(), cookieOptions());

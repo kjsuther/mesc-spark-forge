@@ -14,10 +14,7 @@ import {
 
 export const Route = createFileRoute("/admin/feedback")({
   head: () => ({
-    meta: [
-      { title: "Player Feedback — Admin" },
-      { name: "robots", content: "noindex,nofollow" },
-    ],
+    meta: [{ title: "Player Feedback — Admin" }, { name: "robots", content: "noindex,nofollow" }],
   }),
   component: AdminFeedbackPage,
 });
@@ -50,9 +47,7 @@ function AdminFeedbackPage() {
     ? (order.map((id) => backlog.find((b) => b.id === id)).filter(Boolean) as GameFeedback[])
     : backlog;
   // Any newly-arrived item that isn't in the local draft order yet.
-  const list = order
-    ? [...ordered, ...backlog.filter((b) => !order.includes(b.id))]
-    : backlog;
+  const list = order ? [...ordered, ...backlog.filter((b) => !order.includes(b.id))] : backlog;
 
   function move(index: number, dir: -1 | 1) {
     const next = list.map((f) => f.id);
@@ -118,9 +113,7 @@ function AdminFeedbackPage() {
 
       <section className="mb-8 rounded-lg border-2 border-accent-orange/60 bg-white">
         <header className="flex items-center justify-between gap-3 border-b-2 border-accent-orange/40 bg-accent-orange px-4 py-2 text-white">
-          <h2 className="text-sm font-black uppercase tracking-wide">
-            Backlog ({list.length})
-          </h2>
+          <h2 className="text-sm font-black uppercase tracking-wide">Backlog ({list.length})</h2>
           {order && (
             <div className="flex gap-2">
               <button

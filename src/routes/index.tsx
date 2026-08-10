@@ -110,9 +110,13 @@ function WelcomePage() {
               ★ MESC 2026 · Live co-creation session ★
             </p>
             <h1 className="font-display text-3xl sm:text-4xl md:text-5xl lg:text-6xl uppercase tracking-wide max-w-4xl leading-[1.05] drop-shadow-[0_2px_0_rgba(0,0,0,0.25)]">
-              <span aria-hidden="true" className="text-accent-orange mr-2 sm:mr-3">★</span>
+              <span aria-hidden="true" className="text-accent-orange mr-2 sm:mr-3">
+                ★
+              </span>
               Blazing the Trail to Coverage
-              <span aria-hidden="true" className="text-accent-orange ml-2 sm:ml-3">★</span>
+              <span aria-hidden="true" className="text-accent-orange ml-2 sm:ml-3">
+                ★
+              </span>
             </h1>
             <p className="text-cream/90 text-base sm:text-lg md:text-xl mt-5 sm:mt-6 max-w-2xl">
               Play our retro video game and see if you can survive the journey of applying for
@@ -155,10 +159,12 @@ function WelcomePage() {
               ))}
             </ul>
           </div>
-
         </section>
 
-        <section id="how-it-works" className="max-w-6xl w-full mx-auto py-12 sm:py-16 px-5 sm:px-6 scroll-mt-24">
+        <section
+          id="how-it-works"
+          className="max-w-6xl w-full mx-auto py-12 sm:py-16 px-5 sm:px-6 scroll-mt-24"
+        >
           <SectionHeading>How it works</SectionHeading>
           <p className="text-dark-gray/80 mt-3 max-w-2xl text-sm sm:text-base leading-relaxed">
             Three steps. Everyone plays the same game, everyone's feedback goes on the same public

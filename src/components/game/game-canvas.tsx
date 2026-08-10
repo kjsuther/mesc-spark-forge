@@ -3,14 +3,13 @@ import { Leaderboard } from "./leaderboard";
 import { ScoreEntryOverlay } from "./score-entry-overlay";
 import { GameMusic, type MusicTheme } from "@/lib/game-music";
 import { setSfxEnabled } from "@/lib/game-sfx";
-import type { GameFlags, WinResult } from "./game-scenes";
+import type { GameFlags, RunSnapshot, WinResult } from "./game-scenes";
 import trailMapBg from "@/assets/game/trail-map-bg-v2.png.asset.json";
 
-import { clampResumeZone, shouldRecoverGameAfterResume } from "./lifecycle";
+import { clampResumeZone, isResumableSnapshot, shouldRecoverGameAfterResume } from "./lifecycle";
 import { selectViewportSnapshot } from "./viewport";
 
 type Props = {
-  mode: "before" | "after";
   onWin?: (result: WinResult) => void;
   onLose?: (result: WinResult) => void;
   /** Poster/projection mode: fill the parent, no hint text, no fullscreen button. */
@@ -122,8 +121,7 @@ function useViewportSize() {
   return size;
 }
 
-
-export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props) {
+export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -143,11 +141,18 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const fsIntentRef = useRef(false);
   const menuTapHandledUntilRef = useRef(0);
   const resumeZoneRef = useRef(0);
+  /** Full run state, kept so a context-loss recovery resumes an honest run. */
+  const snapshotRef = useRef<RunSnapshot | null>(null);
   const recoveryPendingRef = useRef(false);
 
   const music = useMemo(() => new GameMusic(), []);
   const [musicOn, setMusicOn] = useState(false);
-  useEffect(() => () => { music.stop(); }, [music]);
+  useEffect(
+    () => () => {
+      music.stop();
+    },
+    [music],
+  );
   /** Set once the player uses the sound toggle themselves — after that we
    *  never override their choice when a run starts. */
   const soundChoiceRef = useRef(false);
@@ -158,15 +163,13 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     setMusicOn(on);
   }, [music]);
 
-
   // The scene drives the mood: boss battle in Zone 7, fanfare on the finale.
   const handleMusicTheme = useCallback(
-    (theme: MusicTheme) => { music.setTheme(theme); },
+    (theme: MusicTheme) => {
+      music.setTheme(theme);
+    },
     [music],
   );
-  // Switching between the frozen original build and the current build is a
-  // full restart of the engine.
-  const key = mode;
 
   // Start the game only after the user picks a launch mode
   useEffect(() => {
@@ -187,22 +190,30 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       try {
         const canvas = canvasRef.current;
         if (!canvas) return;
-        // "before" runs the frozen original build; "after" runs the current
-        // build that carries every implemented piece of player feedback.
-        const { startGame } =
-          mode === "before"
-            ? await import("./original/game-scenes")
-            : await import("./game-scenes");
+        const { startGame } = await import("./game-scenes");
         if (cancelled) return;
         const flags = BUILD_FLAGS;
         destroy = await startGame({
-          canvas, flags, mode,
+          canvas,
+          flags,
           resumeZone: clampResumeZone(resumeZoneRef.current),
-          onSafeProgress: (zone) => {
+          resumeSnapshot: isResumableSnapshot(snapshotRef.current) ? snapshotRef.current : null,
+          onSafeProgress: (zone: number) => {
             resumeZoneRef.current = clampResumeZone(zone);
           },
-          onWin: (r) => { setEndResult(r); onWin?.(r); },
-          onLose: (r) => { setEndResult(r); onLose?.(r); },
+          onSnapshot: (snap: RunSnapshot | null) => {
+            snapshotRef.current = snap;
+          },
+          onWin: (r: WinResult) => {
+            snapshotRef.current = null;
+            setEndResult(r);
+            onWin?.(r);
+          },
+          onLose: (r: WinResult) => {
+            snapshotRef.current = null;
+            setEndResult(r);
+            onLose?.(r);
+          },
           onMusicTheme: handleMusicTheme,
         });
         if (!cancelled) {
@@ -226,7 +237,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       if (destroy) destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, launchMode, engineGeneration]);
+  }, [launchMode, engineGeneration]);
 
   const recoverGame = useCallback(() => {
     if (!launchMode || recoveryPendingRef.current) return;
@@ -326,7 +337,6 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     if (!launchMode) music.setTheme("adventure");
   }, [launchMode, music]);
 
-
   // Auto-hide the mobile hint after 6s
   useEffect(() => {
     if (!showHint) return;
@@ -366,7 +376,11 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     if (!fauxFullscreen) return;
     const body = document.body.style;
     const html = document.documentElement.style;
-    const prev = { overflow: body.overflow, htmlOverflow: html.overflow, overscroll: body.overscrollBehavior };
+    const prev = {
+      overflow: body.overflow,
+      htmlOverflow: html.overflow,
+      overscroll: body.overscrollBehavior,
+    };
     body.overflow = "hidden";
     html.overflow = "hidden";
     body.overscrollBehavior = "none";
@@ -402,7 +416,6 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     };
   }, [vw, vh, isFullscreen, fauxFullscreen, launchMode]);
 
-
   // Block context menu and pull-to-refresh on the game surface
   useEffect(() => {
     const el = containerRef.current;
@@ -426,7 +439,6 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     const t = window.setTimeout(() => canvasRef.current?.focus(), 60);
     return () => window.clearTimeout(t);
   }, [launchMode, loading, engineGeneration]);
-
 
   const nativeFullscreenSupported = useCallback(() => {
     const el = containerRef.current;
@@ -526,6 +538,8 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   const pickMode = useCallback(
     (m: LaunchMode) => {
       resumeZoneRef.current = 0;
+      snapshotRef.current = null;
+      snapshotRef.current = null;
       const coarse = isCoarsePointer();
       if (m === "fullscreen" || coarse) {
         fsIntentRef.current = true;
@@ -548,7 +562,6 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       setLaunchMode(m);
     },
     [requestNativeFullscreen, nativeFullscreenSupported, nudgeMobileBrowserChrome],
-
   );
 
   // Touch devices: the very first tap anywhere in the game (menu buttons or
@@ -570,8 +583,6 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
       setFauxFullscreen(true);
     }
   }, [nativeFullscreenSupported, nudgeMobileBrowserChrome, requestNativeFullscreen]);
-
-
 
   // Every paused menu screen advances the same way: Enter, Space, mouse click,
   // or a tap anywhere on touch devices.
@@ -618,7 +629,6 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     return () => window.removeEventListener("keydown", onKey);
   }, [launchMode, error, advanceMenu]);
 
-
   function setBtn(k: "left" | "right", v: boolean) {
     const w = window as unknown as { __gameInput?: TouchInput };
     if (w.__gameInput) w.__gameInput[k] = v;
@@ -631,6 +641,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
   }
   function reset() {
     resumeZoneRef.current = 0;
+    snapshotRef.current = null;
     const w = window as unknown as { __gameInput?: TouchInput };
     if (w.__gameInput) w.__gameInput.resetReq = true;
   }
@@ -655,9 +666,9 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         Math.min(1.85, Math.min(vw / 960, vh / (isTouch ? 680 : 540)) * (isTouch ? 1.02 : 1.12)),
       )
     : 1;
-  const menuScale = overlayFs && isTouch && menuScreen === "trailmap" ? Math.min(uiScale, 0.5) : uiScale;
+  const menuScale =
+    overlayFs && isTouch && menuScreen === "trailmap" ? Math.min(uiScale, 0.5) : uiScale;
   const menuSafePadding = overlayFs && isTouch ? 4 : 8;
-
 
   const containerStyle: React.CSSProperties = overlayFs
     ? {
@@ -696,7 +707,6 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
 
   const showRotatePrompt = isTouch && portrait;
 
-
   return (
     <div ref={containerRef} className="relative w-full" style={containerStyle}>
       {/* Rotate-to-landscape overlay for touch devices held in portrait.
@@ -718,9 +728,7 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
             >
               ↻
             </div>
-            <p className="mb-2 text-[10px] tracking-widest text-accent-gold">
-              TURN YOUR PHONE
-            </p>
+            <p className="mb-2 text-[10px] tracking-widest text-accent-gold">TURN YOUR PHONE</p>
             <p className="text-[8px] leading-relaxed tracking-wider text-cream/90">
               Blazing the Trail is a landscape adventure. Rotate sideways to play.
             </p>
@@ -767,7 +775,6 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         </button>
       )}
 
-
       <div
         className={
           overlayFs
@@ -776,7 +783,6 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
               ? "relative w-full flex-1 min-h-0 overflow-hidden bg-mn-blue"
               : "relative mx-auto w-full scroll-mt-24 overflow-hidden rounded-lg bg-mn-blue ring-2 ring-mn-blue/60 shadow-lg [aspect-ratio:16/9] max-h-[calc(100svh-9rem)]"
         }
-
         style={
           overlayFs
             ? {
@@ -819,8 +825,6 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
           tabIndex={0}
           aria-label="Blazing the Trail to Coverage game"
         />
-
-
 
         {/* In-window SNES name entry the moment a run ends */}
         {endResult && !presentation && launchMode && (
@@ -866,148 +870,157 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
               enterFullscreenOnFirstTap();
               advanceMenu();
             }}
-
           >
             {/* One scale factor for every menu card: keeps text legible on
                 big screens and stops short landscape phones from clipping. */}
             <div
               className="grid h-full w-full place-items-center"
               style={{ transform: `scale(${menuScale})`, transformOrigin: "center" }}
-
             >
-
-
-            {menuScreen === "title" && (
-              <div className="w-full max-w-lg text-center">
-                <div
-                  className="relative mx-auto mb-6 border-[6px] border-cream bg-mn-blue px-5 py-8"
-                  style={{
-                    imageRendering: "pixelated",
-                    boxShadow:
-                      "0 0 0 6px var(--color-mn-blue), 0 0 0 12px var(--color-accent-gold), 0 0 0 18px var(--color-mn-blue), 0 0 0 22px var(--color-accent-orange)",
-                    fontFamily: '"Press Start 2P", ui-monospace, monospace',
-                  }}
-                >
-                  <p className="mb-3 text-[8px] leading-relaxed tracking-widest text-accent-gold sm:text-[10px]">
-                    ★ MINNESOTA HEALTH COVERAGE QUEST ★
-                  </p>
-                  <h2
-                    className="text-[18px] leading-[1.4] text-cream sm:text-[28px]"
+              {menuScreen === "title" && (
+                <div className="w-full max-w-lg text-center">
+                  <div
+                    className="relative mx-auto mb-6 border-[6px] border-cream bg-mn-blue px-5 py-8"
                     style={{
-                      textShadow:
-                        "3px 3px 0 var(--color-accent-orange), 6px 6px 0 rgba(0,0,0,0.4)",
+                      imageRendering: "pixelated",
+                      boxShadow:
+                        "0 0 0 6px var(--color-mn-blue), 0 0 0 12px var(--color-accent-gold), 0 0 0 18px var(--color-mn-blue), 0 0 0 22px var(--color-accent-orange)",
+                      fontFamily: '"Press Start 2P", ui-monospace, monospace',
                     }}
                   >
-                    BLAZING
-                    <br />
-                    THE TRAIL
-                    <br />
-                    TO COVERAGE
-                  </h2>
-                  <p className="mt-5 animate-pulse text-[8px] tracking-widest text-cream sm:text-[10px]">
-                    - PRESS START -
-                  </p>
+                    <p className="mb-3 text-[8px] leading-relaxed tracking-widest text-accent-gold sm:text-[10px]">
+                      ★ MINNESOTA HEALTH COVERAGE QUEST ★
+                    </p>
+                    <h2
+                      className="text-[18px] leading-[1.4] text-cream sm:text-[28px]"
+                      style={{
+                        textShadow:
+                          "3px 3px 0 var(--color-accent-orange), 6px 6px 0 rgba(0,0,0,0.4)",
+                      }}
+                    >
+                      BLAZING
+                      <br />
+                      THE TRAIL
+                      <br />
+                      TO COVERAGE
+                    </h2>
+                    <p className="mt-5 animate-pulse text-[8px] tracking-widest text-cream sm:text-[10px]">
+                      - PRESS START -
+                    </p>
+                  </div>
+                  <div
+                    className="mx-auto flex w-full max-w-xs flex-col gap-3"
+                    style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
+                  >
+                    <MenuButton
+                      onClick={() => {
+                        setMenuScreen("explainer");
+                        enterFullscreenOnFirstTap();
+                        // Respect an explicit mute made with the sound toggle.
+                        if (!soundChoiceRef.current) {
+                          setMusicOn(true);
+                          try {
+                            music.start();
+                          } catch (err) {
+                            console.warn("[game] music start failed", err);
+                          }
+                        }
+                      }}
+                    >
+                      ▶ Start Game
+                    </MenuButton>
+                    <MenuButton
+                      onClick={() => {
+                        enterFullscreenOnFirstTap();
+                        setMenuScreen("scores");
+                      }}
+                    >
+                      ★ High Scores
+                    </MenuButton>
+                    {/* Full screen is a first-class title-screen option, not a
+                      hidden control that only appears mid-run. */}
+                    <MenuButton
+                      onClick={() => {
+                        autoFsDoneRef.current = true;
+                        void toggleFullscreen();
+                      }}
+                    >
+                      {isFullscreen || fauxFullscreen ? "⤡ Exit Full Screen" : "⛶ Full Screen"}
+                    </MenuButton>
+                  </div>
                 </div>
+              )}
+
+              {menuScreen === "explainer" && (
                 <div
-                  className="mx-auto flex w-full max-w-xs flex-col gap-3"
+                  className="w-full max-w-2xl text-center"
                   style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
                 >
-                  <MenuButton
-                    onClick={() => {
-                      setMenuScreen("explainer");
-                      enterFullscreenOnFirstTap();
-                      // Respect an explicit mute made with the sound toggle.
-                      if (!soundChoiceRef.current) {
-                        setMusicOn(true);
-                        try {
-                          music.start();
-                        } catch (err) {
-                          console.warn("[game] music start failed", err);
-                        }
-                      }
+                  <div
+                    className="mx-auto mb-5 border-[6px] border-cream bg-mn-blue px-5 py-6 text-left"
+                    style={{
+                      imageRendering: "pixelated",
+                      boxShadow:
+                        "0 0 0 6px var(--color-mn-blue), 0 0 0 12px var(--color-accent-gold), 0 0 0 18px var(--color-mn-blue)",
                     }}
-
                   >
-                    ▶ Start Game
-                  </MenuButton>
-                  <MenuButton onClick={() => { enterFullscreenOnFirstTap(); setMenuScreen("scores"); }}>★ High Scores</MenuButton>
-                  {/* Full screen is a first-class title-screen option, not a
-                      hidden control that only appears mid-run. */}
-                  <MenuButton onClick={() => { autoFsDoneRef.current = true; void toggleFullscreen(); }}>
-                    {isFullscreen || fauxFullscreen ? "⤡ Exit Full Screen" : "⛶ Full Screen"}
-                  </MenuButton>
+                    <p className="mb-3 text-center text-[9px] tracking-widest text-accent-gold sm:text-[11px]">
+                      ★ THE JOURNEY ★
+                    </p>
+                    <p className="text-[9px] leading-[1.9] text-cream sm:text-[11px]">
+                      Applying for health coverage is a LONG road. Without the right tools it can
+                      feel impossible &mdash; forms pile up, letters get lost, deadlines slip, and
+                      many people GIVE UP before the finish line.
+                    </p>
+                    <p className="mt-4 text-[9px] leading-[1.9] text-cream sm:text-[11px]">
+                      Go as far as you can down the trail. When your run ends, tell us what would
+                      have made the journey easier &mdash; the team builds that feedback into the
+                      next version.
+                    </p>
+                  </div>
+                  <div className="mx-auto flex max-w-xs flex-col gap-3">
+                    <MenuButton onClick={() => setMenuScreen("trailmap")}>▶ Continue</MenuButton>
+                    <MenuButton onClick={() => setMenuScreen("title")}>Back</MenuButton>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
+              {menuScreen === "trailmap" && (
+                <TrailMap
+                  onContinue={() => setMenuScreen("controls")}
+                  onBack={() => setMenuScreen("explainer")}
+                />
+              )}
 
-            {menuScreen === "explainer" && (
-              <div className="w-full max-w-2xl text-center" style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}>
-                <div
-                  className="mx-auto mb-5 border-[6px] border-cream bg-mn-blue px-5 py-6 text-left"
-                  style={{
-                    imageRendering: "pixelated",
-                    boxShadow:
-                      "0 0 0 6px var(--color-mn-blue), 0 0 0 12px var(--color-accent-gold), 0 0 0 18px var(--color-mn-blue)",
-                  }}
-                >
-                  <p className="mb-3 text-center text-[9px] tracking-widest text-accent-gold sm:text-[11px]">
-                    ★ THE JOURNEY ★
-                  </p>
-                  <p className="text-[9px] leading-[1.9] text-cream sm:text-[11px]">
-                    Applying for health coverage is a LONG road. Without the
-                    right tools it can feel impossible &mdash; forms pile up,
-                    letters get lost, deadlines slip, and many people GIVE UP
-                    before the finish line.
-                  </p>
-                  <p className="mt-4 text-[9px] leading-[1.9] text-cream sm:text-[11px]">
-                    Go as far as you can down the trail. When your run ends,
-                    tell us what would have made the journey easier &mdash; the
-                    team builds that feedback into the next version.
-                  </p>
+              {menuScreen === "controls" && (
+                <ControlsScreen
+                  onContinue={() => pickMode("standard")}
+                  onBack={() => setMenuScreen("trailmap")}
+                />
+              )}
+
+              {menuScreen === "scores" && (
+                <div className="grid h-full w-full max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] gap-3">
+                  <header className="text-center">
+                    <p className="text-xs font-black uppercase tracking-widest text-accent-gold">
+                      Live Scoreboard
+                    </p>
+                    <h3 className="font-display text-2xl uppercase text-cream sm:text-4xl">
+                      High Scores
+                    </h3>
+                  </header>
+                  <div className="min-h-0 overflow-auto rounded border-2 border-accent-gold bg-mn-blue/80">
+                    <Leaderboard variant="poster" />
+                  </div>
+                  <div className="mx-auto flex w-full max-w-sm gap-3">
+                    <MenuButton onClick={() => setMenuScreen("title")}>Back</MenuButton>
+                    <MenuButton onClick={() => setMenuScreen("explainer")}>Start</MenuButton>
+                  </div>
                 </div>
-                <div className="mx-auto flex max-w-xs flex-col gap-3">
-                  <MenuButton onClick={() => setMenuScreen("trailmap")}>▶ Continue</MenuButton>
-                  <MenuButton onClick={() => setMenuScreen("title")}>Back</MenuButton>
-                </div>
-
-              </div>
-            )}
-
-            {menuScreen === "trailmap" && (
-              <TrailMap onContinue={() => setMenuScreen("controls")} onBack={() => setMenuScreen("explainer")} />
-            )}
-
-            {menuScreen === "controls" && (
-              <ControlsScreen
-                onContinue={() => pickMode("standard")}
-                onBack={() => setMenuScreen("trailmap")}
-              />
-            )}
-
-            {menuScreen === "scores" && (
-              <div className="grid h-full w-full max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] gap-3">
-                <header className="text-center">
-                  <p className="text-xs font-black uppercase tracking-widest text-accent-gold">
-                    Live Scoreboard
-                  </p>
-                  <h3 className="font-display text-2xl uppercase text-cream sm:text-4xl">
-                    High Scores
-                  </h3>
-                </header>
-                <div className="min-h-0 overflow-auto rounded border-2 border-accent-gold bg-mn-blue/80">
-                  <Leaderboard variant="poster" />
-                </div>
-                <div className="mx-auto flex w-full max-w-sm gap-3">
-                  <MenuButton onClick={() => setMenuScreen("title")}>Back</MenuButton>
-                  <MenuButton onClick={() => setMenuScreen("explainer")}>Start</MenuButton>
-                </div>
-              </div>
-            )}
+              )}
             </div>
           </div>
         )}
-
 
         {/* Music toggle. In windowed play this lives BELOW the canvas so it
             never covers gameplay; fullscreen has no outside space, so it
@@ -1068,10 +1081,24 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                 bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
               }}
             >
-              <PadButton label="LEFT" aria="Move left" size={72}
-                onDown={() => setBtn("left", true)} onUp={() => setBtn("left", false)}>◀</PadButton>
-              <PadButton label="RIGHT" aria="Move right" size={72}
-                onDown={() => setBtn("right", true)} onUp={() => setBtn("right", false)}>▶</PadButton>
+              <PadButton
+                label="LEFT"
+                aria="Move left"
+                size={72}
+                onDown={() => setBtn("left", true)}
+                onUp={() => setBtn("left", false)}
+              >
+                ◀
+              </PadButton>
+              <PadButton
+                label="RIGHT"
+                aria="Move right"
+                size={72}
+                onDown={() => setBtn("right", true)}
+                onUp={() => setBtn("right", false)}
+              >
+                ▶
+              </PadButton>
             </div>
             {/* Action cluster, bottom-right */}
             <div
@@ -1081,8 +1108,12 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
                 bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
               }}
             >
-              <PadButton label="RESET" aria="Restart" size={52} dim onDown={reset}>⟳</PadButton>
-              <PadButton label="JUMP" aria="Jump" size={92} accent onDown={jump}>JUMP</PadButton>
+              <PadButton label="RESET" aria="Restart" size={52} dim onDown={reset}>
+                ⟳
+              </PadButton>
+              <PadButton label="JUMP" aria="Jump" size={92} accent onDown={jump}>
+                JUMP
+              </PadButton>
             </div>
           </>
         )}
@@ -1121,7 +1152,6 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
         </div>
       )}
 
-
       {/* Inline touch controls (non-fullscreen mobile) */}
       {launchMode && !overlayFs && !presentation && (
         <>
@@ -1132,14 +1162,32 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
           )}
           <div className="mt-3 flex items-end justify-between gap-2 md:hidden select-none">
             <div className="flex gap-1">
-              <PadButton label="LEFT" aria="Move left" size={60}
-                onDown={() => setBtn("left", true)} onUp={() => setBtn("left", false)}>◀</PadButton>
-              <PadButton label="RIGHT" aria="Move right" size={60}
-                onDown={() => setBtn("right", true)} onUp={() => setBtn("right", false)}>▶</PadButton>
+              <PadButton
+                label="LEFT"
+                aria="Move left"
+                size={60}
+                onDown={() => setBtn("left", true)}
+                onUp={() => setBtn("left", false)}
+              >
+                ◀
+              </PadButton>
+              <PadButton
+                label="RIGHT"
+                aria="Move right"
+                size={60}
+                onDown={() => setBtn("right", true)}
+                onUp={() => setBtn("right", false)}
+              >
+                ▶
+              </PadButton>
             </div>
             <div className="flex items-end gap-2">
-              <PadButton label="RESET" aria="Restart" size={48} dim onDown={reset}>⟳</PadButton>
-              <PadButton label="JUMP" aria="Jump" size={76} accent onDown={jump}>JUMP</PadButton>
+              <PadButton label="RESET" aria="Restart" size={48} dim onDown={reset}>
+                ⟳
+              </PadButton>
+              <PadButton label="JUMP" aria="Jump" size={76} accent onDown={jump}>
+                JUMP
+              </PadButton>
             </div>
           </div>
         </>
@@ -1153,7 +1201,6 @@ export function GameCanvas({ mode, onWin, onLose, presentation = false }: Props)
     </div>
   );
 }
-
 
 function MenuButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
   const firedUntilRef = useRef(0);
@@ -1184,7 +1231,6 @@ function MenuButton({ children, onClick }: { children: React.ReactNode; onClick:
     </button>
   );
 }
-
 
 function PadButton({
   children,
@@ -1362,8 +1408,8 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
         </div>
 
         <p className="mt-4 text-[7px] leading-[1.9] text-cream sm:text-[9px]">
-          Reach the clinic at the end of the trail. Collect your documents, dodge
-          the barriers, and don&apos;t give up.
+          Reach the clinic at the end of the trail. Collect your documents, dodge the barriers, and
+          don&apos;t give up.
         </p>
       </div>
       <div className="mx-auto flex max-w-xs flex-col gap-3">
@@ -1420,14 +1466,18 @@ function TrailMap({ onContinue, onBack }: { onContinue: () => void; onBack: () =
   );
 
   return (
-    <div className="w-full max-w-3xl text-center" style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}>
-      <p className="mb-4 text-[10px] tracking-widest text-accent-gold sm:text-[12px]">★ THE TRAIL AHEAD ★</p>
+    <div
+      className="w-full max-w-3xl text-center"
+      style={{ fontFamily: '"Press Start 2P", ui-monospace, monospace' }}
+    >
+      <p className="mb-4 text-[10px] tracking-widest text-accent-gold sm:text-[12px]">
+        ★ THE TRAIL AHEAD ★
+      </p>
       <div
         className="relative mx-auto mb-5 aspect-[2/1] w-full overflow-hidden border-[6px] border-cream"
         style={{
           imageRendering: "pixelated",
-          boxShadow:
-            "0 0 0 6px var(--color-mn-blue), 0 0 0 12px var(--color-accent-gold)",
+          boxShadow: "0 0 0 6px var(--color-mn-blue), 0 0 0 12px var(--color-accent-gold)",
           backgroundImage: `url(${trailMapBg.url})`,
           backgroundSize: "100% 100%",
           backgroundRepeat: "no-repeat",

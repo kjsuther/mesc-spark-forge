@@ -66,7 +66,8 @@ function NowBuildingAdmin() {
   }, [allFeedback]);
 
   async function onClearBanner() {
-    if (!confirm("Move all in-progress items back to Planned and hide the Now Building banner?")) return;
+    if (!confirm("Move all in-progress items back to Planned and hide the Now Building banner?"))
+      return;
     await clearAll();
     toast.success("Banner cleared");
     refetchFeedback();
@@ -89,7 +90,10 @@ function NowBuildingAdmin() {
   }
 
   // Ship It — derived state
-  const suggestedSemver = useMemo(() => bumpPatch(currentVersion?.semver), [currentVersion?.semver]);
+  const suggestedSemver = useMemo(
+    () => bumpPatch(currentVersion?.semver),
+    [currentVersion?.semver],
+  );
   const [shipFeedbackIds, setShipFeedbackIds] = useState<string[]>([]);
   const [shipSemver, setShipSemver] = useState("");
   const [shipTitle, setShipTitle] = useState("");
@@ -123,7 +127,8 @@ function NowBuildingAdmin() {
     const n = selectedItems.length;
     if (n === 0) return "";
     if (n === 1) return shorten(selectedItems[0].wish, 10);
-    if (n === 2) return `${shorten(selectedItems[0].wish, 5)} & ${shorten(selectedItems[1].wish, 5)}`;
+    if (n === 2)
+      return `${shorten(selectedItems[0].wish, 5)} & ${shorten(selectedItems[1].wish, 5)}`;
     return `Release with ${n} updates: ${shorten(selectedItems[0].wish, 4)}, ${shorten(selectedItems[1].wish, 4)} & ${n - 2} more`;
   }, [selectedItems]);
 
@@ -188,16 +193,22 @@ function NowBuildingAdmin() {
   return (
     <div className="max-w-2xl space-y-12">
       <nav className="flex gap-3 text-xs font-bold uppercase tracking-widest text-mn-blue">
-        <a href="#now-building" className="hover:underline">Now Building</a>
+        <a href="#now-building" className="hover:underline">
+          Now Building
+        </a>
         <span className="text-dark-gray/40">/</span>
-        <a href="#ship-release" className="hover:underline">Ship a release</a>
+        <a href="#ship-release" className="hover:underline">
+          Ship a release
+        </a>
       </nav>
 
       <section id="now-building">
-        <h1 className="font-display text-3xl text-mn-blue uppercase tracking-wide mb-2">Now Building</h1>
+        <h1 className="font-display text-3xl text-mn-blue uppercase tracking-wide mb-2">
+          Now Building
+        </h1>
         <p className="text-sm text-dark-gray/70 mb-4">
-          Anything you drop into the <strong>Building</strong> column on Feedback Triage — or add from
-          the candidates list below — shows up in the live "Now Building" banner. No retyping.
+          Anything you drop into the <strong>Building</strong> column on Feedback Triage — or add
+          from the candidates list below — shows up in the live "Now Building" banner. No retyping.
         </p>
 
         <div className="mb-6 border-2 border-mn-blue/30 rounded-2xl bg-mn-blue/5 p-4">
@@ -272,7 +283,9 @@ function NowBuildingAdmin() {
       </section>
 
       <section id="ship-release" className="border-t-2 border-light-gray pt-8">
-        <h2 className="font-display text-3xl text-mn-green uppercase tracking-wide mb-2">Ship it live</h2>
+        <h2 className="font-display text-3xl text-mn-green uppercase tracking-wide mb-2">
+          Ship it live
+        </h2>
         <p className="text-sm text-dark-gray/70 mb-6">
           Publishes a new version, marks the linked feedback item shipped, and removes it from Now
           Building. Current live version:{" "}
@@ -284,7 +297,8 @@ function NowBuildingAdmin() {
         <form onSubmit={onShip} className="space-y-4">
           <fieldset className="block">
             <legend className="text-xs font-bold uppercase tracking-widest text-mn-blue mb-2">
-              Which items are you shipping? {selectedItems.length > 0 && (
+              Which items are you shipping?{" "}
+              {selectedItems.length > 0 && (
                 <span className="text-dark-gray/60 normal-case font-normal">
                   ({selectedItems.length} selected)
                 </span>
@@ -321,7 +335,9 @@ function NowBuildingAdmin() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <label className="block">
-              <span className="text-xs font-bold uppercase tracking-widest text-mn-blue">Semver</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-mn-blue">
+                Semver
+              </span>
               <input
                 type="text"
                 placeholder={suggestedSemver || "0.1.0"}
@@ -343,7 +359,9 @@ function NowBuildingAdmin() {
               )}
             </label>
             <label className="block md:col-span-2">
-              <span className="text-xs font-bold uppercase tracking-widest text-mn-blue">Version title</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-mn-blue">
+                Version title
+              </span>
               <input
                 type="text"
                 value={effectiveTitle}
@@ -357,7 +375,9 @@ function NowBuildingAdmin() {
             </label>
           </div>
           <label className="block">
-            <span className="text-xs font-bold uppercase tracking-widest text-mn-blue">Changelog notes</span>
+            <span className="text-xs font-bold uppercase tracking-widest text-mn-blue">
+              Changelog notes
+            </span>
             <textarea
               rows={4}
               value={effectiveNotes}

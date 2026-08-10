@@ -24,14 +24,7 @@ export function computeScore(r: WinResult): number {
   return r.score;
 }
 
-
-export function ScoreSubmit({
-  result,
-  onDone,
-}: {
-  result: WinResult;
-  onDone?: () => void;
-}) {
+export function ScoreSubmit({ result, onDone }: { result: WinResult; onDone?: () => void }) {
   const qc = useQueryClient();
   const submitScore = useServerFn(submitGameScore);
   const [first, setFirst] = useState("");
@@ -74,7 +67,7 @@ export function ScoreSubmit({
           displayName: display,
           score,
           durationMs: Math.max(1, result.durationMs),
-          mode: result.mode,
+          mode: "after" as const,
         },
       });
     } catch (error) {
@@ -97,12 +90,8 @@ export function ScoreSubmit({
   if (submitted) {
     return (
       <div className="mt-4 rounded-lg border-2 border-mn-green/60 bg-mn-green/10 p-4 text-center">
-        <p className="font-bold text-mn-green">
-          Score saved · {score.toLocaleString()} pts
-        </p>
-        <p className="text-xs text-dark-gray/70 mt-1">
-          Check the High Scores board below.
-        </p>
+        <p className="font-bold text-mn-green">Score saved · {score.toLocaleString()} pts</p>
+        <p className="text-xs text-dark-gray/70 mt-1">Check the High Scores board below.</p>
       </div>
     );
   }
@@ -111,7 +100,6 @@ export function ScoreSubmit({
     ? `★ You covered the trail — score: ${score.toLocaleString()}`
     : `You made it to ${stepLabel} — score: ${score.toLocaleString()}`;
   const sub = `Distance ${result.distancePx.toLocaleString()}px · Docs ${result.docs}/3 · Zones ${result.farthestZone + 1}/8 · Jumps ${result.jumpsLanded} · Enemies passed ${result.enemiesPassed}${result.deaths ? ` · Deaths ${result.deaths}` : ""}`;
-
 
   return (
     <form
@@ -128,7 +116,12 @@ export function ScoreSubmit({
           type="text"
           value={first}
           onChange={(e) =>
-            setFirst(e.target.value.toUpperCase().replace(/[^A-Z '-]/g, "").slice(0, 12))
+            setFirst(
+              e.target.value
+                .toUpperCase()
+                .replace(/[^A-Z '-]/g, "")
+                .slice(0, 12),
+            )
           }
           maxLength={12}
           className="mt-1 border-2 border-mn-blue/40 rounded px-2 py-1 text-sm font-normal normal-case tracking-normal text-dark-gray bg-white"

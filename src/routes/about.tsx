@@ -46,8 +46,8 @@ function AboutPage() {
             Trailblazing Medicaid, Live
           </h1>
           <p className="text-xl text-dark-gray/80 max-w-3xl">
-            We built a 16-bit video game about applying for health coverage — every barrier in it
-            is one real applicants hit. Attendees play it, tell us what's broken, and we build that
+            We built a 16-bit video game about applying for health coverage — every barrier in it is
+            one real applicants hit. Attendees play it, tell us what's broken, and we build that
             feedback into the game during the session. Then they play it again. Ideas in, working
             software out — in minutes, not months.
           </p>
@@ -123,12 +123,12 @@ function AboutPage() {
             From the game to the real front door
           </h2>
           <p className="text-dark-gray/80 max-w-3xl leading-relaxed mb-6">
-            Every obstacle in the game is a stand-in for a barrier real applicants hit when they
-            try to get health coverage. That's the point of building it: changing an obstacle in a
-            game takes an afternoon, and it's a cheap, honest rehearsal for changing the same thing
-            in the actual system. When a player says "this part is unfair," they're usually telling
-            us something true about the real process — and the fix they describe usually maps to a
-            real product change.
+            Every obstacle in the game is a stand-in for a barrier real applicants hit when they try
+            to get health coverage. That's the point of building it: changing an obstacle in a game
+            takes an afternoon, and it's a cheap, honest rehearsal for changing the same thing in
+            the actual system. When a player says "this part is unfair," they're usually telling us
+            something true about the real process — and the fix they describe usually maps to a real
+            product change.
           </p>
 
           <Accordion type="multiple" className="grid gap-3">
@@ -154,7 +154,7 @@ function AboutPage() {
                 f: "Proactive status updates and a self-service status checker.",
               },
               {
-                g: "The \"Denied\" boss fight",
+                g: 'The "Denied" boss fight',
                 p: "Notices arrive in language people can't act on.",
                 f: "Plain-language notices with clear next steps and appeal paths.",
               },
@@ -192,17 +192,14 @@ function AboutPage() {
             ))}
           </Accordion>
 
-
           <p className="text-dark-gray/80 max-w-3xl leading-relaxed mt-6">
             This is how a game becomes more than a game. Playing it surfaces the friction faster
-            than a requirements workshop. Fixing it live proves a concept is buildable before
-            anyone writes a procurement document. And because every change traces back to a named
-            person's feedback, the people closest to the problem stay visible in the solution —
-            which is exactly the habit we want carried into the tools that real Medicaid clients
-            depend on.
+            than a requirements workshop. Fixing it live proves a concept is buildable before anyone
+            writes a procurement document. And because every change traces back to a named person's
+            feedback, the people closest to the problem stay visible in the solution — which is
+            exactly the habit we want carried into the tools that real Medicaid clients depend on.
           </p>
         </section>
-
 
         {/* AI Transparency */}
         <section className="bg-sky-blue/10 border border-sky-blue/30 rounded-3xl p-8">

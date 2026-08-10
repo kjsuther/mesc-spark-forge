@@ -17,7 +17,6 @@ const NAV_LINKS: ReadonlyArray<{
   { to: "/about", label: "About" },
 ];
 
-
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
 

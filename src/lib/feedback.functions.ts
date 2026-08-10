@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireAdmin } from "./admin-session.server";
+import { OUTSIDE_US, isValidRole, isValidState } from "./feedback-options";
 
 function clean(value: unknown, min: number, max: number, label: string): string {
   const s = typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
@@ -9,10 +10,30 @@ function clean(value: unknown, min: number, max: number, label: string): string 
 
 /** Public: an attendee submits one piece of feedback about the game. */
 export const submitGameFeedback = createServerFn({ method: "POST" })
-  .validator((data: { description: string; submitterName: string }) => ({
-    description: clean(data?.description, 3, 280, "Feedback"),
-    submitterName: clean(data?.submitterName, 2, 60, "Your name"),
-  }))
+  .validator(
+    (data: {
+      description: string;
+      submitterName: string;
+      role: string;
+      roleOther?: string;
+      locationState: string;
+      locationCountry?: string;
+    }) => {
+      const role = clean(data?.role, 1, 60, "Role");
+      if (!isValidRole(role)) throw new Error("Pick a role from the list.");
+      const locationState = clean(data?.locationState, 1, 60, "State");
+      if (!isValidState(locationState)) throw new Error("Pick a state from the list.");
+      return {
+        description: clean(data?.description, 3, 280, "Feedback"),
+        submitterName: clean(data?.submitterName, 2, 60, "Your name"),
+        role,
+        roleOther: role === "Other" ? clean(data?.roleOther, 2, 60, "Your role") : null,
+        locationState: locationState === OUTSIDE_US ? null : locationState,
+        locationCountry:
+          locationState === OUTSIDE_US ? clean(data?.locationCountry, 2, 60, "Country") : null,
+      };
+    },
+  )
   .handler(async ({ data }) => {
     const [{ supabaseAdmin }, { enforceSubmissionCooldown }] = await Promise.all([
       import("@/integrations/supabase/client.server"),
@@ -31,10 +52,15 @@ export const submitGameFeedback = createServerFn({ method: "POST" })
       submitter_name: data.submitterName,
       status: "backlog",
       rank: (last?.rank ?? 0) + 1,
+      role: data.role,
+      role_other: data.roleOther,
+      location_state: data.locationState,
+      location_country: data.locationCountry,
     });
     if (error) throw error;
     return { ok: true as const };
   });
+
 
 export const setGameFeedbackStatus = createServerFn({ method: "POST" })
   .validator((data: { id: string; status: "backlog" | "implemented" }) => data)

@@ -62,7 +62,12 @@ function BacklogPage() {
           </p>
         </header>
 
+        <div className="mt-6">
+          <FeedbackStats />
+        </div>
+
         <FeedbackBoard />
+
 
         <div className="mt-8 flex flex-wrap gap-3">
           <Link

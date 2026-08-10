@@ -34,7 +34,7 @@ export const Route = createFileRoute("/about")({
   component: AboutPage,
 });
 
-const SECTIONS = [
+const SECTIONS: { id: string; label: string }[] = [
   { id: "loop", label: "The loop" },
   { id: "why-game", label: "Why a game?" },
   { id: "real-world", label: "Real front door" },

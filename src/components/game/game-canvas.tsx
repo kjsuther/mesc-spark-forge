@@ -1189,50 +1189,13 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         </div>
       )}
 
-      {/* Inline touch controls (non-fullscreen mobile) */}
+      {/* Control hint below the canvas — worded for the device in use. The
+          touch buttons themselves now overlay the canvas in both modes. */}
       {launchMode && !overlayFs && !presentation && (
-        <>
-          {showHint && (
-            <p className="mt-2 text-center text-[11px] font-semibold text-mn-blue md:hidden">
-              Hold ◀ ▶ to move · JUMP to hop · ⟳ to restart
-            </p>
-          )}
-          <div className="mt-3 flex items-end justify-between gap-2 md:hidden select-none">
-            <div className="flex gap-1">
-              <PadButton
-                label="LEFT"
-                aria="Move left"
-                size={60}
-                onDown={() => setBtn("left", true)}
-                onUp={() => setBtn("left", false)}
-              >
-                ◀
-              </PadButton>
-              <PadButton
-                label="RIGHT"
-                aria="Move right"
-                size={60}
-                onDown={() => setBtn("right", true)}
-                onUp={() => setBtn("right", false)}
-              >
-                ▶
-              </PadButton>
-            </div>
-            <div className="flex items-end gap-2">
-              <PadButton label="RESET" aria="Restart" size={48} dim onDown={reset}>
-                ⟳
-              </PadButton>
-              <PadButton label="JUMP" aria="Jump" size={76} accent onDown={jump}>
-                JUMP
-              </PadButton>
-            </div>
-          </div>
-        </>
-      )}
-
-      {launchMode && !overlayFs && !presentation && (
-        <p className="mt-2 text-xs text-dark-gray/60 text-center hidden md:block">
-          ← → to move · Space / ↑ to jump · R to reset · ⛶ for fullscreen
+        <p className="mt-2 text-center text-xs font-semibold text-dark-gray/70">
+          {isTouch
+            ? "Hold ◀ ▶ to move · JUMP to hop · ⟳ to restart · ⛶ for full screen"
+            : "← → to move · Space / ↑ to jump · R to reset · ⛶ for fullscreen"}
         </p>
       )}
     </div>

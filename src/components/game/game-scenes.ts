@@ -604,7 +604,6 @@ function nextUiFont(): string {
   return bootCount === 1 ? "sans-serif" : `kbrun${bootCount}, sans-serif`;
 }
 
-
 async function loadTrimmedSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
   const label0 = spec.label ?? spec.url.split("/").pop() ?? spec.url;
   // Fully cached sheet: register the stored frames and skip decoding entirely.
@@ -1263,7 +1262,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   // Fresh glyph atlas for this run (see UI_FONT).
   UI_FONT = nextUiFont();
-
 
   // Match the logical viewport to the real on-screen aspect before boot.
   VIEW_W = computeViewW(opts.canvas);
@@ -2185,7 +2183,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { x: rx0 + 370, y: GROUND_Y - 180, amp: 172, spd: 6.7, label: "INCOME" },
         { x: rx0 + 540, y: GROUND_Y - 175, amp: 168, spd: 6.0, label: "SIGNATURE" },
       ];
-
 
       for (const p of platforms) {
         const PLAT_W = 108;
@@ -4757,7 +4754,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           boss.nextShot = now + (1.2 + Math.random() * 0.4) / rage;
         }
 
-
         // Flash while invulnerable.
         const wantHurt = now < boss.hurtUntil;
         const nextBossSprite = wantHurt ? "boss-hurt" : "boss-idle";
@@ -5634,10 +5630,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // Blinking restart prompt.
     const prompt = k.add([
-      k.text(
-        CONTINUE_PROMPT(),
-        { size: 16, font: UI_FONT },
-      ),
+      k.text(CONTINUE_PROMPT(), { size: 16, font: UI_FONT }),
       k.pos(Math.floor(W / 2), H - SAFE_Y - 6),
       k.anchor("center"),
       k.color(255, 235, 120),

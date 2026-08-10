@@ -66,7 +66,6 @@ export function isTouchDevice(): boolean {
   return mq("(pointer: coarse)") && !mq("(any-pointer: fine)") && /Mobile|Tablet/i.test(ua);
 }
 
-
 export function getDeviceProfile(): DeviceProfile {
   if (typeof window === "undefined") return DEFAULT_PROFILE;
   const vv = window.visualViewport;
@@ -153,8 +152,7 @@ export const continuePrompt = (): string =>
 export const readyPrompt = (): string =>
   isTouchDevice() ? "Tap when you're READY" : "Press Enter, Space, or Click when you're READY";
 
-export const jumpPrompt = (): string =>
-  isTouchDevice() ? "Tap JUMP" : "Jump (Up Arrow or Space)";
+export const jumpPrompt = (): string => (isTouchDevice() ? "Tap JUMP" : "Jump (Up Arrow or Space)");
 
 export const restartPrompt = (): string =>
   isTouchDevice()

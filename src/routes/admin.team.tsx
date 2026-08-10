@@ -88,7 +88,9 @@ function AdminTeamPage() {
         data: {
           ...(d.id ? { id: d.id } : {}),
           full_name: d.full_name,
+          goes_by: d.goes_by,
           title: d.title,
+          organization: d.organization,
           bio: d.bio,
           hidden: d.hidden,
           photo_data_url: d.photo_data_url,

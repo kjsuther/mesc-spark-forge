@@ -2187,7 +2187,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { x: rx0 + 370, y: GROUND_Y - 124, label: "INCOME" },
         { x: rx0 + 540, y: GROUND_Y - 104, label: "SIGNATURE" },
       ];
-      const SHAKE_S = 0.42; // telegraph window before it lets go
+      const SHAKE_S = 0.28; // brief warning, then it lets go
       const FALL_G = 900;
 
       for (const p of platforms) {
@@ -2287,8 +2287,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
               plat.trigT = now;
             }
           } else if (plat.phase === "shaking") {
-            const wobble = Math.sin((now - plat.trigT) * 60) * 3;
-            place(plat.basX + wobble, plat.basY);
+            // Keep the physical platform fixed while it warns the player.
+            // Moving the collider side-to-side made its calculated ride speed
+            // carry an idle player forward, which felt like auto-run.
+            place(plat.basX, plat.basY);
+            const warningOpacity = Math.floor((now - plat.trigT) * 24) % 2 === 0 ? 1 : 0.68;
+            plat.opacity = warningOpacity;
+            plaque.opacity = warningOpacity * 0.95;
+            shadow.opacity = warningOpacity;
+            label.opacity = warningOpacity;
             if (now - plat.trigT >= SHAKE_S) {
               plat.phase = "falling";
               plat.fallVy = 60;
@@ -4594,9 +4601,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
      * so they always reach the player instead of sailing overhead.
      */
     function spawnBossShot(x: number, y: number, dirX: 1 | -1, laneOffset = 26) {
-      // Never more than four pieces of paperwork in the air at once —
-      // beyond that the low lane becomes impossible to jump.
-      if (k.get("boss-shot").length >= 4) return;
+      // Bound the number in flight without blocking the next timed wave. At
+      // 470px/s a shot clears the battle viewport in a few seconds, so eight
+      // permits uninterrupted two-shot waves while remaining dodgeable.
+      if (k.get("boss-shot").length >= 8) return;
 
       const sw = displaySize("denied", sizes).w;
       const sh = DISPLAY_H["denied"];
@@ -4619,9 +4627,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         } else {
           shot.pos.y = targetY + Math.sin(k.time() * 6) * 3;
         }
-        // Live long enough to cross the whole arena — the player has to
-        // dodge or shoot the paperwork down, not out-walk it.
-        if (k.time() - shot.born > 14) shot.destroy();
+        // Retire paperwork once it has crossed the active battle viewport.
+        // The old 14-second lifetime filled the four-shot cap after two waves,
+        // making the boss appear to stop firing until those shots expired.
+        const battleLeft = BIOME_W * 6 - VIEW_W;
+        const battleRight = BIOME_W * 7 + VIEW_W;
+        if (shot.pos.x < battleLeft || shot.pos.x > battleRight || k.time() - shot.born > 5) {
+          shot.destroy();
+        }
       });
     }
 

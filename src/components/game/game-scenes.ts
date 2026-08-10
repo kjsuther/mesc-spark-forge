@@ -3466,7 +3466,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         title: "STEP 1 · SELECTING YOUR APPLICATION TYPE",
         subtitle: "Finding the Trail",
         lines: [
-          "Jump (Up Arrow or Space) to hit the brick and collect your application.",
+          `${jumpPrompt()} to hit the brick and collect your application.`,
           "Bring the application to the exit door.",
         ],
         icons: [{ sprite: "brick-idle", label: "APPLICATION" }],

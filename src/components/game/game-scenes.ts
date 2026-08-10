@@ -3623,7 +3623,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // long line to the panel width instead of letting it run off the card.
         if (opts?.fit && width) {
           const longest = Math.max(...text.split("\n").map((l) => l.length), 1);
-          fs = Math.max(opts.min ?? 11, Math.min(fs, (width * 1.85) / longest));
+          fs = Math.max(opts.min ?? 11, Math.min(fs, (width * 1.28) / longest));
         }
         fs = Math.round(fs);
         put([

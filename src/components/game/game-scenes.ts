@@ -4007,9 +4007,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         leftArmed = false;
         rightArmed = false;
         if (w?.__gameInput) w.__gameInput.jumpReq = false;
+        uiRelayout.delete(relayout);
         onDone?.();
       }
-      hitArea.onClick(() => close());
     }
 
     /**

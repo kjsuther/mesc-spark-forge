@@ -5,6 +5,8 @@ import { SiteChrome } from "@/components/site-chrome";
 import { SiteFooter } from "@/components/site-footer";
 import { SectionHeading } from "@/components/trail/section-heading";
 import { FeedbackBoard } from "@/components/game/feedback-board";
+import { FeedbackStats } from "@/components/game/feedback-stats";
+
 import { gameFeedbackQuery } from "@/lib/feedback.queries";
 import { supabase } from "@/integrations/supabase/client";
 

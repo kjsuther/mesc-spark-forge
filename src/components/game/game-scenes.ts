@@ -2294,6 +2294,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
               plat.phase = "falling";
               plat.fallVy = 60;
               plat.untag("platform");
+              plat.unuse("body");
+              plat.unuse("area");
+
               if (player.riding === plat) player.riding = null;
             }
           } else {

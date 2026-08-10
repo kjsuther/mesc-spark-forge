@@ -44,8 +44,6 @@ function ToolPage() {
   const { data: nowBuilding } = useSuspenseQuery(nowBuildingQuery);
   const { data: feedback } = useSuspenseQuery(gameFeedbackQuery);
   const qc = useQueryClient();
-  // The current build (everything shipped from feedback) is the default.
-  const [mode, setMode] = useState<"before" | "after">("after");
 
   useEffect(() => {
     const channel = supabase
@@ -76,44 +74,15 @@ function ToolPage() {
           <p className="text-lg text-dark-gray/80 max-w-2xl mt-3">
             This is a real, playable <b>16-bit video game</b> — a short trail from{" "}
             <b>"I need health coverage"</b> to <b>Covered!</b>, complete with the barriers people
-            actually hit when they apply. Play it, then tell us what to improve. We build your feedback
-            into the game during the session and you come back to play the better version.
+            actually hit when they apply. Play it, then tell us what to improve. We build your
+            feedback into the game during the session and you come back to play the better version.
           </p>
         </header>
 
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <div
-            role="tablist"
-            aria-label="Game version"
-            className="inline-flex bg-cream border-2 border-mn-blue/40 rounded-full p-1"
-          >
-            <button
-              role="tab"
-              aria-selected={mode === "after"}
-              onClick={() => setMode("after")}
-              className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-wide transition-colors ${
-                mode === "after" ? "bg-mn-green text-white" : "text-mn-blue"
-              }`}
-            >
-              Current version
-            </button>
-            <button
-              role="tab"
-              aria-selected={mode === "before"}
-              onClick={() => setMode("before")}
-              className={`px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-wide transition-colors ${
-                mode === "before" ? "bg-accent-orange text-white" : "text-mn-blue"
-              }`}
-            >
-              Original version
-            </button>
-          </div>
-          <span className="text-xs font-semibold text-dark-gray/70">
-            {mode === "after"
-              ? `${implemented.length} player suggestion${implemented.length === 1 ? "" : "s"} built into this version`
-              : "The original build — no player feedback applied"}
-          </span>
-        </div>
+        <p className="mb-4 text-xs font-semibold text-dark-gray/70">
+          {implemented.length} player suggestion{implemented.length === 1 ? "" : "s"} built into
+          this build
+        </p>
 
         <InstallPrompt />
 
@@ -127,8 +96,7 @@ function ToolPage() {
           </p>
         </div>
 
-        <ClientGameCanvas mode={mode} />
-
+        <ClientGameCanvas />
 
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
@@ -162,9 +130,7 @@ function ToolPage() {
   );
 }
 
-
 function ClientGameCanvas(props: {
-  mode: "before" | "after";
   onWin?: (result: WinResult) => void;
   onLose?: (result: WinResult) => void;
 }) {

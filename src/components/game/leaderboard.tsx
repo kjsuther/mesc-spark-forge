@@ -58,25 +58,6 @@ function fmtDuration(ms: number) {
   return m > 0 ? `${m}:${r.toString().padStart(2, "0")}` : `${r}s`;
 }
 
-function ModeChip({ mode, tone = "dark" }: { mode: "before" | "after"; tone?: "dark" | "light" }) {
-  const light = tone === "light";
-  return (
-    <span
-      className={`text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded shrink-0 ${
-        mode === "after"
-          ? light
-            ? "bg-mn-green/15 text-mn-green"
-            : "bg-mn-green/80 text-white"
-          : light
-            ? "bg-accent-orange/15 text-accent-orange"
-            : "bg-accent-orange/80 text-white"
-      }`}
-    >
-      {mode === "after" ? "current" : "original"}
-    </span>
-  );
-}
-
 /**
  * Top-3 board.
  *
@@ -102,9 +83,7 @@ export function Leaderboard({
           </span>
         </header>
         <ol className="flex-1 min-h-0 overflow-hidden p-2 space-y-1.5">
-          {isLoading && (
-            <li className="text-cream/70 italic text-sm text-center py-3">Loading…</li>
-          )}
+          {isLoading && <li className="text-cream/70 italic text-sm text-center py-3">Loading…</li>}
           {!isLoading && scores.length === 0 && (
             <li className="text-cream/70 italic text-sm text-center py-3">
               Be the first to finish the trail!
@@ -145,9 +124,7 @@ export function Leaderboard({
         </span>
       </header>
       <ol className="divide-y divide-mn-blue/10">
-        {isLoading && (
-          <li className="px-4 py-3 text-sm text-dark-gray/70 italic">Loading…</li>
-        )}
+        {isLoading && <li className="px-4 py-3 text-sm text-dark-gray/70 italic">Loading…</li>}
         {!isLoading && scores.length === 0 && (
           <li className="px-4 py-3 text-sm text-dark-gray/70 italic">
             No finishers yet — be the first!
@@ -241,7 +218,6 @@ export function FullLeaderboard() {
               <span className="min-w-0 truncate font-bold">{s.display_name}</span>
               <span className="font-black tabular-nums text-right text-mn-blue">{s.score}</span>
               <span className="col-start-2 col-span-2 flex items-center gap-2 text-xs text-dark-gray/70">
-                <ModeChip mode={s.mode} tone="light" />
                 <span className="tabular-nums">{fmtDuration(s.duration_ms)}</span>
                 <span className="truncate">
                   {new Date(s.created_at).toLocaleDateString(undefined, {

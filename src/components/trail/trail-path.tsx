@@ -21,15 +21,13 @@ export function TrailPath({
   const n = milestones.length;
   // Evenly space along a curve
   const points = milestones.map((_, i) => {
-    const x = 80 + (i * (1040 / Math.max(1, n - 1)));
+    const x = 80 + i * (1040 / Math.max(1, n - 1));
     // sine-like rise so it feels like ascending a trail
     const y = 200 - Math.sin((i / Math.max(1, n - 1)) * Math.PI) * 90;
     return { x, y };
   });
 
-  const pathD = points
-    .map((p, i) => (i === 0 ? `M${p.x},${p.y}` : `L${p.x},${p.y}`))
-    .join(" ");
+  const pathD = points.map((p, i) => (i === 0 ? `M${p.x},${p.y}` : `L${p.x},${p.y}`)).join(" ");
 
   return (
     <div className={`w-full ${className}`}>
@@ -85,9 +83,7 @@ export function TrailPath({
                 <span className="text-xs font-bold uppercase tracking-wider text-mn-blue leading-tight">
                   {m.label}
                 </span>
-                {m.sub && (
-                  <span className="text-[10px] text-dark-gray/60 mt-0.5">{m.sub}</span>
-                )}
+                {m.sub && <span className="text-[10px] text-dark-gray/60 mt-0.5">{m.sub}</span>}
               </div>
             );
           })}

@@ -7,10 +7,7 @@ import { gameFeedbackQuery, splitFeedback } from "@/lib/feedback.queries";
 
 export const Route = createFileRoute("/admin/game")({
   head: () => ({
-    meta: [
-      { title: "Demo Game — Admin" },
-      { name: "robots", content: "noindex,nofollow" },
-    ],
+    meta: [{ title: "Demo Game — Admin" }, { name: "robots", content: "noindex,nofollow" }],
   }),
   component: AdminGamePage,
 });
@@ -32,12 +29,10 @@ function AdminGamePage() {
 
   return (
     <div>
-      <h1 className="font-display text-3xl text-mn-blue uppercase tracking-wide mb-2">
-        Demo Game
-      </h1>
+      <h1 className="font-display text-3xl text-mn-blue uppercase tracking-wide mb-2">Demo Game</h1>
       <p className="text-sm text-dark-gray/70 mb-6">
-        Players play the game, leave feedback, and the poster team builds it. Manage the backlog
-        on the Player Feedback page — this page holds the game's housekeeping controls.
+        Players play the game, leave feedback, and the poster team builds it. Manage the backlog on
+        the Player Feedback page — this page holds the game's housekeeping controls.
       </p>
 
       <section className="mb-6 grid gap-3 sm:grid-cols-2">
@@ -51,9 +46,7 @@ function AdminGamePage() {
           <div className="text-xs font-black uppercase tracking-wide text-mn-green">
             Implemented
           </div>
-          <div className="text-3xl font-black tabular-nums text-mn-blue">
-            {implemented.length}
-          </div>
+          <div className="text-3xl font-black tabular-nums text-mn-blue">{implemented.length}</div>
         </div>
       </section>
 

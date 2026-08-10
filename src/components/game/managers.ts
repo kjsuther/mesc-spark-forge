@@ -25,9 +25,27 @@ export const POWERUP_DEFS: Record<
   { feature: FeatureName; zone: number; offsetX: number; y: number; label: string }
 > = {
   // Navigator appears early in the plan-choice zone, before the boss arena.
-  navigator: { feature: "navigatorHelp", zone: ZONE_INDEX.choosePlan, offsetX: 150, y: 120, label: "NAVIGATOR" },
-  chat: { feature: "liveChatAssistant", zone: ZONE_INDEX.gatherDocuments, offsetX: 200, y: 130, label: "LIVE CHAT" },
-  email: { feature: "emailCaseWorker", zone: ZONE_INDEX.awaitDecision, offsetX: 180, y: 130, label: "EMAIL" },
+  navigator: {
+    feature: "navigatorHelp",
+    zone: ZONE_INDEX.choosePlan,
+    offsetX: 150,
+    y: 120,
+    label: "NAVIGATOR",
+  },
+  chat: {
+    feature: "liveChatAssistant",
+    zone: ZONE_INDEX.gatherDocuments,
+    offsetX: 200,
+    y: 130,
+    label: "LIVE CHAT",
+  },
+  email: {
+    feature: "emailCaseWorker",
+    zone: ZONE_INDEX.awaitDecision,
+    offsetX: 180,
+    y: 130,
+    label: "EMAIL",
+  },
 };
 
 export const POWERUP_KINDS = Object.keys(POWERUP_DEFS) as PowerUpKind[];

@@ -58,10 +58,10 @@ function FeedbackPage() {
           </p>
           <SectionHeading as="h1">Share feedback on the game</SectionHeading>
           <p className="text-lg text-dark-gray/80 max-w-2xl mt-3">
-            You just played a 16-bit video game about applying for health coverage. What tripped
-            you up? What would make the trail clearer, fairer, or more fun? Drop it below — the
-            poster team builds items live during the session, then you come back and replay the
-            improved version.
+            You just played a 16-bit video game about applying for health coverage. What tripped you
+            up? What would make the trail clearer, fairer, or more fun? Drop it below — the poster
+            team builds items live during the session, then you come back and replay the improved
+            version.
           </p>
         </header>
 

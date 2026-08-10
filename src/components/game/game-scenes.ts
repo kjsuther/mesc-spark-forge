@@ -18,6 +18,8 @@
 import type { KAPLAYCtx } from "kaplay";
 import type { ImprovementKey } from "@/lib/game.functions";
 import { FeatureFlags } from "@/lib/game-features";
+import { computeFinalScore, zoneSpeedBonus } from "@/lib/game-score";
+
 import {
   PlayerManager,
   PowerUpManager,
@@ -31,38 +33,38 @@ import {
   type PowerUpKind,
   type CheckpointSnapshot,
 } from "./managers";
-import charSheetUrl from "@/assets/game/character-sheet.png";
-import heroSlideSheetUrl from "@/assets/game/hero-slide-sheet.png";
-import propsSheetUrl from "@/assets/game/props-sheet.png";
-import propsSheet2Url from "@/assets/game/props-sheet-2.png";
-import bgForestUrl from "@/assets/game/bg-forest.png";
-import bgSignupUrl from "@/assets/game/bg-signup.png";
-import bgRiverUrl from "@/assets/game/bg-river.png";
-import bgTownUrl from "@/assets/game/bg-town.png";
-import bgRelayUrl from "@/assets/game/bg-relay.png";
-import bgMountainUrl from "@/assets/game/bg-mountain.png";
-import bgMarketUrl from "@/assets/game/bg-market.png";
-import bgClinicUrl from "@/assets/game/bg-clinic.png";
-import bgThanksUrl from "@/assets/game/bg-thankyou-office.png";
-import doorSheetUrl from "@/assets/game/door-sheet.png";
-import credentialsSheetUrl from "@/assets/game/credentials-sheet.png";
-import goldKeyUrl from "@/assets/game/gold-key.png";
-import planCardsSheetUrl from "@/assets/game/plan-cards-sheet.png";
-import medicalIdUrl from "@/assets/game/medical-id.png";
-import calendarPageUrl from "@/assets/game/calendar-page.png";
-import paperAirplaneUrl from "@/assets/game/paper-airplane.png";
-import brickBlockSheetUrl from "@/assets/game/brick-block-sheet.png";
-import envelopeGremlinSheetUrl from "@/assets/game/envelope-gremlin-sheet.png";
-import bossSheetUrl from "@/assets/game/boss-sheet.png";
-import bearScoutSheetUrl from "@/assets/game/bear-scout-sheet.png";
-import bearPosesSheetUrl from "@/assets/game/bear-poses-sheet.png";
-import doorLockUrl from "@/assets/game/door-lock.png";
-import heroPortraitUrl from "@/assets/game/hero-portrait.png";
-import heroSittingUrl from "@/assets/game/hero-sitting.png";
-import rangerGuideUrl from "@/assets/game/ranger-guide.png";
-import heroSadUrl from "@/assets/game/hero-sad.png";
-import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.png";
-import dhsLogo16Url from "@/assets/game/mn-dhs-logo-16bit.png";
+import charSheetUrl from "@/assets/game/character-sheet.webp";
+import heroSlideSheetUrl from "@/assets/game/hero-slide-sheet.webp";
+import propsSheetUrl from "@/assets/game/props-sheet.webp";
+import propsSheet2Url from "@/assets/game/props-sheet-2.webp";
+import bgForestUrl from "@/assets/game/bg-forest.webp";
+import bgSignupUrl from "@/assets/game/bg-signup.webp";
+import bgRiverUrl from "@/assets/game/bg-river.webp";
+import bgTownUrl from "@/assets/game/bg-town.webp";
+import bgRelayUrl from "@/assets/game/bg-relay.webp";
+import bgMountainUrl from "@/assets/game/bg-mountain.webp";
+import bgMarketUrl from "@/assets/game/bg-market.webp";
+import bgClinicUrl from "@/assets/game/bg-clinic.webp";
+import bgThanksUrl from "@/assets/game/bg-thankyou-office.webp";
+import doorSheetUrl from "@/assets/game/door-sheet.webp";
+import credentialsSheetUrl from "@/assets/game/credentials-sheet.webp";
+import goldKeyUrl from "@/assets/game/gold-key.webp";
+import planCardsSheetUrl from "@/assets/game/plan-cards-sheet.webp";
+import medicalIdUrl from "@/assets/game/medical-id.webp";
+import calendarPageUrl from "@/assets/game/calendar-page.webp";
+import paperAirplaneUrl from "@/assets/game/paper-airplane.webp";
+import brickBlockSheetUrl from "@/assets/game/brick-block-sheet.webp";
+import envelopeGremlinSheetUrl from "@/assets/game/envelope-gremlin-sheet.webp";
+import bossSheetUrl from "@/assets/game/boss-sheet.webp";
+import bearScoutSheetUrl from "@/assets/game/bear-scout-sheet.webp";
+import bearPosesSheetUrl from "@/assets/game/bear-poses-sheet.webp";
+import doorLockUrl from "@/assets/game/door-lock.webp";
+import heroPortraitUrl from "@/assets/game/hero-portrait.webp";
+import heroSittingUrl from "@/assets/game/hero-sitting.webp";
+import rangerGuideUrl from "@/assets/game/ranger-guide.webp";
+import heroSadUrl from "@/assets/game/hero-sad.webp";
+import mescLogo16Url from "@/assets/game/mesc-2026-logo-16bit.webp";
+import dhsLogo16Url from "@/assets/game/mn-dhs-logo-16bit.webp";
 
 import docIdAsset from "@/assets/game/doc-id.png.asset.json";
 import { ZONE_THEMES, type MusicTheme } from "@/lib/game-music";
@@ -81,7 +83,6 @@ export type WinResult = {
   durationMs: number;
   docs: number;
   lives: number;
-  mode: "before" | "after";
   farthestZone: number; // 0..7
   won: boolean;
   score: number;
@@ -93,17 +94,43 @@ export type WinResult = {
   timeBonus?: number;
   /** Per-zone split times in ms (0 = zone never cleared). */
   zoneSplitsMs?: number[];
+};
 
+/**
+ * Everything needed to resume a run exactly where it stood after the browser
+ * throws away the WebGL context (iOS Safari does this aggressively when the
+ * tab is backgrounded). Without the elapsed clock and banked score, a resumed
+ * run would report an artificially fast finish.
+ */
+export type RunSnapshot = {
+  /** Unix ms when the snapshot was taken — used to reject stale resumes. */
+  savedAt: number;
+  zone: number;
+  elapsedMs: number;
+  score: number;
+  timeBonus: number;
+  lives: number;
+  maxLives: number;
+  docs: string[];
+  deaths: number;
+  distancePx: number;
+  jumpsLanded: number;
+  enemiesPassed: number;
+  farthestZone: number;
+  zoneSplitsMs: number[];
 };
 
 export type StartGameOpts = {
   canvas: HTMLCanvasElement;
   flags: GameFlags;
-  mode: "before" | "after";
   /** Stage to resume after the browser has discarded the canvas context. */
   resumeZone?: number;
+  /** Full run state to restore after a context loss. */
+  resumeSnapshot?: RunSnapshot | null;
   /** Reports durable stage progress to the React host. */
   onSafeProgress?: (zone: number) => void;
+  /** Reports the full run state so a recovery can restore it. */
+  onSnapshot?: (snapshot: RunSnapshot | null) => void;
   onWin?: (result: WinResult) => void;
   onLose?: (result: WinResult) => void;
   /** Lets the scene ask the host for a different music theme. */
@@ -202,8 +229,7 @@ function computeUiTextScale(canvas: HTMLCanvasElement | null, logicalW: number):
  * clear of every control before the player touches anything. Desktop is
  * unchanged at 40.
  */
-const START_X = (): number =>
-  isCoarsePointer() ? 40 + Math.round(VIEW_W * 0.18) : 40;
+const START_X = (): number => (isCoarsePointer() ? 40 + Math.round(VIEW_W * 0.18) : 40);
 
 /** Touch-first device? Drives the wording of every "continue" prompt. */
 const isCoarsePointer = (): boolean =>
@@ -215,18 +241,73 @@ const isCoarsePointer = (): boolean =>
 const CONTINUE_PROMPT = (): string =>
   isCoarsePointer() ? "Tap Anywhere to Continue" : "Press Enter, Space, or Click to Continue";
 
-
 const BIOME_W = 1200;
 
 const ZONES = [
-  { key: "forest",   label: "Finding the Trail",         phase: "Step 1 · Learn you may qualify",           bg: "bg-forest",   ground: [80, 130, 60] as [number, number, number],  soil: [70, 45, 25] as [number, number, number] },
-  { key: "signup",   label: "Setting Up Camp",           phase: "Step 2 · Create your account",             bg: "bg-signup",   ground: [95, 115, 70] as [number, number, number],  soil: [60, 45, 30] as [number, number, number] },
-  { key: "river",    label: "Crossing River of Paperwork", phase: "Step 3 · Start your application",         bg: "bg-river",    ground: [180, 160, 110] as [number, number, number], soil: [120, 90, 50] as [number, number, number] },
-  { key: "town",     label: "Gathering Supplies",        phase: "Step 4 · Gather your documents",           bg: "bg-town",     ground: [140, 140, 150] as [number, number, number], soil: [80, 80, 90] as [number, number, number] },
-  { key: "relay",    label: "Answering the Call",        phase: "Step 5 · Respond to requests for info",    bg: "bg-relay",    ground: [140, 170, 90] as [number, number, number],  soil: [90, 70, 40] as [number, number, number] },
-  { key: "mountain", label: "Waiting Mountain",          phase: "Step 6 · Await a decision",                bg: "bg-mountain", ground: [130, 120, 110] as [number, number, number], soil: [70, 60, 55] as [number, number, number] },
-  { key: "market",   label: "Choosing Your Path",        phase: "Step 7 · Choose a health plan",            bg: "bg-market",   ground: [150, 180, 100] as [number, number, number], soil: [90, 65, 40] as [number, number, number] },
-  { key: "clinic",   label: "Coverage Begins",           phase: "Step 8 · Enroll in coverage",              bg: "bg-clinic",   ground: [220, 220, 225] as [number, number, number], soil: [140, 145, 155] as [number, number, number] },
+  {
+    key: "forest",
+    label: "Finding the Trail",
+    phase: "Step 1 · Learn you may qualify",
+    bg: "bg-forest",
+    ground: [80, 130, 60] as [number, number, number],
+    soil: [70, 45, 25] as [number, number, number],
+  },
+  {
+    key: "signup",
+    label: "Setting Up Camp",
+    phase: "Step 2 · Create your account",
+    bg: "bg-signup",
+    ground: [95, 115, 70] as [number, number, number],
+    soil: [60, 45, 30] as [number, number, number],
+  },
+  {
+    key: "river",
+    label: "Crossing River of Paperwork",
+    phase: "Step 3 · Start your application",
+    bg: "bg-river",
+    ground: [180, 160, 110] as [number, number, number],
+    soil: [120, 90, 50] as [number, number, number],
+  },
+  {
+    key: "town",
+    label: "Gathering Supplies",
+    phase: "Step 4 · Gather your documents",
+    bg: "bg-town",
+    ground: [140, 140, 150] as [number, number, number],
+    soil: [80, 80, 90] as [number, number, number],
+  },
+  {
+    key: "relay",
+    label: "Answering the Call",
+    phase: "Step 5 · Respond to requests for info",
+    bg: "bg-relay",
+    ground: [140, 170, 90] as [number, number, number],
+    soil: [90, 70, 40] as [number, number, number],
+  },
+  {
+    key: "mountain",
+    label: "Waiting Mountain",
+    phase: "Step 6 · Await a decision",
+    bg: "bg-mountain",
+    ground: [130, 120, 110] as [number, number, number],
+    soil: [70, 60, 55] as [number, number, number],
+  },
+  {
+    key: "market",
+    label: "Choosing Your Path",
+    phase: "Step 7 · Choose a health plan",
+    bg: "bg-market",
+    ground: [150, 180, 100] as [number, number, number],
+    soil: [90, 65, 40] as [number, number, number],
+  },
+  {
+    key: "clinic",
+    label: "Coverage Begins",
+    phase: "Step 8 · Enroll in coverage",
+    bg: "bg-clinic",
+    ground: [220, 220, 225] as [number, number, number],
+    soil: [140, 145, 155] as [number, number, number],
+  },
 ] as const;
 
 const GROUND_Y = 470;
@@ -259,10 +340,7 @@ const FAILURE_MESSAGES: Record<number, string[]> = {
     "Pick a way to apply before moving forward.",
     "Every journey starts by choosing how you'll apply.",
   ],
-  1: [
-    "You need an account before you can apply online.",
-    "Set up your login and try again.",
-  ],
+  1: ["You need an account before you can apply online.", "Set up your login and try again."],
   2: [
     "A missing answer is slowing your journey.",
     "Double-check your application before submitting.",
@@ -275,18 +353,12 @@ const FAILURE_MESSAGES: Record<number, string[]> = {
     "The agency asked for more info — respond quickly.",
     "A request for information went unanswered.",
   ],
-  5: [
-    "Your application is still under review.",
-    "Stay on the trail — you're almost there.",
-  ],
+  5: ["Your application is still under review.", "Stay on the trail — you're almost there."],
   6: [
     "You need to pick a health plan to continue.",
     "Choose the plan that best fits your household.",
   ],
-  7: [
-    "One final step remains before coverage begins.",
-    "Don't stop now — you're almost enrolled!",
-  ],
+  7: ["One final step remains before coverage begins.", "Don't stop now — you're almost enrolled!"],
 };
 function pickFailureMessage(zone: number, cause: FailCause): string {
   const z = Math.max(0, Math.min(ZONES.length - 1, zone));
@@ -422,7 +494,10 @@ type AssetEntry = {
 };
 type AssetReport = {
   entries: Record<string, AssetEntry>;
-  sheets: Record<string, { url: string; cols: number; rows: number; status: AssetStatus; error?: string; label: string }>;
+  sheets: Record<
+    string,
+    { url: string; cols: number; rows: number; status: AssetStatus; error?: string; label: string }
+  >;
   zoneAssets: Record<number, string[]>;
   ready: boolean;
 };
@@ -437,8 +512,27 @@ const ZONE_ASSETS: Record<number, string[]> = {
   3: ["bg-town", "id", "paystub", "envelope", "form-monster", "door-closed", "door-open"],
   4: ["bg-relay", "mailbox", "phone", "door-closed", "door-open"],
   5: ["bg-mountain", "boulder", "denied", "door-closed", "door-open"],
-  6: ["bg-market", "plan-blue", "plan-green", "plan-orange", "gold-key", "plan-card", "insurance-card", "door-closed", "door-open"],
-  7: ["bg-clinic", "medical-id", "door-closed", "door-open", "ranger", "campfire", "backpack", "map"],
+  6: [
+    "bg-market",
+    "plan-blue",
+    "plan-green",
+    "plan-orange",
+    "gold-key",
+    "plan-card",
+    "insurance-card",
+    "door-closed",
+    "door-open",
+  ],
+  7: [
+    "bg-clinic",
+    "medical-id",
+    "door-closed",
+    "door-open",
+    "ranger",
+    "campfire",
+    "backpack",
+    "map",
+  ],
 };
 for (let i = 0; i < ZONES.length; i++) ASSET_REPORT.zoneAssets[i] = ZONE_ASSETS[i] ?? [];
 
@@ -459,7 +553,6 @@ function makeFallbackDataUrl(): string {
   g.fillRect(8, 8, 8, 8);
   return c.toDataURL("image/png");
 }
-
 
 // Loose GameObj shape used by spawn helpers. Kaplay attaches all component
 // fields at runtime; typing them as `any` here keeps the rendering pipeline
@@ -483,7 +576,38 @@ async function loadImageEl(url: string): Promise<HTMLImageElement> {
  * own kaplay sprite. Returns the trimmed size per sprite so callers can pick a
  * uniform display height without stretching.
  */
+/**
+ * Processed frames survive engine restarts (recovery, play-again). Trimming a
+ * sheet means decoding it into a canvas and walking every pixel, which is the
+ * single most memory-hungry thing the game does on an iPhone — doing it once
+ * per page instead of once per run keeps Safari from reaping the tab.
+ */
+const FRAME_CACHE = new Map<string, { dataUrl: string; w: number; h: number }>();
+
 async function loadTrimmedSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
+  const label0 = spec.label ?? spec.url.split("/").pop() ?? spec.url;
+  // Fully cached sheet: register the stored frames and skip decoding entirely.
+  if (spec.frames.every((f) => FRAME_CACHE.has(`${spec.url}#${f.name}`))) {
+    const cachedSizes: SpriteSizes = {};
+    for (const f of spec.frames) {
+      const hit = FRAME_CACHE.get(`${spec.url}#${f.name}`)!;
+      await k.loadSprite(f.name, hit.dataUrl);
+      cachedSizes[f.name] = { w: hit.w, h: hit.h };
+      ASSET_REPORT.entries[f.name] = {
+        name: f.name,
+        kind: "sprite",
+        sheetLabel: label0,
+        sheetUrl: spec.url,
+        cols: spec.cols,
+        rows: spec.rows,
+        frame: f.frame,
+        unified: { w: hit.w, h: hit.h },
+        status: "loaded",
+      };
+    }
+    return cachedSizes;
+  }
+
   const img = await loadImageEl(spec.url);
   const fw = Math.floor(img.width / spec.cols);
   const fh = Math.floor(img.height / spec.rows);
@@ -549,21 +673,16 @@ async function loadTrimmedSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
     const dy = unifiedH - bb.h; // bottom-align → feet flush with bitmap bottom
     const cc = f.frame % spec.cols;
     const rr = Math.floor(f.frame / spec.cols);
-    ox.drawImage(
-      img,
-      cc * fw + bb.x,
-      rr * fh + bb.y,
-      bb.w,
-      bb.h,
-      dx,
-      dy,
-      bb.w,
-      bb.h,
-    );
+    ox.drawImage(img, cc * fw + bb.x, rr * fh + bb.y, bb.w, bb.h, dx, dy, bb.w, bb.h);
 
     const dataUrl = out.toDataURL("image/png");
+    FRAME_CACHE.set(`${spec.url}#${f.name}`, { dataUrl, w: unifiedW, h: unifiedH });
     await k.loadSprite(f.name, dataUrl);
     sizes[f.name] = { w: unifiedW, h: unifiedH };
+    // Release the scratch canvas: iOS counts every backing store against the
+    // tab's memory budget even after the JS handle goes out of scope.
+    out.width = 0;
+    out.height = 0;
     ASSET_REPORT.entries[f.name] = {
       name: f.name,
       kind: "sprite",
@@ -578,6 +697,9 @@ async function loadTrimmedSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
       status: "loaded",
     };
   }
+  src.width = 0;
+  src.height = 0;
+  img.src = "";
   return sizes;
 }
 
@@ -587,11 +709,24 @@ async function safeLoadSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
   const label = spec.label ?? spec.url.split("/").pop() ?? spec.url;
   try {
     const sizes = await loadTrimmedSheet(k, spec);
-    ASSET_REPORT.sheets[label] = { url: spec.url, cols: spec.cols, rows: spec.rows, status: "loaded", label };
+    ASSET_REPORT.sheets[label] = {
+      url: spec.url,
+      cols: spec.cols,
+      rows: spec.rows,
+      status: "loaded",
+      label,
+    };
     return sizes;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    ASSET_REPORT.sheets[label] = { url: spec.url, cols: spec.cols, rows: spec.rows, status: "failed", error: msg, label };
+    ASSET_REPORT.sheets[label] = {
+      url: spec.url,
+      cols: spec.cols,
+      rows: spec.rows,
+      status: "failed",
+      error: msg,
+      label,
+    };
     const fallback = makeFallbackDataUrl();
     const sizes: SpriteSizes = {};
     for (const f of spec.frames) {
@@ -634,7 +769,9 @@ async function safeLoadBackground(k: Ctx, name: string, url: string): Promise<vo
     const msg = err instanceof Error ? err.message : String(err);
     try {
       await k.loadSprite(name, makeFallbackDataUrl());
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     ASSET_REPORT.entries[name] = {
       name,
       kind: "background",
@@ -646,7 +783,6 @@ async function safeLoadBackground(k: Ctx, name: string, url: string): Promise<vo
     console.warn(`[assets] background failed: ${name}`, err);
   }
 }
-
 
 async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
   const heroFrames: FrameSpec[] = [
@@ -676,11 +812,11 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
   const docPaystubFrames: FrameSpec[] = [{ name: "paystub", frame: 0 }];
   const docEnvelopeFrames: FrameSpec[] = [{ name: "envelope", frame: 0 }];
   const propFrames2: FrameSpec[] = [
-    { name: "laptop",         frame: 0 },
-    { name: "padlock",        frame: 1 },
-    { name: "phone",          frame: 2 },
-    { name: "mailbox",        frame: 3 },
-    { name: "plan-card",      frame: 4 },
+    { name: "laptop", frame: 0 },
+    { name: "padlock", frame: 1 },
+    { name: "phone", frame: 2 },
+    { name: "mailbox", frame: 3 },
+    { name: "plan-card", frame: 4 },
     { name: "insurance-card", frame: 5 },
   ];
 
@@ -731,7 +867,29 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     { name: "bear-pose-lean", frame: 4 },
   ];
 
-  const [heroSizes, slideSizes, propSizes, propSizes2, doorSizes, credSizes, keySizes, planSizes, idSizes, calSizes, airSizes, brickSizes, gremlinSizes, bossSizes, bearScoutSizes, bearPoseSizes, lockSizes, docIdSizes, docPaystubSizes, docEnvelopeSizes, formMonsterSizes] = await Promise.all([
+  const [
+    heroSizes,
+    slideSizes,
+    propSizes,
+    propSizes2,
+    doorSizes,
+    credSizes,
+    keySizes,
+    planSizes,
+    idSizes,
+    calSizes,
+    airSizes,
+    brickSizes,
+    gremlinSizes,
+    bossSizes,
+    bearScoutSizes,
+    bearPoseSizes,
+    lockSizes,
+    docIdSizes,
+    docPaystubSizes,
+    docEnvelopeSizes,
+    formMonsterSizes,
+  ] = await Promise.all([
     safeLoadSheet(k, {
       url: charSheetUrl,
       cols: 3,
@@ -748,50 +906,161 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
       groups: [slideFrames.map((f) => f.name)],
       label: "hero-slide-sheet.png",
     }),
-    safeLoadSheet(k, { url: propsSheetUrl,  cols: 4, rows: 3, frames: propFrames,  label: "props-sheet.png" }),
-    safeLoadSheet(k, { url: propsSheet2Url, cols: 3, rows: 2, frames: propFrames2, label: "props-sheet-2.png" }),
-    safeLoadSheet(k, { url: doorSheetUrl,        cols: 2, rows: 1, frames: doorFrames, label: "door-sheet.png" }),
-    safeLoadSheet(k, { url: credentialsSheetUrl, cols: 2, rows: 1, frames: credFrames, label: "credentials-sheet.png" }),
-    safeLoadSheet(k, { url: goldKeyUrl,          cols: 1, rows: 1, frames: keyFrames,  label: "gold-key.png" }),
-    safeLoadSheet(k, { url: planCardsSheetUrl,   cols: 3, rows: 1, frames: planFrames, label: "plan-cards-sheet.png" }),
-    safeLoadSheet(k, { url: medicalIdUrl,        cols: 1, rows: 1, frames: idFrames,   label: "medical-id.png" }),
-    safeLoadSheet(k, { url: calendarPageUrl,     cols: 1, rows: 1, frames: calendarFrames, label: "calendar-page.png" }),
-    safeLoadSheet(k, { url: paperAirplaneUrl,    cols: 1, rows: 1, frames: airplaneFrames, label: "paper-airplane.png" }),
-    safeLoadSheet(k, { url: brickBlockSheetUrl,  cols: 2, rows: 1, frames: brickFrames,
-      groups: [brickFrames.map((f) => f.name)], label: "brick-block-sheet.png" }),
-    safeLoadSheet(k, { url: envelopeGremlinSheetUrl, cols: 2, rows: 1, frames: gremlinFrames,
-      groups: [gremlinFrames.map((f) => f.name)], label: "envelope-gremlin-sheet.png" }),
-    safeLoadSheet(k, { url: bossSheetUrl,        cols: 3, rows: 1, frames: bossFrames, label: "boss-sheet.png" }),
-    safeLoadSheet(k, { url: bearScoutSheetUrl,   cols: 4, rows: 1, frames: bearScoutFrames,
-      groups: [bearScoutFrames.map((f) => f.name)], label: "bear-scout-sheet.png" }),
-    safeLoadSheet(k, { url: bearPosesSheetUrl,   cols: 5, rows: 1, frames: bearPoseFrames,
-      groups: [bearPoseFrames.map((f) => f.name)], label: "bear-poses-sheet.png" }),
-    safeLoadSheet(k, { url: doorLockUrl,         cols: 1, rows: 1, frames: lockFrames, label: "door-lock.png" }),
-    safeLoadSheet(k, { url: docIdUrl,            cols: 1, rows: 1, frames: docIdFrames,       label: "doc-id.png" }),
-    safeLoadSheet(k, { url: docPaystubUrl,       cols: 1, rows: 1, frames: docPaystubFrames,  label: "doc-paystub.png" }),
-    safeLoadSheet(k, { url: docEnvelopeUrl,      cols: 1, rows: 1, frames: docEnvelopeFrames, label: "doc-envelope.png" }),
-    safeLoadSheet(k, { url: formMonsterV2Url,    cols: 1, rows: 1, frames: formMonsterFrames, label: "form-monster-v2.png" }),
+    safeLoadSheet(k, {
+      url: propsSheetUrl,
+      cols: 4,
+      rows: 3,
+      frames: propFrames,
+      label: "props-sheet.png",
+    }),
+    safeLoadSheet(k, {
+      url: propsSheet2Url,
+      cols: 3,
+      rows: 2,
+      frames: propFrames2,
+      label: "props-sheet-2.png",
+    }),
+    safeLoadSheet(k, {
+      url: doorSheetUrl,
+      cols: 2,
+      rows: 1,
+      frames: doorFrames,
+      label: "door-sheet.png",
+    }),
+    safeLoadSheet(k, {
+      url: credentialsSheetUrl,
+      cols: 2,
+      rows: 1,
+      frames: credFrames,
+      label: "credentials-sheet.png",
+    }),
+    safeLoadSheet(k, {
+      url: goldKeyUrl,
+      cols: 1,
+      rows: 1,
+      frames: keyFrames,
+      label: "gold-key.png",
+    }),
+    safeLoadSheet(k, {
+      url: planCardsSheetUrl,
+      cols: 3,
+      rows: 1,
+      frames: planFrames,
+      label: "plan-cards-sheet.png",
+    }),
+    safeLoadSheet(k, {
+      url: medicalIdUrl,
+      cols: 1,
+      rows: 1,
+      frames: idFrames,
+      label: "medical-id.png",
+    }),
+    safeLoadSheet(k, {
+      url: calendarPageUrl,
+      cols: 1,
+      rows: 1,
+      frames: calendarFrames,
+      label: "calendar-page.png",
+    }),
+    safeLoadSheet(k, {
+      url: paperAirplaneUrl,
+      cols: 1,
+      rows: 1,
+      frames: airplaneFrames,
+      label: "paper-airplane.png",
+    }),
+    safeLoadSheet(k, {
+      url: brickBlockSheetUrl,
+      cols: 2,
+      rows: 1,
+      frames: brickFrames,
+      groups: [brickFrames.map((f) => f.name)],
+      label: "brick-block-sheet.png",
+    }),
+    safeLoadSheet(k, {
+      url: envelopeGremlinSheetUrl,
+      cols: 2,
+      rows: 1,
+      frames: gremlinFrames,
+      groups: [gremlinFrames.map((f) => f.name)],
+      label: "envelope-gremlin-sheet.png",
+    }),
+    safeLoadSheet(k, {
+      url: bossSheetUrl,
+      cols: 3,
+      rows: 1,
+      frames: bossFrames,
+      label: "boss-sheet.png",
+    }),
+    safeLoadSheet(k, {
+      url: bearScoutSheetUrl,
+      cols: 4,
+      rows: 1,
+      frames: bearScoutFrames,
+      groups: [bearScoutFrames.map((f) => f.name)],
+      label: "bear-scout-sheet.png",
+    }),
+    safeLoadSheet(k, {
+      url: bearPosesSheetUrl,
+      cols: 5,
+      rows: 1,
+      frames: bearPoseFrames,
+      groups: [bearPoseFrames.map((f) => f.name)],
+      label: "bear-poses-sheet.png",
+    }),
+    safeLoadSheet(k, {
+      url: doorLockUrl,
+      cols: 1,
+      rows: 1,
+      frames: lockFrames,
+      label: "door-lock.png",
+    }),
+    safeLoadSheet(k, { url: docIdUrl, cols: 1, rows: 1, frames: docIdFrames, label: "doc-id.png" }),
+    safeLoadSheet(k, {
+      url: docPaystubUrl,
+      cols: 1,
+      rows: 1,
+      frames: docPaystubFrames,
+      label: "doc-paystub.png",
+    }),
+    safeLoadSheet(k, {
+      url: docEnvelopeUrl,
+      cols: 1,
+      rows: 1,
+      frames: docEnvelopeFrames,
+      label: "doc-envelope.png",
+    }),
+    safeLoadSheet(k, {
+      url: formMonsterV2Url,
+      cols: 1,
+      rows: 1,
+      frames: formMonsterFrames,
+      label: "form-monster-v2.png",
+    }),
   ]);
 
   // Register horizontally-mirrored copies of the hero walk/idle/jump frames
   // so the character has a true set of left-facing sprites (rather than
   // relying on render-time flipX, which can subtly misalign the hitbox
   // against decorative asymmetric details).
-  const leftSizes = await registerLeftMirrors(k, heroFrames.map((f) => f.name), heroSizes);
-
+  const leftSizes = await registerLeftMirrors(
+    k,
+    heroFrames.map((f) => f.name),
+    heroSizes,
+  );
 
   // Backgrounds don't need trimming but still get load-status tracking + a
   // magenta fallback so a missing PNG doesn't crash the scene.
   await Promise.all([
-    safeLoadBackground(k, "bg-forest",   bgForestUrl),
-    safeLoadBackground(k, "bg-signup",   bgSignupUrl),
-    safeLoadBackground(k, "bg-river",    bgRiverUrl),
-    safeLoadBackground(k, "bg-town",     bgTownUrl),
-    safeLoadBackground(k, "bg-relay",    bgRelayUrl),
+    safeLoadBackground(k, "bg-forest", bgForestUrl),
+    safeLoadBackground(k, "bg-signup", bgSignupUrl),
+    safeLoadBackground(k, "bg-river", bgRiverUrl),
+    safeLoadBackground(k, "bg-town", bgTownUrl),
+    safeLoadBackground(k, "bg-relay", bgRelayUrl),
     safeLoadBackground(k, "bg-mountain", bgMountainUrl),
-    safeLoadBackground(k, "bg-market",   bgMarketUrl),
-    safeLoadBackground(k, "bg-clinic",   bgClinicUrl),
-    safeLoadBackground(k, "bg-thanks",   bgThanksUrl),
+    safeLoadBackground(k, "bg-market", bgMarketUrl),
+    safeLoadBackground(k, "bg-clinic", bgClinicUrl),
+    safeLoadBackground(k, "bg-thanks", bgThanksUrl),
     safeLoadBackground(k, "hero-portrait", heroPortraitUrl),
     safeLoadBackground(k, "hero-sitting", heroSittingUrl),
     safeLoadBackground(k, "ranger-guide", rangerGuideUrl),
@@ -800,13 +1069,35 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadBackground(k, "dhs-logo-16bit", dhsLogo16Url),
   ]);
 
-
   ASSET_REPORT.ready = true;
   if (typeof window !== "undefined") {
     (window as unknown as { __gameAssetReport?: AssetReport }).__gameAssetReport = ASSET_REPORT;
   }
 
-  return { ...heroSizes, ...slideSizes, ...leftSizes, ...propSizes, ...propSizes2, ...doorSizes, ...credSizes, ...keySizes, ...planSizes, ...idSizes, ...calSizes, ...airSizes, ...brickSizes, ...gremlinSizes, ...bossSizes, ...bearScoutSizes, ...bearPoseSizes, ...lockSizes, ...docIdSizes, ...docPaystubSizes, ...docEnvelopeSizes, ...formMonsterSizes };
+  return {
+    ...heroSizes,
+    ...slideSizes,
+    ...leftSizes,
+    ...propSizes,
+    ...propSizes2,
+    ...doorSizes,
+    ...credSizes,
+    ...keySizes,
+    ...planSizes,
+    ...idSizes,
+    ...calSizes,
+    ...airSizes,
+    ...brickSizes,
+    ...gremlinSizes,
+    ...bossSizes,
+    ...bearScoutSizes,
+    ...bearPoseSizes,
+    ...lockSizes,
+    ...docIdSizes,
+    ...docPaystubSizes,
+    ...docEnvelopeSizes,
+    ...formMonsterSizes,
+  };
 }
 
 /** Load already-registered sprites' backing images from the sheets by pulling
@@ -859,7 +1150,6 @@ async function registerLeftMirrors(
   return out;
 }
 
-
 // ============================ Spawn helpers ============================
 
 /** Compute the display width for a sprite given its trimmed size and the
@@ -872,7 +1162,6 @@ function displaySize(name: string, sizes: SpriteSizes): { w: number; h: number }
   return { w, h: px(h) };
 }
 
-
 type SpawnGrounded = {
   x: number;
   groundY?: number;
@@ -884,12 +1173,7 @@ type SpawnGrounded = {
 
 /** Spawn a sprite whose feet rest on the ground. Uses anchor("bot") so the
  *  trimmed sprite's bottom edge (== visible feet) sits at groundY. */
-function spawnGrounded(
-  k: Ctx,
-  name: string,
-  sizes: SpriteSizes,
-  opts: SpawnGrounded,
-) {
+function spawnGrounded(k: Ctx, name: string, sizes: SpriteSizes, opts: SpawnGrounded) {
   const { w, h } = displaySize(name, sizes);
   const gy = opts.groundY ?? GROUND_Y;
   const comps: unknown[] = [
@@ -920,12 +1204,7 @@ type SpawnAirborne = {
   hitboxRadius?: number;
 };
 
-function spawnAirborne(
-  k: Ctx,
-  name: string,
-  sizes: SpriteSizes,
-  opts: SpawnAirborne,
-) {
+function spawnAirborne(k: Ctx, name: string, sizes: SpriteSizes, opts: SpawnAirborne) {
   const { w, h } = displaySize(name, sizes);
   const r = opts.hitboxRadius ?? Math.min(w, h) / 2;
   const comps: unknown[] = [
@@ -999,11 +1278,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   const zoneMusic = (zoneIdx: number): MusicTheme =>
     ZONE_THEMES[Math.max(0, Math.min(ZONE_THEMES.length - 1, zoneIdx))] ?? "adventure";
 
-
-
-
-
-
   const k: Ctx = kaplay({
     canvas: opts.canvas,
     // Fixed logical resolution. Kaplay's letterbox mode scales this buffer to
@@ -1030,8 +1304,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   // stays crisp inside the GL pipeline; only the final present is smoothed.
   if (opts.canvas) opts.canvas.style.imageRendering = "auto";
 
-
-
   // The win result is held back until the player leaves the Thank You screen,
   // so the high-score / suggestion overlay never covers the finale.
   let pendingWin: WinResult | null = null;
@@ -1046,7 +1318,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   const sizes = await loadAllSprites(k);
 
-  k.scene("trail", (spawnX: number = 40, lives: number = 1) => {
+  k.scene("trail", (spawnX: number = 40, lives: number = 1, resume: RunSnapshot | null = null) => {
     const startTime = k.time();
     // ---- Run clock + per-zone split timing -------------------------------
     // Every zone is timed in the background. Clearing a zone under its par
@@ -1055,22 +1327,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     let pausedTotal = 0;
     let pausedNow = false;
     let pauseStartedAt = 0;
+    /** Time already played before a recovery restart (seconds). */
+    const carriedElapsed = resume ? Math.max(0, resume.elapsedMs) / 1000 : 0;
     /** Wall-clock seconds of actual play (pauses/briefings excluded). The
      *  currently-open pause is subtracted too, so the HUD clock visibly stops
      *  while a briefing is on screen instead of jumping back on resume. */
     const runClock = () =>
-      Math.max(
-        0,
-        k.time() - startTime - pausedTotal - (pausedNow ? k.time() - pauseStartedAt : 0),
-      );
+      carriedElapsed +
+      Math.max(0, k.time() - startTime - pausedTotal - (pausedNow ? k.time() - pauseStartedAt : 0));
 
-
-    /** Par (seconds) to clear each of the 8 zones. */
-    const ZONE_PAR_S = [24, 28, 28, 34, 28, 40, 38, 24];
-    const zoneSplitsMs: number[] = new Array(8).fill(0);
-    let zoneClockStart = 0;
-    let timeBonusTotal = 0;
-
+    const zoneSplitsMs: number[] = resume
+      ? Array.from({ length: 8 }, (_, i) => resume.zoneSplitsMs[i] ?? 0)
+      : new Array(8).fill(0);
+    let zoneClockStart = carriedElapsed;
+    let timeBonusTotal = resume ? resume.timeBonus : 0;
 
     // ---- Sky backdrops (per-zone solid color behind the painted bg so
     //      images with transparent or off-color edges don't leave whitespace).
@@ -1108,13 +1378,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ---- Ground ----
     // Zone 0: 3 small jump gaps carved BETWEEN the four brick positions
     // (bricks live at x = 220, 460, 720, 980) so a gap never blocks reaching a brick.
-    const Z0_GAP_A0 = 320, Z0_GAP_A1 = 360;
-    const Z0_GAP_B0 = 600, Z0_GAP_B1 = 646;
-    const Z0_GAP_C0 = 860, Z0_GAP_C1 = 900;
-    addGround(k, 0,          Z0_GAP_A0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
-    addGround(k, Z0_GAP_A1,  Z0_GAP_B0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
-    addGround(k, Z0_GAP_B1,  Z0_GAP_C0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
-    addGround(k, Z0_GAP_C1,  BIOME_W,   GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    const Z0_GAP_A0 = 320,
+      Z0_GAP_A1 = 360;
+    const Z0_GAP_B0 = 600,
+      Z0_GAP_B1 = 646;
+    const Z0_GAP_C0 = 860,
+      Z0_GAP_C1 = 900;
+    addGround(k, 0, Z0_GAP_A0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    addGround(k, Z0_GAP_A1, Z0_GAP_B0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    addGround(k, Z0_GAP_B1, Z0_GAP_C0, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    addGround(k, Z0_GAP_C1, BIOME_W, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
 
     const Z1_GAP_X0 = BIOME_W + 720;
     const Z1_GAP_X1 = BIOME_W + 780;
@@ -1141,24 +1414,36 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.add([
       k.rect(Z7_GAP1 - Z7_GAP0, 40),
       k.pos(Z7_GAP0, GROUND_Y + 40),
-      k.area(), k.opacity(0), "water",
+      k.area(),
+      k.opacity(0),
+      "water",
     ]);
 
     // Invisible level walls
     k.add([
-      k.rect(20, 800), k.pos(-20, 0), k.area(),
-      k.body({ isStatic: true }), k.opacity(0), k.z(LAYERS.BOUND),
+      k.rect(20, 800),
+      k.pos(-20, 0),
+      k.area(),
+      k.body({ isStatic: true }),
+      k.opacity(0),
+      k.z(LAYERS.BOUND),
     ]);
     k.add([
-      k.rect(20, 800), k.pos(LEVEL_END, 0), k.area(),
-      k.body({ isStatic: true }), k.opacity(0), k.z(LAYERS.BOUND),
+      k.rect(20, 800),
+      k.pos(LEVEL_END, 0),
+      k.area(),
+      k.body({ isStatic: true }),
+      k.opacity(0),
+      k.z(LAYERS.BOUND),
     ]);
 
     // Water kill plane inside river gap.
     k.add([
       k.rect(RIVER_GAP_X1 - RIVER_GAP_X0, 40),
       k.pos(RIVER_GAP_X0, GROUND_Y + 40),
-      k.area(), k.opacity(0), "water",
+      k.area(),
+      k.opacity(0),
+      "water",
     ]);
 
     // ============ Zone objective + door system ============
@@ -1192,7 +1477,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       bossSpawned: false,
     };
 
-
     type Door = { obj: AnyObj; barrier: AnyObj | null; unlocked: boolean; playedAnim: boolean };
     const doors: (Door | null)[] = new Array(ZONES.length).fill(null);
 
@@ -1221,7 +1505,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // k.anchor(...), so we place the rect at top-left explicitly and give
       // it an explicit shape to be safe. Height 560 keeps its top above the
       // player's peak jump (GROUND_Y - 144).
-      const BAR_W = 14, BAR_H = 560;
+      const BAR_W = 14,
+        BAR_H = 560;
       const bar = k.add([
         k.rect(BAR_W, BAR_H),
         k.pos(dx - BAR_W / 2, GROUND_Y - BAR_H),
@@ -1256,7 +1541,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Unlock animation: brief shake, chime, then swap sprite + drop barrier.
       playSfx("door-unlock");
       d.obj.color = k.rgb(255, 240, 120);
-      k.wait(0.25, () => { d.obj.color = k.rgb(255, 255, 255); });
+      k.wait(0.25, () => {
+        d.obj.color = k.rgb(255, 255, 255);
+      });
       k.wait(0.5, () => {
         playSfx("door-open");
         setGameObjSprite(d.obj, "door-open");
@@ -1303,11 +1590,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         };
         // A real arrow: long shaft, then a stepped triangular head. Built from
         // blocks so it stays true 16-bit, but reads unmistakably as "go right".
-        mk(-30, 0, 40, 14);              // shaft
-        mk(-2, 0, 14, 42);               // head base
-        mk(10, 0, 12, 30);               // head mid
-        mk(20, 0, 12, 18);               // head tip
-        mk(29, 0, 8, 8);                 // point
+        mk(-30, 0, 40, 14); // shaft
+        mk(-2, 0, 14, 42); // head base
+        mk(10, 0, 12, 30); // head mid
+        mk(20, 0, 12, 18); // head tip
+        mk(29, 0, 8, 8); // point
         const baseY = doorTopY;
         const arrowCtl = k.onUpdate(() => {
           const t = k.time();
@@ -1321,12 +1608,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           }
           // Retire the cue once the player has stepped through the doorway.
           if (player && player.pos.x > d.obj.pos.x + 24) {
-            try { arrowCtl.cancel(); } catch { /* ignore */ }
-            for (const p of parts) { try { p.destroy(); } catch { /* ignore */ } }
+            try {
+              arrowCtl.cancel();
+            } catch {
+              /* ignore */
+            }
+            for (const p of parts) {
+              try {
+                p.destroy();
+              } catch {
+                /* ignore */
+              }
+            }
             parts.length = 0;
           }
         });
-
 
         // Brief on-screen cue so it reads even when the door is off-camera.
         const cue = k.add([
@@ -1342,10 +1638,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const cueStart = k.time();
         const cueCtl = k.onUpdate(() => {
           const el = k.time() - cueStart;
-          cue.opacity = el > 2.2 ? Math.max(0, 1 - (el - 2.2) * 2) : (Math.floor(el * 4) % 2 === 0 ? 1 : 0.4);
+          cue.opacity =
+            el > 2.2 ? Math.max(0, 1 - (el - 2.2) * 2) : Math.floor(el * 4) % 2 === 0 ? 1 : 0.4;
           if (el > 2.8) {
-            try { cueCtl.cancel(); } catch { /* ignore */ }
-            try { cue.destroy(); } catch { /* ignore */ }
+            try {
+              cueCtl.cancel();
+            } catch {
+              /* ignore */
+            }
+            try {
+              cue.destroy();
+            } catch {
+              /* ignore */
+            }
           }
         });
       });
@@ -1384,7 +1689,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           const f = t / 0.55;
           player.pos.x = startX + (doorX - startX) * f;
           player.pos.y = GROUND_Y;
-          if (t - stepAt > 0.18) { stepAt = t; playSfx("footstep"); }
+          if (t - stepAt > 0.18) {
+            stepAt = t;
+            playSfx("footstep");
+          }
           return;
         }
         // Phase 2 (0.45s): step inside — shrink into the frame and fade out.
@@ -1395,7 +1703,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           p.scale = k.vec2(startScale * (1 - f * 0.35), startScale * (1 - f * 0.15));
           return;
         }
-        try { ctl.cancel(); } catch { /* ignore */ }
+        try {
+          ctl.cancel();
+        } catch {
+          /* ignore */
+        }
 
         // Door swings shut behind them, with a solid thump.
         setGameObjSprite(d.obj, "door-closed");
@@ -1432,7 +1744,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         let moved = false;
         const fadeCtl = k.onUpdate(() => {
           ft += k.dt();
-          if (ft < 0.45) { fade.opacity = ft / 0.45; return; }
+          if (ft < 0.45) {
+            fade.opacity = ft / 0.45;
+            return;
+          }
           if (!moved) {
             moved = true;
             fade.opacity = 1;
@@ -1458,8 +1773,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           if (ft < 0.75) return; // hold on black while the new zone settles
           fade.opacity = Math.max(0, 1 - (ft - 0.75) / 0.4);
           if (ft > 1.2) {
-            try { fadeCtl.cancel(); } catch { /* ignore */ }
-            try { fade.destroy(); } catch { /* ignore */ }
+            try {
+              fadeCtl.cancel();
+            } catch {
+              /* ignore */
+            }
+            try {
+              fade.destroy();
+            } catch {
+              /* ignore */
+            }
             resumeGameplay();
             transitioning = false;
             leftArmed = false;
@@ -1480,10 +1803,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // to smash it — the "method" icon pops out, drops to the ground, and the
     // door unlocks the moment the player touches the icon.
     const applyMethods: { x: number; icon: string; label: string }[] = [
-      { x: 220, icon: "MAIL",      label: "Apply by Mail" },
-      { x: 460, icon: "PHONE",     label: "Apply by Phone" },
+      { x: 220, icon: "MAIL", label: "Apply by Mail" },
+      { x: 460, icon: "PHONE", label: "Apply by Phone" },
       { x: 720, icon: "IN PERSON", label: "Apply In Person" },
-      { x: 980, icon: "ONLINE",    label: "Apply Online" },
+      { x: 980, icon: "ONLINE", label: "Apply Online" },
     ];
     const BRICK_Y = GROUND_Y - 150;
     const bw = displaySize("brick-idle", sizes).w;
@@ -1529,34 +1852,104 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     {
       type BearMotion = "sway" | "bob" | "dip" | "peer" | "rise" | "ghost";
       type BearSighting = {
-        zone: number;      // 0-based zone index
-        x: number;         // spot within the zone
-        rise: number;      // pixels above the player's ground line
+        zone: number; // 0-based zone index
+        x: number; // spot within the zone
+        rise: number; // pixels above the player's ground line
         scale: number;
         tint: [number, number, number];
-        opacity: number;   // peak opacity while visible
-        frame: string;     // pose sprite for this zone
+        opacity: number; // peak opacity while visible
+        frame: string; // pose sprite for this zone
         motion: BearMotion;
-        hold: number;      // seconds visible
-        gap: number;       // seconds hidden between sightings
+        hold: number; // seconds visible
+        gap: number; // seconds hidden between sightings
         faceLeft: boolean;
       };
       const BEAR_SIGHTINGS: BearSighting[] = [
         // Zone 1 — draped along the big pine limb on the left of the backdrop.
-        { zone: 0, x: 232,  rise: 254, scale: 1.55, tint: [178, 190, 196], opacity: 0.98, frame: "bear-pose-limb",  motion: "sway",  hold: 11.0, gap: 2.0, faceLeft: false },
+        {
+          zone: 0,
+          x: 232,
+          rise: 254,
+          scale: 1.55,
+          tint: [178, 190, 196],
+          opacity: 0.98,
+          frame: "bear-pose-limb",
+          motion: "sway",
+          hold: 11.0,
+          gap: 2.0,
+          faceLeft: false,
+        },
         // Zone 2 — leaning out from behind the RIGHT post of the signboard so
         // he never covers the "LOOK OUT FOR BEARS!" lettering.
-        { zone: 1, x: 1148, rise: 150, scale: 1.75, tint: [206, 208, 214], opacity: 1,    frame: "bear-pose-peek",  motion: "peer",  hold: 11.0, gap: 2.0, faceLeft: true },
+        {
+          zone: 1,
+          x: 1148,
+          rise: 150,
+          scale: 1.75,
+          tint: [206, 208, 214],
+          opacity: 1,
+          frame: "bear-pose-peek",
+          motion: "peer",
+          hold: 11.0,
+          gap: 2.0,
+          faceLeft: true,
+        },
         // Zone 3 — on the far riverbank where the water meets the rock.
-        { zone: 2, x: 214,  rise: 84,  scale: 1.35, tint: [188, 202, 214], opacity: 0.95, frame: "bear-pose-drink", motion: "dip",   hold: 11.0, gap: 2.0, faceLeft: false },
+        {
+          zone: 2,
+          x: 214,
+          rise: 84,
+          scale: 1.35,
+          tint: [188, 202, 214],
+          opacity: 0.95,
+          frame: "bear-pose-drink",
+          motion: "dip",
+          hold: 11.0,
+          gap: 2.0,
+          faceLeft: false,
+        },
         // Zone 4 — leaning out from the edge of the lodge building.
-        { zone: 3, x: 676,  rise: 52,  scale: 1.32, tint: [182, 182, 196], opacity: 0.93, frame: "bear-pose-lean",  motion: "bob",   hold: 10.0, gap: 2.5, faceLeft: true  },
+        {
+          zone: 3,
+          x: 676,
+          rise: 52,
+          scale: 1.32,
+          tint: [182, 182, 196],
+          opacity: 0.93,
+          frame: "bear-pose-lean",
+          motion: "bob",
+          hold: 10.0,
+          gap: 2.5,
+          faceLeft: true,
+        },
         // Zone 5 — reared up on the painted hill crest behind the fields.
-        { zone: 4, x: 430,  rise: 192, scale: 1.40, tint: [164, 182, 198], opacity: 0.92, frame: "bear-pose-rear",  motion: "rise",  hold: 10.5, gap: 2.5, faceLeft: true  },
+        {
+          zone: 4,
+          x: 430,
+          rise: 192,
+          scale: 1.4,
+          tint: [164, 182, 198],
+          opacity: 0.92,
+          frame: "bear-pose-rear",
+          motion: "rise",
+          hold: 10.5,
+          gap: 2.5,
+          faceLeft: true,
+        },
         // Zone 6 — half-behind a dead pine trunk in the storm haze.
-        { zone: 5, x: 172,  rise: 92,  scale: 1.45, tint: [156, 148, 186], opacity: 0.88, frame: "bear-pose-lean",  motion: "ghost", hold: 11.0, gap: 2.5, faceLeft: false },
-
-
+        {
+          zone: 5,
+          x: 172,
+          rise: 92,
+          scale: 1.45,
+          tint: [156, 148, 186],
+          opacity: 0.88,
+          frame: "bear-pose-lean",
+          motion: "ghost",
+          hold: 11.0,
+          gap: 2.5,
+          faceLeft: false,
+        },
       ];
 
       for (const cam of BEAR_SIGHTINGS) {
@@ -1591,25 +1984,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           const fadeOut = Math.min(1, (cam.hold - t) / FADE);
           let alpha = cam.opacity * Math.min(fadeIn, fadeOut);
 
-          const p = t / cam.hold;   // 0..1 through the visible window
+          const p = t / cam.hold; // 0..1 through the visible window
           let dx = 0;
           let dy = 0;
           switch (cam.motion) {
-            case "sway":  // branch rocking under his weight
+            case "sway": // branch rocking under his weight
               dx = Math.sin(t * 1.5) * 5;
               dy = Math.sin(t * 1.5 + 0.6) * 4;
               break;
-            case "peer":  // pops up behind cover, ducks back down twice
+            case "peer": // pops up behind cover, ducks back down twice
               dy = 16 * (1 - Math.abs(Math.sin(p * Math.PI * 2)));
               dx = Math.sin(t * 2.2) * 2;
               break;
-            case "dip":   // muzzle dips to the water and lifts again
+            case "dip": // muzzle dips to the water and lifts again
               dy = Math.sin(t * 1.1) * 5;
               break;
-            case "bob":   // leans further out of the gap, then back
+            case "bob": // leans further out of the gap, then back
               dx = (cam.faceLeft ? -1 : 1) * 14 * Math.sin(p * Math.PI);
               break;
-            case "rise":  // climbs into ridge silhouette, holds, drops away
+            case "rise": // climbs into ridge silhouette, holds, drops away
               dy = 34 * Math.max(0, 1 - Math.sin(Math.min(1, p * 1.6) * Math.PI * 0.5));
               break;
             case "ghost": // drifts sideways in the storm, pulsing faintly
@@ -1623,7 +2016,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         });
       }
     }
-
 
     // Username collectible — floats above ground
     {
@@ -1639,7 +2031,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         "credential",
         { credKind: "user", basY: uy, phase: 0 },
       ]) as AnyObj;
-      item.onUpdate(() => { item.pos.y = item.basY + Math.sin(k.time() * 2) * 5; });
+      item.onUpdate(() => {
+        item.pos.y = item.basY + Math.sin(k.time() * 2) * 5;
+      });
       addSpeech(k, ux, uy - 32, "USERNAME", [30, 60, 130]);
     }
     // Password collectible + patrolling padlock
@@ -1656,7 +2050,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         "credential",
         { credKind: "pass", basY: py, phase: 1 },
       ]) as AnyObj;
-      item.onUpdate(() => { item.pos.y = item.basY + Math.sin(k.time() * 2 + 1) * 5; });
+      item.onUpdate(() => {
+        item.pos.y = item.basY + Math.sin(k.time() * 2 + 1) * 5;
+      });
       addSpeech(k, px, py - 32, "PASSWORD", [30, 60, 130]);
     }
     // Password padlock enemy patrol
@@ -1666,15 +2062,23 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const pw = displaySize("padlock", sizes).w;
       const speed = 54;
       const m = spawnGrounded(k, "padlock", sizes, {
-        x: px, z: LAYERS.ACTOR, tag: "monster",
+        x: px,
+        z: LAYERS.ACTOR,
+        tag: "monster",
         props: { dir: 1, home: px, range: 60 },
         hitboxScale: { x: -pw / 2, w: pw, h: ph },
       });
       m.onUpdate(() => {
         m.pos.x += m.dir * speed * k.dt();
         m.pos.y = GROUND_Y;
-        if (m.pos.x > m.home + m.range) { m.pos.x = m.home + m.range; m.dir = -1; }
-        if (m.pos.x < m.home - m.range) { m.pos.x = m.home - m.range; m.dir = 1; }
+        if (m.pos.x > m.home + m.range) {
+          m.pos.x = m.home + m.range;
+          m.dir = -1;
+        }
+        if (m.pos.x < m.home - m.range) {
+          m.pos.x = m.home - m.range;
+          m.dir = 1;
+        }
       });
     }
     // Two more padlocks LEFT of the Z1 gap. Difficulty pass: they no longer
@@ -1684,29 +2088,36 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
       const spots: Array<{ x: number; dir: 1 | -1; speed: number; range: number }> = [
-        { x: sx0 + 490, dir:  1, speed: 122, range: 240 },
+        { x: sx0 + 490, dir: 1, speed: 122, range: 240 },
         // Padlock guarding the approach to the door on the right.
         { x: sx0 + 1000, dir: -1, speed: 116, range: 140 },
-
       ];
       for (const s of spots) {
         const m = spawnGrounded(k, "padlock", sizes, {
-          x: s.x, z: LAYERS.ACTOR, tag: "monster",
+          x: s.x,
+          z: LAYERS.ACTOR,
+          tag: "monster",
           props: { dir: s.dir, home: s.x, range: s.range },
           hitboxScale: { x: -pw / 2, w: pw, h: ph },
         });
         m.onUpdate(() => {
           m.pos.x += m.dir * s.speed * k.dt();
           m.pos.y = GROUND_Y;
-          if (m.pos.x > m.home + m.range) { m.pos.x = m.home + m.range; m.dir = -1; }
-          if (m.pos.x < m.home - m.range) { m.pos.x = m.home - m.range; m.dir = 1; }
+          if (m.pos.x > m.home + m.range) {
+            m.pos.x = m.home + m.range;
+            m.dir = -1;
+          }
+          if (m.pos.x < m.home - m.range) {
+            m.pos.x = m.home - m.range;
+            m.dir = 1;
+          }
         });
       }
     }
 
-
     zoneObjectives[1] = {
-      hudLabel: () => `USER ${zoneState.userGot ? "✓" : "☐"}  PASS ${zoneState.passGot ? "✓" : "☐"}`,
+      hudLabel: () =>
+        `USER ${zoneState.userGot ? "✓" : "☐"}  PASS ${zoneState.passGot ? "✓" : "☐"}`,
       met: () => zoneState.userGot && zoneState.passGot,
     };
 
@@ -1719,14 +2130,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.pos(rx0, GROUND_Y - 6),
         k.color(140, 90, 50),
         k.outline(2, k.rgb(80, 50, 20)),
-        k.area(), k.body({ isStatic: true }),
+        k.area(),
+        k.body({ isStatic: true }),
         k.z(LAYERS.PLATFORM),
         "platform",
         { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(rx0, GROUND_Y - 6) },
       ]);
       const bridgeH = DISPLAY_H["bridge"];
       for (let i = 0; i < 7; i++) {
-        spawnDecor(k, "bridge", sizes, { x: rx0 + i * 100 + 50, groundY: GROUND_Y - 6 + bridgeH, z: LAYERS.PLATFORM - 1 });
+        spawnDecor(k, "bridge", sizes, {
+          x: rx0 + i * 100 + 50,
+          groundY: GROUND_Y - 6 + bridgeH,
+          z: LAYERS.PLATFORM - 1,
+        });
       }
     } else {
       // Each platform represents an application section. Label baked into the
@@ -1737,21 +2153,31 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Difficulty pass: slower, shallower bobbing gives a wider landing
       // window on every crossing platform (~25% gentler than before).
       const platforms = [
-        { x: rx0 + 30,  y: GROUND_Y - 72,  amp: 72, spd: 4.3, label: "ABOUT YOU" },
-        { x: rx0 + 200, y: GROUND_Y - 92,  amp: 94, spd: 3.8, label: "HOUSEHOLD" },
-        { x: rx0 + 370, y: GROUND_Y - 86,  amp: 86, spd: 4.7, label: "INCOME" },
-        { x: rx0 + 540, y: GROUND_Y - 72,  amp: 72, spd: 4.2, label: "SIGNATURE" },
+        { x: rx0 + 30, y: GROUND_Y - 72, amp: 72, spd: 4.3, label: "ABOUT YOU" },
+        { x: rx0 + 200, y: GROUND_Y - 92, amp: 94, spd: 3.8, label: "HOUSEHOLD" },
+        { x: rx0 + 370, y: GROUND_Y - 86, amp: 86, spd: 4.7, label: "INCOME" },
+        { x: rx0 + 540, y: GROUND_Y - 72, amp: 72, spd: 4.2, label: "SIGNATURE" },
       ];
-
 
       for (const p of platforms) {
         const PLAT_W = 108;
         const plat = k.add([
-          k.rect(PLAT_W, 16), k.pos(p.x, p.y),
-          k.color(240, 230, 200), k.outline(2, k.rgb(60, 45, 25)),
-          k.area(), k.body({ isStatic: true }),
-          k.z(LAYERS.PLATFORM), "platform",
-          { basY: p.y, amp: p.amp, spd: p.spd, phase: Math.random() * Math.PI * 2, platformSpeed: k.vec2(0, 0), lastPos: k.vec2(p.x, p.y) },
+          k.rect(PLAT_W, 16),
+          k.pos(p.x, p.y),
+          k.color(240, 230, 200),
+          k.outline(2, k.rgb(60, 45, 25)),
+          k.area(),
+          k.body({ isStatic: true }),
+          k.z(LAYERS.PLATFORM),
+          "platform",
+          {
+            basY: p.y,
+            amp: p.amp,
+            spd: p.spd,
+            phase: Math.random() * Math.PI * 2,
+            platformSpeed: k.vec2(0, 0),
+            lastPos: k.vec2(p.x, p.y),
+          },
         ]);
         // Dark plaque + shadowed gold text sitting flush on top of the platform.
         const labelSize = 10;
@@ -1770,12 +2196,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const shadow = k.add([
           k.text(p.label, { size: labelSize, font: "sans-serif" }),
           k.pos(p.x + PLAT_W / 2 + 1, p.y + 3 + 1),
-          k.anchor("center"), k.color(0, 0, 0), k.z(LAYERS.PLATFORM + 2),
+          k.anchor("center"),
+          k.color(0, 0, 0),
+          k.z(LAYERS.PLATFORM + 2),
         ]) as AnyObj;
         const label = k.add([
           k.text(p.label, { size: labelSize, font: "sans-serif" }),
           k.pos(p.x + PLAT_W / 2, p.y + 3),
-          k.anchor("center"), k.color(255, 220, 90), k.z(LAYERS.PLATFORM + 3),
+          k.anchor("center"),
+          k.color(255, 220, 90),
+          k.z(LAYERS.PLATFORM + 3),
         ]) as AnyObj;
         plat.onUpdate(() => {
           const newY = plat.basY + Math.sin(k.time() * plat.spd + plat.phase) * plat.amp;
@@ -1796,8 +2226,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Background thought bubbles — decorative "what am I filling out?" chatter.
     {
       const bubbles: Array<[number, number, string]> = [
-        [rx0 + 60,  120, "Which form?"],
-        [rx0 + 220, 90,  "Do I qualify?"],
+        [rx0 + 60, 120, "Which form?"],
+        [rx0 + 220, 90, "Do I qualify?"],
         [rx0 + 360, 140, "Where do I start?"],
         [rx0 + 500, 100, "Is this online?"],
         [rx0 + 640, 130, "How long?"],
@@ -1812,7 +2242,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       met: () => player.pos.x >= BIOME_W * 3 - 160,
     };
 
-
     // ================= ZONE 3: Gathering Documents — 3 verifications =================
     const tx0 = BIOME_W * 3;
     const docs: [number, "id" | "paystub" | "envelope", string][] = [
@@ -1823,7 +2252,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     for (const [x, prop, key] of docs) {
       const dh = DISPLAY_H[prop];
       spawnGrounded(k, prop, sizes, {
-        x, z: LAYERS.PROP, tag: "doc",
+        x,
+        z: LAYERS.PROP,
+        tag: "doc",
         props: { docKey: key },
         hitboxScale: { x: -dh / 2, w: dh, h: dh },
       });
@@ -1835,23 +2266,32 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // apart and patrolling slower so gaps between them stay walkable.
       const baseSpeed = active.plain_language ? 34 : 56;
       const monsterSpots: Array<{ x: number; speed: number; range: number }> = [
-        { x: tx0 + 360,  speed: active.plain_language ? 30 : 50, range: 90 },
-        { x: tx0 + 700,  speed: baseSpeed,                        range: 105 },
+        { x: tx0 + 360, speed: active.plain_language ? 30 : 50, range: 90 },
+        { x: tx0 + 700, speed: baseSpeed, range: 105 },
         { x: tx0 + 1040, speed: active.plain_language ? 30 : 48, range: 95 },
       ];
 
-
       for (const s of monsterSpots) {
         const m = spawnGrounded(k, "form-monster", sizes, {
-          x: s.x, z: LAYERS.ACTOR, tag: "monster",
+          x: s.x,
+          z: LAYERS.ACTOR,
+          tag: "monster",
           props: { dir: 1, home: s.x, range: s.range },
           hitboxScale: { x: -mw / 2, w: mw, h: mh },
         });
         m.onUpdate(() => {
           m.pos.x += m.dir * s.speed * k.dt();
           m.pos.y = GROUND_Y;
-          if (m.pos.x > m.home + m.range) { m.pos.x = m.home + m.range; m.dir = -1; m.flipX = true; }
-          if (m.pos.x < m.home - m.range) { m.pos.x = m.home - m.range; m.dir = 1; m.flipX = false; }
+          if (m.pos.x > m.home + m.range) {
+            m.pos.x = m.home + m.range;
+            m.dir = -1;
+            m.flipX = true;
+          }
+          if (m.pos.x < m.home - m.range) {
+            m.pos.x = m.home - m.range;
+            m.dir = 1;
+            m.flipX = false;
+          }
         });
       }
     }
@@ -1867,7 +2307,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     for (const rx of relaySpots) {
       const dh = DISPLAY_H["mailbox"];
       spawnGrounded(k, "mailbox", sizes, {
-        x: rx, z: LAYERS.PROP, tag: "reply",
+        x: rx,
+        z: LAYERS.PROP,
+        tag: "reply",
         props: { bonus: 400 },
         hitboxScale: { x: -dh / 2, w: dh, h: dh },
       });
@@ -1888,7 +2330,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const laneL = zoneL + laneW * gi + 20;
         const laneR = zoneL + laneW * (gi + 1) - 20;
         const m = spawnGrounded(k, "envelope-gremlin-0", sizes, {
-          x: sx, z: LAYERS.ACTOR, tag: "monster",
+          x: sx,
+          z: LAYERS.ACTOR,
+          tag: "monster",
           props: {
             dir: (Math.random() < 0.5 ? -1 : 1) as 1 | -1,
             speed: 42 + Math.random() * 40,
@@ -1948,10 +2392,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // "letters back and forth with the agency" theme. No collision.
     {
       const planeDefs = [
-        { y: 90,  spd: 70, phase: 0.0, bobA: 8,  bobS: 1.6 },
-        { y: 140, spd: 55, phase: 1.7, bobA: 6,  bobS: 1.2 },
+        { y: 90, spd: 70, phase: 0.0, bobA: 8, bobS: 1.6 },
+        { y: 140, spd: 55, phase: 1.7, bobA: 6, bobS: 1.2 },
         { y: 190, spd: 85, phase: 3.2, bobA: 10, bobS: 1.9 },
-        { y: 60,  spd: 45, phase: 2.4, bobA: 5,  bobS: 1.4 },
+        { y: 60, spd: 45, phase: 2.4, bobA: 5, bobS: 1.4 },
       ];
       const zoneL = relayBase - 40;
       const zoneR = relayBase + BIOME_W + 40;
@@ -2013,7 +2457,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
     for (let i = 0; i < CAL_COUNT; i++) {
       const b = spawnAirborne(k, "calendar-page", sizes, {
-        x: (CAL_L + CAL_R) / 2, y: -400, z: LAYERS.ACTOR,
+        x: (CAL_L + CAL_R) / 2,
+        y: -400,
+        z: LAYERS.ACTOR,
         tag: "boulder",
         props: {
           spd: 340,
@@ -2024,7 +2470,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           baseX: (CAL_L + CAL_R) / 2,
           armAt: 0,
           falling: false,
-          marker: null as null | { pos: { x: number; y: number }; destroy: () => void; opacity: number },
+          marker: null as null | {
+            pos: { x: number; y: number };
+            destroy: () => void;
+            opacity: number;
+          },
         },
       });
       b.use(k.rotate(0));
@@ -2087,8 +2537,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // ================= ZONE 6: Choosing Your Path — pick a plan, get a key =================
     const kx0 = BIOME_W * 6;
     const planDefs: Array<{ x: number; sprite: string; label: string }> = [
-      { x: kx0 + 260, sprite: "plan-blue",   label: "Blue Cross / Blue Shield" },
-      { x: kx0 + 560, sprite: "plan-green",  label: "HealthPartners" },
+      { x: kx0 + 260, sprite: "plan-blue", label: "Blue Cross / Blue Shield" },
+      { x: kx0 + 560, sprite: "plan-green", label: "HealthPartners" },
       { x: kx0 + 860, sprite: "plan-orange", label: "Medica" },
     ];
     for (const p of planDefs) {
@@ -2134,18 +2584,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // over a lethal gap in the ground so a missed jump costs a life.
     const stairY0 = GROUND_Y;
     const stepCount = 6;
-    const STEP_GAP_X = 110;   // matches Z7_GAP1 above so the pole lands on ground
+    const STEP_GAP_X = 110; // matches Z7_GAP1 above so the pole lands on ground
     const STEP_START_X = cx0 + 260;
     // (Lethal gap water plane is created with the ground split for Zone 7.)
     for (let i = 0; i < stepCount; i++) {
       const sxi = STEP_START_X + i * STEP_GAP_X;
       const syi = stairY0 - 60 - i * 45;
       k.add([
-        k.rect(72, 14), k.pos(sxi, syi),
+        k.rect(72, 14),
+        k.pos(sxi, syi),
         k.color(200, 195, 210),
         k.outline(2, k.rgb(90, 90, 110)),
-        k.area(), k.body({ isStatic: true }),
-        k.z(LAYERS.PLATFORM), "platform",
+        k.area(),
+        k.body({ isStatic: true }),
+        k.z(LAYERS.PLATFORM),
+        "platform",
         { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(sxi, syi) },
       ]);
     }
@@ -2154,10 +2607,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const topLandingX = STEP_START_X + stepCount * STEP_GAP_X + 20;
     const topLandingY = stairY0 - 60 - stepCount * 45;
     const topLanding = k.add([
-      k.rect(72, 14), k.pos(topLandingX, topLandingY),
-      k.color(200, 195, 210), k.outline(2, k.rgb(90, 90, 110)),
-      k.area(), k.body({ isStatic: true }),
-      k.z(LAYERS.PLATFORM), "platform",
+      k.rect(72, 14),
+      k.pos(topLandingX, topLandingY),
+      k.color(200, 195, 210),
+      k.outline(2, k.rgb(90, 90, 110)),
+      k.area(),
+      k.body({ isStatic: true }),
+      k.z(LAYERS.PLATFORM),
+      "platform",
       { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(topLandingX, topLandingY) },
     ]) as AnyObj;
     zoneState.topLandingRef = topLanding;
@@ -2175,7 +2632,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         "id-card",
         { basY: idY },
       ]) as AnyObj;
-      idItem.onUpdate(() => { idItem.pos.y = idItem.basY + Math.sin(k.time() * 2.5) * 4; });
+      idItem.onUpdate(() => {
+        idItem.pos.y = idItem.basY + Math.sin(k.time() * 2.5) * 4;
+      });
       // (No floating labels here — the paused Step 8 briefing covers the ID card.)
     }
 
@@ -2195,7 +2654,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.outline(2, k.rgb(140, 100, 30)),
       k.z(LAYERS.PROP + 1),
     ]);
-    k.add([ // pole cap
+    k.add([
+      // pole cap
       k.circle(10),
       k.pos(poleX, poleTop),
       k.color(255, 215, 80),
@@ -2206,16 +2666,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     k.add([
       k.rect(24, poleBaseY - poleTop),
       k.pos(poleX - 12, poleTop),
-      k.area(), k.opacity(0),
+      k.area(),
+      k.opacity(0),
       "fire-pole",
       { poleX, poleTop, poleBaseY },
     ]);
-    k.add([
-      k.rect(60, 30),
-      k.pos(poleX - 30, poleBaseY - 10),
-      k.area(), k.opacity(0),
-      "pole-base",
-    ]);
+    k.add([k.rect(60, 30), k.pos(poleX - 30, poleBaseY - 10), k.area(), k.opacity(0), "pole-base"]);
     // "COVERED" celebration sign at right edge
     addSpeech(k, LEVEL_END - 100, GROUND_Y - 200, "★ COVERED! ★", [220, 30, 60]);
     zoneObjectives[7] = {
@@ -2229,7 +2685,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
               : "ID CARD ☐",
       met: () => zoneState.firePoleDone,
     };
-
 
     // ===== Checkpoint flags (Check Your Status Anytime) =====
     // Managed live: markers appear the moment the upgrade is switched on and
@@ -2245,7 +2700,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             // Zone 2 keeps the campfire sprite.
             const ch = DISPLAY_H["campfire"];
             spawnGrounded(k, "campfire", sizes, {
-              x: fx, z: LAYERS.PROP, tag: "checkpoint",
+              x: fx,
+              z: LAYERS.PROP,
+              tag: "checkpoint",
               props: { atX: fx },
               hitboxScale: { x: -ch / 2, w: ch, h: ch },
             });
@@ -2278,12 +2735,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     }
 
-
-
-
     // ================= Player =================
     const player = k.add([
-      k.sprite("hero-idle", { width: displaySize("hero-idle", sizes).w, height: DISPLAY_H["hero-idle"] }),
+      k.sprite("hero-idle", {
+        width: displaySize("hero-idle", sizes).w,
+        height: DISPLAY_H["hero-idle"],
+      }),
       k.pos(spawnX, GROUND_Y - 20),
       k.area({ shape: new k.Rect(k.vec2(0, 0), PLAYER_HITBOX.w, PLAYER_HITBOX.h) }),
       k.body(),
@@ -2312,22 +2769,47 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         distancePx: 0,
         prevFeetY: GROUND_Y,
         passedMonsters: new Set<unknown>(),
-        visitedZones: new Set<number>([Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)))]),
-        riding: null as null | { pos: { x: number; y: number }; platformSpeed: { x: number; y: number }; width: number; height: number },
+        visitedZones: new Set<number>([
+          Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W))),
+        ]),
+        riding: null as null | {
+          pos: { x: number; y: number };
+          platformSpeed: { x: number; y: number };
+          width: number;
+          height: number;
+        },
         animState: "idle" as "idle" | "walk" | "jump" | "slide",
         animTick: 0,
         walkFrame: 0,
         slideFrame: 0,
       },
     ]);
+    // A recovery restart resumes the run in progress: score, lives, documents
+    // and counters all carry over so the finished run reports honest numbers.
+    if (resume) {
+      player.score = resume.score;
+      player.lives = Math.max(1, resume.lives);
+      player.maxLives = Math.max(player.lives, resume.maxLives);
+      player.docs = new Set(resume.docs);
+      player.deaths = resume.deaths;
+      player.distancePx = resume.distancePx;
+      player.jumpsLanded = resume.jumpsLanded;
+      player.enemiesPassed = resume.enemiesPassed;
+      player.farthestZone = Math.max(player.farthestZone, resume.farthestZone);
+    }
+
     // Debug hook so QA/Playwright can inspect live game state.
     if (typeof window !== "undefined") {
       (window as unknown as { __gameDebug?: unknown }).__gameDebug = {
-        player, doors, zoneState, zoneObjectives,
-        BIOME_W, GROUND_Y, ZONES_LEN: ZONES.length,
+        player,
+        doors,
+        zoneState,
+        zoneObjectives,
+        BIOME_W,
+        GROUND_Y,
+        ZONES_LEN: ZONES.length,
       };
     }
-
 
     // Manual animation: swap sprite per state. All hero frames share size
     // (grouped in the trim step), so swapping never causes horizontal jitter.
@@ -2354,7 +2836,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       else if (next === "slide") setSprite("hero-slide-0");
       else setSprite(`hero-walk-0${facingSuffix("hero-walk-0")}`);
     }
-
 
     type PlatformRide = {
       pos: { x: number; y: number };
@@ -2410,17 +2891,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const plat = asPlatformRide(p);
       if (!plat) return;
       const feetY = player.pos.y;
-      const nearTop = feetY >= plat.pos.y - PLATFORM_SNAP_TOLERANCE && feetY <= plat.pos.y + PLATFORM_SNAP_TOLERANCE;
+      const nearTop =
+        feetY >= plat.pos.y - PLATFORM_SNAP_TOLERANCE &&
+        feetY <= plat.pos.y + PLATFORM_SNAP_TOLERANCE;
       if (nearTop || col?.isBottom()) snapToPlatform(plat);
     });
 
     // ================= Power-ups (Navigator / Live Chat / Email) =================
     // Every pickup is driven by PowerUpManager, which is driven by the flags.
     // Nothing here asks about a flag directly.
-    const POWERUP_STYLE: Record<
-      PowerUpKind,
-      { fill: [number, number, number]; glyph: string }
-    > = {
+    const POWERUP_STYLE: Record<PowerUpKind, { fill: [number, number, number]; glyph: string }> = {
       navigator: { fill: [60, 150, 90], glyph: "NAV" },
       chat: { fill: [50, 110, 210], glyph: "CHAT" },
       email: { fill: [200, 130, 40], glyph: "MAIL" },
@@ -2432,7 +2912,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const style = POWERUP_STYLE[kind];
       const x = def.zone * BIOME_W + def.offsetX;
       const y = GROUND_Y - def.y;
-      const W = 54, H = 30;
+      const W = 54,
+        H = 30;
       const box = k.add([
         k.rect(W, H, { radius: 6 }),
         k.pos(x, y),
@@ -2495,7 +2976,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     player.onCollide("powerup", (p) => {
-      const obj = p as unknown as { kind: PowerUpKind; pos: { x: number; y: number }; destroy: () => void };
+      const obj = p as unknown as {
+        kind: PowerUpKind;
+        pos: { x: number; y: number };
+        destroy: () => void;
+      };
       const kind = obj.kind;
       powerUps.collect(kind);
       player.score += 300;
@@ -2607,7 +3092,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       umbrella.pos = k.vec2(player.pos.x, player.pos.y - DISPLAY_H["hero-idle"] - 10);
     });
 
-
     // ================= HUD =================
     // pixelHudText: HUD label with a 1-px black drop shadow so pixel text
     // stays legible over bright biome backgrounds (previously HUD text
@@ -2656,8 +3140,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         mkNode(d, d, [0, 0, 0], LAYERS.HUD),
       ];
       const shadow = {
-        set text(v: string) { for (const n of halo) n.text = v; },
-        set opacity(v: number) { for (const n of halo) n.opacity = v; },
+        set text(v: string) {
+          for (const n of halo) n.text = v;
+        },
+        set opacity(v: number) {
+          for (const n of halo) n.opacity = v;
+        },
         setPos(x: number, y: number) {
           halo[0].pos = k.vec2(x - d, y);
           halo[1].pos = k.vec2(x + d, y);
@@ -2668,10 +3156,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       };
       const main = mkNode(0, 0, o.color, LAYERS.HUD + 1);
       return {
-        get text() { return main.text as string; },
-        set text(v: string) { main.text = v; shadow.text = v; },
-        get opacity() { return main.opacity as number; },
-        set opacity(v: number) { main.opacity = v; shadow.opacity = v; },
+        get text() {
+          return main.text as string;
+        },
+        set text(v: string) {
+          main.text = v;
+          shadow.text = v;
+        },
+        get opacity() {
+          return main.opacity as number;
+        },
+        set opacity(v: number) {
+          main.opacity = v;
+          shadow.opacity = v;
+        },
         setPos(x: number, y: number) {
           main.pos = k.vec2(x, y);
           shadow.setPos(x, y);
@@ -2680,27 +3178,35 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     pixelHudText({
-      x: 12, y: 12, size: 14,
-      color: opts.mode === "after" ? [30, 160, 60] : [220, 60, 60],
-      initial: opts.mode === "after" ? "CURRENT VERSION" : "ORIGINAL VERSION",
+      x: 12,
+      y: 12,
+      size: 14,
+      color: [30, 160, 60],
+      initial: "BLAZING THE TRAIL",
     });
+
     // Score row (above the applications-as-lives row).
-    const scoreHud = pixelHudText({ x: 12, y: 34, size: 16, color: [255, 235, 120], initial: "SCORE 0" });
+    const scoreHud = pixelHudText({
+      x: 12,
+      y: 34,
+      size: 16,
+      color: [255, 235, 120],
+      initial: "SCORE 0",
+    });
     // Run clock — the whole run is timed, and faster steps pay bonus points.
-    const timeHud = pixelHudText({ x: 190, y: 34, size: 16, color: [180, 235, 255], initial: "TIME 0:00" });
+    const timeHud = pixelHudText({
+      x: 190,
+      y: 34,
+      size: 16,
+      color: [180, 235, 255],
+      initial: "TIME 0:00",
+    });
 
     // Applications row: little application icons that represent lives.
     // Each icon is a paper card with three horizontal "form field" lines.
     // Lives row: classic 16-bit pixel hearts.
-    const HEART_PX = 3;              // size of one pixel-art cell
-    const HEART_MAP = [
-      "0110110",
-      "1111111",
-      "1111111",
-      "0111110",
-      "0011100",
-      "0001000",
-    ];
+    const HEART_PX = 3; // size of one pixel-art cell
+    const HEART_MAP = ["0110110", "1111111", "1111111", "0111110", "0011100", "0001000"];
     const HEART_W = HEART_MAP[0].length * HEART_PX;
     const appIcons: AnyObj[] = [];
     const MAX_POSSIBLE_LIVES = 5;
@@ -2724,11 +3230,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             k.add([
               k.rect(HEART_PX, HEART_PX),
               k.pos(bx + rx * HEART_PX, by + ry * HEART_PX),
-              edge
-                ? k.color(40, 20, 30)
-                : shine
-                  ? k.color(255, 170, 180)
-                  : k.color(220, 45, 60),
+              edge ? k.color(40, 20, 30) : shine ? k.color(255, 170, 180) : k.color(220, 45, 60),
               k.fixed(),
               k.z(LAYERS.HUD),
             ]) as AnyObj,
@@ -2738,17 +3240,31 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       appIcons.push({ cells });
     }
     const docsHud = pixelHudText({
-      x: k.width() - 12, y: 12, size: 14, color: [255, 255, 255], anchor: "topright",
+      x: k.width() - 12,
+      y: 12,
+      size: 14,
+      color: [255, 255, 255],
+      anchor: "topright",
     });
     // Per-zone objective badge, top-right under the "AFTER FEEDBACK" chip.
     const objectiveHud = pixelHudText({
-      x: k.width() - 12, y: 34, size: 14, color: [255, 220, 90], anchor: "topright",
+      x: k.width() - 12,
+      y: 34,
+      size: 14,
+      color: [255, 220, 90],
+      anchor: "topright",
     });
     // Hint bubble that pops up when player bumps a locked door.
     let hintUntil = 0;
     const hintHud = pixelHudText({
-      x: k.width() / 2, y: k.height() - 60, size: 14, color: [255, 255, 255],
-      anchor: "center", width: 460, align: "center", opacity: 0,
+      x: k.width() / 2,
+      y: k.height() - 60,
+      size: 14,
+      color: [255, 255, 255],
+      anchor: "center",
+      width: 460,
+      align: "center",
+      opacity: 0,
     });
     function showHint(msg: string) {
       hintHud.text = msg;
@@ -2769,20 +3285,30 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(LAYERS.HUD),
     ]) as AnyObj;
     const waitLabel = pixelHudText({
-      x: k.width() / 2, y: 22, size: 12, color: [255, 220, 90],
-      anchor: "top", initial: "AWAITING DECISION", opacity: 0,
+      x: k.width() / 2,
+      y: 22,
+      size: 12,
+      color: [255, 220, 90],
+      anchor: "top",
+      initial: "AWAITING DECISION",
+      opacity: 0,
     });
     const waitCountdown = pixelHudText({
-      x: k.width() / 2, y: 40, size: 28, color: [255, 255, 255],
-      anchor: "top", initial: "0:30", opacity: 0,
+      x: k.width() / 2,
+      y: 40,
+      size: 28,
+      color: [255, 255, 255],
+      anchor: "top",
+      initial: "0:30",
+      opacity: 0,
     });
 
     // ===== ACTIVE UPGRADES panel =====
     // Sits to the RIGHT of the score/lives block in the top-left HUD cluster so
     // it never covers the player or the playfield floor.
     const UPG_ROWS = 5;
-    const UPG_X = Math.round(150 * HUD_S);   // just right of the 5 life hearts
-    const UPG_Y = 30;    // aligned with the SCORE row
+    const UPG_X = Math.round(150 * HUD_S); // just right of the 5 life hearts
+    const UPG_Y = 30; // aligned with the SCORE row
     const UPG_W = 158;
     const UPG_ROW_H = 13;
     const upgPanel = k.add([
@@ -2796,11 +3322,23 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(LAYERS.HUD),
     ]) as AnyObj;
     const upgTitle = pixelHudText({
-      x: UPG_X + 6, y: UPG_Y + 5, size: 8, color: [255, 220, 90], anchor: "topleft",
-      initial: "ACTIVE UPGRADES", opacity: 0,
+      x: UPG_X + 6,
+      y: UPG_Y + 5,
+      size: 8,
+      color: [255, 220, 90],
+      anchor: "topleft",
+      initial: "ACTIVE UPGRADES",
+      opacity: 0,
     });
     const upgRows = Array.from({ length: UPG_ROWS }, () =>
-      pixelHudText({ x: UPG_X + 6, y: 0, size: 8, color: [255, 255, 255], anchor: "topleft", opacity: 0 }),
+      pixelHudText({
+        x: UPG_X + 6,
+        y: 0,
+        size: 8,
+        color: [255, 255, 255],
+        anchor: "topleft",
+        opacity: 0,
+      }),
     );
 
     function updateUpgradePanel() {
@@ -2822,7 +3360,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
 
-
     function updateHud() {
       scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
       {
@@ -2836,9 +3373,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
       updateUpgradePanel();
       const need = ["ID", "Income", "Household"].filter((d) => !player.docs.has(d));
-      docsHud.text = player.docs.size > 0
-        ? need.length ? `Application docs needed: ${need.join(", ")}` : "Application docs: complete ✓"
-        : "";
+      docsHud.text =
+        player.docs.size > 0
+          ? need.length
+            ? `Application docs needed: ${need.join(", ")}`
+            : "Application docs: complete ✓"
+          : "";
       const z = player.farthestZone;
       const obj = zoneObjectives[z];
       objectiveHud.text = obj ? obj.hudLabel() : "";
@@ -2849,7 +3389,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const started = zoneState.waitStart > 0;
       const elapsed = started ? k.time() - zoneState.waitStart : 0;
       const remaining = started ? Math.max(0, zoneState.waitDur - elapsed) : zoneState.waitDur;
-      const approvedFlash = started && elapsed >= zoneState.waitDur && elapsed < zoneState.waitDur + 1.5;
+      const approvedFlash =
+        started && elapsed >= zoneState.waitDur && elapsed < zoneState.waitDur + 1.5;
       const showTimer = inZone5;
       if (showTimer) {
         waitBg.opacity = 0.85;
@@ -2858,7 +3399,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (approvedFlash) {
           waitLabel.text = "APPROVED!";
           waitCountdown.text = "✓";
-          (waitLabel as unknown as { color?: unknown }); // color set via node; keep as-is
+          // Color for this label is set on the node itself; nothing to do here.
         } else {
           waitLabel.text = started ? "AWAITING DECISION" : "STEP INTO THE MOUNTAIN";
           const secs = Math.ceil(remaining);
@@ -2872,7 +3413,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
     updateHud();
 
-
     // ================= Pause + interactive step screens =================
     // A step screen is a true pause: every game object stops updating, the
     // wait timer stops counting, and nothing resumes until the player says so.
@@ -2884,7 +3424,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (pausedNow) return;
       pausedNow = true;
       pauseStartedAt = k.time();
-      pausedObjs = (k.get("*", { recursive: true }) as unknown as AnyObj[]).filter((o) => !o.paused);
+      pausedObjs = (k.get("*", { recursive: true }) as unknown as AnyObj[]).filter(
+        (o) => !o.paused,
+      );
       for (const o of pausedObjs) o.paused = true;
     }
 
@@ -2895,7 +3437,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       pausedNow = false;
       for (const o of pausedObjs) {
-        try { o.paused = false; } catch { /* destroyed while paused */ }
+        try {
+          o.paused = false;
+        } catch {
+          /* destroyed while paused */
+        }
       }
       pausedObjs = [];
       // Shift every wall-clock deadline forward so the pause costs no time.
@@ -2905,7 +3451,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (hintUntil > 0) hintUntil += frozenFor;
     }
 
-    type StepIcon = { sprite?: string; glyph?: string; shape?: "platform" | "stairs"; label: string };
+    type StepIcon = {
+      sprite?: string;
+      glyph?: string;
+      shape?: "platform" | "stairs";
+      label: string;
+    };
     type StepScreen = { title: string; subtitle: string; lines: string[]; icons: StepIcon[] };
     const STEP_SCREENS: StepScreen[] = [
       {
@@ -2943,10 +3494,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       {
         title: "STEP 4 · GATHER YOUR DOCUMENTS",
         subtitle: "Gathering Supplies",
-        lines: [
-          "Collect all 3 required documents.",
-          "Jump over the Evil Clipboards.",
-        ],
+        lines: ["Collect all 3 required documents.", "Jump over the Evil Clipboards."],
         icons: [
           { sprite: "id", label: "ID" },
           { sprite: "paystub", label: "INCOME" },
@@ -2957,10 +3505,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       {
         title: "STEP 5 · RESPOND TO REQUEST",
         subtitle: "Answering the Call",
-        lines: [
-          "Collect all 4 mailboxes.",
-          "Jump over the Monster Envelopes.",
-        ],
+        lines: ["Collect all 4 mailboxes.", "Jump over the Monster Envelopes."],
         icons: [
           { sprite: "mailbox", label: "MAILBOX" },
           { sprite: "envelope-gremlin-0", label: "MONSTER ENVELOPE" },
@@ -2983,9 +3528,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           "Select one of the three managed care plans.",
           "Selecting a plan brings the bear charging out of the woods.",
           "You choose when the battle starts.",
-          "Dodge his paperwork — your \"+\" shots can't stop it.",
-          "Defeat him with five \"+\" hits.",
-
+          'Dodge his paperwork — your "+" shots can\'t stop it.',
+          'Defeat him with five "+" hits.',
         ],
         icons: [
           { sprite: "plan-blue", label: "PLAN" },
@@ -2998,10 +3542,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       {
         title: "STEP 8 · USING YOUR COVERAGE",
         subtitle: "Coverage Begins",
-        lines: [
-          "Climb the staircase.",
-          "Collect your Medical ID Card.",
-        ],
+        lines: ["Climb the staircase.", "Collect your Medical ID Card."],
         icons: [
           { shape: "stairs", label: "STAIRS" },
           { sprite: "medical-id", label: "MEDICAL ID CARD" },
@@ -3044,8 +3585,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const panelX = Math.floor(W / 2 - panelW / 2);
       const panelY = Math.floor(H / 2 - panelH / 2);
       put([
-        k.rect(panelW, panelH, { radius: 6 }), k.pos(panelX, panelY),
-        k.color(16, 22, 52), k.outline(4, k.rgb(255, 220, 90)), k.fixed(), k.z(301),
+        k.rect(panelW, panelH, { radius: 6 }),
+        k.pos(panelX, panelY),
+        k.color(16, 22, 52),
+        k.outline(4, k.rgb(255, 220, 90)),
+        k.fixed(),
+        k.z(301),
       ]);
 
       // Ranger guide stands at the left edge of the panel and "delivers" the
@@ -3055,7 +3600,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       put([
         k.sprite("ranger-guide", { width: Math.floor(rangerH * 0.677), height: rangerH }),
         k.pos(panelX + px(10) + rangerW / 2, panelY + panelH - px(14)),
-        k.anchor("bot"), k.fixed(), k.z(302),
+        k.anchor("bot"),
+        k.fixed(),
+        k.z(302),
       ]);
 
       const textW = panelW - rangerW;
@@ -3064,12 +3611,30 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const label = (text: string, size: number, rgb: [number, number, number], width?: number) => {
         const fs = Math.max(15, px(size));
         put([
-          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
-          k.pos(cx + 1, y + 1), k.anchor("top"), k.color(0, 0, 0), k.fixed(), k.z(302),
+          k.text(text, {
+            size: fs,
+            font: "sans-serif",
+            align: "center",
+            ...(width ? { width } : {}),
+          }),
+          k.pos(cx + 1, y + 1),
+          k.anchor("top"),
+          k.color(0, 0, 0),
+          k.fixed(),
+          k.z(302),
         ]);
         const main = put([
-          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
-          k.pos(cx, y), k.anchor("top"), k.color(...rgb), k.fixed(), k.z(303),
+          k.text(text, {
+            size: fs,
+            font: "sans-serif",
+            align: "center",
+            ...(width ? { width } : {}),
+          }),
+          k.pos(cx, y),
+          k.anchor("top"),
+          k.color(...rgb),
+          k.fixed(),
+          k.z(303),
         ]);
         y += (main.height ?? fs) + px(8);
       };
@@ -3078,7 +3643,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       label(data.subtitle, 17, [180, 205, 255], textW - px(48));
       y += px(4);
       label(data.lines.map((l) => `• ${l}`).join("\n"), 19, [245, 245, 245], textW - px(60));
-
 
       // Sprite strip: what you'll meet in this zone.
       const iconTop = Math.min(y + px(8), panelY + panelH - px(124));
@@ -3093,20 +3657,54 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           const nativeH = DISPLAY_H[icon.sprite] ?? iconBox;
           const scale = Math.min(iconBox / Math.max(1, disp.w), iconBox / Math.max(1, nativeH));
           put([
-            k.sprite(icon.sprite, { width: Math.max(8, disp.w * scale), height: Math.max(8, nativeH * scale) }),
-            k.pos(ix, centerY), k.anchor("center"), k.fixed(), k.z(303),
+            k.sprite(icon.sprite, {
+              width: Math.max(8, disp.w * scale),
+              height: Math.max(8, nativeH * scale),
+            }),
+            k.pos(ix, centerY),
+            k.anchor("center"),
+            k.fixed(),
+            k.z(303),
           ]);
         } else if (icon.glyph) {
-          put([k.rect(px(30), px(9)), k.pos(ix, centerY), k.anchor("center"), k.color(60, 210, 120), k.outline(2, k.rgb(255, 255, 255)), k.fixed(), k.z(303)]);
-          put([k.rect(px(9), px(30)), k.pos(ix, centerY), k.anchor("center"), k.color(60, 210, 120), k.outline(2, k.rgb(255, 255, 255)), k.fixed(), k.z(303)]);
+          put([
+            k.rect(px(30), px(9)),
+            k.pos(ix, centerY),
+            k.anchor("center"),
+            k.color(60, 210, 120),
+            k.outline(2, k.rgb(255, 255, 255)),
+            k.fixed(),
+            k.z(303),
+          ]);
+          put([
+            k.rect(px(9), px(30)),
+            k.pos(ix, centerY),
+            k.anchor("center"),
+            k.color(60, 210, 120),
+            k.outline(2, k.rgb(255, 255, 255)),
+            k.fixed(),
+            k.z(303),
+          ]);
         } else if (icon.shape === "platform") {
-          put([k.rect(px(54), px(14)), k.pos(ix, centerY), k.anchor("center"), k.color(240, 230, 200), k.outline(2, k.rgb(60, 45, 25)), k.fixed(), k.z(303)]);
+          put([
+            k.rect(px(54), px(14)),
+            k.pos(ix, centerY),
+            k.anchor("center"),
+            k.color(240, 230, 200),
+            k.outline(2, k.rgb(60, 45, 25)),
+            k.fixed(),
+            k.z(303),
+          ]);
         } else {
           for (let s = 0; s < 3; s++) {
             put([
-              k.rect(px(18), px(10)), k.pos(ix - px(18) + s * px(18), centerY + px(16) - s * px(10)),
-              k.anchor("center"), k.color(200, 195, 210), k.outline(2, k.rgb(90, 90, 110)),
-              k.fixed(), k.z(303),
+              k.rect(px(18), px(10)),
+              k.pos(ix - px(18) + s * px(18), centerY + px(16) - s * px(10)),
+              k.anchor("center"),
+              k.color(200, 195, 210),
+              k.outline(2, k.rgb(90, 90, 110)),
+              k.fixed(),
+              k.z(303),
             ]);
           }
         }
@@ -3119,23 +3717,28 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         );
         put([
           k.text(icon.label, { size: capSize, font: "sans-serif", align: "center" }),
-          k.pos(ix, centerY + iconBox / 2 + px(12)), k.anchor("top"), k.color(200, 215, 255), k.fixed(), k.z(303),
+          k.pos(ix, centerY + iconBox / 2 + px(12)),
+          k.anchor("top"),
+          k.color(200, 215, 255),
+          k.fixed(),
+          k.z(303),
         ]);
-
 
         ix += iconBox + gap;
       }
 
       const promptNode = put([
         k.text(CONTINUE_PROMPT(), { size: Math.max(14, px(16)), font: "sans-serif" }),
-        k.pos(cx, panelY + panelH - px(30)), k.anchor("center"), k.opacity(1),
-        k.color(255, 235, 120), k.fixed(), k.z(303),
+        k.pos(cx, panelY + panelH - px(30)),
+        k.anchor("center"),
+        k.opacity(1),
+        k.color(255, 235, 120),
+        k.fixed(),
+        k.z(303),
       ]);
 
       // Continue: Enter / Space / click on desktop, tap anywhere on mobile.
-      const hitArea = put([
-        k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305),
-      ]);
+      const hitArea = put([k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305)]);
 
       const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
         k.onKeyPress(key as never, () => close()),
@@ -3147,9 +3750,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       function close() {
         if (closed) return;
         closed = true;
-        for (const h of keyHandlers) { try { h.cancel(); } catch { /* ignore */ } }
-        try { blink.cancel(); } catch { /* ignore */ }
-        for (const n of nodes) { try { n.destroy(); } catch { /* ignore */ } }
+        for (const h of keyHandlers) {
+          try {
+            h.cancel();
+          } catch {
+            /* ignore */
+          }
+        }
+        try {
+          blink.cancel();
+        } catch {
+          /* ignore */
+        }
+        for (const n of nodes) {
+          try {
+            n.destroy();
+          } catch {
+            /* ignore */
+          }
+        }
         stepScreenOpen = false;
         resumeGameplay();
         // Zone 2 onward: a one-second grace window so nothing parked near the
@@ -3171,7 +3790,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
      * arrived and control should return to the player.
      */
     function showBossReadyPrompt(onReady: () => void) {
-      if (stepScreenOpen) { onReady(); return; }
+      if (stepScreenOpen) {
+        onReady();
+        return;
+      }
       stepScreenOpen = true;
       pauseGameplay();
 
@@ -3193,20 +3815,42 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const panelX = Math.floor(W / 2 - panelW / 2);
       const panelY = Math.floor(H / 2 - panelH / 2);
       put([
-        k.rect(panelW, panelH, { radius: 6 }), k.pos(panelX, panelY),
-        k.color(16, 22, 52), k.outline(4, k.rgb(255, 220, 90)), k.fixed(), k.z(301),
+        k.rect(panelW, panelH, { radius: 6 }),
+        k.pos(panelX, panelY),
+        k.color(16, 22, 52),
+        k.outline(4, k.rgb(255, 220, 90)),
+        k.fixed(),
+        k.z(301),
       ]);
       const cx = Math.floor(panelX + panelW / 2);
       let y = panelY + px(30);
       const label = (text: string, size: number, rgb: [number, number, number], width?: number) => {
         const fs = Math.max(15, px(size));
         put([
-          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
-          k.pos(cx + 1, y + 1), k.anchor("top"), k.color(0, 0, 0), k.fixed(), k.z(302),
+          k.text(text, {
+            size: fs,
+            font: "sans-serif",
+            align: "center",
+            ...(width ? { width } : {}),
+          }),
+          k.pos(cx + 1, y + 1),
+          k.anchor("top"),
+          k.color(0, 0, 0),
+          k.fixed(),
+          k.z(302),
         ]);
         const main = put([
-          k.text(text, { size: fs, font: "sans-serif", align: "center", ...(width ? { width } : {}) }),
-          k.pos(cx, y), k.anchor("top"), k.color(...rgb), k.fixed(), k.z(303),
+          k.text(text, {
+            size: fs,
+            font: "sans-serif",
+            align: "center",
+            ...(width ? { width } : {}),
+          }),
+          k.pos(cx, y),
+          k.anchor("top"),
+          k.color(...rgb),
+          k.fixed(),
+          k.z(303),
         ]);
         y += (main.height ?? fs) + px(10);
       };
@@ -3214,19 +3858,32 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       label("Boss Battle · Choosing Your Path", 16, [180, 205, 255], panelW - px(48));
       y += px(6);
       label(
-        "• Dodge the paperwork he throws — your \"+\" shots won't stop it.\n• He fires when he jumps, so watch his height.\n• Land 5 hits to win.",
-        18, [245, 245, 245], panelW - px(70),
+        '• Dodge the paperwork he throws — your "+" shots won\'t stop it.\n• He fires when he jumps, so watch his height.\n• Land 5 hits to win.',
+        18,
+        [245, 245, 245],
+        panelW - px(70),
       );
 
       const promptNode = put([
-        k.text(isCoarsePointer() ? "Tap when you're READY" : "Press Enter, Space, or Click when you're READY",
-          { size: Math.max(14, px(16)), font: "sans-serif", align: "center", width: panelW - px(40) }),
-        k.pos(cx, panelY + panelH - px(34)), k.anchor("center"), k.opacity(1),
-        k.color(255, 235, 120), k.fixed(), k.z(303),
+        k.text(
+          isCoarsePointer()
+            ? "Tap when you're READY"
+            : "Press Enter, Space, or Click when you're READY",
+          {
+            size: Math.max(14, px(16)),
+            font: "sans-serif",
+            align: "center",
+            width: panelW - px(40),
+          },
+        ),
+        k.pos(cx, panelY + panelH - px(34)),
+        k.anchor("center"),
+        k.opacity(1),
+        k.color(255, 235, 120),
+        k.fixed(),
+        k.z(303),
       ]);
-      const hitArea = put([
-        k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305),
-      ]);
+      const hitArea = put([k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305)]);
       const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
         k.onKeyPress(key as never, () => close()),
       );
@@ -3237,9 +3894,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       function close() {
         if (closed) return;
         closed = true;
-        for (const h of keyHandlers) { try { h.cancel(); } catch { /* ignore */ } }
-        try { blink.cancel(); } catch { /* ignore */ }
-        for (const n of nodes) { try { n.destroy(); } catch { /* ignore */ } }
+        for (const h of keyHandlers) {
+          try {
+            h.cancel();
+          } catch {
+            /* ignore */
+          }
+        }
+        try {
+          blink.cancel();
+        } catch {
+          /* ignore */
+        }
+        for (const n of nodes) {
+          try {
+            n.destroy();
+          } catch {
+            /* ignore */
+          }
+        }
         stepScreenOpen = false;
         // The card paused gameplay; hand control straight back so the player
         // can move and fight the moment the briefing closes.
@@ -3305,7 +3978,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           l.pos.y += 70 * k.dt();
           l.pos.x += Math.sin(l.life * 3 + l.sway) * 30 * k.dt();
           l.angle = (l.angle ?? 0) + 120 * k.dt();
-          if (l.pos.y > GROUND_Y - 2) { l.opacity -= k.dt() * 3; }
+          if (l.pos.y > GROUND_Y - 2) {
+            l.opacity -= k.dt() * 3;
+          }
           if (l.opacity <= 0 || l.life > 5) l.destroy();
         });
         spawned.push(l);
@@ -3409,19 +4084,36 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
         if (beat === 4 && t > 5.0) {
           beat = 5;
-          try { ctl.cancel(); } catch { /* ignore */ }
+          try {
+            ctl.cancel();
+          } catch {
+            /* ignore */
+          }
           // Fade the clearing out, clean up, hand over to the briefing card.
           const fade = k.add([
             k.rect(k.width(), k.height()),
-            k.pos(0, 0), k.color(0, 0, 0), k.opacity(0), k.fixed(), k.z(320),
+            k.pos(0, 0),
+            k.color(0, 0, 0),
+            k.opacity(0),
+            k.fixed(),
+            k.z(320),
           ]) as AnyObj;
           let ft = 0;
           const fadeCtl = k.onUpdate(() => {
             ft += k.dt();
-            if (ft < 0.4) { fade.opacity = ft / 0.4; return; }
+            if (ft < 0.4) {
+              fade.opacity = ft / 0.4;
+              return;
+            }
             if (ft < 0.75) {
               fade.opacity = 1;
-              for (const o of spawned) { try { o.destroy(); } catch { /* gone */ } }
+              for (const o of spawned) {
+                try {
+                  o.destroy();
+                } catch {
+                  /* gone */
+                }
+              }
               spawned.length = 0;
               player.pos.x = heroX;
               player.pos.y = GROUND_Y;
@@ -3430,8 +4122,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             }
             fade.opacity = Math.max(0, 1 - (ft - 0.75) / 0.35);
             if (ft > 1.15) {
-              try { fadeCtl.cancel(); } catch { /* ignore */ }
-              try { fade.destroy(); } catch { /* ignore */ }
+              try {
+                fadeCtl.cancel();
+              } catch {
+                /* ignore */
+              }
+              try {
+                fade.destroy();
+              } catch {
+                /* ignore */
+              }
               resumeGameplay();
               leftArmed = false;
               rightArmed = false;
@@ -3444,7 +4144,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
 
     function playBossEntrance(onDone: () => void) {
-
       // Gameplay stays frozen (the ready card already paused it) so the player
       // can just watch; objects created here are not part of that snapshot.
       setMusic("boss");
@@ -3470,8 +4169,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           runner.pos.y = GROUND_Y - Math.abs(Math.sin(t * 14)) * 10;
           if (Math.floor(t * 12) % 3 === 0) {
             const dust = k.add([
-              k.rect(6, 6), k.pos(runner.pos.x + bw / 2, GROUND_Y - 4),
-              k.color(210, 200, 180), k.opacity(0.8), k.anchor("center"), k.z(LAYERS.EFFECT),
+              k.rect(6, 6),
+              k.pos(runner.pos.x + bw / 2, GROUND_Y - 4),
+              k.color(210, 200, 180),
+              k.opacity(0.8),
+              k.anchor("center"),
+              k.z(LAYERS.EFFECT),
               { life: 0 },
             ]) as AnyObj;
             dust.onUpdate(() => {
@@ -3490,18 +4193,34 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           const roar = k.add([
             k.text("ROAAR!", { size: 34, font: "sans-serif" }),
             k.pos(targetX, GROUND_Y - bh - 30),
-            k.anchor("center"), k.color(255, 90, 80), k.outline(4, k.rgb(30, 0, 0)),
+            k.anchor("center"),
+            k.color(255, 90, 80),
+            k.outline(4, k.rgb(30, 0, 0)),
             k.z(LAYERS.HUD - 1),
           ]) as AnyObj;
           sparkleBurst(targetX, GROUND_Y - bh / 2, [255, 160, 90]);
-          k.wait(1.1, () => { try { roar.destroy(); } catch { /* gone */ } });
+          k.wait(1.1, () => {
+            try {
+              roar.destroy();
+            } catch {
+              /* gone */
+            }
+          });
         }
         if (t > 0 && roared && k.time() >= 0) {
           // Hold the roar beat, then hand the fight over.
           if ((runner.__holdUntil ?? 0) === 0) runner.__holdUntil = k.time() + 1.1;
           if (k.time() >= runner.__holdUntil) {
-            try { ctl.cancel(); } catch { /* ignore */ }
-            try { runner.destroy(); } catch { /* ignore */ }
+            try {
+              ctl.cancel();
+            } catch {
+              /* ignore */
+            }
+            try {
+              runner.destroy();
+            } catch {
+              /* ignore */
+            }
             resumeGameplay();
             onDone();
           }
@@ -3509,17 +4228,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
 
-
-
-
-
     // ================= Asset debug overlay =================
     // Toggle with the "D" key or by loading the page with ?debug=assets.
     // Shows every asset the current zone depends on, its sheet coordinates,
     // trimmed bounding box, unified sprite size, and load status.
     const debugQuery =
-      typeof window !== "undefined" &&
-      /(?:^|[?&])debug=assets(?:&|$)/.test(window.location.search);
+      typeof window !== "undefined" && /(?:^|[?&])debug=assets(?:&|$)/.test(window.location.search);
     let debugVisible = debugQuery;
     const debugPanel = k.add([
       k.rect(360, 260, { radius: 4 }),
@@ -3577,7 +4291,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const lines: string[] = [];
       for (const n of names) {
         const e = ASSET_REPORT.entries[n];
-        if (!e) { lines.push(`??  ${n.padEnd(16)}  (not registered)`); continue; }
+        if (!e) {
+          lines.push(`??  ${n.padEnd(16)}  (not registered)`);
+          continue;
+        }
         if (e.kind === "background") {
           lines.push(`${statusGlyph(e.status)}  ${n.padEnd(16)}  bg  ${e.sheetLabel ?? ""}`);
         } else {
@@ -3597,14 +4314,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         lines.push("");
         lines.push(`— failed elsewhere (${globalFails.length}) —`);
         for (const e of globalFails.slice(0, 6)) {
-          lines.push(`${statusGlyph(e.status)}  ${e.name.padEnd(16)}  ${e.error?.slice(0, 40) ?? ""}`);
+          lines.push(
+            `${statusGlyph(e.status)}  ${e.name.padEnd(16)}  ${e.error?.slice(0, 40) ?? ""}`,
+          );
         }
       }
       debugBody.text = lines.join("\n");
     }
     // Auto-size panel roughly to content height.
     k.onUpdate(() => {
-      if (!debugVisible) { debugPanel.height = 26; return; }
+      if (!debugVisible) {
+        debugPanel.height = 26;
+        return;
+      }
       const lineCount = ((debugBody as AnyObj).text ?? "").split("\n").length;
       debugPanel.height = Math.min(520, 60 + lineCount * 12 + 8);
       renderDebugOverlay();
@@ -3617,14 +4339,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
     renderDebugOverlay();
 
-
-
     // ================= Collisions =================
     // Brick head-bump: only counts when player is moving UP (jumping into it).
     player.onCollide("brick", (b) => {
       const brick = b as unknown as {
-        hit: boolean; bumpT: number; methodLabel: string; methodIcon: string;
-        pos: { x: number; y: number }; use: (c: unknown) => void; basY: number;
+        hit: boolean;
+        bumpT: number;
+        methodLabel: string;
+        methodIcon: string;
+        pos: { x: number; y: number };
+        use: (c: unknown) => void;
+        basY: number;
       };
       if (brick.hit) return;
       // Only trigger on an upward hit (head bump), not walking into the side.
@@ -3636,12 +4361,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.vel.y = Math.max(0, player.vel.y);
       // Pop the method icon out of the brick — falls to the ground and can be
       // collected by walking into it.
-      const iw = 30, ih = 30;
+      const iw = 30,
+        ih = 30;
       const icon = k.add([
         k.rect(iw, ih, { radius: 3 }),
         k.pos(brick.pos.x, brick.pos.y - 18),
         k.anchor("center"),
-        k.color(250, 240, 210), k.outline(2, k.rgb(60, 45, 25)),
+        k.color(250, 240, 210),
+        k.outline(2, k.rgb(60, 45, 25)),
         k.area({ shape: new k.Rect(k.vec2(0, 0), iw, ih) }),
         k.z(LAYERS.PROP + 1),
         "method",
@@ -3669,7 +4396,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           }
         }
       });
-
     });
     player.onCollide("method", (m) => {
       if (zoneState.methodTouched) return;
@@ -3725,14 +4451,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]);
       keyItem.onUpdate(() => {
         const dx = player.pos.x - keyItem.pos.x;
-        const dy = (player.pos.y - kh) - keyItem.pos.y;
+        const dy = player.pos.y - kh - keyItem.pos.y;
         keyItem.pos.x += dx * 2 * k.dt();
         keyItem.pos.y += dy * 2 * k.dt();
       });
     }
     player.onCollide("plan-pick", (p) => {
       if (zoneState.planPicked) return;
-      const item = p as unknown as { planLabel: string; bonus: number; destroy: () => void; pos: { x: number; y: number } };
+      const item = p as unknown as {
+        planLabel: string;
+        bonus: number;
+        destroy: () => void;
+        pos: { x: number; y: number };
+      };
       const label = item.planLabel;
       zoneState.planPicked = true;
       player.score += item.bonus ?? 800;
@@ -3752,7 +4483,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       } else {
         startFight();
       }
-
     });
 
     // ----- Zone 7 boss battle: dodge the paperwork, land 3 "+" hits -----
@@ -3822,16 +4552,24 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       shot.onUpdate(() => {
         shot.pos.x += shot.vx * k.dt();
         stem.pos = k.vec2(shot.pos.x, shot.pos.y);
-        if (k.time() - shot.born > 2) { stem.destroy(); shot.destroy(); }
+        if (k.time() - shot.born > 2) {
+          stem.destroy();
+          shot.destroy();
+        }
       });
-      shot.onDestroy(() => { try { stem.destroy(); } catch { /* already gone */ } });
+      shot.onDestroy(() => {
+        try {
+          stem.destroy();
+        } catch {
+          /* already gone */
+        }
+      });
       shot.onCollide("boss", () => {
         registerBossHit?.(shot.pos.x, shot.pos.y);
         shot.destroy();
       });
       // Your "+" shots pass straight through his paperwork — it must be
       // dodged, not shot down.
-
     }
 
     // Auto-fire loop: no fire button, the power-up comes with the plan choice.
@@ -3861,10 +4599,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const bh = DISPLAY_H["boss-idle"];
       const bw = displaySize("boss-idle", sizes).w;
       const boss = spawnGrounded(k, "boss-idle", sizes, {
-        x: bx, z: LAYERS.ACTOR, tag: "boss",
+        x: bx,
+        z: LAYERS.ACTOR,
+        tag: "boss",
         props: {
-          dir: -1, home: bx, range: 210, hits: 0, hurtUntil: 0, dead: false,
-          vy: 0, nextShot: 0, nextHop: 0, armedShot: false,
+          dir: -1,
+          home: bx,
+          range: 210,
+          hits: 0,
+          hurtUntil: 0,
+          dead: false,
+          vy: 0,
+          nextShot: 0,
+          nextHop: 0,
+          armedShot: false,
         },
         hitboxScale: { x: -bw / 2, w: bw, h: bh },
       });
@@ -3873,7 +4621,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const hearts = k.add([
         k.text("♥".repeat(BOSS_MAX_HITS), { size: 16, font: "sans-serif" }),
         k.pos(bx, GROUND_Y - bh - 40),
-        k.anchor("center"), k.color(230, 60, 80), k.z(LAYERS.HUD - 1),
+        k.anchor("center"),
+        k.color(230, 60, 80),
+        k.z(LAYERS.HUD - 1),
       ]) as AnyObj;
       boss.nextShot = k.time() + 1.0;
       boss.nextHop = k.time() + 1.2;
@@ -3918,8 +4668,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const rage = boss.hits >= BOSS_MAX_HITS - 2 ? 1.32 : 1;
         const speed = 132 * rage;
         boss.pos.x += boss.dir * speed * dt;
-        if (boss.pos.x > boss.home + boss.range) { boss.pos.x = boss.home + boss.range; boss.dir = -1; boss.flipX = true; }
-        if (boss.pos.x < boss.home - boss.range) { boss.pos.x = boss.home - boss.range; boss.dir = 1; boss.flipX = false; }
+        if (boss.pos.x > boss.home + boss.range) {
+          boss.pos.x = boss.home + boss.range;
+          boss.dir = -1;
+          boss.flipX = true;
+        }
+        if (boss.pos.x < boss.home - boss.range) {
+          boss.pos.x = boss.home - boss.range;
+          boss.dir = 1;
+          boss.flipX = false;
+        }
         // Occasional hop.
         const wasAirborne = boss.pos.y < GROUND_Y;
         if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
@@ -3930,7 +4688,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
         boss.vy += 1300 * dt;
         boss.pos.y = Math.min(GROUND_Y, boss.pos.y + boss.vy * dt);
-        if (boss.pos.y >= GROUND_Y) { boss.pos.y = GROUND_Y; boss.vy = 0; }
+        if (boss.pos.y >= GROUND_Y) {
+          boss.pos.y = GROUND_Y;
+          boss.vy = 0;
+        }
         hearts.pos.x = boss.pos.x;
         hearts.pos.y = boss.pos.y - bh - 40;
         // Paperwork is thrown from mid-air only — released near the top of a
@@ -3983,9 +4744,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         loseLife("monster");
       });
     }
-
-
-
 
     player.onCollide("gold-key", (kk) => {
       if (zoneState.hasKey) return;
@@ -4048,8 +4806,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     player.onCollide("fire-pole", () => {
       // Attachment is handled inside the cutscene state machine below.
     });
-
-
 
     // Single owner of "the slide just finished". Both the pole-base collider
     // and the update-loop safety net funnel through here — previously the
@@ -4122,7 +4878,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
     player.onCollide("water", () => loseLife("water"));
 
-
     function buildCheckpoint(): CheckpointSnapshot {
       return {
         x: player.pos.x,
@@ -4173,7 +4928,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       updateHud();
     }
 
-
     // Failure results are held until the player acknowledges the failure
     // screen, so the score / feedback panel never covers the message.
     let pendingLose: WinResult | null = null;
@@ -4195,10 +4949,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (zoneSplitsMs[zone] > 0) return; // already stamped
       const split = Math.max(0.5, runClock() - zoneClockStart);
       zoneSplitsMs[zone] = Math.round(split * 1000);
-      const par = ZONE_PAR_S[zone] ?? 30;
-      // 0 at 2x par, 1 at instant; squared so quick clears pay much more.
-      const pace = Math.max(0, Math.min(1, (par * 2 - split) / (par * 2)));
-      const bonus = Math.round(pace * pace * 2600 + pace * 400);
+      const bonus = zoneSpeedBonus(zone, split);
       if (bonus > 0) {
         timeBonusTotal += bonus;
         player.score += bonus;
@@ -4209,35 +4960,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     function buildResult(won: boolean): WinResult {
       const durationMs = Math.round(runClock() * 1000);
-      // Pace already paid off during the run through per-zone speed bonuses.
-      // The whole-run multiplier is reserved for completed runs so that dying
-      // quickly can never out-score playing well and finishing.
-      const parMs = 150_000;
-      const ratio = Math.max(0.35, durationMs / parMs);
-      // ratio 0.5 -> ~x1.9, 1.0 -> x1.0, 2.0 -> ~x0.42
-      const speedMult = won
-        ? Math.max(0.5, Math.min(2.2, Math.pow(1 / ratio, 1.25)))
-        : 1;
-      let finalScore = player.score * speedMult;
-
-      if (won) {
-        finalScore += 2000;
-        finalScore += player.lives * 500;
-        // Finishing fast is the headline achievement: up to +5000.
-        const finishBonus = Math.round(Math.max(0, 300_000 - durationMs) / 60);
-        finalScore += Math.min(5000, finishBonus);
-      }
-      // Sub-point tiebreaker from the exact finish time (0-99), so two runs
-      // never share a leaderboard number by coincidence.
-      finalScore += 99 - Math.floor((durationMs % 1000) / 10.11);
       return {
         durationMs,
         docs: player.docs.size,
         lives: player.lives,
-        mode: opts.mode,
         farthestZone: player.farthestZone,
         won,
-        score: Math.max(0, Math.round(finalScore)),
+        score: computeFinalScore({
+          won,
+          playScore: player.score,
+          durationMs,
+          lives: player.lives,
+        }),
         distancePx: Math.round(player.distancePx),
         jumpsLanded: player.jumpsLanded,
         enemiesPassed: player.enemiesPassed,
@@ -4246,7 +4980,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         zoneSplitsMs: [...zoneSplitsMs],
       };
     }
-
 
     // (Old fixed-finish collision removed — the clinic zone now ends at the
     //  fire-pole base which sets zoneState.firePoleDone in the update loop.)
@@ -4261,12 +4994,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       showEnd(true);
     }
 
-
     function showEnd(win: boolean, cause?: FailCause) {
       const zone = player.farthestZone;
-      const title = win
-        ? "★ ENROLLED IN COVERAGE ★"
-        : (OVERLAY_TITLES[zone] ?? OVERLAY_TITLES[0]);
+      const title = win ? "★ ENROLLED IN COVERAGE ★" : (OVERLAY_TITLES[zone] ?? OVERLAY_TITLES[0]);
       const body = win
         ? "You navigated every step and enrolled in Medicaid coverage."
         : `${pickFailureMessage(zone, cause ?? "fell")}\n\nTell us what would make the next attempt easier — the form is below the game.`;
@@ -4336,14 +5066,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     }
 
-
     // ================= Controls =================
     const leftKeys = ["left", "a"];
     const rightKeys = ["right", "d"];
     const jumpKeys = ["space", "up", "w"];
 
     type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
-    const w = typeof window !== "undefined" ? (window as unknown as { __gameInput?: TouchInput }) : undefined;
+    const w =
+      typeof window !== "undefined"
+        ? (window as unknown as { __gameInput?: TouchInput })
+        : undefined;
     // Wipe anything left over from the previous run (a held D-pad button, a
     // queued jump/reset) so a restart always begins from a standstill.
     if (w?.__gameInput) {
@@ -4357,10 +5089,32 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     let currentZone = Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W)));
     opts.onSafeProgress?.(currentZone);
+
+    /** Publishes the full run state so a context-loss recovery can restore it. */
+    function emitSnapshot() {
+      if (player.dead || player.won) return;
+      opts.onSnapshot?.({
+        savedAt: Date.now(),
+        zone: currentZone,
+        elapsedMs: Math.round(runClock() * 1000),
+        score: player.score,
+        timeBonus: timeBonusTotal,
+        lives: player.lives,
+        maxLives: player.maxLives,
+        docs: [...player.docs],
+        deaths: player.deaths,
+        distancePx: player.distancePx,
+        jumpsLanded: player.jumpsLanded,
+        enemiesPassed: player.enemiesPassed,
+        farthestZone: player.farthestZone,
+        zoneSplitsMs: [...zoneSplitsMs],
+      });
+    }
+    emitSnapshot();
+
     // Start the run on this zone's tune (rotated for variety per run).
     setMusic(zoneMusic(currentZone));
     showStepScreen(currentZone);
-
 
     function tryJump() {
       if (player.dead || player.won) return;
@@ -4398,12 +5152,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (w?.__gameInput?.resetReq) {
         w.__gameInput.resetReq = false;
         opts.onSafeProgress?.(0);
+        opts.onSnapshot?.(null);
         checkpointMgr.clear();
         powerUps.reset();
         setMusic(zoneMusic(currentZone));
-        k.go("trail", START_X(), 1);
+        k.go("trail", START_X(), 1, null);
         return;
       }
+
       // A step screen (or any other pause) freezes the whole simulation.
       if (isPaused()) return;
       if (transitioning) return;
@@ -4420,7 +5176,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         checkpointMgr.maybeSave(now, safe, buildCheckpoint);
       }
 
-
       const z = Math.min(ZONES.length - 1, Math.max(0, Math.floor(player.pos.x / BIOME_W)));
       if (z > player.farthestZone) player.farthestZone = z;
       if (z !== currentZone) {
@@ -4429,6 +5184,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         currentZone = z;
         zoneClockStart = runClock();
         opts.onSafeProgress?.(currentZone);
+        emitSnapshot();
         if (!player.visitedZones.has(z)) {
           player.visitedZones.add(z);
           player.score += 1000;
@@ -4445,8 +5201,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // Each zone gets its own tune; the boss arena overrides this itself.
         if (z !== 6) setMusic(zoneMusic(z));
       }
-
-
 
       // Check each zone's objective and unlock its door when met.
       for (let i = 0; i < doors.length; i++) {
@@ -4466,7 +5220,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           break;
         }
       }
-
 
       // Fire-pole slide: freeze x, descend at controlled speed until base.
       // Safety-net: complete when Y reaches GROUND_Y even if the base
@@ -4490,7 +5243,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         zoneState.cutscene = false;
       }
 
-
       // Hint fade
       if (hintUntil > 0 && k.time() > hintUntil) {
         hintHud.opacity = Math.max(0, hintHud.opacity - k.dt() * 3);
@@ -4507,7 +5259,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ) {
         tryWin();
       }
-
 
       if (player.pos.x > player.rightmostX) {
         const gained = player.pos.x - player.rightmostX;
@@ -4538,7 +5289,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             zoneState.cutscenePhase = "slide";
             const landing = zoneState.topLandingRef;
             if (landing) {
-              try { landing.destroy(); } catch { /* ignore */ }
+              try {
+                landing.destroy();
+              } catch {
+                /* ignore */
+              }
               zoneState.topLandingRef = null;
             }
             dir = 0;
@@ -4646,7 +5401,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         setSprite(`hero-idle${facingSuffix("hero-idle")}`);
       }
 
-
       if (w?.__gameInput?.jumpReq) {
         w.__gameInput.jumpReq = false;
         tryJump();
@@ -4662,7 +5416,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // drifts when the CSS box or DPR changes).
       const camX = Math.max(VIEW_W / 2, Math.min(player.pos.x, LEVEL_END - VIEW_W / 2));
       k.setCamPos(px(camX), px(LOGICAL_H / 2));
-
     });
 
     for (const key of jumpKeys) k.onKeyPress(key as never, () => tryJump());
@@ -4676,13 +5429,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // thank-you cutscene before restarting.
       if (player.won) return;
       if (ackFail()) return;
-      k.go("trail", START_X(), 1);
+      opts.onSnapshot?.(null);
+      k.go("trail", START_X(), 1, null);
     });
     k.onKeyPress("enter", () => {
       if (player.won) return;
       ackFail();
     });
-
 
     (player as AnyObj).use(k.opacity(1));
     player.onUpdate(() => {
@@ -4725,7 +5478,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       (p as AnyObj).lastY = player.pos.y;
     });
 
-
     k.onUpdate(() => {
       if (!player.dead) updateHud();
     });
@@ -4742,7 +5494,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (leftThanks) return;
       leftThanks = true;
       flushPendingWin();
-      k.go("trail", START_X(), 1);
+      opts.onSnapshot?.(null);
+      k.go("trail", START_X(), 1, null);
     };
     const W = k.width();
     const H = k.height();
@@ -4811,7 +5564,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       x: W / 2 + (fx - 0.5) * BG_W * bgScale,
       y: H / 2 + (fy - 0.5) * BG_H * bgScale,
     });
-    const bed = bgPt(0.80, 0.99);
+    const bed = bgPt(0.8, 0.99);
 
     // Bubble tail pointing down toward the hero on the bed.
     k.add([
@@ -4840,12 +5593,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Logos were removed from this screen — the sign-off now lives in the
     // speech bubble copy so nothing overlaps the waving hero.
 
-
-
-
     // Blinking restart prompt.
     const prompt = k.add([
-      k.text(isCoarsePointer() ? "Tap Anywhere to Continue" : "Press Enter, Space, or Click to Continue", { size: 16, font: "sans-serif" }),
+      k.text(
+        isCoarsePointer() ? "Tap Anywhere to Continue" : "Press Enter, Space, or Click to Continue",
+        { size: 16, font: "sans-serif" },
+      ),
       k.pos(Math.floor(W / 2), H - SAFE_Y - 6),
       k.anchor("center"),
       k.color(255, 235, 120),
@@ -4855,7 +5608,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ]);
     const winReset =
       typeof window !== "undefined"
-        ? (window as unknown as { __gameInput?: { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean } })
+        ? (window as unknown as {
+            __gameInput?: { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
+          })
         : undefined;
     // Any input held when the run ended must not carry into the next run.
     if (winReset?.__gameInput) {
@@ -4872,30 +5627,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     });
 
-
-    const hit = k.add([
-      k.rect(W, H),
-      k.pos(0, 0),
-      k.opacity(0),
-      k.area(),
-      k.fixed(),
-      k.z(20),
-    ]);
+    const hit = k.add([k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(20)]);
     hit.onClick(() => leaveThanks());
     for (const key of ["r", "space", "enter"]) {
       k.onKeyPress(key as never, () => leaveThanks());
     }
-
   });
 
-
-
-  const resumeZone = Math.min(
-    ZONES.length - 1,
-    Math.max(0, Math.floor(opts.resumeZone ?? 0)),
+  const resumeZone = Math.min(ZONES.length - 1, Math.max(0, Math.floor(opts.resumeZone ?? 0)));
+  const bootSnapshot = opts.resumeSnapshot ?? null;
+  k.go(
+    "trail",
+    (bootSnapshot ? bootSnapshot.zone : resumeZone) * BIOME_W + START_X(),
+    1,
+    bootSnapshot,
   );
-  k.go("trail", resumeZone * BIOME_W + START_X(), 1);
-
 
   return () => {
     try {
@@ -4935,12 +5681,7 @@ function addGround(
   // Grass strip drawn ABOVE the feet line so the player visibly stands
   // IN the grass rather than hovering above it. 14px band centered on yy
   // (extends 10px up, 4px down).
-  k.add([
-    k.rect(w, 14),
-    k.pos(x, yy - 10),
-    k.color(...topColor),
-    k.z(LAYERS.GROUND_TOP),
-  ]);
+  k.add([k.rect(w, 14), k.pos(x, yy - 10), k.color(...topColor), k.z(LAYERS.GROUND_TOP)]);
   // Highlight ribbon along the top of the grass band.
   k.add([
     k.rect(w, 2),
@@ -5069,17 +5810,10 @@ const METHOD_ICON_PIXELS: Record<string, IconPixel[]> = {
   ],
 };
 
-
 /** High-contrast wooden trail-sign plaque used for Zone 1 apply methods.
  *  Draws a solid cream card with a dark outline, an icon badge on top, and
  *  the sign label in dark brown so it stays readable over the foggy forest. */
-function addSignPlaque(
-  k: Ctx,
-  x: number,
-  topY: number,
-  label: string,
-  badge: string,
-) {
+function addSignPlaque(k: Ctx, x: number, topY: number, label: string, badge: string) {
   const T = UI_TEXT_SCALE;
   const badgeSize = Math.round(10 * T);
   const labelSize = Math.round(11 * T);
@@ -5139,13 +5873,7 @@ function addSignPlaque(
   ]);
 }
 
-function addSpeech(
-  k: Ctx,
-  x: number,
-  y: number,
-  text: string,
-  _rgb: [number, number, number],
-) {
+function addSpeech(k: Ctx, x: number, y: number, text: string, _rgb: [number, number, number]) {
   // High-contrast world label: dark plaque behind gold text with 1-px shadow.
   // (rgb argument ignored — standardized on gold-on-navy for legibility.)
   // Sized up so the sign stays readable in windowed (non-fullscreen) play.
@@ -5176,7 +5904,6 @@ function addSpeech(
     k.color(255, 232, 130),
     k.z(LAYERS.EFFECT + 2),
   ]);
-
 }
 
 /** Floating pixel-art thought bubble drawn in the sky. Purely decorative —
@@ -5230,13 +5957,16 @@ function spawnThoughtBubble(k: Ctx, x: number, y: number, text: string) {
   });
 }
 
-
 /** Repeated multi-color firework bursts around a center point. Purely
  *  decorative — no gameplay effect. */
 function startFireworks(k: Ctx, cx: number, cy: number) {
   const COLORS: Array<[number, number, number]> = [
-    [255, 90, 90], [255, 200, 80], [90, 220, 255],
-    [140, 255, 140], [255, 130, 220], [255, 255, 120],
+    [255, 90, 90],
+    [255, 200, 80],
+    [90, 220, 255],
+    [140, 255, 140],
+    [255, 130, 220],
+    [255, 255, 120],
   ];
   function burst(bx: number, by: number, color: [number, number, number]) {
     for (let i = 0; i < 14; i++) {

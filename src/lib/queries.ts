@@ -15,7 +15,12 @@ export type Feedback = {
   shipped_at: string | null;
 };
 
-export type Vote = { id: string; feedback_id: string; voter_fingerprint: string | null; bucket: "must" | "should" | "could" };
+export type Vote = {
+  id: string;
+  feedback_id: string;
+  voter_fingerprint: string | null;
+  bucket: "must" | "should" | "could";
+};
 export type Version = {
   id: string;
   semver: string;
@@ -37,7 +42,6 @@ export type CurrentWork = {
 // has no read access to submitter emails or voter fingerprints — those columns
 // are restricted by column-level grants and are only reachable through
 // admin-authenticated server functions.
-
 
 export const versionsQuery = queryOptions({
   queryKey: ["versions"],

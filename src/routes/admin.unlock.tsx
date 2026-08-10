@@ -16,7 +16,8 @@ export const Route = createFileRoute("/admin/unlock")({
         const expected = process.env.ADMIN_PASSWORD;
         if (!expected) throw new Error("ADMIN_PASSWORD not set");
 
-        const { createAdminAccessToken, createAdminUnlockCookieHeader, passwordMatches } = await import("@/lib/admin-session.server");
+        const { createAdminAccessToken, createAdminUnlockCookieHeader, passwordMatches } =
+          await import("@/lib/admin-session.server");
         if (!passwordMatches(password, expected)) {
           if (wantsJson) {
             return Response.json({ ok: false });
@@ -127,7 +128,11 @@ function UnlockPage() {
       });
 
       if (!response.ok) throw new Error("Unlock request failed");
-      const result = (await response.json()) as { ok: boolean; redirectTo?: string; token?: string };
+      const result = (await response.json()) as {
+        ok: boolean;
+        redirectTo?: string;
+        token?: string;
+      };
 
       if (!result.ok) {
         setMessage("Incorrect password.");
@@ -160,10 +165,12 @@ function UnlockPage() {
 
   return (
     <div className="max-w-md mx-auto py-16">
-      <h1 className="font-display text-3xl text-mn-blue uppercase tracking-wide mb-2">Admin sign in</h1>
+      <h1 className="font-display text-3xl text-mn-blue uppercase tracking-wide mb-2">
+        Admin sign in
+      </h1>
       <p className="text-sm text-dark-gray/70 mb-6">
-        For MN DHS presenters. Enter the shared admin password to manage feedback status,
-        Now Building, and version releases.
+        For MN DHS presenters. Enter the shared admin password to manage feedback status, Now
+        Building, and version releases.
       </p>
       {reason === "expired" && !error && (
         <p
@@ -175,7 +182,10 @@ function UnlockPage() {
       )}
       <form method="post" action="/admin/unlock" onSubmit={handleSubmit} className="space-y-4">
         <div className="block">
-          <label htmlFor="admin-password" className="text-xs font-bold uppercase tracking-widest text-mn-blue">
+          <label
+            htmlFor="admin-password"
+            className="text-xs font-bold uppercase tracking-widest text-mn-blue"
+          >
             Password
           </label>
           <span className="relative mt-1 block">
@@ -206,7 +216,10 @@ function UnlockPage() {
           )}
         </div>
         {message && (
-          <p aria-live="polite" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+          <p
+            aria-live="polite"
+            className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700"
+          >
             {message}
           </p>
         )}

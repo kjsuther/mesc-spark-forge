@@ -144,7 +144,7 @@ export function ScoreEntryOverlay({
           displayName: `${f.slice(0, 12)} ${i}.`,
           score,
           durationMs: Math.max(1, result.durationMs),
-          mode: result.mode,
+          mode: "after" as const,
         },
       });
     } catch {
@@ -289,7 +289,12 @@ export function ScoreEntryOverlay({
                     aria-label="First name"
                     placeholder="NAME"
                     onChange={(e) =>
-                      setFirst(e.target.value.toUpperCase().replace(/[^A-Z '-]/g, "").slice(0, 12))
+                      setFirst(
+                        e.target.value
+                          .toUpperCase()
+                          .replace(/[^A-Z '-]/g, "")
+                          .slice(0, 12),
+                      )
                     }
                     onKeyDown={(e) => {
                       e.stopPropagation();
@@ -322,7 +327,12 @@ export function ScoreEntryOverlay({
                     aria-label="Last initial"
                     placeholder="X"
                     onChange={(e) =>
-                      setInitial(e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1))
+                      setInitial(
+                        e.target.value
+                          .toUpperCase()
+                          .replace(/[^A-Z]/g, "")
+                          .slice(0, 1),
+                      )
                     }
                     onKeyDown={(e) => {
                       e.stopPropagation();

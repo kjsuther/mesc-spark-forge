@@ -77,7 +77,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       {
         name: "viewport",
-        content: "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content",
+        content:
+          "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content",
       },
       { title: "Blazing the Trail to Coverage | MESC 2026 Demo" },
       {
@@ -98,7 +99,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary" },
       { name: "robots", content: "index,follow,max-image-preview:large" },
       { name: "twitter:title", content: "Blazing the Trail to Coverage | MESC 2026 Demo" },
-      { name: "twitter:description", content: "An educational MESC 2026 demonstration. Play the journey, share feedback, and watch improvements ship live." },
+      {
+        name: "twitter:description",
+        content:
+          "An educational MESC 2026 demonstration. Play the journey, share feedback, and watch improvements ship live.",
+      },
       { property: "og:image", content: "https://mesc.mn-dhs.online/app-icon-512.png" },
       { property: "og:image:width", content: "512" },
       { property: "og:image:height", content: "512" },
@@ -121,7 +126,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Alfa+Slab+One&family=Inter:wght@400;500;600;700&family=Press+Start+2P&display=swap",
       },
-
     ],
   }),
 

@@ -19,7 +19,11 @@ export const Route = createFileRoute("/actions/$slug")({
     params,
     deps,
     context,
-  }): Promise<{ action: NavigatorAction; snapshotSemver: string | null; snapshotReleasedAt: string | null }> => {
+  }): Promise<{
+    action: NavigatorAction;
+    snapshotSemver: string | null;
+    snapshotReleasedAt: string | null;
+  }> => {
     if (deps.version) {
       const versions = await context.queryClient.ensureQueryData(versionsQuery);
       const v = versions.find((x) => x.semver === deps.version);
@@ -36,7 +40,10 @@ export const Route = createFileRoute("/actions/$slug")({
       ? [
           { title: `${loaderData.action.title} — [Your State] DHS Navigator` },
           { name: "description", content: loaderData.action.subtitle },
-          { property: "og:title", content: `${loaderData.action.title} — [Your State] DHS Navigator` },
+          {
+            property: "og:title",
+            content: `${loaderData.action.title} — [Your State] DHS Navigator`,
+          },
           { property: "og:description", content: loaderData.action.subtitle },
           ...(loaderData.snapshotSemver ? [{ name: "robots", content: "noindex" }] : []),
         ]
@@ -84,10 +91,8 @@ function ActionDetail() {
             <p className="text-sm text-mn-blue">
               <strong>Read-only snapshot.</strong> This is how this action looked in{" "}
               <span className="tabular-nums font-bold">v{snapshotSemver}</span>
-              {snapshotReleasedAt && (
-                <> ({new Date(snapshotReleasedAt).toLocaleDateString()})</>
-              )}
-              . Interactive steps are disabled.
+              {snapshotReleasedAt && <> ({new Date(snapshotReleasedAt).toLocaleDateString()})</>}.
+              Interactive steps are disabled.
             </p>
           </div>
         )}
@@ -96,7 +101,9 @@ function ActionDetail() {
           <div className="text-[10px] font-bold uppercase tracking-widest text-mn-green mb-2">
             ★ {action.category} ★
           </div>
-          <h1 className="font-display text-3xl md:text-4xl uppercase tracking-wide text-mn-blue mb-3">{action.title}</h1>
+          <h1 className="font-display text-3xl md:text-4xl uppercase tracking-wide text-mn-blue mb-3">
+            {action.title}
+          </h1>
           <p className="text-xl text-dark-gray/80 max-w-2xl">{action.subtitle}</p>
 
           <div className="mt-6 flex flex-col items-start gap-3">
@@ -142,41 +149,63 @@ function ActionDetail() {
             <div className="flex-1 w-full min-w-0">
               {/* How this tool works */}
               <div className="relative bg-white rounded-2xl p-6 shadow-sm border-2 border-mn-blue/30 mb-10">
-                <span aria-hidden="true" className="absolute -top-2 -left-2 h-4 w-4 grid place-items-center rounded-full bg-cream text-accent-orange text-[10px] font-black ring-1 ring-mn-blue/40">★</span>
-                <span aria-hidden="true" className="absolute -top-2 -right-2 h-4 w-4 grid place-items-center rounded-full bg-cream text-accent-orange text-[10px] font-black ring-1 ring-mn-blue/40">★</span>
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-2 -left-2 h-4 w-4 grid place-items-center rounded-full bg-cream text-accent-orange text-[10px] font-black ring-1 ring-mn-blue/40"
+                >
+                  ★
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-2 -right-2 h-4 w-4 grid place-items-center rounded-full bg-cream text-accent-orange text-[10px] font-black ring-1 ring-mn-blue/40"
+                >
+                  ★
+                </span>
                 <h3 className="font-display uppercase tracking-wider text-mn-blue mb-4 text-lg">
-                  <span className="text-accent-orange mr-2" aria-hidden="true">★</span>
+                  <span className="text-accent-orange mr-2" aria-hidden="true">
+                    ★
+                  </span>
                   How this tool works
                 </h3>
                 <ol className="space-y-3">
-                  {action.checklist.map((item: import("@/data/actions").ChecklistItem, i: number) => (
-                    <li key={i} className="flex gap-4 items-start p-2">
-                      <div className="w-9 h-9 rounded-full bg-mn-blue text-cream grid place-items-center font-bold text-sm flex-shrink-0 ring-2 ring-accent-gold/70">
-                        {i + 1}
-                      </div>
-                      <div>
-                        <p className="font-bold text-mn-blue">{item.title}</p>
-                        <p className="text-sm text-dark-gray/70 leading-relaxed">{item.description}</p>
-                      </div>
-                    </li>
-                  ))}
+                  {action.checklist.map(
+                    (item: import("@/data/actions").ChecklistItem, i: number) => (
+                      <li key={i} className="flex gap-4 items-start p-2">
+                        <div className="w-9 h-9 rounded-full bg-mn-blue text-cream grid place-items-center font-bold text-sm flex-shrink-0 ring-2 ring-accent-gold/70">
+                          {i + 1}
+                        </div>
+                        <div>
+                          <p className="font-bold text-mn-blue">{item.title}</p>
+                          <p className="text-sm text-dark-gray/70 leading-relaxed">
+                            {item.description}
+                          </p>
+                        </div>
+                      </li>
+                    ),
+                  )}
                 </ol>
               </div>
 
-              <SectionHeading as="h2" className="mb-6">Your roadmap</SectionHeading>
+              <SectionHeading as="h2" className="mb-6">
+                Your roadmap
+              </SectionHeading>
 
               {/* Trail-path roadmap */}
               <TrailPath
-                milestones={action.roadmap.map((s: import("@/data/actions").RoadmapStep) => ({ label: s.label, sub: s.estimate }))}
+                milestones={action.roadmap.map((s: import("@/data/actions").RoadmapStep) => ({
+                  label: s.label,
+                  sub: s.estimate,
+                }))}
                 className="mt-2"
               />
             </div>
 
-
             {/* Sidebar */}
             <aside className="w-full lg:w-80 space-y-4 lg:sticky lg:top-4">
               <div className="bg-mn-blue text-white p-6 rounded-2xl">
-                <h5 className="text-sky-blue font-bold text-xs uppercase mb-2 tracking-widest">Pro-tip</h5>
+                <h5 className="text-sky-blue font-bold text-xs uppercase mb-2 tracking-widest">
+                  Pro-tip
+                </h5>
                 <p className="text-sm leading-relaxed">{action.proTip}</p>
               </div>
               <div className="w-full aspect-[4/3] rounded-2xl overflow-hidden border border-light-gray bg-cream">

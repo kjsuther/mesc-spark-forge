@@ -28,4 +28,3 @@ export function useIsEmbedded(): boolean {
   }, []);
   return embedded;
 }
-

@@ -42,7 +42,6 @@ function ScoresPage() {
         <Leaderboard variant="panel" showViewAll={false} />
         <FullLeaderboard />
 
-
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
             to="/tool"

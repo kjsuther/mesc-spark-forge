@@ -12,9 +12,12 @@ export function clearAdminAccessToken() {
   window.sessionStorage.removeItem(ADMIN_TOKEN_STORAGE_KEY);
 }
 
-export const attachAdminAccessToken = createMiddleware({ type: "function" }).client(async ({ next }) => {
-  const token = typeof window === "undefined" ? null : window.sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
-  return next({
-    headers: token ? { "X-Admin-Access": token } : {},
-  });
-});
+export const attachAdminAccessToken = createMiddleware({ type: "function" }).client(
+  async ({ next }) => {
+    const token =
+      typeof window === "undefined" ? null : window.sessionStorage.getItem(ADMIN_TOKEN_STORAGE_KEY);
+    return next({
+      headers: token ? { "X-Admin-Access": token } : {},
+    });
+  },
+);

@@ -5845,6 +5845,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   return () => {
     try {
+      stopLayoutWatch();
       unsubscribeFeatures?.();
       unsubscribeFeatures = null;
       k.quit();

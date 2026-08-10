@@ -2851,6 +2851,30 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.outline(2, k.rgb(140, 100, 30)),
       k.z(LAYERS.PROP + 2),
     ]);
+    // Victory pennant. It flies at the top of the pole until the hero grabs
+    // on, then rides down with him — held just above his head — and stays
+    // planted at the base for the walk to the clinic.
+    const flagMastY = poleTop + 4;
+    const flagBaseY = poleBaseY - 34;
+    const flagPennant = k.add([
+      k.rect(22, 15),
+      k.pos(poleX + 4, flagMastY),
+      k.color(255, 215, 70),
+      k.outline(2, k.rgb(140, 100, 30)),
+      k.z(LAYERS.PROP + 3),
+      "pole-flag",
+      { mastY: flagMastY, baseY: flagBaseY },
+    ]) as AnyObj;
+    flagPennant.onUpdate(() => {
+      // A gentle two-frame flutter keeps it alive without leaving the mast.
+      flagPennant.pos.x = poleX + 4 + (Math.floor(k.time() * 4) % 2 === 0 ? 0 : 1);
+      if (zoneState.firePoleAttached && !zoneState.firePoleDone) {
+        // Ride the slide: pinned just above the hero for the whole descent.
+        flagPennant.pos.y = Math.min(flagBaseY, Math.max(flagMastY, player.pos.y - 56));
+      } else if (zoneState.firePoleDone) {
+        flagPennant.pos.y = flagBaseY;
+      }
+    });
     // Trigger areas for fire pole (attach) and finish base (base of pole).
     k.add([
       k.rect(24, poleBaseY - poleTop),

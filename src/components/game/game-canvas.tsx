@@ -8,6 +8,7 @@ import trailMapBg from "@/assets/game/trail-map-bg-v2.png.asset.json";
 
 import { clampResumeZone, isResumableSnapshot, shouldRecoverGameAfterResume } from "./lifecycle";
 import { selectViewportSnapshot } from "./viewport";
+import { isTouchDevice, useDeviceProfile } from "@/lib/device";
 
 type Props = {
   onWin?: (result: WinResult) => void;

@@ -1470,13 +1470,12 @@ const TRAIL_PATH_D = [
  *  player knows the controls on whichever device they're on. */
 function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack: () => void }) {
   const [touch, setTouch] = useState(false);
+  // Shared detector, so the instruction card can never disagree with whether
+  // the on-screen pads are actually rendered.
   useEffect(() => {
-    setTouch(
-      typeof window !== "undefined" &&
-        typeof window.matchMedia === "function" &&
-        window.matchMedia("(pointer: coarse)").matches,
-    );
+    setTouch(isTouchDevice());
   }, []);
+
 
   const desktop: Array<[string, string]> = [
     ["← →", "Move"],

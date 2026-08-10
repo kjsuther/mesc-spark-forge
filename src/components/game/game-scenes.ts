@@ -1425,6 +1425,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   k.scene("trail", (spawnX: number = 40, lives: number = 1, resume: RunSnapshot | null = null) => {
     const startTime = k.time();
+    // Screens from the previous scene are gone; drop their relayout hooks so
+    // a resize can never resurrect destroyed nodes.
+    uiRelayout.clear();
+    // Re-read the on-screen size for this scene's UI (the window may have been
+    // resized, or fullscreen toggled, while the previous scene was running).
+    UI_TEXT_SCALE = computeUiTextScale(opts.canvas, k.width());
     // ---- Run clock + per-zone split timing -------------------------------
     // Every zone is timed in the background. Clearing a zone under its par
     // time pays a speed bonus, so two players with identical play still end

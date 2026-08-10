@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useIsEmbedded } from "@/hooks/use-is-embedded";
 
 const FOOTER_LINKS: ReadonlyArray<{
-  to: "/" | "/tool" | "/feedback" | "/backlog" | "/scores" | "/about";
+  to: "/" | "/tool" | "/feedback" | "/backlog" | "/scores" | "/about/poster" | "/about/team";
   label: string;
 }> = [
   { to: "/", label: "Home" },
@@ -10,7 +10,8 @@ const FOOTER_LINKS: ReadonlyArray<{
   { to: "/feedback", label: "Share Feedback" },
   { to: "/backlog", label: "Feedback Backlog" },
   { to: "/scores", label: "High Scores" },
-  { to: "/about", label: "About" },
+  { to: "/about/poster", label: "About Our Poster" },
+  { to: "/about/team", label: "About Us" },
 ];
 
 export function SiteFooter() {

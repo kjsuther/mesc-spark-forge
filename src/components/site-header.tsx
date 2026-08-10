@@ -6,7 +6,7 @@ import mescLogo from "@/assets/mesc-2026-logo.png.asset.json";
 import mnDhsLogo from "@/assets/mn-dhs-logo-new.png.asset.json";
 
 const NAV_LINKS: ReadonlyArray<{
-  to: "/" | "/about" | "/feedback" | "/backlog" | "/scores";
+  to: "/" | "/about/poster" | "/about/team" | "/feedback" | "/backlog" | "/scores";
   label: string;
   exact?: boolean;
 }> = [
@@ -14,7 +14,8 @@ const NAV_LINKS: ReadonlyArray<{
   { to: "/feedback", label: "Share Feedback" },
   { to: "/backlog", label: "Feedback Backlog" },
   { to: "/scores", label: "High Scores" },
-  { to: "/about", label: "About" },
+  { to: "/about/poster", label: "About Our Poster" },
+  { to: "/about/team", label: "About Us" },
 ];
 
 export function SiteHeader() {

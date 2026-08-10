@@ -39,7 +39,7 @@ export const listTeamMembers = createServerFn({ method: "GET" }).handler(async (
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin
     .from("team_members")
-    .select("id, full_name, title, bio, photo_path, sort_order, hidden")
+    .select("id, full_name, goes_by, title, organization, bio, photo_path, sort_order, hidden")
     .eq("hidden", false)
     .order("sort_order", { ascending: true })
     .order("full_name", { ascending: true });

@@ -2870,7 +2870,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       flagPennant.pos.x = poleX + 4 + (Math.floor(k.time() * 4) % 2 === 0 ? 0 : 1);
       if (zoneState.firePoleAttached && !zoneState.firePoleDone) {
         // Ride the slide: pinned just above the hero for the whole descent.
-        flagPennant.pos.y = Math.min(flagBaseY, Math.max(flagMastY, player.pos.y - 56));
+        flagPennant.pos.y = Math.min(flagBaseY, Math.max(flagMastY, player.pos.y - 84));
       } else if (zoneState.firePoleDone) {
         flagPennant.pos.y = flagBaseY;
       }

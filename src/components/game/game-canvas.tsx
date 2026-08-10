@@ -135,7 +135,26 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   const [endResult, setEndResult] = useState<WinResult | null>(null);
   const { portrait } = useOrientation();
   const { vw, vh, offsetLeft, offsetTop } = useViewportSize();
-  const [isTouch] = useState(() => isCoarsePointer());
+  const device = useDeviceProfile();
+  const isTouch = device.touch;
+  /** Live pixel height of the canvas box — mobile controls size from this so
+   *  they are finger-sized in windowed play and in fullscreen alike. */
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const [stageBox, setStageBox] = useState({ w: 960, h: 540 });
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect();
+      setStageBox((prev) =>
+        Math.abs(prev.w - r.width) < 1 && Math.abs(prev.h - r.height) < 1
+          ? prev
+          : { w: r.width, h: r.height },
+      );
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   /** The player asked for fullscreen; keep them there across browser hiccups. */
   const fsIntentRef = useRef(false);
   const menuTapHandledUntilRef = useRef(0);

@@ -143,7 +143,7 @@ function AboutPage() {
         <SectionJumpNav />
 
         {/* The loop */}
-        <section id="loop">
+        <section id="loop" className="scroll-mt-36">
           <h2 className="font-display text-2xl text-mn-blue uppercase tracking-wide border-b-2 border-mn-blue pb-3 mb-6">
             The loop we're running
           </h2>
@@ -195,7 +195,7 @@ function AboutPage() {
         </section>
 
         {/* Why a game */}
-        <section id="why-game" className="bg-accent-gold/10 border-2 border-accent-gold/50 rounded-3xl p-8">
+        <section id="why-game" className="bg-accent-gold/10 border-2 border-accent-gold/50 rounded-3xl p-8 scroll-mt-36">
           <h2 className="text-2xl font-bold text-mn-blue mb-4">Why a video game?</h2>
           <p className="text-dark-gray/80 max-w-3xl leading-relaxed">
             Because a game gets people to a shared understanding fast. Instead of debating a
@@ -207,7 +207,7 @@ function AboutPage() {
         </section>
 
         {/* Game → real world */}
-        <section id="real-world">
+        <section id="real-world" className="scroll-mt-36">
           <h2 className="font-display text-2xl text-mn-blue uppercase tracking-wide border-b-2 border-mn-blue pb-3 mb-6">
             From the game to the real front door
           </h2>
@@ -291,7 +291,7 @@ function AboutPage() {
         </section>
 
         {/* AI Transparency */}
-        <section id="ai" className="bg-sky-blue/10 border border-sky-blue/30 rounded-3xl p-8">
+        <section id="ai" className="bg-sky-blue/10 border border-sky-blue/30 rounded-3xl p-8 scroll-mt-36">
           <h2 className="text-2xl font-bold text-mn-blue mb-4">
             Responsible AI — how we're using it
           </h2>
@@ -324,7 +324,7 @@ function AboutPage() {
         </section>
 
         {/* Today vs Future */}
-        <section id="today-future">
+        <section id="today-future" className="scroll-mt-36">
           <h2 className="font-display text-2xl text-mn-blue uppercase tracking-wide border-b-2 border-mn-blue pb-3 mb-6">
             Today vs. What's possible
           </h2>
@@ -355,7 +355,7 @@ function AboutPage() {
         </section>
 
         {/* Practical path forward */}
-        <section id="path-forward" className="bg-mn-blue text-white rounded-3xl p-8 md:p-12">
+        <section id="path-forward" className="bg-mn-blue text-white rounded-3xl p-8 md:p-12 scroll-mt-36">
           <p className="text-sky-blue text-xs font-bold uppercase tracking-widest mb-3">
             A practical path forward
           </p>

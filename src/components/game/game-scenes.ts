@@ -3550,20 +3550,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         title: "STEP 7 · SELECTING YOUR MANAGED CARE PLAN",
         subtitle: "Choosing Your Path",
         lines: [
-          "Select one of the three managed care plans.",
-          "Selecting a plan brings the bear charging out of the woods.",
-          "You choose when the battle starts.",
-          'Dodge his paperwork — your "+" shots can\'t stop it.',
-          'Defeat him with five "+" hits.',
+          "Three managed care plans are waiting ahead.",
+          "Walk up to one and select it to move forward.",
         ],
         icons: [
           { sprite: "plan-blue", label: "PLAN" },
           { sprite: "plan-green", label: "PLAN" },
           { sprite: "plan-orange", label: "PLAN" },
-          { sprite: "boss-idle", label: "BOSS" },
-          { glyph: "+", label: "YOUR SHOT" },
         ],
       },
+
       {
         title: "STEP 8 · USING YOUR COVERAGE",
         subtitle: "Coverage Begins",

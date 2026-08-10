@@ -4709,7 +4709,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           boss.flipX = false;
         }
         // Occasional hop.
-        const wasAirborne = boss.pos.y < GROUND_Y;
+
         if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
           boss.vy = -470;
           boss.nextHop = now + (0.22 + Math.random() * 0.18) / rage;

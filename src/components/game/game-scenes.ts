@@ -3582,8 +3582,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         title: "STEP 3 · COMPLETING YOUR APPLICATION",
         subtitle: "Crossing the River of Paperwork",
         lines: [
-          "Use the platforms to safely cross the level.",
+          "Platforms fall away once you step on them — keep moving!",
           "Reaching the other side unlocks the exit door.",
+
         ],
         icons: [{ shape: "platform", label: "PLATFORM" }],
       },

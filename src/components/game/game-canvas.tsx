@@ -233,8 +233,20 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         if (!canvas) return;
         bootedCanvas = canvas;
 
+        // Let the previous engine's frame loop actually stop before booting a
+        // new one. The engine keeps some state in module scope, so if the old
+        // loop ticks once after the new instance exists it draws with the old
+        // instance's textures — which is what turned every label into a solid
+        // black block after a restart. Two frames is enough for the retired
+        // loop to see its stop flag.
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        );
+        if (cancelled) return;
+
         const { startGame } = await import("./game-scenes");
         if (cancelled) return;
+
         const flags = BUILD_FLAGS;
         const teardown = await startGame({
           canvas,

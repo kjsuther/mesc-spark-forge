@@ -587,6 +587,24 @@ async function loadImageEl(url: string): Promise<HTMLImageElement> {
  */
 const FRAME_CACHE = new Map<string, { dataUrl: string; w: number; h: number }>();
 
+/**
+ * Family name used for every piece of in-canvas text.
+ *
+ * The engine keeps its rasterised glyph atlas in a module-level cache keyed by
+ * family name, and that cache OUTLIVES an engine restart — so a second run
+ * would sample a texture belonging to the previous, already-destroyed graphics
+ * context and draw every label as a solid black block. Booting under a fresh
+ * (still sans-serif) family name forces a clean atlas for each run. The
+ * leading alias never resolves, so the text always falls back to sans-serif.
+ */
+let UI_FONT = "sans-serif";
+let bootCount = 0;
+function nextUiFont(): string {
+  bootCount += 1;
+  return bootCount === 1 ? "sans-serif" : `kbrun${bootCount}, sans-serif`;
+}
+
+
 async function loadTrimmedSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
   const label0 = spec.label ?? spec.url.split("/").pop() ?? spec.url;
   // Fully cached sheet: register the stored frames and skip decoding entirely.
@@ -1243,6 +1261,10 @@ function spawnDecor(
 export async function startGame(opts: StartGameOpts): Promise<() => void> {
   const kaplay = (await import("kaplay")).default;
 
+  // Fresh glyph atlas for this run (see UI_FONT).
+  UI_FONT = nextUiFont();
+
+
   // Match the logical viewport to the real on-screen aspect before boot.
   VIEW_W = computeViewW(opts.canvas);
   UI_TEXT_SCALE = computeUiTextScale(opts.canvas, VIEW_W);
@@ -1629,7 +1651,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
         // Brief on-screen cue so it reads even when the door is off-camera.
         const cue = k.add([
-          k.text("DOOR OPEN  \u2192", { size: 18, font: "sans-serif" }),
+          k.text("DOOR OPEN  \u2192", { size: 18, font: UI_FONT }),
           k.pos(k.width() / 2, 74),
           k.anchor("center"),
           k.color(255, 214, 64),
@@ -2197,14 +2219,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.z(LAYERS.PLATFORM + 1),
         ]) as AnyObj;
         const shadow = k.add([
-          k.text(p.label, { size: labelSize, font: "sans-serif" }),
+          k.text(p.label, { size: labelSize, font: UI_FONT }),
           k.pos(p.x + PLAT_W / 2 + 1, p.y + 3 + 1),
           k.anchor("center"),
           k.color(0, 0, 0),
           k.z(LAYERS.PLATFORM + 2),
         ]) as AnyObj;
         const label = k.add([
-          k.text(p.label, { size: labelSize, font: "sans-serif" }),
+          k.text(p.label, { size: labelSize, font: UI_FONT }),
           k.pos(p.x + PLAT_W / 2, p.y + 3),
           k.anchor("center"),
           k.color(255, 220, 90),
@@ -2929,7 +2951,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { kind, baseY: y },
       ]) as AnyObj;
       const label = k.add([
-        k.text(style.glyph, { size: 13, font: "sans-serif" }),
+        k.text(style.glyph, { size: 13, font: UI_FONT }),
         k.pos(x, y),
         k.anchor("center"),
         k.color(255, 255, 255),
@@ -3026,14 +3048,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.z(LAYERS.EFFECT),
         ]) as AnyObj;
         const navShadow = k.add([
-          k.text(navLabel, { size: navSize, font: "sans-serif" }),
+          k.text(navLabel, { size: navSize, font: UI_FONT }),
           k.pos(0, 0),
           k.anchor("center"),
           k.color(0, 0, 0),
           k.z(LAYERS.EFFECT + 1),
         ]) as AnyObj;
         const navText = k.add([
-          k.text(navLabel, { size: navSize, font: "sans-serif" }),
+          k.text(navLabel, { size: navSize, font: UI_FONT }),
           k.pos(0, 0),
           k.anchor("center"),
           k.color(255, 220, 90),
@@ -3116,7 +3138,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const HUD_S = Math.max(1, Math.min(1.55, UI_TEXT_SCALE));
     function pixelHudText(o: HudTextOpts) {
       const fs = Math.round(o.size * HUD_S);
-      const textOpts: Record<string, unknown> = { size: fs, font: "sans-serif" };
+      const textOpts: Record<string, unknown> = { size: fs, font: UI_FONT };
       if (o.width !== undefined) textOpts.width = Math.round(o.width * HUD_S);
       if (o.align !== undefined) textOpts.align = o.align;
       const initial = o.initial ?? "";
@@ -3629,7 +3651,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         put([
           k.text(text, {
             size: fs,
-            font: "sans-serif",
+            font: UI_FONT,
             align: "center",
             ...(width ? { width } : {}),
           }),
@@ -3642,7 +3664,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const main = put([
           k.text(text, {
             size: fs,
-            font: "sans-serif",
+            font: UI_FONT,
             align: "center",
             ...(width ? { width } : {}),
           }),
@@ -3732,7 +3754,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           Math.min(px(12), Math.floor(cellW / Math.max(1, icon.label.length * 0.58))),
         );
         put([
-          k.text(icon.label, { size: capSize, font: "sans-serif", align: "center" }),
+          k.text(icon.label, { size: capSize, font: UI_FONT, align: "center" }),
           k.pos(ix, centerY + iconBox / 2 + px(12)),
           k.anchor("top"),
           k.color(200, 215, 255),
@@ -3744,7 +3766,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
 
       const promptNode = put([
-        k.text(CONTINUE_PROMPT(), { size: Math.max(14, px(16)), font: "sans-serif" }),
+        k.text(CONTINUE_PROMPT(), { size: Math.max(14, px(16)), font: UI_FONT }),
         k.pos(cx, panelY + panelH - px(30)),
         k.anchor("center"),
         k.opacity(1),
@@ -3845,7 +3867,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         put([
           k.text(text, {
             size: fs,
-            font: "sans-serif",
+            font: UI_FONT,
             align: "center",
             ...(width ? { width } : {}),
           }),
@@ -3858,7 +3880,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const main = put([
           k.text(text, {
             size: fs,
-            font: "sans-serif",
+            font: UI_FONT,
             align: "center",
             ...(width ? { width } : {}),
           }),
@@ -3883,7 +3905,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const promptNode = put([
         k.text(readyPrompt(), {
           size: Math.max(14, px(16)),
-          font: "sans-serif",
+          font: UI_FONT,
           align: "center",
           width: panelW - px(40),
         }),
@@ -4056,7 +4078,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             bear.pos.y = GROUND_Y;
             // --- Beat 4: the hero recoils --------------------------------
             bang = k.add([
-              k.text("!", { size: 34, font: "sans-serif" }),
+              k.text("!", { size: 34, font: UI_FONT }),
               k.pos(player.pos.x, GROUND_Y - 130),
               k.anchor("center"),
               k.color(255, 236, 120),
@@ -4082,7 +4104,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             setMusic("boss");
             bear.height = bh * 1.18;
             const roar = k.add([
-              k.text("ROAAR!", { size: 36, font: "sans-serif" }),
+              k.text("ROAAR!", { size: 36, font: UI_FONT }),
               k.pos(bear.pos.x, GROUND_Y - bh - 34),
               k.anchor("center"),
               k.color(255, 90, 80),
@@ -4202,7 +4224,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (!roared) {
           roared = true;
           const roar = k.add([
-            k.text("ROAAR!", { size: 34, font: "sans-serif" }),
+            k.text("ROAAR!", { size: 34, font: UI_FONT }),
             k.pos(targetX, GROUND_Y - bh - 30),
             k.anchor("center"),
             k.color(255, 90, 80),
@@ -4256,7 +4278,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(LAYERS.HUD + 5),
     ]) as AnyObj;
     const debugTitle = k.add([
-      k.text("ASSETS · press D", { size: 11, font: "sans-serif" }),
+      k.text("ASSETS · press D", { size: 11, font: UI_FONT }),
       k.pos(k.width() - 16, 14),
       k.anchor("topright"),
       k.color(255, 220, 90),
@@ -4264,7 +4286,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(LAYERS.HUD + 6),
     ]) as AnyObj;
     const debugSummary = k.add([
-      k.text("", { size: 10, font: "sans-serif", width: 344 }),
+      k.text("", { size: 10, font: UI_FONT, width: 344 }),
       k.pos(k.width() - 16, 30),
       k.anchor("topright"),
       k.color(200, 220, 255),
@@ -4272,7 +4294,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.z(LAYERS.HUD + 6),
     ]) as AnyObj;
     const debugBody = k.add([
-      k.text("", { size: 9, font: "sans-serif", width: 344, lineSpacing: 1 }),
+      k.text("", { size: 9, font: UI_FONT, width: 344, lineSpacing: 1 }),
       k.pos(k.width() - 16, 60),
       k.anchor("topright"),
       k.color(240, 240, 240),
@@ -4630,7 +4652,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const BOSS_MAX_HITS = 6;
       // Hearts HUD above the boss (5 hits to defeat).
       const hearts = k.add([
-        k.text("♥".repeat(BOSS_MAX_HITS), { size: 16, font: "sans-serif" }),
+        k.text("♥".repeat(BOSS_MAX_HITS), { size: 16, font: UI_FONT }),
         k.pos(bx, GROUND_Y - bh - 40),
         k.anchor("center"),
         k.color(230, 60, 80),
@@ -5023,7 +5045,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]);
       if (!win) overlay.onClick(() => flushPendingLose());
       k.add([
-        k.text(title, { size: Math.round(30 * T), font: "sans-serif" }),
+        k.text(title, { size: Math.round(30 * T), font: UI_FONT }),
         k.pos(k.width() / 2, k.height() / 2 - 78),
         k.anchor("center"),
         k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 150, 150)),
@@ -5033,7 +5055,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.add([
         k.text(body, {
           size: Math.round(16 * T),
-          font: "sans-serif",
+          font: UI_FONT,
           width: Math.min(720 * T, k.width() - 40),
           align: "center",
         }),
@@ -5062,7 +5084,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.add([
           k.text(restartPrompt(), {
             size: Math.round(14 * T),
-            font: "sans-serif",
+            font: UI_FONT,
             align: "center",
           }),
           k.pos(k.width() / 2, k.height() / 2 + 100),
@@ -5544,7 +5566,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const t = k.add([
         k.text(MSG, {
           size,
-          font: "sans-serif",
+          font: UI_FONT,
           width: bw - padX * 2,
           align: "center",
           lineSpacing: 3,
@@ -5608,7 +5630,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const prompt = k.add([
       k.text(
         CONTINUE_PROMPT(),
-        { size: 16, font: "sans-serif" },
+        { size: 16, font: UI_FONT },
       ),
       k.pos(Math.floor(W / 2), H - SAFE_Y - 6),
       k.anchor("center"),
@@ -5724,7 +5746,7 @@ function showTitleCard(
     k.z(150),
   ]);
   const smallTxt = k.add([
-    k.text(small, { size: 16, font: "sans-serif" }),
+    k.text(small, { size: 16, font: UI_FONT }),
     k.pos(W / 2, H / 2 - 44),
     k.anchor("center"),
     k.color(220, 220, 220),
@@ -5733,7 +5755,7 @@ function showTitleCard(
     k.z(151),
   ]);
   const bigShadow = k.add([
-    k.text(big, { size: 44, font: "sans-serif" }),
+    k.text(big, { size: 44, font: UI_FONT }),
     k.pos(W / 2 + 3, H / 2 + 3),
     k.anchor("center"),
     k.color(0, 0, 0),
@@ -5742,7 +5764,7 @@ function showTitleCard(
     k.z(151),
   ]);
   const bigTxt = k.add([
-    k.text(big, { size: 44, font: "sans-serif" }),
+    k.text(big, { size: 44, font: UI_FONT }),
     k.pos(W / 2, H / 2),
     k.anchor("center"),
     k.color(...rgb),
@@ -5845,14 +5867,14 @@ function addSignPlaque(k: Ctx, x: number, topY: number, label: string, badge: st
   ]);
   const badgeTextY = cy - totalH / 2 + badgeH / 2 + 1;
   k.add([
-    k.text(badge, { size: badgeSize, font: "sans-serif" }),
+    k.text(badge, { size: badgeSize, font: UI_FONT }),
     k.pos(x + 1, badgeTextY + 1),
     k.anchor("center"),
     k.color(0, 0, 0),
     k.z(LAYERS.EFFECT + 1),
   ]);
   k.add([
-    k.text(badge, { size: badgeSize, font: "sans-serif" }),
+    k.text(badge, { size: badgeSize, font: UI_FONT }),
     k.pos(x, badgeTextY),
     k.anchor("center"),
     k.color(255, 235, 150),
@@ -5869,14 +5891,14 @@ function addSignPlaque(k: Ctx, x: number, topY: number, label: string, badge: st
   ]);
   const labelTextY = cy + totalH / 2 - labelH / 2 + 1;
   k.add([
-    k.text(label, { size: labelSize, font: "sans-serif" }),
+    k.text(label, { size: labelSize, font: UI_FONT }),
     k.pos(x + 1, labelTextY + 1),
     k.anchor("center"),
     k.color(255, 240, 220),
     k.z(LAYERS.EFFECT + 1),
   ]);
   k.add([
-    k.text(label, { size: labelSize, font: "sans-serif" }),
+    k.text(label, { size: labelSize, font: UI_FONT }),
     k.pos(x, labelTextY),
     k.anchor("center"),
     k.color(30, 20, 10),
@@ -5902,14 +5924,14 @@ function addSpeech(k: Ctx, x: number, y: number, text: string, _rgb: [number, nu
     k.z(LAYERS.EFFECT),
   ]);
   k.add([
-    k.text(text, { size, font: "sans-serif", align: "center" }),
+    k.text(text, { size, font: UI_FONT, align: "center" }),
     k.pos(x + 2, y + 2),
     k.anchor("center"),
     k.color(0, 0, 0),
     k.z(LAYERS.EFFECT + 1),
   ]);
   k.add([
-    k.text(text, { size, font: "sans-serif", align: "center" }),
+    k.text(text, { size, font: UI_FONT, align: "center" }),
     k.pos(x, y),
     k.anchor("center"),
     k.color(255, 232, 130),
@@ -5943,7 +5965,7 @@ function spawnThoughtBubble(k: Ctx, x: number, y: number, text: string) {
     k.z(LAYERS.BG_NEAR + 1),
   ]);
   const shadow = k.add([
-    k.text(text, { size, font: "sans-serif" }),
+    k.text(text, { size, font: UI_FONT }),
     k.pos(x + 1, y + 1),
     k.anchor("center"),
     k.color(0, 0, 0),
@@ -5951,7 +5973,7 @@ function spawnThoughtBubble(k: Ctx, x: number, y: number, text: string) {
     k.z(LAYERS.BG_NEAR + 2),
   ]);
   const t = k.add([
-    k.text(text, { size, font: "sans-serif" }),
+    k.text(text, { size, font: UI_FONT }),
     k.pos(x, y),
     k.anchor("center"),
     k.color(30, 45, 90),

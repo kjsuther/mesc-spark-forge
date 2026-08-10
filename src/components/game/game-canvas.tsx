@@ -120,6 +120,24 @@ function useViewportSize() {
   return size;
 }
 
+/**
+ * Give a retired canvas's WebGL context back to the browser immediately.
+ * Without this, discarded canvases keep their contexts until GC, and mobile
+ * browsers (which allow only a handful) start failing the next boot at shader
+ * compile time with a generic "failed to load".
+ */
+function releaseCanvasContext(canvas: HTMLCanvasElement | null) {
+  if (!canvas) return;
+  try {
+    const gl = (canvas.getContext("webgl2") ||
+      canvas.getContext("webgl")) as WebGLRenderingContext | null;
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+  } catch {
+    /* context already gone */
+  }
+}
+
+
 export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -200,6 +218,11 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
 
     let cancelled = false;
     let destroy: (() => void) | null = null;
+    // The canvas this run booted on. The element is keyed by engineGeneration,
+    // so by cleanup time canvasRef already points at the NEXT canvas — we must
+    // release the old one, never the fresh one (touching a fresh canvas's
+    // context would poison it before the engine can claim it).
+    let bootedCanvas: HTMLCanvasElement | null = null;
     setEndResult(null);
     setError(null);
     setLoading(true);
@@ -208,11 +231,26 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       try {
         const canvas = canvasRef.current;
         if (!canvas) return;
+        bootedCanvas = canvas;
+
+        // Let the previous engine's frame loop actually stop before booting a
+        // new one. The engine keeps some state in module scope, so if the old
+        // loop ticks once after the new instance exists it draws with the old
+        // instance's textures — which is what turned every label into a solid
+        // black block after a restart. Two frames is enough for the retired
+        // loop to see its stop flag.
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        );
+        if (cancelled) return;
+
         const { startGame } = await import("./game-scenes");
         if (cancelled) return;
+
         const flags = BUILD_FLAGS;
-        destroy = await startGame({
+        const teardown = await startGame({
           canvas,
+
           flags,
           resumeZone: clampResumeZone(resumeZoneRef.current),
           resumeSnapshot: isResumableSnapshot(snapshotRef.current) ? snapshotRef.current : null,
@@ -234,11 +272,19 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
           },
           onMusicTheme: handleMusicTheme,
         });
-        if (!cancelled) {
-          recoveryPendingRef.current = false;
-          setRecovering(false);
-          setLoading(false);
+        // If the effect was torn down while this boot was still in flight, the
+        // engine that just came up would otherwise run forever behind the new
+        // one — two live WebGL contexts, and eventually a shader-compile
+        // failure on mobile. Kill it the moment it exists.
+        if (cancelled) {
+          teardown();
+          releaseCanvasContext(canvas);
+          return;
         }
+        destroy = teardown;
+        recoveryPendingRef.current = false;
+        setRecovering(false);
+        setLoading(false);
       } catch (err) {
         console.error("[game] failed to start", err);
         if (!cancelled) {
@@ -253,7 +299,15 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
     return () => {
       cancelled = true;
       if (destroy) destroy();
+      destroy = null;
+      // Explicitly hand the retired canvas's graphics context back. Browsers
+      // cap live contexts per page, and a discarded canvas can hold on to its
+      // own long enough that the next boot fails at shader compile.
+      if (bootedCanvas && bootedCanvas !== canvasRef.current) releaseCanvasContext(bootedCanvas);
+      bootedCanvas = null;
     };
+
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [launchMode, engineGeneration]);
 
@@ -871,11 +925,24 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
               setMenuScreen("title");
             }}
             onRestart={() => {
+              // Restart the run inside the live engine. A full engine reboot
+              // was tried here and is WORSE: the engine's glyph atlas outlives
+              // a restart, so a second instance draws every label as a black
+              // block. Resetting in place keeps text rendering correct.
               setEndResult(null);
+              resumeZoneRef.current = 0;
+              snapshotRef.current = null;
               const gw = window as unknown as { __gameInput?: TouchInput };
-              if (gw.__gameInput) gw.__gameInput.resetReq = true;
+              if (gw.__gameInput) {
+                gw.__gameInput.left = false;
+                gw.__gameInput.right = false;
+                gw.__gameInput.jumpReq = false;
+                gw.__gameInput.resetReq = true;
+              }
               canvasRef.current?.focus();
             }}
+
+
             uiScale={uiScale}
           />
         )}
@@ -1094,13 +1161,25 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         )}
 
         {error && (
-          <div className="absolute inset-0 grid place-items-center bg-mn-blue/90 p-6 text-center text-cream">
+          <div className="absolute inset-0 z-40 grid place-items-center bg-mn-blue/95 p-6 text-center text-cream">
             <div>
-              <p className="font-bold mb-2">Game failed to load</p>
-              <p className="text-sm opacity-80">{error}</p>
+              <p className="font-bold mb-2">The game hit a snag</p>
+              <p className="text-sm opacity-80 mb-4">{error}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setLoading(true);
+                  setEngineGeneration((generation) => generation + 1);
+                }}
+                className="rounded-md border-2 border-accent-gold bg-mn-blue px-5 py-3 text-sm font-bold uppercase tracking-wide text-cream"
+              >
+                ⟳ Tap to retry
+              </button>
             </div>
           </div>
         )}
+
 
         {/* Overlay touch controls — always ON TOP of the canvas on touch
             devices, in windowed play as well as fullscreen, so they can never
@@ -1251,6 +1330,38 @@ function PadButton({
   accent?: boolean;
   dim?: boolean;
 }) {
+  const activePointerRef = useRef<number | null>(null);
+  const [pressed, setPressed] = useState(false);
+
+  const release = useCallback(
+    (pointerId?: number) => {
+      if (activePointerRef.current === null) return;
+      if (pointerId !== undefined && pointerId !== activePointerRef.current) return;
+      activePointerRef.current = null;
+      setPressed(false);
+      onUp?.();
+    },
+    [onUp],
+  );
+
+  // Safety net: if the browser eats the pointerup (scroll takeover, gesture
+  // cancel, tab switch, fullscreen transition) the direction must not stick.
+  useEffect(() => {
+    if (!pressed) return;
+    const off = () => release();
+    const offId = (e: PointerEvent) => release(e.pointerId);
+    window.addEventListener("pointerup", offId);
+    window.addEventListener("pointercancel", offId);
+    window.addEventListener("blur", off);
+    document.addEventListener("visibilitychange", off);
+    return () => {
+      window.removeEventListener("pointerup", offId);
+      window.removeEventListener("pointercancel", offId);
+      window.removeEventListener("blur", off);
+      document.removeEventListener("visibilitychange", off);
+    };
+  }, [pressed, release]);
+
   const bg = accent
     ? "rgba(214, 90, 49, 0.82)" // orange
     : dim
@@ -1264,6 +1375,9 @@ function PadButton({
       onPointerDown={(e) => {
         e.preventDefault();
         e.stopPropagation();
+        if (activePointerRef.current !== null) return;
+        activePointerRef.current = e.pointerId;
+        setPressed(true);
         try {
           (e.currentTarget as HTMLButtonElement).setPointerCapture?.(e.pointerId);
         } catch {
@@ -1274,21 +1388,27 @@ function PadButton({
       onPointerUp={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        onUp?.();
+        release(e.pointerId);
       }}
-      onPointerLeave={() => onUp?.()}
-      onPointerCancel={() => onUp?.()}
-      onLostPointerCapture={() => onUp?.()}
+      // Deliberately NO pointerleave/pointerout handler: with pointer capture
+      // a finger that drifts a couple of pixels still fires those, which used
+      // to cancel movement mid-hold.
+      onPointerCancel={(e) => release(e.pointerId)}
+      onLostPointerCapture={(e) => release(e.pointerId)}
       onContextMenu={(e) => e.preventDefault()}
-      className="pointer-events-auto relative touch-none select-none font-black text-cream active:translate-y-[2px]"
+      className="pointer-events-auto relative touch-none select-none font-black text-cream"
       style={{
         width: size,
         height: size,
         borderRadius: Math.round(size * 0.22),
         background: bg,
         border: `3px solid ${border}`,
-        boxShadow:
-          "inset 0 -4px 0 rgba(0,0,0,0.35), inset 0 3px 0 rgba(255,255,255,0.22), 0 3px 0 rgba(0,0,0,0.5)",
+        // Press feedback is colour/inset only — the button must never move out
+        // from under a finger that is still holding it.
+        filter: pressed ? "brightness(1.35)" : undefined,
+        boxShadow: pressed
+          ? "inset 0 4px 0 rgba(0,0,0,0.45), inset 0 -2px 0 rgba(255,255,255,0.12)"
+          : "inset 0 -4px 0 rgba(0,0,0,0.35), inset 0 3px 0 rgba(255,255,255,0.22), 0 3px 0 rgba(0,0,0,0.5)",
         backdropFilter: "blur(4px)",
         WebkitBackdropFilter: "blur(4px)",
         // Scale the glyph with the button so it stays legible at any size.
@@ -1301,6 +1421,7 @@ function PadButton({
         WebkitTapHighlightColor: "transparent",
       }}
     >
+
       <span
         style={{
           position: "absolute",

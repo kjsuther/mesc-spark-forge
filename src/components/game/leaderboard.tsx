@@ -79,8 +79,11 @@ export function Leaderboard({
       <div className="flex flex-col h-full min-h-0">
         <header className="bg-accent-gold text-mn-blue px-3 py-1.5 border-b-2 border-accent-orange/60">
           <span className="font-display uppercase tracking-widest text-sm">
-            ★ Live High Scores · Top 3
+            ★ Live High Scores · Top 3 ★
           </span>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-mn-blue/80 mt-0.5">
+            Top 3 win a prize
+          </p>
         </header>
         <ol className="flex-1 min-h-0 overflow-hidden p-2 space-y-1">
           {isLoading && <li className="text-cream/70 italic text-sm text-center py-3">Loading…</li>}
@@ -116,9 +119,14 @@ export function Leaderboard({
   return (
     <section className="mt-6 rounded-lg border-2 border-accent-gold/60 bg-cream/60 overflow-hidden">
       <header className="bg-accent-gold text-mn-blue px-4 py-2 flex flex-wrap items-center justify-between gap-2">
-        <span className="font-display uppercase tracking-widest text-sm">
-          ★ High Scores · Top 3
-        </span>
+        <div>
+          <span className="font-display uppercase tracking-widest text-sm">
+            ★ High Scores · Top 3 ★
+          </span>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-mn-blue/80">
+            Top 3 win a prize
+          </p>
+        </div>
         <span className="text-[11px] font-bold uppercase tracking-widest text-mn-blue/70">
           Updates every 5s
         </span>

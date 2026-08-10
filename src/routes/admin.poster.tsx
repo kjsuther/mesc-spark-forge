@@ -76,7 +76,7 @@ function PosterView() {
           </div>
         </section>
 
-        <aside className="grid grid-rows-[minmax(0,0.85fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3 min-h-0">
+        <aside className="grid grid-rows-[auto_minmax(0,1fr)_minmax(0,1fr)] gap-3 min-h-0">
           <div className="rounded-lg bg-mn-blue/40 ring-2 ring-accent-gold/50 overflow-hidden min-h-0">
             <Leaderboard variant="poster" />
           </div>

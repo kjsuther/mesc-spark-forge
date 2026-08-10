@@ -62,11 +62,6 @@ function MemberCard({ member, index }: { member: TeamMember; index: number }) {
       )}
       <div className="min-w-0">
         <h2 className="font-bold text-mn-blue leading-snug">{member.full_name}</h2>
-        {member.goes_by && (
-          <p className="text-sm text-dark-gray/80">
-            <span className="font-semibold text-mn-blue">Goes by:</span> {member.goes_by}
-          </p>
-        )}
         <p className="text-sm text-dark-gray/75 mt-1">
           <span className="font-semibold text-mn-blue">Title:</span> {member.title}
         </p>

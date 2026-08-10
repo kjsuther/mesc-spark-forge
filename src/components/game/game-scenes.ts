@@ -1351,6 +1351,64 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   // stays crisp inside the GL pipeline; only the final present is smoothed.
   if (opts.canvas) opts.canvas.style.imageRendering = "auto";
 
+  // ---- Live layout watcher ------------------------------------------------
+  // The canvas keeps its logical resolution, but the CSS box it is painted
+  // into changes constantly on desktop: window resize, browser zoom, and
+  // entering / leaving fullscreen. Any UI screen already on screen was laid
+  // out for the OLD box, so text and buttons ended up either too small to
+  // read (windowed) or clipped outside their panel (after leaving
+  // fullscreen). Every open screen registers a relayout callback here and is
+  // rebuilt at the new size.
+  const uiRelayout = new Set<() => void>();
+  let lastCssW = 0;
+  let lastCssH = 0;
+  let layoutRaf = 0;
+  const readLayout = () => {
+    const rect = opts.canvas?.getBoundingClientRect();
+    const cw = Math.round(rect?.width ?? 0);
+    const ch = Math.round(rect?.height ?? 0);
+    if (cw <= 0 || ch <= 0) return;
+    if (cw === lastCssW && ch === lastCssH) return;
+    lastCssW = cw;
+    lastCssH = ch;
+    UI_TEXT_SCALE = computeUiTextScale(opts.canvas, k.width());
+    for (const fn of [...uiRelayout]) {
+      try {
+        fn();
+      } catch {
+        /* a screen closed mid-resize */
+      }
+    }
+  };
+  const scheduleLayout = () => {
+    if (typeof window === "undefined") return;
+    window.cancelAnimationFrame(layoutRaf);
+    layoutRaf = window.requestAnimationFrame(readLayout);
+  };
+  let layoutObserver: ResizeObserver | null = null;
+  if (typeof window !== "undefined") {
+    window.addEventListener("resize", scheduleLayout);
+    document.addEventListener("fullscreenchange", scheduleLayout);
+    document.addEventListener("webkitfullscreenchange", scheduleLayout as EventListener);
+    if (typeof ResizeObserver !== "undefined" && opts.canvas) {
+      layoutObserver = new ResizeObserver(scheduleLayout);
+      layoutObserver.observe(opts.canvas);
+    }
+    scheduleLayout();
+  }
+  const stopLayoutWatch = () => {
+    if (typeof window === "undefined") return;
+    window.cancelAnimationFrame(layoutRaf);
+    window.removeEventListener("resize", scheduleLayout);
+    document.removeEventListener("fullscreenchange", scheduleLayout);
+    document.removeEventListener("webkitfullscreenchange", scheduleLayout as EventListener);
+    layoutObserver?.disconnect();
+    layoutObserver = null;
+    uiRelayout.clear();
+  };
+
+
+
   // The win result is held back until the player leaves the Thank You screen,
   // so the high-score / suggestion overlay never covers the finale.
   let pendingWin: WinResult | null = null;

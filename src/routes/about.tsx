@@ -94,7 +94,7 @@ function SectionJumpNav() {
       ref={navRef}
       aria-label="About page sections"
       style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-      className="sticky top-0 z-30 -mx-6 mb-8 flex gap-2 overflow-x-auto bg-white/95 px-6 py-3 backdrop-blur-sm sm:-mx-0 sm:mx-0 sm:flex-wrap sm:justify-center sm:rounded-2xl sm:border-2 sm:border-mn-blue/10 sm:bg-cream/60 sm:px-4 sm:py-3"
+      className="sticky top-14 sm:top-16 z-30 -mx-6 mb-8 flex gap-2 overflow-x-auto border-b border-mn-blue/10 bg-white/95 px-6 py-3 shadow-sm backdrop-blur-sm sm:-mx-0 sm:mx-0 sm:flex-wrap sm:justify-center sm:rounded-2xl sm:border-2 sm:border-mn-blue/10 sm:bg-cream/60 sm:px-4 sm:py-3 sm:shadow-none"
     >
       {SECTIONS.map(({ id, label }) => {
         const active = id === activeId;

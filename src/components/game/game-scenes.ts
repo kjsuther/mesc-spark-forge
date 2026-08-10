@@ -226,6 +226,30 @@ function computeUiTextScale(canvas: HTMLCanvasElement | null, logicalW: number):
 }
 
 /**
+ * Text scale for a panel of a known design size.
+ *
+ * `computeUiTextScale` alone answers "how much bigger must type be to stay
+ * physically readable in a small CSS box?" — but the panel that holds the type
+ * lives in the FIXED logical buffer and cannot grow past it. Enlarging text
+ * without capping it to the panel is exactly what pushed headings, captions,
+ * and the continue prompt outside the card in windowed play. Clamping the
+ * scale by how much room the buffer actually has keeps every screen legible
+ * AND inside its panel at any window size, windowed or fullscreen.
+ */
+function computeFittedUiScale(
+  canvas: HTMLCanvasElement | null,
+  W: number,
+  H: number,
+  baseW: number,
+  baseH: number,
+  marginW = 32,
+  marginH = 20,
+): number {
+  const raw = computeUiTextScale(canvas, W);
+  return Math.max(1, Math.min(raw, (W - marginW) / baseW, (H - marginH) / baseH));
+}
+
+/**
  * Where a run begins inside a zone.
  *
  * On touch devices the on-screen D-pad and action buttons occupy the lower

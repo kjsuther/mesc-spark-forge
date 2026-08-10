@@ -925,10 +925,10 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
               setMenuScreen("title");
             }}
             onRestart={() => {
-              // A replay after a finished run boots a FRESH engine on a fresh
-              // canvas rather than restarting the scene in place: mobile
-              // browsers can leave the old run's text atlas corrupted, which
-              // is what made every label come back as a black block.
+              // Restart the run inside the live engine. A full engine reboot
+              // was tried here and is WORSE: the engine's glyph atlas outlives
+              // a restart, so a second instance draws every label as a black
+              // block. Resetting in place keeps text rendering correct.
               setEndResult(null);
               resumeZoneRef.current = 0;
               snapshotRef.current = null;
@@ -937,13 +937,11 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
                 gw.__gameInput.left = false;
                 gw.__gameInput.right = false;
                 gw.__gameInput.jumpReq = false;
-                gw.__gameInput.resetReq = false;
+                gw.__gameInput.resetReq = true;
               }
-              setError(null);
-              setLoading(true);
-              setEngineGeneration((generation) => generation + 1);
               canvasRef.current?.focus();
             }}
+
 
             uiScale={uiScale}
           />

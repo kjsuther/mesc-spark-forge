@@ -137,7 +137,6 @@ function releaseCanvasContext(canvas: HTMLCanvasElement | null) {
   }
 }
 
-
 export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -306,7 +305,6 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       if (bootedCanvas && bootedCanvas !== canvasRef.current) releaseCanvasContext(bootedCanvas);
       bootedCanvas = null;
     };
-
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [launchMode, engineGeneration]);
@@ -755,7 +753,6 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   const jumpSize = Math.round(padUnit * 1.15);
   const resetSize = Math.round(padUnit * 0.7);
 
-
   const containerStyle: React.CSSProperties = overlayFs
     ? {
         position: fauxFullscreen ? "fixed" : "relative",
@@ -941,8 +938,6 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
               }
               canvasRef.current?.focus();
             }}
-
-
             uiScale={uiScale}
           />
         )}
@@ -1179,7 +1174,6 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
             </div>
           </div>
         )}
-
 
         {/* Overlay touch controls — always ON TOP of the canvas on touch
             devices, in windowed play as well as fullscreen, so they can never
@@ -1421,7 +1415,6 @@ function PadButton({
         WebkitTapHighlightColor: "transparent",
       }}
     >
-
       <span
         style={{
           position: "absolute",
@@ -1470,12 +1463,10 @@ const TRAIL_PATH_D = [
  *  player knows the controls on whichever device they're on. */
 function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack: () => void }) {
   const [touch, setTouch] = useState(false);
+  // Shared detector, so the instruction card can never disagree with whether
+  // the on-screen pads are actually rendered.
   useEffect(() => {
-    setTouch(
-      typeof window !== "undefined" &&
-        typeof window.matchMedia === "function" &&
-        window.matchMedia("(pointer: coarse)").matches,
-    );
+    setTouch(isTouchDevice());
   }, []);
 
   const desktop: Array<[string, string]> = [

@@ -43,18 +43,27 @@ function mq(query: string): boolean {
   );
 }
 
-/** Touch-capable device? Safe to call during render (SSR returns false). */
+/**
+ * Real mobile device (phone or tablet running iOS / iPadOS / Android)?
+ *
+ * Deliberately stricter than "has a touchscreen": touchscreen laptops and
+ * desktop monitors report coarse pointers but play with a keyboard, so they
+ * must never get on-screen pads or mobile instructions.
+ * Safe to call during render (SSR returns false).
+ */
 export function isTouchDevice(): boolean {
   if (typeof window === "undefined") return false;
-  const coarse = mq("(pointer: coarse)") || mq("(any-pointer: coarse)");
-  const hasTouch =
-    (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0) || "ontouchstart" in window;
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-  // iPadOS reports a Mac UA but always has touch points.
-  const uaMobile = /Android|iPhone|iPad|iPod|Mobile|Silk|Kindle/i.test(ua);
-  const fineMouse = mq("(pointer: fine)") && !hasTouch;
-  if (fineMouse) return false;
-  return (coarse && hasTouch) || uaMobile || (hasTouch && !mq("(pointer: fine)"));
+  const maxTouch = typeof navigator !== "undefined" ? navigator.maxTouchPoints || 0 : 0;
+  const hasTouch = maxTouch > 0 || "ontouchstart" in window;
+  if (!hasTouch) return false;
+  // Android phones/tablets, iPhone/iPod, and old iPads all say so in the UA.
+  if (/Android|iPhone|iPod|iPad|Silk|Kindle|Windows Phone/i.test(ua)) return true;
+  // iPadOS 13+ masquerades as desktop Safari: Mac UA + multi-touch + no mouse.
+  const iPadOS = /Macintosh/i.test(ua) && maxTouch > 1 && !mq("(pointer: fine)");
+  if (iPadOS) return true;
+  // Other mobile browsers: touch-first (coarse primary pointer, no mouse).
+  return mq("(pointer: coarse)") && !mq("(any-pointer: fine)") && /Mobile|Tablet/i.test(ua);
 }
 
 export function getDeviceProfile(): DeviceProfile {
@@ -143,8 +152,7 @@ export const continuePrompt = (): string =>
 export const readyPrompt = (): string =>
   isTouchDevice() ? "Tap when you're READY" : "Press Enter, Space, or Click when you're READY";
 
-export const jumpPrompt = (): string =>
-  isTouchDevice() ? "Tap JUMP" : "Jump (Up Arrow or Space)";
+export const jumpPrompt = (): string => (isTouchDevice() ? "Tap JUMP" : "Jump (Up Arrow or Space)");
 
 export const restartPrompt = (): string =>
   isTouchDevice()

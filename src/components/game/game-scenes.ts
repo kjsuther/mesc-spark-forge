@@ -604,7 +604,6 @@ function nextUiFont(): string {
   return bootCount === 1 ? "sans-serif" : `kbrun${bootCount}, sans-serif`;
 }
 
-
 async function loadTrimmedSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
   const label0 = spec.label ?? spec.url.split("/").pop() ?? spec.url;
   // Fully cached sheet: register the stored frames and skip decoding entirely.
@@ -1263,7 +1262,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   // Fresh glyph atlas for this run (see UI_FONT).
   UI_FONT = nextUiFont();
-
 
   // Match the logical viewport to the real on-screen aspect before boot.
   VIEW_W = computeViewW(opts.canvas);
@@ -2177,11 +2175,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // 108px wide and end ~40px short of the far bank).
       // Difficulty pass: slower, shallower bobbing gives a wider landing
       // window on every crossing platform (~25% gentler than before).
+      // Difficulty pass: platforms now sweep nearly the full height of the
+      // canvas and bob noticeably faster, so every crossing needs real timing.
       const platforms = [
-        { x: rx0 + 30, y: GROUND_Y - 72, amp: 72, spd: 4.3, label: "ABOUT YOU" },
-        { x: rx0 + 200, y: GROUND_Y - 92, amp: 94, spd: 3.8, label: "HOUSEHOLD" },
-        { x: rx0 + 370, y: GROUND_Y - 86, amp: 86, spd: 4.7, label: "INCOME" },
-        { x: rx0 + 540, y: GROUND_Y - 72, amp: 72, spd: 4.2, label: "SIGNATURE" },
+        { x: rx0 + 30, y: GROUND_Y - 175, amp: 168, spd: 6.2, label: "ABOUT YOU" },
+        { x: rx0 + 200, y: GROUND_Y - 185, amp: 178, spd: 5.6, label: "HOUSEHOLD" },
+        { x: rx0 + 370, y: GROUND_Y - 180, amp: 172, spd: 6.7, label: "INCOME" },
+        { x: rx0 + 540, y: GROUND_Y - 175, amp: 168, spd: 6.0, label: "SIGNATURE" },
       ];
 
       for (const p of platforms) {
@@ -3550,20 +3550,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         title: "STEP 7 · SELECTING YOUR MANAGED CARE PLAN",
         subtitle: "Choosing Your Path",
         lines: [
-          "Select one of the three managed care plans.",
-          "Selecting a plan brings the bear charging out of the woods.",
-          "You choose when the battle starts.",
-          'Dodge his paperwork — your "+" shots can\'t stop it.',
-          'Defeat him with five "+" hits.',
+          "Three managed care plans are waiting ahead.",
+          "Walk up to one and select it to move forward.",
         ],
         icons: [
           { sprite: "plan-blue", label: "PLAN" },
           { sprite: "plan-green", label: "PLAN" },
           { sprite: "plan-orange", label: "PLAN" },
-          { sprite: "boss-idle", label: "BOSS" },
-          { glyph: "+", label: "YOUR SHOT" },
         ],
       },
+
       {
         title: "STEP 8 · USING YOUR COVERAGE",
         subtitle: "Coverage Begins",
@@ -4529,9 +4525,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
      * so they always reach the player instead of sailing overhead.
      */
     function spawnBossShot(x: number, y: number, dirX: 1 | -1, laneOffset = 26) {
-      // Never more than three pieces of paperwork in the air at once —
+      // Never more than four pieces of paperwork in the air at once —
       // beyond that the low lane becomes impossible to jump.
-      if (k.get("boss-shot").length >= 3) return;
+      if (k.get("boss-shot").length >= 4) return;
+
       const sw = displaySize("denied", sizes).w;
       const sh = DISPLAY_H["denied"];
       const targetY = GROUND_Y - laneOffset;
@@ -4727,29 +4724,34 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
         hearts.pos.x = boss.pos.x;
         hearts.pos.y = boss.pos.y - bh - 40;
-        // Paperwork is thrown from mid-air only — released near the top of a
-        // jump, so it arrives at a different height every time. Less frequent
-        // than the old ground barrage, but far harder to read.
+        // Paperwork comes in repeating waves until he is beaten. Most waves
+        // are released near the top of a jump (so they arrive at varying
+        // heights); if a jump wave hasn't happened by the time the cooldown is
+        // well past, he throws one from the ground instead, so the barrage
+        // never dries up between hops.
         const nearApex = wasAirborne && boss.vy > -140;
-        if (boss.armedShot && nearApex && now >= boss.nextShot && now >= boss.hurtUntil) {
+        const overdue = now >= boss.nextShot + 0.55;
+        const canThrow = now >= boss.nextShot && now >= boss.hurtUntil;
+        if (canThrow && ((boss.armedShot && nearApex) || overdue)) {
           boss.armedShot = false;
           const toward: 1 | -1 = player.pos.x < boss.pos.x ? -1 : 1;
-          // Short burst thrown from the air but always settling into a low
-          // lane, so every one of them has to be jumped over.
+          // Short burst, spaced so one well-timed jump can clear the wave.
           spawnBossShot(boss.pos.x + toward * (bw / 2), boss.pos.y - 34, toward, 22);
           const burstY = boss.pos.y - 6;
           const burstX = boss.pos.x;
-          k.wait(0.22, () => {
+          k.wait(0.28, () => {
             if (boss.dead) return;
             spawnBossShot(burstX + toward * (bw / 2), burstY, toward, 44);
           });
           if (rage > 1) {
-            k.wait(0.44, () => {
+            k.wait(0.56, () => {
               if (boss.dead) return;
               spawnBossShot(burstX + toward * (bw / 2), burstY - 60, toward, 30);
             });
           }
-          boss.nextShot = now + (0.62 + Math.random() * 0.22) / rage;
+          // Wave every ~1.2-1.6s (tighter in the rage phase) — continuous, but
+          // with a readable gap to land the dodge in.
+          boss.nextShot = now + (1.2 + Math.random() * 0.4) / rage;
         }
 
         // Flash while invulnerable.
@@ -5628,10 +5630,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // Blinking restart prompt.
     const prompt = k.add([
-      k.text(
-        CONTINUE_PROMPT(),
-        { size: 16, font: UI_FONT },
-      ),
+      k.text(CONTINUE_PROMPT(), { size: 16, font: UI_FONT }),
       k.pos(Math.floor(W / 2), H - SAFE_Y - 6),
       k.anchor("center"),
       k.color(255, 235, 120),

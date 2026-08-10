@@ -1261,6 +1261,10 @@ function spawnDecor(
 export async function startGame(opts: StartGameOpts): Promise<() => void> {
   const kaplay = (await import("kaplay")).default;
 
+  // Fresh glyph atlas for this run (see UI_FONT).
+  UI_FONT = nextUiFont();
+
+
   // Match the logical viewport to the real on-screen aspect before boot.
   VIEW_W = computeViewW(opts.canvas);
   UI_TEXT_SCALE = computeUiTextScale(opts.canvas, VIEW_W);

@@ -84,7 +84,9 @@ export const upsertTeamMember = createServerFn({ method: "POST" })
 
     const fullName = (data.full_name ?? "").trim();
     if (!fullName || fullName.length > 200) throw new Error("Name is required (max 200 chars).");
+    const goesBy = (data.goes_by ?? "").trim().slice(0, 100) || null;
     const title = (data.title ?? "").trim().slice(0, 300);
+    const organization = (data.organization ?? "").trim().slice(0, 300) || null;
     const bio = (data.bio ?? "").trim().slice(0, 1000) || null;
 
     let photoPath: string | null | undefined = undefined;

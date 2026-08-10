@@ -3626,7 +3626,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           fs = Math.max(opts.min ?? 11, Math.min(fs, (width * 1.28) / longest));
         }
         fs = Math.round(fs);
-        console.log("[dbg-label]", JSON.stringify({ text: text.slice(0, 20), fs, width, S }));
         put([
           k.text(text, {
             size: fs,

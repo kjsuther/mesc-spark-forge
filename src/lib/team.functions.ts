@@ -135,7 +135,9 @@ export const upsertTeamMember = createServerFn({ method: "POST" })
       .from("team_members")
       .insert({
         full_name: fullName,
+        goes_by: goesBy,
         title,
+        organization,
         bio,
         hidden: !!data.hidden,
         photo_path: photoPath ?? null,

@@ -119,9 +119,10 @@ function WelcomePage() {
               </span>
             </h1>
             <p className="text-cream/90 text-base sm:text-lg md:text-xl mt-5 sm:mt-6 max-w-2xl">
-              Play our retro video game and see if you can survive the journey of applying for
-              Medicaid. Then tell us what to improve — we build your feedback into the game during
-              the session, and you come back to play the improved version.
+              Try our retro-style video game to see if you're able to navigate the journey of applying
+              for Medicaid. After playing, tell us what to improve which would make the journey easier
+              for you. We will build your feedback into the game live during the poster session at MESC.
+              Keep coming back to see if the journey gets easier!
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">

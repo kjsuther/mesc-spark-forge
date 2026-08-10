@@ -7,6 +7,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { useEffect, useRef, useState } from "react";
 
 export const Route = createFileRoute("/about")({
   head: () => ({
@@ -33,6 +34,89 @@ export const Route = createFileRoute("/about")({
   component: AboutPage,
 });
 
+const SECTIONS = [
+  { id: "loop", label: "The loop" },
+  { id: "why-game", label: "Why a game?" },
+  { id: "real-world", label: "Real front door" },
+  { id: "ai", label: "Responsible AI" },
+  { id: "today-future", label: "Today vs. Future" },
+  { id: "path-forward", label: "Path forward" },
+];
+
+function SectionJumpNav() {
+  const [activeId, setActiveId] = useState<string>(SECTIONS[0]!.id);
+  const navRef = useRef<HTMLDivElement>(null);
+  const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible?.target.id) {
+          setActiveId(visible.target.id);
+        }
+      },
+      { rootMargin: "-40% 0px -55% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] }
+    );
+
+    SECTIONS.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const activeButton = buttonRefs.current[activeId];
+    const nav = navRef.current;
+    if (activeButton && nav) {
+      const scrollLeft =
+        activeButton.offsetLeft -
+        nav.clientWidth / 2 +
+        activeButton.clientWidth / 2;
+      nav.scrollTo({ left: scrollLeft, behavior: "smooth" });
+    }
+  }, [activeId]);
+
+  const handleClick = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      setActiveId(id);
+    }
+  };
+
+  return (
+    <nav
+      ref={navRef}
+      aria-label="About page sections"
+      className="sticky top-0 z-30 -mx-6 mb-8 flex gap-2 overflow-x-auto bg-white/95 px-6 py-3 backdrop-blur-sm scrollbar-hide sm:-mx-0 sm:mx-0 sm:flex-wrap sm:justify-center sm:rounded-2xl sm:border-2 sm:border-mn-blue/10 sm:bg-cream/60 sm:px-4 sm:py-3"
+    >
+      {SECTIONS.map(({ id, label }) => {
+        const active = id === activeId;
+        return (
+          <button
+            key={id}
+            ref={(el) => (buttonRefs.current[id] = el)}
+            onClick={() => handleClick(id)}
+            aria-current={active ? "true" : undefined}
+            className={`shrink-0 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide transition whitespace-nowrap sm:text-sm ${
+              active
+                ? "bg-mn-blue text-white shadow-sm"
+                : "bg-white text-mn-blue hover:bg-mn-blue/10 border border-mn-blue/20"
+            }`}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 function AboutPage() {
   return (
     <div className="min-h-screen flex flex-col bg-white text-dark-gray">
@@ -53,8 +137,10 @@ function AboutPage() {
           </p>
         </header>
 
+        <SectionJumpNav />
+
         {/* The loop */}
-        <section>
+        <section id="loop">
           <h2 className="font-display text-2xl text-mn-blue uppercase tracking-wide border-b-2 border-mn-blue pb-3 mb-6">
             The loop we're running
           </h2>
@@ -106,7 +192,7 @@ function AboutPage() {
         </section>
 
         {/* Why a game */}
-        <section className="bg-accent-gold/10 border-2 border-accent-gold/50 rounded-3xl p-8">
+        <section id="why-game" className="bg-accent-gold/10 border-2 border-accent-gold/50 rounded-3xl p-8">
           <h2 className="text-2xl font-bold text-mn-blue mb-4">Why a video game?</h2>
           <p className="text-dark-gray/80 max-w-3xl leading-relaxed">
             Because a game gets people to a shared understanding fast. Instead of debating a
@@ -118,7 +204,7 @@ function AboutPage() {
         </section>
 
         {/* Game → real world */}
-        <section>
+        <section id="real-world">
           <h2 className="font-display text-2xl text-mn-blue uppercase tracking-wide border-b-2 border-mn-blue pb-3 mb-6">
             From the game to the real front door
           </h2>
@@ -202,7 +288,7 @@ function AboutPage() {
         </section>
 
         {/* AI Transparency */}
-        <section className="bg-sky-blue/10 border border-sky-blue/30 rounded-3xl p-8">
+        <section id="ai" className="bg-sky-blue/10 border border-sky-blue/30 rounded-3xl p-8">
           <h2 className="text-2xl font-bold text-mn-blue mb-4">
             Responsible AI — how we're using it
           </h2>
@@ -235,7 +321,7 @@ function AboutPage() {
         </section>
 
         {/* Today vs Future */}
-        <section>
+        <section id="today-future">
           <h2 className="font-display text-2xl text-mn-blue uppercase tracking-wide border-b-2 border-mn-blue pb-3 mb-6">
             Today vs. What's possible
           </h2>
@@ -266,7 +352,7 @@ function AboutPage() {
         </section>
 
         {/* Practical path forward */}
-        <section className="bg-mn-blue text-white rounded-3xl p-8 md:p-12">
+        <section id="path-forward" className="bg-mn-blue text-white rounded-3xl p-8 md:p-12">
           <p className="text-sky-blue text-xs font-bold uppercase tracking-widest mb-3">
             A practical path forward
           </p>

@@ -5028,7 +5028,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       player.vel = k.vec2(0, 0);
       player.riding = null;
+      // Zone 3's collapsing platforms come back so the crossing stays winnable.
+      resetRiverPlatforms();
       updateHud();
+
     }
 
     // Failure results are held until the player acknowledges the failure

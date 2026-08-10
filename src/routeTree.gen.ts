@@ -18,13 +18,17 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AboutIndexRouteImport } from './routes/about.index'
 import { Route as AdminUnlockRouteImport } from './routes/admin.unlock'
+import { Route as AdminTeamRouteImport } from './routes/admin.team'
 import { Route as AdminPosterRouteImport } from './routes/admin.poster'
 import { Route as AdminNowBuildingRouteImport } from './routes/admin.now-building'
 import { Route as AdminLockRouteImport } from './routes/admin.lock'
 import { Route as AdminGameRouteImport } from './routes/admin.game'
 import { Route as AdminFeedbackRouteImport } from './routes/admin.feedback'
 import { Route as ActionsSlugRouteImport } from './routes/actions.$slug'
+import { Route as AboutTeamRouteImport } from './routes/about.team'
+import { Route as AboutPosterRouteImport } from './routes/about.poster'
 import { Route as ActionsReportAChangeStartRouteImport } from './routes/actions.report-a-change.start'
 import { Route as ActionsCheckDocumentsStartRouteImport } from './routes/actions.check-documents.start'
 
@@ -73,9 +77,19 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const AboutIndexRoute = AboutIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AboutRoute,
+} as any)
 const AdminUnlockRoute = AdminUnlockRouteImport.update({
   id: '/unlock',
   path: '/unlock',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminTeamRoute = AdminTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminPosterRoute = AdminPosterRouteImport.update({
@@ -108,6 +122,16 @@ const ActionsSlugRoute = ActionsSlugRouteImport.update({
   path: '/actions/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AboutTeamRoute = AboutTeamRouteImport.update({
+  id: '/team',
+  path: '/team',
+  getParentRoute: () => AboutRoute,
+} as any)
+const AboutPosterRoute = AboutPosterRouteImport.update({
+  id: '/poster',
+  path: '/poster',
+  getParentRoute: () => AboutRoute,
+} as any)
 const ActionsReportAChangeStartRoute =
   ActionsReportAChangeStartRouteImport.update({
     id: '/actions/report-a-change/start',
@@ -123,39 +147,46 @@ const ActionsCheckDocumentsStartRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
+  '/about': typeof AboutRouteWithChildren
   '/admin': typeof AdminRouteWithChildren
   '/backlog': typeof BacklogRoute
   '/embed': typeof EmbedRoute
   '/feedback': typeof FeedbackRoute
   '/scores': typeof ScoresRoute
   '/tool': typeof ToolRoute
+  '/about/poster': typeof AboutPosterRoute
+  '/about/team': typeof AboutTeamRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/feedback': typeof AdminFeedbackRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
+  '/admin/team': typeof AdminTeamRoute
   '/admin/unlock': typeof AdminUnlockRoute
+  '/about/': typeof AboutIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
   '/actions/report-a-change/start': typeof ActionsReportAChangeStartRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
   '/backlog': typeof BacklogRoute
   '/embed': typeof EmbedRoute
   '/feedback': typeof FeedbackRoute
   '/scores': typeof ScoresRoute
   '/tool': typeof ToolRoute
+  '/about/poster': typeof AboutPosterRoute
+  '/about/team': typeof AboutTeamRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/feedback': typeof AdminFeedbackRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
+  '/admin/team': typeof AdminTeamRoute
   '/admin/unlock': typeof AdminUnlockRoute
+  '/about': typeof AboutIndexRoute
   '/admin': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
   '/actions/report-a-change/start': typeof ActionsReportAChangeStartRoute
@@ -163,20 +194,24 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
+  '/about': typeof AboutRouteWithChildren
   '/admin': typeof AdminRouteWithChildren
   '/backlog': typeof BacklogRoute
   '/embed': typeof EmbedRoute
   '/feedback': typeof FeedbackRoute
   '/scores': typeof ScoresRoute
   '/tool': typeof ToolRoute
+  '/about/poster': typeof AboutPosterRoute
+  '/about/team': typeof AboutTeamRoute
   '/actions/$slug': typeof ActionsSlugRoute
   '/admin/feedback': typeof AdminFeedbackRoute
   '/admin/game': typeof AdminGameRoute
   '/admin/lock': typeof AdminLockRoute
   '/admin/now-building': typeof AdminNowBuildingRoute
   '/admin/poster': typeof AdminPosterRoute
+  '/admin/team': typeof AdminTeamRoute
   '/admin/unlock': typeof AdminUnlockRoute
+  '/about/': typeof AboutIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/actions/check-documents/start': typeof ActionsCheckDocumentsStartRoute
   '/actions/report-a-change/start': typeof ActionsReportAChangeStartRoute
@@ -192,32 +227,39 @@ export interface FileRouteTypes {
     | '/feedback'
     | '/scores'
     | '/tool'
+    | '/about/poster'
+    | '/about/team'
     | '/actions/$slug'
     | '/admin/feedback'
     | '/admin/game'
     | '/admin/lock'
     | '/admin/now-building'
     | '/admin/poster'
+    | '/admin/team'
     | '/admin/unlock'
+    | '/about/'
     | '/admin/'
     | '/actions/check-documents/start'
     | '/actions/report-a-change/start'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/about'
     | '/backlog'
     | '/embed'
     | '/feedback'
     | '/scores'
     | '/tool'
+    | '/about/poster'
+    | '/about/team'
     | '/actions/$slug'
     | '/admin/feedback'
     | '/admin/game'
     | '/admin/lock'
     | '/admin/now-building'
     | '/admin/poster'
+    | '/admin/team'
     | '/admin/unlock'
+    | '/about'
     | '/admin'
     | '/actions/check-documents/start'
     | '/actions/report-a-change/start'
@@ -231,13 +273,17 @@ export interface FileRouteTypes {
     | '/feedback'
     | '/scores'
     | '/tool'
+    | '/about/poster'
+    | '/about/team'
     | '/actions/$slug'
     | '/admin/feedback'
     | '/admin/game'
     | '/admin/lock'
     | '/admin/now-building'
     | '/admin/poster'
+    | '/admin/team'
     | '/admin/unlock'
+    | '/about/'
     | '/admin/'
     | '/actions/check-documents/start'
     | '/actions/report-a-change/start'
@@ -245,7 +291,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AboutRoute: typeof AboutRoute
+  AboutRoute: typeof AboutRouteWithChildren
   AdminRoute: typeof AdminRouteWithChildren
   BacklogRoute: typeof BacklogRoute
   EmbedRoute: typeof EmbedRoute
@@ -322,11 +368,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/about/': {
+      id: '/about/'
+      path: '/'
+      fullPath: '/about/'
+      preLoaderRoute: typeof AboutIndexRouteImport
+      parentRoute: typeof AboutRoute
+    }
     '/admin/unlock': {
       id: '/admin/unlock'
       path: '/unlock'
       fullPath: '/admin/unlock'
       preLoaderRoute: typeof AdminUnlockRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/team': {
+      id: '/admin/team'
+      path: '/team'
+      fullPath: '/admin/team'
+      preLoaderRoute: typeof AdminTeamRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/poster': {
@@ -371,6 +431,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActionsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/about/team': {
+      id: '/about/team'
+      path: '/team'
+      fullPath: '/about/team'
+      preLoaderRoute: typeof AboutTeamRouteImport
+      parentRoute: typeof AboutRoute
+    }
+    '/about/poster': {
+      id: '/about/poster'
+      path: '/poster'
+      fullPath: '/about/poster'
+      preLoaderRoute: typeof AboutPosterRouteImport
+      parentRoute: typeof AboutRoute
+    }
     '/actions/report-a-change/start': {
       id: '/actions/report-a-change/start'
       path: '/actions/report-a-change/start'
@@ -388,12 +462,27 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AboutRouteChildren {
+  AboutPosterRoute: typeof AboutPosterRoute
+  AboutTeamRoute: typeof AboutTeamRoute
+  AboutIndexRoute: typeof AboutIndexRoute
+}
+
+const AboutRouteChildren: AboutRouteChildren = {
+  AboutPosterRoute: AboutPosterRoute,
+  AboutTeamRoute: AboutTeamRoute,
+  AboutIndexRoute: AboutIndexRoute,
+}
+
+const AboutRouteWithChildren = AboutRoute._addFileChildren(AboutRouteChildren)
+
 interface AdminRouteChildren {
   AdminFeedbackRoute: typeof AdminFeedbackRoute
   AdminGameRoute: typeof AdminGameRoute
   AdminLockRoute: typeof AdminLockRoute
   AdminNowBuildingRoute: typeof AdminNowBuildingRoute
   AdminPosterRoute: typeof AdminPosterRoute
+  AdminTeamRoute: typeof AdminTeamRoute
   AdminUnlockRoute: typeof AdminUnlockRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -404,6 +493,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminLockRoute: AdminLockRoute,
   AdminNowBuildingRoute: AdminNowBuildingRoute,
   AdminPosterRoute: AdminPosterRoute,
+  AdminTeamRoute: AdminTeamRoute,
   AdminUnlockRoute: AdminUnlockRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
@@ -412,7 +502,7 @@ const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AboutRoute: AboutRoute,
+  AboutRoute: AboutRouteWithChildren,
   AdminRoute: AdminRouteWithChildren,
   BacklogRoute: BacklogRoute,
   EmbedRoute: EmbedRoute,
@@ -426,13 +516,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

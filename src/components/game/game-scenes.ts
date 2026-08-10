@@ -4025,17 +4025,30 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       stepScreenOpen = true;
       pauseGameplay();
 
-      const W = k.width();
-      const H = k.height();
-      UI_TEXT_SCALE = computeUiTextScale(opts.canvas, W);
-      const S = UI_TEXT_SCALE;
-      const px = (n: number) => Math.round(n * S);
-      const nodes: AnyObj[] = [];
-      const put = (parts: unknown[]) => {
-        const o = k.add(parts as never) as AnyObj;
-        nodes.push(o);
-        return o;
-      };
+      let nodes: AnyObj[] = [];
+      let promptNode: AnyObj | null = null;
+      let closed = false;
+
+      function render() {
+        for (const n of nodes) {
+          try {
+            n.destroy();
+          } catch {
+            /* ignore */
+          }
+        }
+        nodes = [];
+
+        const W = k.width();
+        const H = k.height();
+        const S = computeFittedUiScale(opts.canvas, W, H, 660, 300);
+        UI_TEXT_SCALE = S;
+        const px = (n: number) => Math.round(n * S);
+        const put = (parts: unknown[]) => {
+          const o = k.add(parts as never) as AnyObj;
+          nodes.push(o);
+          return o;
+        };
 
       put([k.rect(W, H), k.pos(0, 0), k.color(0, 0, 0), k.opacity(0.86), k.fixed(), k.z(300)]);
       const panelW = Math.min(px(660), W - px(32));

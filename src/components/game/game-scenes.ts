@@ -2267,6 +2267,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           shadow.opacity = 1;
           label.opacity = 1;
           if (!plat.is("platform")) plat.tag("platform");
+          if (!plat.is("area")) plat.use(k.area());
+          if (!plat.is("body")) plat.use(k.body({ isStatic: true }));
+
           place(plat.basX, plat.basY);
         });
 

@@ -25,7 +25,9 @@ export const Route = createFileRoute("/admin/team")({
 type Draft = {
   id?: string;
   full_name: string;
+  goes_by: string;
   title: string;
+  organization: string;
   bio: string;
   hidden: boolean;
   photo_data_url: string | null;

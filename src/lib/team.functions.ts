@@ -4,7 +4,9 @@ import { requireAdmin } from "./admin-session.server";
 export type TeamMember = {
   id: string;
   full_name: string;
+  goes_by: string | null;
   title: string;
+  organization: string | null;
   bio: string | null;
   photo_path: string | null;
   photo_url: string | null;

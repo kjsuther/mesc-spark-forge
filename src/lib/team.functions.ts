@@ -112,7 +112,9 @@ export const upsertTeamMember = createServerFn({ method: "POST" })
     if (data.id) {
       const patch = {
         full_name: fullName,
+        goes_by: goesBy,
         title,
+        organization,
         bio,
         hidden: !!data.hidden,
         ...(photoPath !== undefined ? { photo_path: photoPath } : {}),

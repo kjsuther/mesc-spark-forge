@@ -5047,7 +5047,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.z(LAYERS.OVERLAY_TEXT),
         ]);
         k.add([
-          k.text("Tap Screen, Press R or Enter\nto enter your score and provide feedback", {
+          k.text(restartPrompt(), {
             size: Math.round(14 * T),
             font: "sans-serif",
             align: "center",

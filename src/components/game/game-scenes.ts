@@ -4173,9 +4173,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         leftArmed = false;
         rightArmed = false;
         if (w?.__gameInput) w.__gameInput.jumpReq = false;
+        uiRelayout.delete(relayout);
         onReady();
       }
-      hitArea.onClick(() => close());
     }
 
     /** ~3s scripted entrance: the bear charges in from the woods and roars. */

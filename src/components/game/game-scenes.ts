@@ -4092,28 +4092,44 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         panelW - px(70),
       );
 
-      const promptNode = put([
-        k.text(readyPrompt(), {
-          size: Math.max(14, px(16)),
-          font: UI_FONT,
-          align: "center",
-          width: panelW - px(40),
-        }),
-        k.pos(cx, panelY + panelH - px(34)),
-        k.anchor("center"),
-        k.opacity(1),
-        k.color(255, 235, 120),
-        k.fixed(),
-        k.z(303),
-      ]);
-      const hitArea = put([k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305)]);
+        promptNode = put([
+          k.text(readyPrompt(), {
+            size: Math.max(14, px(16)),
+            font: UI_FONT,
+            align: "center",
+            width: panelW - px(40),
+          }),
+          k.pos(cx, panelY + panelH - px(34)),
+          k.anchor("center"),
+          k.opacity(1),
+          k.color(255, 235, 120),
+          k.fixed(),
+          k.z(303),
+        ]);
+        const hitArea = put([
+          k.rect(W, H),
+          k.pos(0, 0),
+          k.opacity(0),
+          k.area(),
+          k.fixed(),
+          k.z(305),
+        ]);
+        hitArea.onClick(() => close());
+      }
+
+      render();
+      const relayout = () => {
+        if (closed) return;
+        render();
+      };
+      uiRelayout.add(relayout);
+
       const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
         k.onKeyPress(key as never, () => close()),
       );
       const blink = k.onUpdate(() => {
-        promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.35;
+        if (promptNode) promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.35;
       });
-      let closed = false;
       function close() {
         if (closed) return;
         closed = true;

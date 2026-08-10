@@ -62,7 +62,9 @@ export const listTeamMembersAdmin = createServerFn({ method: "GET" }).handler(as
 export type UpsertTeamMemberInput = {
   id?: string;
   full_name: string;
+  goes_by?: string | null;
   title: string;
+  organization?: string | null;
   bio?: string | null;
   hidden?: boolean;
   /** base64 data URL of a new photo; when set it replaces the existing photo */

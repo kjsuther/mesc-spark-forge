@@ -226,6 +226,30 @@ function computeUiTextScale(canvas: HTMLCanvasElement | null, logicalW: number):
 }
 
 /**
+ * Text scale for a panel of a known design size.
+ *
+ * `computeUiTextScale` alone answers "how much bigger must type be to stay
+ * physically readable in a small CSS box?" — but the panel that holds the type
+ * lives in the FIXED logical buffer and cannot grow past it. Enlarging text
+ * without capping it to the panel is exactly what pushed headings, captions,
+ * and the continue prompt outside the card in windowed play. Clamping the
+ * scale by how much room the buffer actually has keeps every screen legible
+ * AND inside its panel at any window size, windowed or fullscreen.
+ */
+function computeFittedUiScale(
+  canvas: HTMLCanvasElement | null,
+  W: number,
+  H: number,
+  baseW: number,
+  baseH: number,
+  marginW = 32,
+  marginH = 20,
+): number {
+  const raw = computeUiTextScale(canvas, W);
+  return Math.max(1, Math.min(raw, (W - marginW) / baseW, (H - marginH) / baseH));
+}
+
+/**
  * Where a run begins inside a zone.
  *
  * On touch devices the on-screen D-pad and action buttons occupy the lower
@@ -1327,6 +1351,64 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   // stays crisp inside the GL pipeline; only the final present is smoothed.
   if (opts.canvas) opts.canvas.style.imageRendering = "auto";
 
+  // ---- Live layout watcher ------------------------------------------------
+  // The canvas keeps its logical resolution, but the CSS box it is painted
+  // into changes constantly on desktop: window resize, browser zoom, and
+  // entering / leaving fullscreen. Any UI screen already on screen was laid
+  // out for the OLD box, so text and buttons ended up either too small to
+  // read (windowed) or clipped outside their panel (after leaving
+  // fullscreen). Every open screen registers a relayout callback here and is
+  // rebuilt at the new size.
+  const uiRelayout = new Set<() => void>();
+  let lastCssW = 0;
+  let lastCssH = 0;
+  let layoutRaf = 0;
+  const readLayout = () => {
+    const rect = opts.canvas?.getBoundingClientRect();
+    const cw = Math.round(rect?.width ?? 0);
+    const ch = Math.round(rect?.height ?? 0);
+    if (cw <= 0 || ch <= 0) return;
+    if (cw === lastCssW && ch === lastCssH) return;
+    lastCssW = cw;
+    lastCssH = ch;
+    UI_TEXT_SCALE = computeUiTextScale(opts.canvas, k.width());
+    for (const fn of [...uiRelayout]) {
+      try {
+        fn();
+      } catch {
+        /* a screen closed mid-resize */
+      }
+    }
+  };
+  const scheduleLayout = () => {
+    if (typeof window === "undefined") return;
+    window.cancelAnimationFrame(layoutRaf);
+    layoutRaf = window.requestAnimationFrame(readLayout);
+  };
+  let layoutObserver: ResizeObserver | null = null;
+  if (typeof window !== "undefined") {
+    window.addEventListener("resize", scheduleLayout);
+    document.addEventListener("fullscreenchange", scheduleLayout);
+    document.addEventListener("webkitfullscreenchange", scheduleLayout as EventListener);
+    if (typeof ResizeObserver !== "undefined" && opts.canvas) {
+      layoutObserver = new ResizeObserver(scheduleLayout);
+      layoutObserver.observe(opts.canvas);
+    }
+    scheduleLayout();
+  }
+  const stopLayoutWatch = () => {
+    if (typeof window === "undefined") return;
+    window.cancelAnimationFrame(layoutRaf);
+    window.removeEventListener("resize", scheduleLayout);
+    document.removeEventListener("fullscreenchange", scheduleLayout);
+    document.removeEventListener("webkitfullscreenchange", scheduleLayout as EventListener);
+    layoutObserver?.disconnect();
+    layoutObserver = null;
+    uiRelayout.clear();
+  };
+
+
+
   // The win result is held back until the player leaves the Thank You screen,
   // so the high-score / suggestion overlay never covers the finale.
   let pendingWin: WinResult | null = null;
@@ -1343,6 +1425,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   k.scene("trail", (spawnX: number = 40, lives: number = 1, resume: RunSnapshot | null = null) => {
     const startTime = k.time();
+    // Screens from the previous scene are gone; drop their relayout hooks so
+    // a resize can never resurrect destroyed nodes.
+    uiRelayout.clear();
+    // Re-read the on-screen size for this scene's UI (the window may have been
+    // resized, or fullscreen toggled, while the previous scene was running).
+    UI_TEXT_SCALE = computeUiTextScale(opts.canvas, k.width());
     // ---- Run clock + per-zone split timing -------------------------------
     // Every zone is timed in the background. Clearing a zone under its par
     // time pays a speed bonus, so two players with identical play still end
@@ -2763,6 +2851,30 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k.outline(2, k.rgb(140, 100, 30)),
       k.z(LAYERS.PROP + 2),
     ]);
+    // Victory pennant. It flies at the top of the pole until the hero grabs
+    // on, then rides down with him — held just above his head — and stays
+    // planted at the base for the walk to the clinic.
+    const flagMastY = poleTop + 4;
+    const flagBaseY = poleBaseY - 34;
+    const flagPennant = k.add([
+      k.rect(22, 15),
+      k.pos(poleX + 4, flagMastY),
+      k.color(255, 215, 70),
+      k.outline(2, k.rgb(140, 100, 30)),
+      k.z(LAYERS.PROP + 3),
+      "pole-flag",
+      { mastY: flagMastY, baseY: flagBaseY },
+    ]) as AnyObj;
+    flagPennant.onUpdate(() => {
+      // A gentle two-frame flutter keeps it alive without leaving the mast.
+      flagPennant.pos.x = poleX + 4 + (Math.floor(k.time() * 4) % 2 === 0 ? 0 : 1);
+      if (zoneState.firePoleAttached && !zoneState.firePoleDone) {
+        // Ride the slide: pinned just above the hero for the whole descent.
+        flagPennant.pos.y = Math.min(flagBaseY, Math.max(flagMastY, player.pos.y - 84));
+      } else if (zoneState.firePoleDone) {
+        flagPennant.pos.y = flagBaseY;
+      }
+    });
     // Trigger areas for fire pole (attach) and finish base (base of pole).
     k.add([
       k.rect(24, poleBaseY - poleTop),
@@ -3661,20 +3773,33 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       stepScreenOpen = true;
       pauseGameplay();
 
-      const W = k.width();
-      const H = k.height();
-      // On wide phones the logical viewport stretches past 960, which would
-      // shrink every glyph on screen. Scale the panel and its type by the
-      // same factor so text keeps a constant physical size.
-      UI_TEXT_SCALE = computeUiTextScale(opts.canvas, W);
-      const S = UI_TEXT_SCALE;
-      const px = (n: number) => Math.round(n * S);
-      const nodes: AnyObj[] = [];
-      const put = (parts: unknown[]) => {
-        const o = k.add(parts as never) as AnyObj;
-        nodes.push(o);
-        return o;
-      };
+      let nodes: AnyObj[] = [];
+      let promptNode: AnyObj | null = null;
+      let closed = false;
+
+      function render() {
+        for (const n of nodes) {
+          try {
+            n.destroy();
+          } catch {
+            /* ignore */
+          }
+        }
+        nodes = [];
+
+        const W = k.width();
+        const H = k.height();
+        // Type is enlarged so it stays physically readable in a small CSS box,
+        // then capped to what the panel can actually hold — otherwise windowed
+        // play pushes headings and the prompt outside the card.
+        const S = computeFittedUiScale(opts.canvas, W, H, 780, 430);
+        UI_TEXT_SCALE = S;
+        const px = (n: number) => Math.round(n * S);
+        const put = (parts: unknown[]) => {
+          const o = k.add(parts as never) as AnyObj;
+          nodes.push(o);
+          return o;
+        };
 
       put([k.rect(W, H), k.pos(0, 0), k.color(0, 0, 0), k.opacity(0.86), k.fixed(), k.z(300)]);
       const panelW = Math.min(px(780), W - px(32));
@@ -3837,26 +3962,43 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         ix += iconBox + gap;
       }
 
-      const promptNode = put([
-        k.text(CONTINUE_PROMPT(), { size: Math.max(14, px(16)), font: UI_FONT }),
-        k.pos(cx, panelY + panelH - px(30)),
-        k.anchor("center"),
-        k.opacity(1),
-        k.color(255, 235, 120),
-        k.fixed(),
-        k.z(303),
-      ]);
+        promptNode = put([
+          k.text(CONTINUE_PROMPT(), { size: Math.max(14, px(16)), font: UI_FONT }),
+          k.pos(cx, panelY + panelH - px(30)),
+          k.anchor("center"),
+          k.opacity(1),
+          k.color(255, 235, 120),
+          k.fixed(),
+          k.z(303),
+        ]);
 
-      // Continue: Enter / Space / click on desktop, tap anywhere on mobile.
-      const hitArea = put([k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305)]);
+        // Continue: Enter / Space / click on desktop, tap anywhere on mobile.
+        const hitArea = put([
+          k.rect(W, H),
+          k.pos(0, 0),
+          k.opacity(0),
+          k.area(),
+          k.fixed(),
+          k.z(305),
+        ]);
+        hitArea.onClick(() => close());
+      }
+
+      render();
+      // Rebuild at the new size whenever the window resizes or the player
+      // enters / leaves fullscreen while the briefing is up.
+      const relayout = () => {
+        if (closed) return;
+        render();
+      };
+      uiRelayout.add(relayout);
 
       const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
         k.onKeyPress(key as never, () => close()),
       );
       const blink = k.onUpdate(() => {
-        promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.3;
+        if (promptNode) promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.3;
       });
-      let closed = false;
       function close() {
         if (closed) return;
         closed = true;
@@ -3889,9 +4031,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         leftArmed = false;
         rightArmed = false;
         if (w?.__gameInput) w.__gameInput.jumpReq = false;
+        uiRelayout.delete(relayout);
         onDone?.();
       }
-      hitArea.onClick(() => close());
     }
 
     /**
@@ -3907,17 +4049,30 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       stepScreenOpen = true;
       pauseGameplay();
 
-      const W = k.width();
-      const H = k.height();
-      UI_TEXT_SCALE = computeUiTextScale(opts.canvas, W);
-      const S = UI_TEXT_SCALE;
-      const px = (n: number) => Math.round(n * S);
-      const nodes: AnyObj[] = [];
-      const put = (parts: unknown[]) => {
-        const o = k.add(parts as never) as AnyObj;
-        nodes.push(o);
-        return o;
-      };
+      let nodes: AnyObj[] = [];
+      let promptNode: AnyObj | null = null;
+      let closed = false;
+
+      function render() {
+        for (const n of nodes) {
+          try {
+            n.destroy();
+          } catch {
+            /* ignore */
+          }
+        }
+        nodes = [];
+
+        const W = k.width();
+        const H = k.height();
+        const S = computeFittedUiScale(opts.canvas, W, H, 660, 300);
+        UI_TEXT_SCALE = S;
+        const px = (n: number) => Math.round(n * S);
+        const put = (parts: unknown[]) => {
+          const o = k.add(parts as never) as AnyObj;
+          nodes.push(o);
+          return o;
+        };
 
       put([k.rect(W, H), k.pos(0, 0), k.color(0, 0, 0), k.opacity(0.86), k.fixed(), k.z(300)]);
       const panelW = Math.min(px(660), W - px(32));
@@ -3974,28 +4129,44 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         panelW - px(70),
       );
 
-      const promptNode = put([
-        k.text(readyPrompt(), {
-          size: Math.max(14, px(16)),
-          font: UI_FONT,
-          align: "center",
-          width: panelW - px(40),
-        }),
-        k.pos(cx, panelY + panelH - px(34)),
-        k.anchor("center"),
-        k.opacity(1),
-        k.color(255, 235, 120),
-        k.fixed(),
-        k.z(303),
-      ]);
-      const hitArea = put([k.rect(W, H), k.pos(0, 0), k.opacity(0), k.area(), k.fixed(), k.z(305)]);
+        promptNode = put([
+          k.text(readyPrompt(), {
+            size: Math.max(14, px(16)),
+            font: UI_FONT,
+            align: "center",
+            width: panelW - px(40),
+          }),
+          k.pos(cx, panelY + panelH - px(34)),
+          k.anchor("center"),
+          k.opacity(1),
+          k.color(255, 235, 120),
+          k.fixed(),
+          k.z(303),
+        ]);
+        const hitArea = put([
+          k.rect(W, H),
+          k.pos(0, 0),
+          k.opacity(0),
+          k.area(),
+          k.fixed(),
+          k.z(305),
+        ]);
+        hitArea.onClick(() => close());
+      }
+
+      render();
+      const relayout = () => {
+        if (closed) return;
+        render();
+      };
+      uiRelayout.add(relayout);
+
       const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
         k.onKeyPress(key as never, () => close()),
       );
       const blink = k.onUpdate(() => {
-        promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.35;
+        if (promptNode) promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.35;
       });
-      let closed = false;
       function close() {
         if (closed) return;
         closed = true;
@@ -4026,9 +4197,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         leftArmed = false;
         rightArmed = false;
         if (w?.__gameInput) w.__gameInput.jumpReq = false;
+        uiRelayout.delete(relayout);
         onReady();
       }
-      hitArea.onClick(() => close());
     }
 
     /** ~3s scripted entrance: the bear charges in from the woods and roars. */
@@ -5115,66 +5286,99 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const body = win
         ? "You navigated every step and enrolled in Medicaid coverage."
         : `${pickFailureMessage(zone, cause ?? "fell")}\n\nTell us what would make the next attempt easier — the form is below the game.`;
-      const T = computeUiTextScale(opts.canvas, k.width());
-      const overlay = k.add([
-        k.rect(k.width(), k.height()),
-        k.pos(0, 0),
-        k.color(0, 0, 0),
-        k.opacity(0.72),
-        k.area(),
-        k.fixed(),
-        k.z(LAYERS.OVERLAY),
-      ]);
-      if (!win) overlay.onClick(() => flushPendingLose());
-      k.add([
-        k.text(title, { size: Math.round(30 * T), font: UI_FONT }),
-        k.pos(k.width() / 2, k.height() / 2 - 78),
-        k.anchor("center"),
-        k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 150, 150)),
-        k.fixed(),
-        k.z(LAYERS.OVERLAY_TEXT),
-      ]);
-      k.add([
-        k.text(body, {
-          size: Math.round(16 * T),
-          font: UI_FONT,
-          width: Math.min(720 * T, k.width() - 40),
-          align: "center",
-        }),
-        k.pos(k.width() / 2, k.height() / 2),
-        k.anchor("center"),
-        k.color(240, 240, 240),
-        k.fixed(),
-        k.z(LAYERS.OVERLAY_TEXT),
-      ]);
+      let nodes: AnyObj[] = [];
+
+      function render() {
+        for (const n of nodes) {
+          try {
+            n.destroy();
+          } catch {
+            /* ignore */
+          }
+        }
+        nodes = [];
+        const W = k.width();
+        const H = k.height();
+        // Capped to the visible buffer so the heading and body can never spill
+        // past the edges when the window is small or leaves fullscreen.
+        const T = computeFittedUiScale(opts.canvas, W, H, 760, 380);
+        const put = (parts: unknown[]) => {
+          const o = k.add(parts as never) as AnyObj;
+          nodes.push(o);
+          return o;
+        };
+        const overlay = put([
+          k.rect(W, H),
+          k.pos(0, 0),
+          k.color(0, 0, 0),
+          k.opacity(0.72),
+          k.area(),
+          k.fixed(),
+          k.z(LAYERS.OVERLAY),
+        ]);
+        if (!win) overlay.onClick(() => flushPendingLose());
+        put([
+          k.text(title, {
+            size: Math.round(30 * T),
+            font: UI_FONT,
+            width: W - Math.round(40 * T),
+            align: "center",
+          }),
+          k.pos(W / 2, H / 2 - Math.round(78 * T)),
+          k.anchor("center"),
+          k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 150, 150)),
+          k.fixed(),
+          k.z(LAYERS.OVERLAY_TEXT),
+        ]);
+        put([
+          k.text(body, {
+            size: Math.round(16 * T),
+            font: UI_FONT,
+            width: Math.min(720 * T, W - 40),
+            align: "center",
+          }),
+          k.pos(W / 2, H / 2),
+          k.anchor("center"),
+          k.color(240, 240, 240),
+          k.fixed(),
+          k.z(LAYERS.OVERLAY_TEXT),
+        ]);
+        if (!win) {
+          // A dejected hero stands at the edge of the failure screen — he did
+          // not get through this step of the coverage journey.
+          const sadH = Math.max(120, Math.min(H * 0.52, 240));
+          put([
+            k.sprite("hero-sad", { width: Math.floor(sadH * 0.677), height: Math.floor(sadH) }),
+            k.pos(18, H - 14),
+            k.anchor("botleft"),
+            k.opacity(0.95),
+            k.fixed(),
+            k.z(LAYERS.OVERLAY_TEXT),
+          ]);
+          put([
+            k.text(restartPrompt(), {
+              size: Math.round(14 * T),
+              font: UI_FONT,
+              width: W - Math.round(40 * T),
+              align: "center",
+            }),
+            k.pos(W / 2, H / 2 + Math.round(100 * T)),
+            k.anchor("center"),
+            k.color(220, 220, 220),
+            k.fixed(),
+            k.z(LAYERS.OVERLAY_TEXT),
+          ]);
+        }
+      }
+
+      render();
+      uiRelayout.add(render);
+
       if (win) {
         // The WIN screen holds for 5s, then hands off to the thank-you
         // cutscene — that scene owns the restart prompt.
         k.wait(5, () => k.go("thanks"));
       } else {
-        // A dejected hero stands at the edge of the failure screen — he did
-        // not get through this step of the coverage journey.
-        const sadH = Math.max(120, Math.min(k.height() * 0.52, 240));
-        k.add([
-          k.sprite("hero-sad", { width: Math.floor(sadH * 0.677), height: Math.floor(sadH) }),
-          k.pos(18, k.height() - 14),
-          k.anchor("botleft"),
-          k.opacity(0.95),
-          k.fixed(),
-          k.z(LAYERS.OVERLAY_TEXT),
-        ]);
-        k.add([
-          k.text(restartPrompt(), {
-            size: Math.round(14 * T),
-            font: UI_FONT,
-            align: "center",
-          }),
-          k.pos(k.width() / 2, k.height() / 2 + 100),
-          k.anchor("center"),
-          k.color(220, 220, 220),
-          k.fixed(),
-          k.z(LAYERS.OVERLAY_TEXT),
-        ]);
         // The name-entry / feedback panel is held back until the player
         // acknowledges the failure screen.
         pendingLose = buildResult(false);
@@ -5757,6 +5961,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   return () => {
     try {
+      stopLayoutWatch();
       unsubscribeFeatures?.();
       unsubscribeFeatures = null;
       k.quit();

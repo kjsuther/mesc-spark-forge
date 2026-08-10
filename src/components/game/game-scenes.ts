@@ -3611,8 +3611,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const textW = panelW - rangerW;
       const cx = Math.floor(panelX + rangerW + textW / 2);
       let y = panelY + px(26);
-      const label = (text: string, size: number, rgb: [number, number, number], width?: number) => {
-        const fs = Math.max(15, px(size));
+      const label = (
+        text: string,
+        size: number,
+        rgb: [number, number, number],
+        width?: number,
+        opts?: { fit?: boolean; min?: number },
+      ) => {
+        let fs = Math.max(opts?.min ?? 15, px(size));
+        // Headings must never clip on a short landscape phone: shrink a single
+        // long line to the panel width instead of letting it run off the card.
+        if (opts?.fit && width) {
+          const longest = Math.max(...text.split("\n").map((l) => l.length), 1);
+          fs = Math.max(opts.min ?? 11, Math.min(fs, (width * 1.85) / longest));
+        }
+        fs = Math.round(fs);
         put([
           k.text(text, {
             size: fs,
@@ -3642,8 +3655,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         y += (main.height ?? fs) + px(8);
       };
 
-      label(data.title, 24, [255, 220, 90], textW - px(48));
-      label(data.subtitle, 17, [180, 205, 255], textW - px(48));
+      label(data.title, 24, [255, 220, 90], textW - px(48), { fit: true, min: 11 });
+      label(data.subtitle, 17, [180, 205, 255], textW - px(48), { fit: true, min: 10 });
       y += px(4);
       label(data.lines.map((l) => `• ${l}`).join("\n"), 19, [245, 245, 245], textW - px(60));
 

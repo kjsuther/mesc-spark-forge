@@ -587,6 +587,24 @@ async function loadImageEl(url: string): Promise<HTMLImageElement> {
  */
 const FRAME_CACHE = new Map<string, { dataUrl: string; w: number; h: number }>();
 
+/**
+ * Family name used for every piece of in-canvas text.
+ *
+ * The engine keeps its rasterised glyph atlas in a module-level cache keyed by
+ * family name, and that cache OUTLIVES an engine restart — so a second run
+ * would sample a texture belonging to the previous, already-destroyed graphics
+ * context and draw every label as a solid black block. Booting under a fresh
+ * (still sans-serif) family name forces a clean atlas for each run. The
+ * leading alias never resolves, so the text always falls back to sans-serif.
+ */
+let UI_FONT = "sans-serif";
+let bootCount = 0;
+function nextUiFont(): string {
+  bootCount += 1;
+  return bootCount === 1 ? "sans-serif" : `kbrun${bootCount}, sans-serif`;
+}
+
+
 async function loadTrimmedSheet(k: Ctx, spec: SheetSpec): Promise<SpriteSizes> {
   const label0 = spec.label ?? spec.url.split("/").pop() ?? spec.url;
   // Fully cached sheet: register the stored frames and skip decoding entirely.

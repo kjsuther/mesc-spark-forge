@@ -1510,7 +1510,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     type Door = { obj: AnyObj; barrier: AnyObj | null; unlocked: boolean; playedAnim: boolean };
     const doors: (Door | null)[] = new Array(ZONES.length).fill(null);
 
-
     function setGameObjSprite(obj: AnyObj, name: string) {
       const ds = displaySize(name, sizes);
       obj.sprite = name;
@@ -2317,7 +2316,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           plat.lastPos.y = plat.pos.y;
         });
       }
-
     }
     // Background thought bubbles — decorative "what am I filling out?" chatter.
     {
@@ -3584,7 +3582,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         lines: [
           "Platforms fall away once you step on them — keep moving!",
           "Reaching the other side unlocks the exit door.",
-
         ],
         icons: [{ shape: "platform", label: "PLATFORM" }],
       },
@@ -4822,7 +4819,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           boss.nextShot = now + (1.2 + Math.random() * 0.4) / rage;
         }
 
-
         // Flash while invulnerable.
         const wantHurt = now < boss.hurtUntil;
         const nextBossSprite = wantHurt ? "boss-hurt" : "boss-idle";
@@ -5032,7 +5028,6 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Zone 3's collapsing platforms come back so the crossing stays winnable.
       resetRiverPlatforms();
       updateHud();
-
     }
 
     // Failure results are held until the player acknowledges the failure

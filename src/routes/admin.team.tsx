@@ -175,11 +175,31 @@ function AdminTeamPage() {
               />
             </label>
             <label className="text-sm font-semibold text-mn-blue">
+              Goes By
+              <input
+                value={draft.goes_by}
+                onChange={(e) => setDraft({ ...draft, goes_by: e.target.value })}
+                maxLength={100}
+                placeholder="e.g. PJ"
+                className="mt-1 w-full rounded-lg border border-mn-blue/25 bg-white px-3 py-2 text-sm font-normal text-dark-gray"
+              />
+            </label>
+            <label className="text-sm font-semibold text-mn-blue">
               Title
               <input
                 value={draft.title}
                 onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                 maxLength={300}
+                className="mt-1 w-full rounded-lg border border-mn-blue/25 bg-white px-3 py-2 text-sm font-normal text-dark-gray"
+              />
+            </label>
+            <label className="text-sm font-semibold text-mn-blue">
+              Organization
+              <input
+                value={draft.organization}
+                onChange={(e) => setDraft({ ...draft, organization: e.target.value })}
+                maxLength={300}
+                placeholder="e.g. Minnesota Department of Human Services"
                 className="mt-1 w-full rounded-lg border border-mn-blue/25 bg-white px-3 py-2 text-sm font-normal text-dark-gray"
               />
             </label>

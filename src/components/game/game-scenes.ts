@@ -5262,66 +5262,99 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const body = win
         ? "You navigated every step and enrolled in Medicaid coverage."
         : `${pickFailureMessage(zone, cause ?? "fell")}\n\nTell us what would make the next attempt easier — the form is below the game.`;
-      const T = computeUiTextScale(opts.canvas, k.width());
-      const overlay = k.add([
-        k.rect(k.width(), k.height()),
-        k.pos(0, 0),
-        k.color(0, 0, 0),
-        k.opacity(0.72),
-        k.area(),
-        k.fixed(),
-        k.z(LAYERS.OVERLAY),
-      ]);
-      if (!win) overlay.onClick(() => flushPendingLose());
-      k.add([
-        k.text(title, { size: Math.round(30 * T), font: UI_FONT }),
-        k.pos(k.width() / 2, k.height() / 2 - 78),
-        k.anchor("center"),
-        k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 150, 150)),
-        k.fixed(),
-        k.z(LAYERS.OVERLAY_TEXT),
-      ]);
-      k.add([
-        k.text(body, {
-          size: Math.round(16 * T),
-          font: UI_FONT,
-          width: Math.min(720 * T, k.width() - 40),
-          align: "center",
-        }),
-        k.pos(k.width() / 2, k.height() / 2),
-        k.anchor("center"),
-        k.color(240, 240, 240),
-        k.fixed(),
-        k.z(LAYERS.OVERLAY_TEXT),
-      ]);
+      let nodes: AnyObj[] = [];
+
+      function render() {
+        for (const n of nodes) {
+          try {
+            n.destroy();
+          } catch {
+            /* ignore */
+          }
+        }
+        nodes = [];
+        const W = k.width();
+        const H = k.height();
+        // Capped to the visible buffer so the heading and body can never spill
+        // past the edges when the window is small or leaves fullscreen.
+        const T = computeFittedUiScale(opts.canvas, W, H, 760, 380);
+        const put = (parts: unknown[]) => {
+          const o = k.add(parts as never) as AnyObj;
+          nodes.push(o);
+          return o;
+        };
+        const overlay = put([
+          k.rect(W, H),
+          k.pos(0, 0),
+          k.color(0, 0, 0),
+          k.opacity(0.72),
+          k.area(),
+          k.fixed(),
+          k.z(LAYERS.OVERLAY),
+        ]);
+        if (!win) overlay.onClick(() => flushPendingLose());
+        put([
+          k.text(title, {
+            size: Math.round(30 * T),
+            font: UI_FONT,
+            width: W - Math.round(40 * T),
+            align: "center",
+          }),
+          k.pos(W / 2, H / 2 - Math.round(78 * T)),
+          k.anchor("center"),
+          k.color(win ? k.rgb(255, 220, 90) : k.rgb(255, 150, 150)),
+          k.fixed(),
+          k.z(LAYERS.OVERLAY_TEXT),
+        ]);
+        put([
+          k.text(body, {
+            size: Math.round(16 * T),
+            font: UI_FONT,
+            width: Math.min(720 * T, W - 40),
+            align: "center",
+          }),
+          k.pos(W / 2, H / 2),
+          k.anchor("center"),
+          k.color(240, 240, 240),
+          k.fixed(),
+          k.z(LAYERS.OVERLAY_TEXT),
+        ]);
+        if (!win) {
+          // A dejected hero stands at the edge of the failure screen — he did
+          // not get through this step of the coverage journey.
+          const sadH = Math.max(120, Math.min(H * 0.52, 240));
+          put([
+            k.sprite("hero-sad", { width: Math.floor(sadH * 0.677), height: Math.floor(sadH) }),
+            k.pos(18, H - 14),
+            k.anchor("botleft"),
+            k.opacity(0.95),
+            k.fixed(),
+            k.z(LAYERS.OVERLAY_TEXT),
+          ]);
+          put([
+            k.text(restartPrompt(), {
+              size: Math.round(14 * T),
+              font: UI_FONT,
+              width: W - Math.round(40 * T),
+              align: "center",
+            }),
+            k.pos(W / 2, H / 2 + Math.round(100 * T)),
+            k.anchor("center"),
+            k.color(220, 220, 220),
+            k.fixed(),
+            k.z(LAYERS.OVERLAY_TEXT),
+          ]);
+        }
+      }
+
+      render();
+      uiRelayout.add(render);
+
       if (win) {
         // The WIN screen holds for 5s, then hands off to the thank-you
         // cutscene — that scene owns the restart prompt.
         k.wait(5, () => k.go("thanks"));
       } else {
-        // A dejected hero stands at the edge of the failure screen — he did
-        // not get through this step of the coverage journey.
-        const sadH = Math.max(120, Math.min(k.height() * 0.52, 240));
-        k.add([
-          k.sprite("hero-sad", { width: Math.floor(sadH * 0.677), height: Math.floor(sadH) }),
-          k.pos(18, k.height() - 14),
-          k.anchor("botleft"),
-          k.opacity(0.95),
-          k.fixed(),
-          k.z(LAYERS.OVERLAY_TEXT),
-        ]);
-        k.add([
-          k.text(restartPrompt(), {
-            size: Math.round(14 * T),
-            font: UI_FONT,
-            align: "center",
-          }),
-          k.pos(k.width() / 2, k.height() / 2 + 100),
-          k.anchor("center"),
-          k.color(220, 220, 220),
-          k.fixed(),
-          k.z(LAYERS.OVERLAY_TEXT),
-        ]);
         // The name-entry / feedback panel is held back until the player
         // acknowledges the failure screen.
         pendingLose = buildResult(false);

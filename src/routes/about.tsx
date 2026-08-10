@@ -24,11 +24,7 @@ function AboutLayout() {
             <Link
               key={tab.to}
               to={tab.to}
-              className="shrink-0 rounded-full border border-mn-blue/20 bg-white px-4 py-2 text-xs font-bold uppercase tracking-wide text-mn-blue transition hover:bg-mn-blue/10 sm:text-sm"
-              activeProps={{
-                className:
-                  "shrink-0 rounded-full border border-mn-blue bg-mn-blue px-4 py-2 text-xs font-bold uppercase tracking-wide text-white shadow-sm sm:text-sm",
-              }}
+              className="shrink-0 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wide transition sm:text-sm border border-mn-blue/20 bg-white text-mn-blue hover:bg-mn-blue/10 data-[status=active]:border-mn-blue data-[status=active]:bg-mn-blue data-[status=active]:text-white data-[status=active]:shadow-sm"
             >
               {tab.label}
             </Link>

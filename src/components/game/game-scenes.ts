@@ -3868,17 +3868,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       );
 
       const promptNode = put([
-        k.text(
-          isCoarsePointer()
-            ? "Tap when you're READY"
-            : "Press Enter, Space, or Click when you're READY",
-          {
-            size: Math.max(14, px(16)),
-            font: "sans-serif",
-            align: "center",
-            width: panelW - px(40),
-          },
-        ),
+        k.text(readyPrompt(), {
+          size: Math.max(14, px(16)),
+          font: "sans-serif",
+          align: "center",
+          width: panelW - px(40),
+        }),
         k.pos(cx, panelY + panelH - px(34)),
         k.anchor("center"),
         k.opacity(1),

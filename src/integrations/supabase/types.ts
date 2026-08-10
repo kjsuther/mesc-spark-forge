@@ -184,8 +184,10 @@ export type Database = {
           bio: string | null
           created_at: string
           full_name: string
+          goes_by: string | null
           hidden: boolean
           id: string
+          organization: string | null
           photo_path: string | null
           sort_order: number
           title: string
@@ -195,8 +197,10 @@ export type Database = {
           bio?: string | null
           created_at?: string
           full_name: string
+          goes_by?: string | null
           hidden?: boolean
           id?: string
+          organization?: string | null
           photo_path?: string | null
           sort_order?: number
           title?: string
@@ -206,8 +210,10 @@ export type Database = {
           bio?: string | null
           created_at?: string
           full_name?: string
+          goes_by?: string | null
           hidden?: boolean
           id?: string
+          organization?: string | null
           photo_path?: string | null
           sort_order?: number
           title?: string

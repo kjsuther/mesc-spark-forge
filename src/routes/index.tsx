@@ -186,14 +186,24 @@ function WelcomePage() {
           className="max-w-6xl w-full mx-auto px-5 sm:px-6 -mt-8 sm:-mt-12 relative z-10 scroll-mt-24"
         >
           <div className="rounded-2xl bg-mn-blue text-white p-5 sm:p-7 shadow-xl">
-            <p className="text-accent-gold text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mb-2">
-              What's the Concept?
-            </p>
-            <h2 className="text-lg sm:text-xl md:text-2xl font-bold leading-snug max-w-3xl">
-              AI-assisted development can turn ideas into working software fast — and that speed is
-              most valuable because of how quickly it lets business and technology teams learn from
-              real feedback.
-            </h2>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-accent-gold text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mb-2">
+                  What's the Concept?
+                </p>
+                <h2 className="text-lg sm:text-xl md:text-2xl font-bold leading-snug max-w-3xl">
+                  AI-assisted development can turn ideas into working software fast — and that speed is
+                  most valuable because of how quickly it lets business and technology teams learn from
+                  real feedback.
+                </h2>
+              </div>
+              <a
+                href="#how-it-works"
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/40 bg-white/10 px-3 py-1.5 text-xs font-bold hover:bg-white/20 transition"
+              >
+                How this Works?
+              </a>
+            </div>
             <p className="mt-3 text-sm sm:text-base text-cream/85 max-w-3xl leading-relaxed">
               Requirements are interpretations. A working product is not. When stakeholders can use
               something real early, gaps show up in minutes instead of after months of build, and
@@ -212,11 +222,14 @@ function WelcomePage() {
           </div>
 
           {/* The takeaway: visible first, before the tiles */}
-          <p className="mt-6 rounded-xl border-2 border-accent-gold/60 bg-accent-gold/10 px-5 py-4 text-sm sm:text-base font-semibold text-mn-blue">
-            The takeaway: this isn't "we used AI to make a video game." It's a demonstration that
-            faster building plus continuous human feedback leads to faster alignment, less rework,
-            and better outcomes. The people in the loop still decide what "better" means.
-          </p>
+          <div className="mt-6 rounded-xl border-l-4 border-accent-gold bg-accent-gold/20 px-5 py-5 shadow-sm">
+            <p className="text-sm sm:text-lg font-bold text-mn-blue leading-relaxed">
+              <span className="text-accent-orange mr-1" aria-hidden="true">★</span>
+              The takeaway: this isn't "we used AI to make a video game." It's a demonstration that
+              faster building plus continuous human feedback leads to faster alignment, less rework,
+              and better outcomes. The people in the loop still decide what "better" means.
+            </p>
+          </div>
 
           {/* The story: problem → opportunity → loop → demo → broader application */}
           <ol className="mt-6 grid gap-3 md:grid-cols-2">

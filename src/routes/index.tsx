@@ -176,6 +176,12 @@ function WelcomePage() {
               >
                 What's the concept?
               </a>
+              <a
+                href="#how-it-works"
+                className="inline-flex items-center gap-2 bg-white/10 text-white font-bold py-3 px-6 rounded-xl hover:bg-white/20 transition ring-1 ring-white/40"
+              >
+                How this Works?
+              </a>
             </div>
           </div>
         </section>

@@ -4811,6 +4811,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
     player.onCollide("plan-pick", (p) => {
       if (zoneState.planPicked) return;
+      // Only count as a pick when the hero is actually up on the island —
+      // never by brushing the pedestal from the running lane below.
+      if (player.pos.y > PLAN_PLAT_TOP + 24) return;
+
       const item = p as unknown as {
         planLabel: string;
         bonus: number;

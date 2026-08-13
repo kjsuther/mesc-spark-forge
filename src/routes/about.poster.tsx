@@ -196,14 +196,16 @@ function AboutPosterPage() {
         id="why-game"
         className="bg-accent-gold/10 border-2 border-accent-gold/50 rounded-3xl p-8 scroll-mt-36"
       >
-        <h2 className="text-2xl font-bold text-mn-blue mb-4">Why a video game?</h2>
+        <h2 className="text-2xl font-bold text-mn-blue mb-4">Why demonstrate with a game?</h2>
         <p className="text-dark-gray/80 max-w-3xl leading-relaxed">
-          Because a game gets people to a shared understanding fast. Instead of debating a
-          requirements document, everyone experiences the same obstacle course — missing documents,
-          account lockouts, waiting for a decision — and then argues about how to fix it with
-          something concrete in front of them. Playing, reacting, changing it, and re-testing in the
-          same hour is the fastest way we've found to align on a concept.
+          Because it makes the working method visible in a few minutes. A game is small enough to
+          rebuild live, and familiar enough that everyone can react to it honestly. What we're
+          actually demonstrating is the loop: define an idea, use AI-assisted tools to build
+          something tangible quickly, put it in front of real people, incorporate what they say, and
+          re-test. The same loop applies to eligibility systems, member portals, and worker tools —
+          anywhere a written requirement can be read two different ways.
         </p>
+
       </section>
 
       {/* Game → real world */}

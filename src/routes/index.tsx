@@ -98,33 +98,7 @@ const LOOP_CARDS = [
   "Improve and re-test",
 ];
 
-const STORY: { eyebrow: string; title: string; body: string }[] = [
-  {
-    eyebrow: "The problem",
-    title: "Written requirements get interpreted differently",
-    body: "Business and technology teams often read the same requirement and picture different outcomes. By the time a product is shown, time and money are already spent and the result may miss the mark. Rework follows.",
-  },
-  {
-    eyebrow: "The opportunity",
-    title: "Ideas can become tangible in hours",
-    body: "Modern AI-assisted development tools let teams turn a requirement into something people can actually use quickly. Stakeholders stop guessing and start interacting.",
-  },
-  {
-    eyebrow: "The new loop",
-    title: "Align on the product, not the document",
-    body: "When people use something real, gaps surface immediately. Feedback is built in the same conversation, tested right away, and teams align around the actual outcome.",
-  },
-  {
-    eyebrow: "The demonstration",
-    title: "This video game is our example",
-    body: "We built a simple 16-bit game, people played it, told us what to fix, and we improved it live. The same loop applies to Medicaid technology and other public services.",
-  },
-  {
-    eyebrow: "The broader application",
-    title: "The same approach fits work that matters more",
-    body: "If a game can be improved this fast, so can the tools people use to access health coverage and services. Working prototypes, early feedback, and rapid iteration create better outcomes.",
-  },
-];
+
 
 
 function WelcomePage() {

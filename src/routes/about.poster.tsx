@@ -124,15 +124,17 @@ function AboutPosterPage() {
           MESC 2026 Poster Session
         </p>
         <h1 className="text-4xl md:text-5xl font-bold text-mn-blue tracking-tight mb-4">
-          Trailblazing Medicaid, Live
+          Ideas to Working Software, Live
         </h1>
         <p className="text-xl text-dark-gray/80 max-w-3xl">
-          We built a 16-bit video game about applying for health coverage — every barrier in it is
-          one real applicants hit. Attendees play it, tell us what's broken, and we build that
-          feedback into the game during the session. Then they play it again. Ideas in, working
-          software out — in minutes, not months.
+          This poster is about how business and technology teams can work together differently.
+          Modern AI-assisted development tools let a team turn an idea into something people can
+          actually use in hours — so feedback arrives early, misunderstandings surface fast, and the
+          product improves while stakeholders are still in the room. Our 16-bit game about applying
+          for health coverage is simply the example we use to show it.
         </p>
       </header>
+
 
       <SectionJumpNav />
 

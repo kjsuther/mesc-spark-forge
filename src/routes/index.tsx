@@ -4,6 +4,13 @@ import { SiteFooter } from "@/components/site-footer";
 import { MountainScape } from "@/components/trail/mountain-scape";
 import { SectionHeading } from "@/components/trail/section-heading";
 import { PixelLevelStrip } from "@/components/pixel/pixel-art";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
+
 
 
 export const Route = createFileRoute("/")({
@@ -195,7 +202,26 @@ function WelcomePage() {
               and better outcomes. The people in the loop still decide what "better" means.
             </p>
           </div>
+
+          {/* The Broader Application — collapsible tile */}
+          <Collapsible defaultOpen={false} className="mt-6 rounded-2xl border border-mn-blue/20 bg-cream/95 shadow-sm overflow-hidden">
+            <CollapsibleTrigger className="w-full flex items-start justify-between gap-3 p-5 sm:p-6 text-left group">
+              <div>
+                <p className="text-[10px] sm:text-[11px] font-bold uppercase tracking-widest text-accent-orange mb-1">
+                  The Broader Application
+                </p>
+                <h3 className="text-base sm:text-lg font-bold text-mn-blue leading-snug">
+                  The same approach fits work that matters more
+                </h3>
+              </div>
+              <ChevronDown className="mt-1 w-5 h-5 text-mn-blue transition-transform duration-200 group-data-[state=open]:rotate-180 flex-shrink-0" />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="px-5 sm:px-6 pb-5 sm:pb-6 text-sm sm:text-base text-dark-gray/80 leading-relaxed">
+              If a game can be improved this fast, so can the tools people use to access health coverage and services. Working prototypes, early feedback, and rapid iteration create better outcomes.
+            </CollapsibleContent>
+          </Collapsible>
         </section>
+
 
         <PixelLevelStrip className="mt-12 h-12 sm:h-16 opacity-70" />
 

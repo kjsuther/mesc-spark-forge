@@ -10,21 +10,22 @@ import { useEffect, useRef, useState } from "react";
 export const Route = createFileRoute("/about/poster")({
   head: () => ({
     meta: [
-      { title: "About this poster session — Blazing the Trail to Coverage" },
+      { title: "About this poster session — Ideas to Working Software, Live" },
       {
         name: "description",
         content:
-          "How this MESC 2026 poster session works: attendees play a game about applying for coverage, give feedback, and watch that feedback ship into the game live.",
+          "How this MESC 2026 poster session works: AI-assisted development and rapid feedback loops turn ideas into working software while stakeholders watch — demonstrated with a 16-bit coverage game.",
       },
       {
         property: "og:title",
-        content: "About this poster session — Blazing the Trail to Coverage",
+        content: "About this poster session — Ideas to Working Software, Live",
       },
       {
         property: "og:description",
         content:
-          "Play the game, give feedback, watch it ship, replay it — aligning on concepts in minutes instead of months.",
+          "Build fast, gather real feedback, improve, re-test — aligning business and technology teams in minutes instead of months.",
       },
+
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

@@ -10,21 +10,22 @@ import { useEffect, useRef, useState } from "react";
 export const Route = createFileRoute("/about/poster")({
   head: () => ({
     meta: [
-      { title: "About this poster session — Blazing the Trail to Coverage" },
+      { title: "About this poster session — Ideas to Working Software, Live" },
       {
         name: "description",
         content:
-          "How this MESC 2026 poster session works: attendees play a game about applying for coverage, give feedback, and watch that feedback ship into the game live.",
+          "How this MESC 2026 poster session works: AI-assisted development and rapid feedback loops turn ideas into working software while stakeholders watch — demonstrated with a 16-bit coverage game.",
       },
       {
         property: "og:title",
-        content: "About this poster session — Blazing the Trail to Coverage",
+        content: "About this poster session — Ideas to Working Software, Live",
       },
       {
         property: "og:description",
         content:
-          "Play the game, give feedback, watch it ship, replay it — aligning on concepts in minutes instead of months.",
+          "Build fast, gather real feedback, improve, re-test — aligning business and technology teams in minutes instead of months.",
       },
+
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -124,15 +125,17 @@ function AboutPosterPage() {
           MESC 2026 Poster Session
         </p>
         <h1 className="text-4xl md:text-5xl font-bold text-mn-blue tracking-tight mb-4">
-          Trailblazing Medicaid, Live
+          Ideas to Working Software, Live
         </h1>
         <p className="text-xl text-dark-gray/80 max-w-3xl">
-          We built a 16-bit video game about applying for health coverage — every barrier in it is
-          one real applicants hit. Attendees play it, tell us what's broken, and we build that
-          feedback into the game during the session. Then they play it again. Ideas in, working
-          software out — in minutes, not months.
+          This poster is about how business and technology teams can work together differently.
+          Modern AI-assisted development tools let a team turn an idea into something people can
+          actually use in hours — so feedback arrives early, misunderstandings surface fast, and the
+          product improves while stakeholders are still in the room. Our 16-bit game about applying
+          for health coverage is simply the example we use to show it.
         </p>
       </header>
+
 
       <SectionJumpNav />
 
@@ -193,14 +196,16 @@ function AboutPosterPage() {
         id="why-game"
         className="bg-accent-gold/10 border-2 border-accent-gold/50 rounded-3xl p-8 scroll-mt-36"
       >
-        <h2 className="text-2xl font-bold text-mn-blue mb-4">Why a video game?</h2>
+        <h2 className="text-2xl font-bold text-mn-blue mb-4">Why demonstrate with a game?</h2>
         <p className="text-dark-gray/80 max-w-3xl leading-relaxed">
-          Because a game gets people to a shared understanding fast. Instead of debating a
-          requirements document, everyone experiences the same obstacle course — missing documents,
-          account lockouts, waiting for a decision — and then argues about how to fix it with
-          something concrete in front of them. Playing, reacting, changing it, and re-testing in the
-          same hour is the fastest way we've found to align on a concept.
+          Because it makes the working method visible in a few minutes. A game is small enough to
+          rebuild live, and familiar enough that everyone can react to it honestly. What we're
+          actually demonstrating is the loop: define an idea, use AI-assisted tools to build
+          something tangible quickly, put it in front of real people, incorporate what they say, and
+          re-test. The same loop applies to eligibility systems, member portals, and worker tools —
+          anywhere a written requirement can be read two different ways.
         </p>
+
       </section>
 
       {/* Game → real world */}

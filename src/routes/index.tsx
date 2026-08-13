@@ -302,10 +302,4 @@ function WelcomePage() {
       <SiteFooter />
     </div>
   );
-
-      </main>
-
-      <SiteFooter />
-    </div>
-  );
 }

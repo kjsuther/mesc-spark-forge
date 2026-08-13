@@ -168,7 +168,7 @@ function WelcomePage() {
                 to="/tool"
                 className="inline-flex items-center gap-2 bg-accent-orange text-white font-bold py-3 px-6 rounded-xl hover:brightness-105 transition ring-1 ring-accent-gold/70"
               >
-                ▶ Play the demonstration
+                ▶ Play the game
               </Link>
               <a
                 href="#concept"

@@ -211,31 +211,48 @@ function WelcomePage() {
             </ul>
           </div>
 
-          {/* The story: problem → opportunity → loop → demo → broader application */}
-          <ol className="mt-8 grid gap-4 md:grid-cols-2">
-            {STORY.map((s, i) => (
-              <li
-                key={s.eyebrow}
-                className={`rounded-2xl border-2 border-mn-blue/15 bg-cream/70 p-6 ${
-                  i === STORY.length - 1 ? "md:col-span-2 bg-mn-green/10 border-mn-green/40" : ""
-                }`}
-              >
-                <p className="text-[10px] font-bold uppercase tracking-widest text-accent-orange mb-1">
-                  {s.eyebrow}
-                </p>
-                <h3 className="font-bold text-mn-blue text-lg leading-tight">{s.title}</h3>
-                <p className="mt-2 text-sm sm:text-base text-dark-gray/85 leading-relaxed">
-                  {s.body}
-                </p>
-              </li>
-            ))}
-          </ol>
-
+          {/* The takeaway: visible first, before the tiles */}
           <p className="mt-6 rounded-xl border-2 border-accent-gold/60 bg-accent-gold/10 px-5 py-4 text-sm sm:text-base font-semibold text-mn-blue">
             The takeaway: this isn't "we used AI to make a video game." It's a demonstration that
             faster building plus continuous human feedback leads to faster alignment, less rework,
             and better outcomes. The people in the loop still decide what "better" means.
           </p>
+
+          {/* The story: problem → opportunity → loop → demo → broader application */}
+          <ol className="mt-6 grid gap-3 md:grid-cols-2">
+            {STORY.map((s, i) => (
+              <li
+                key={s.eyebrow}
+                className={`rounded-2xl border-2 border-mn-blue/15 bg-cream/70 p-4 ${
+                  i === STORY.length - 1 ? "md:col-span-2 bg-mn-green/10 border-mn-green/40" : ""
+                }`}
+              >
+                <Collapsible defaultOpen={false}>
+                  <CollapsibleTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full flex items-center justify-between text-left group"
+                    >
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-accent-orange mb-1">
+                          {s.eyebrow}
+                        </p>
+                        <h3 className="font-bold text-mn-blue text-base sm:text-lg leading-tight pr-2">
+                          {s.title}
+                        </h3>
+                      </div>
+                      <ChevronDown className="h-5 w-5 flex-shrink-0 text-mn-blue/60 transition-transform group-data-[state=open]:rotate-180" />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <p className="mt-3 text-sm text-dark-gray/85 leading-relaxed">
+                      {s.body}
+                    </p>
+                  </CollapsibleContent>
+                </Collapsible>
+              </li>
+            ))}
+          </ol>
         </section>
 
         <PixelLevelStrip className="mt-12 h-12 sm:h-16 opacity-70" />

@@ -16,7 +16,9 @@ export type SfxKind =
   | "bear-step"
   | "roar"
   | "impact"
+  | "pickup"
   | "whoosh";
+
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -139,8 +141,14 @@ export function playSfx(kind: SfxKind) {
       tone(90, t, 0.25, "triangle", 0.35, 40);
       burst(t, 0.2, 0.3, 60, 1200);
       break;
+    case "pickup":
+      // Bright two-note rising blip: "got it".
+      tone(880, t, 0.09, "square", 0.18);
+      tone(1318, t + 0.08, 0.14, "square", 0.16);
+      break;
     case "whoosh":
       burst(t, 0.4, 0.16, 200, 2600);
       break;
+
   }
 }

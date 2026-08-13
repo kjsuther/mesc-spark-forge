@@ -2152,7 +2152,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       item.onUpdate(() => {
         item.pos.y = item.basY + Math.sin(k.time() * 2) * 5;
       });
-      addSpeech(k, ux, uy - 32, "USERNAME", [30, 60, 130]);
+      item.sign = addSpeech(k, ux, uy - 32, "USERNAME", [30, 60, 130]);
     }
     // Password collectible + patrolling padlock
     {
@@ -2171,7 +2171,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       item.onUpdate(() => {
         item.pos.y = item.basY + Math.sin(k.time() * 2 + 1) * 5;
       });
-      addSpeech(k, px, py - 32, "PASSWORD", [30, 60, 130]);
+      item.sign = addSpeech(k, px, py - 32, "PASSWORD", [30, 60, 130]);
     }
     // Password padlock enemy patrol
     {
@@ -2448,14 +2448,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     ];
     for (const [x, prop, key] of docs) {
       const dh = DISPLAY_H[prop];
-      spawnGrounded(k, prop, sizes, {
+      const doc = spawnGrounded(k, prop, sizes, {
         x,
         z: LAYERS.PROP,
         tag: "doc",
         props: { docKey: key },
         hitboxScale: { x: -dh / 2, w: dh, h: dh },
       });
+      // Sign above the document; destroyed the moment it's collected.
+      doc.sign = addSpeech(k, x, GROUND_Y - dh - 30, key.toUpperCase(), [30, 60, 130]);
     }
+
     {
       const mh = DISPLAY_H["form-monster"];
       const mw = displaySize("form-monster", sizes).w;
@@ -2792,18 +2795,28 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.sprite(p.sprite, { width: dw, height: dh }),
         k.pos(p.x, PLAN_PLAT_TOP - 10),
         k.anchor("bot"),
-        // anchor("bot"): keep the pickup box ON the island, not hanging down
-        // into the running lane where it could be grabbed from the ground.
-        k.area({ shape: new k.Rect(k.vec2(-dw / 2, -dh), dw, dh) }),
-
+        // Same convention as every other pickup: with anchor("bot") the shape
+        // origin is the sprite's bottom-left, so this box exactly covers the
+        // drawn card. (A hand-rolled offset here shifted the box off the art
+        // and made touches silently miss.)
+        k.area({ shape: new k.Rect(k.vec2(0, 0), dw, dh) }),
         k.z(LAYERS.PROP),
         "plan-pick",
+        "plan-choice-ui",
         { planLabel: p.label, bonus: 800 },
       ]) as AnyObj;
       void item;
-      addSpeech(k, p.x, PLAN_PLAT_TOP - dh - 26, p.label, [30, 30, 60]);
+      addSpeech(k, p.x, PLAN_PLAT_TOP - dh - 26, p.label, [30, 30, 60], "plan-choice-ui");
     }
-    addSpeech(k, kx0 + 520, GROUND_Y - 186, "Step up and pick ONE plan", [30, 60, 120]);
+    addSpeech(
+      k,
+      kx0 + 520,
+      GROUND_Y - 186,
+      "Step up and pick ONE plan",
+      [30, 60, 120],
+      "plan-choice-ui",
+    );
+
 
 
 
@@ -3067,6 +3080,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // Debug hook so QA/Playwright can inspect live game state.
     if (typeof window !== "undefined") {
       (window as unknown as { __gameDebug?: unknown }).__gameDebug = {
+        k,
+
         player,
         doors,
         zoneState,
@@ -4760,20 +4775,29 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     });
 
     player.onCollide("credential", (c) => {
-      const cr = c as unknown as { credKind: "user" | "pass"; destroy: () => void };
+      const cr = c as unknown as {
+        credKind: "user" | "pass";
+        sign?: AnyObj[];
+        destroy: () => void;
+      };
       if (cr.credKind === "user") zoneState.userGot = true;
       else zoneState.passGot = true;
       player.score += 600;
+      removeSpeech(cr.sign);
+      playSfx("pickup");
       cr.destroy();
     });
 
     player.onCollide("doc", (d) => {
-      const doc = d as unknown as { docKey: string; destroy: () => void };
+      const doc = d as unknown as { docKey: string; sign?: AnyObj[]; destroy: () => void };
       if (!player.docs.has(doc.docKey)) zoneState.docsInZone += 1;
       player.docs.add(doc.docKey);
       player.score += 750;
+      removeSpeech(doc.sign);
+      playSfx("pickup");
       doc.destroy();
     });
+
 
     player.onCollide("reply", (r) => {
       const item = r as unknown as { bonus: number; destroy: () => void };
@@ -4811,9 +4835,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
     player.onCollide("plan-pick", (p) => {
       if (zoneState.planPicked) return;
-      // Only count as a pick when the hero is actually up on the island —
-      // never by brushing the pedestal from the running lane below.
-      if (player.pos.y > PLAN_PLAT_TOP + 24) return;
+      // Guard only against grabbing a card while clearly down in the running
+      // lane below the island; anything at (or near) island level counts.
+      if (player.pos.y > GROUND_Y - 60) return;
 
       const item = p as unknown as {
         planLabel: string;
@@ -4824,8 +4848,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const label = item.planLabel;
       zoneState.planPicked = true;
       player.score += item.bonus ?? 800;
-      // Remove every plan pedestal (including the collided one).
+      playSfx("pickup");
+      // Remove every plan pedestal plus the labels and the prompt sign.
+      k.get("plan-choice-ui").forEach((o) => (o as { destroy: () => void }).destroy());
       k.get("plan-pick").forEach((o) => (o as { destroy: () => void }).destroy());
+
       showHint(`Picked ${label} — get ready, something is coming through the trees...`);
       // Plan chosen -> the bear charges in (once), then the ready card, then
       // the fight begins.
@@ -6280,15 +6307,25 @@ function addSignPlaque(k: Ctx, x: number, topY: number, label: string, badge: st
   ]);
 }
 
-function addSpeech(k: Ctx, x: number, y: number, text: string, _rgb: [number, number, number]) {
+function addSpeech(
+  k: Ctx,
+  x: number,
+  y: number,
+  text: string,
+  _rgb: [number, number, number],
+  tag?: string,
+): AnyObj[] {
   // High-contrast world label: dark plaque behind gold text with 1-px shadow.
   // (rgb argument ignored — standardized on gold-on-navy for legibility.)
   // Sized up so the sign stays readable in windowed (non-fullscreen) play.
+  // Returns its parts so callers can destroy the sign once the thing it
+  // labels has been collected.
   const size = Math.round(16 * UI_TEXT_SCALE);
   const charW = size * 0.62;
   const w = Math.max(72, Math.ceil(text.length * charW) + 22);
   const h = size + 16;
-  k.add([
+  const extra = tag ? [tag] : [];
+  const plaque = k.add([
     k.rect(w, h, { radius: 3 }),
     k.pos(x, y),
     k.anchor("center"),
@@ -6296,22 +6333,39 @@ function addSpeech(k: Ctx, x: number, y: number, text: string, _rgb: [number, nu
     k.outline(3, k.rgb(255, 220, 90)),
     k.opacity(1),
     k.z(LAYERS.EFFECT),
-  ]);
-  k.add([
+    ...extra,
+  ] as never) as AnyObj;
+  const shadow = k.add([
     k.text(text, { size, font: UI_FONT, align: "center" }),
     k.pos(x + 2, y + 2),
     k.anchor("center"),
     k.color(0, 0, 0),
     k.z(LAYERS.EFFECT + 1),
-  ]);
-  k.add([
+    ...extra,
+  ] as never) as AnyObj;
+  const label = k.add([
     k.text(text, { size, font: UI_FONT, align: "center" }),
     k.pos(x, y),
     k.anchor("center"),
     k.color(255, 232, 130),
     k.z(LAYERS.EFFECT + 2),
-  ]);
+    ...extra,
+  ] as never) as AnyObj;
+  return [plaque, shadow, label];
 }
+
+/** Remove a sign returned by addSpeech (safe to call twice). */
+function removeSpeech(parts?: AnyObj[] | null) {
+  if (!parts) return;
+  for (const o of parts) {
+    try {
+      (o as unknown as { destroy: () => void }).destroy();
+    } catch {
+      /* already gone */
+    }
+  }
+}
+
 
 /** Floating pixel-art thought bubble drawn in the sky. Purely decorative —
  *  no collision, no gameplay effect. Uses BG_NEAR layer so it sits between

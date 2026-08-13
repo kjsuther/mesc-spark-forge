@@ -176,6 +176,12 @@ function WelcomePage() {
               >
                 What's the concept?
               </a>
+              <a
+                href="#how-it-works"
+                className="inline-flex items-center gap-2 bg-white/10 text-white font-bold py-3 px-6 rounded-xl hover:bg-white/20 transition ring-1 ring-white/40"
+              >
+                How this Works?
+              </a>
             </div>
           </div>
         </section>
@@ -186,24 +192,14 @@ function WelcomePage() {
           className="max-w-6xl w-full mx-auto px-5 sm:px-6 -mt-8 sm:-mt-12 relative z-10 scroll-mt-24"
         >
           <div className="rounded-2xl bg-mn-blue text-white p-5 sm:p-7 shadow-xl">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-accent-gold text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mb-2">
-                  What's the Concept?
-                </p>
-                <h2 className="text-lg sm:text-xl md:text-2xl font-bold leading-snug max-w-3xl">
-                  AI-assisted development can turn ideas into working software fast — and that speed is
-                  most valuable because of how quickly it lets business and technology teams learn from
-                  real feedback.
-                </h2>
-              </div>
-              <a
-                href="#how-it-works"
-                className="inline-flex items-center gap-1.5 rounded-full border border-white/40 bg-white/10 px-3 py-1.5 text-xs font-bold hover:bg-white/20 transition"
-              >
-                How this Works?
-              </a>
-            </div>
+            <p className="text-accent-gold text-[10px] sm:text-[11px] font-bold uppercase tracking-widest mb-2">
+              What's the Concept?
+            </p>
+            <h2 className="text-lg sm:text-xl md:text-2xl font-bold leading-snug max-w-3xl">
+              AI-assisted development can turn ideas into working software fast — and that speed is
+              most valuable because of how quickly it lets business and technology teams learn from
+              real feedback.
+            </h2>
             <p className="mt-3 text-sm sm:text-base text-cream/85 max-w-3xl leading-relaxed">
               Requirements are interpretations. A working product is not. When stakeholders can use
               something real early, gaps show up in minutes instead of after months of build, and

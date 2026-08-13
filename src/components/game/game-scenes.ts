@@ -4833,7 +4833,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         keyItem.pos.y += dy * 2 * k.dt();
       });
     }
-    player.onCollide("plan-pick", (p) => {
+    /** Shared "a plan was taken" routine — collision OR proximity can call it. */
+    function takePlan(p: unknown) {
       if (zoneState.planPicked) return;
       // Guard only against grabbing a card while clearly down in the running
       // lane below the island; anything at (or near) island level counts.
@@ -4867,7 +4868,33 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       } else {
         startFight();
       }
+    }
+
+    player.onCollide("plan-pick", (p) => takePlan(p));
+
+    // Belt-and-braces: kaplay's collision callback can miss a frame when the
+    // hero lands on the pedestal without lateral motion, which left players
+    // standing on a card with nothing happening. This overlap poll guarantees
+    // that touching any card starts the boss.
+    k.onUpdate(() => {
+      if (zoneState.planPicked) return;
+      const pl = player.pos.x - PLAYER_HITBOX.w / 2;
+      const pr = player.pos.x + PLAYER_HITBOX.w / 2;
+      const pt = player.pos.y - PLAYER_HITBOX.h;
+      const pb = player.pos.y;
+      for (const o of k.get("plan-pick")) {
+        const card = o as unknown as { pos: { x: number; y: number }; width: number; height: number };
+        const cl = card.pos.x - card.width / 2;
+        const cr = card.pos.x + card.width / 2;
+        const ct = card.pos.y - card.height;
+        const cb = card.pos.y;
+        if (pr >= cl && pl <= cr && pb >= ct && pt <= cb) {
+          takePlan(o);
+          return;
+        }
+      }
     });
+
 
     // ----- Zone 7 boss battle: dodge the paperwork, land 3 "+" hits -----
     // Set once the boss exists so the auto-fire loop can report a hit without

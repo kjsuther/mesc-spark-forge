@@ -66,24 +66,24 @@ const THEMES = {
 const STEPS: Step[] = [
   {
     num: 1,
-    title: "Play the game",
-    body: "A short 16-bit video game about the trail from “I need health coverage” to “Covered!”. The first run is intentionally rough — most players hit a wall. That's the point.",
+    title: "Experience the first version",
+    body: "Play the 16-bit game about the journey to health coverage. Like any early build, it has rough edges — you'll feel exactly where the experience falls short of the intent.",
     cta: "▶ Play the game",
     to: "/tool",
     theme: THEMES.green,
   },
   {
     num: 2,
-    title: "Suggest improvements",
-    body: "What tripped you up? What was unclear or unfair? Leave a short note with your first name and last initial. It lands on the public backlog immediately.",
+    title: "Tell us what should change",
+    body: "Describe the gap in your own words instead of writing a requirement. Every note lands on a public backlog the team works from during the session.",
     cta: "✎ Share feedback",
     to: "/feedback",
     theme: THEMES.gold,
   },
   {
     num: 3,
-    title: "Come back and replay it",
-    body: "The poster team builds your feedback into the game during the session. Reload the Current Version and see your idea running in the game you just played.",
+    title: "See your feedback in the product",
+    body: "We build the change with AI-assisted development tools while you're here, then you interact with the updated version and tell us whether it hit the mark.",
     cta: "▶ Replay the game",
     to: "/tool",
     theme: THEMES.orange,
@@ -91,11 +91,40 @@ const STEPS: Step[] = [
 ];
 
 const LOOP_CARDS = [
-  "Play the game",
-  "Suggest improvements",
-  "We build it live",
-  "Replay the better version",
+  "Define the idea",
+  "Rapidly build something tangible",
+  "Gather real feedback",
+  "Improve and re-test",
 ];
+
+const STORY: { eyebrow: string; title: string; body: string }[] = [
+  {
+    eyebrow: "The problem",
+    title: "Written requirements get interpreted differently",
+    body: "Business teams describe an outcome, technology teams build to their reading of it, and everyone believes they are aligned. By the time a product is finally shown, significant time and money are already spent — and the result may not accomplish what the business intended. Rework follows.",
+  },
+  {
+    eyebrow: "The opportunity",
+    title: "Ideas can become tangible in hours, not quarters",
+    body: "Modern AI-assisted development tools let teams turn an idea or requirement into a working experience quickly. Stakeholders no longer have to imagine the product from a specification — they can open it and use it.",
+  },
+  {
+    eyebrow: "The new feedback loop",
+    title: "Align on the product, not on the document",
+    body: "When people interact with something real, misunderstandings and gaps surface immediately. Feedback gets incorporated in the same conversation, the next version is tested right away, and business and technology teams align around the actual outcome instead of competing interpretations.",
+  },
+  {
+    eyebrow: "The demonstration",
+    title: "This video game is our example",
+    body: "We started with a basic build. People played it, found the problems, and said what needed to change. We incorporated the improvements quickly, and players immediately experienced the difference — a live feedback loop between the people defining the outcome and the people building it.",
+  },
+  {
+    eyebrow: "The broader application",
+    title: "The same approach fits work that matters more",
+    body: "If it works for a game, it works for the tools people use to access Medicaid programs and services. Rather than waiting until a large solution is fully built before stakeholders and users can meaningfully react, teams can put working prototypes in front of them early, gather feedback, close gaps, and keep improving.",
+  },
+];
+
 
 function WelcomePage() {
   return (

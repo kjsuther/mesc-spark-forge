@@ -107,27 +107,27 @@ const STORY: { eyebrow: string; title: string; body: string }[] = [
   {
     eyebrow: "The problem",
     title: "Written requirements get interpreted differently",
-    body: "Business teams describe an outcome, technology teams build to their reading of it, and everyone believes they are aligned. By the time a product is finally shown, significant time and money are already spent — and the result may not accomplish what the business intended. Rework follows.",
+    body: "Business and technology teams often read the same requirement and picture different outcomes. By the time a product is shown, time and money are already spent and the result may miss the mark. Rework follows.",
   },
   {
     eyebrow: "The opportunity",
-    title: "Ideas can become tangible in hours, not quarters",
-    body: "Modern AI-assisted development tools let teams turn an idea or requirement into a working experience quickly. Stakeholders no longer have to imagine the product from a specification — they can open it and use it.",
+    title: "Ideas can become tangible in hours",
+    body: "Modern AI-assisted development tools let teams turn a requirement into something people can actually use quickly. Stakeholders stop guessing and start interacting.",
   },
   {
-    eyebrow: "The new feedback loop",
-    title: "Align on the product, not on the document",
-    body: "When people interact with something real, misunderstandings and gaps surface immediately. Feedback gets incorporated in the same conversation, the next version is tested right away, and business and technology teams align around the actual outcome instead of competing interpretations.",
+    eyebrow: "The new loop",
+    title: "Align on the product, not the document",
+    body: "When people use something real, gaps surface immediately. Feedback is built in the same conversation, tested right away, and teams align around the actual outcome.",
   },
   {
     eyebrow: "The demonstration",
     title: "This video game is our example",
-    body: "We started with a basic build. People played it, found the problems, and said what needed to change. We incorporated the improvements quickly, and players immediately experienced the difference — a live feedback loop between the people defining the outcome and the people building it.",
+    body: "We built a simple 16-bit game, people played it, told us what to fix, and we improved it live. The same loop applies to Medicaid technology and other public services.",
   },
   {
     eyebrow: "The broader application",
     title: "The same approach fits work that matters more",
-    body: "If it works for a game, it works for the tools people use to access Medicaid programs and services. Rather than waiting until a large solution is fully built before stakeholders and users can meaningfully react, teams can put working prototypes in front of them early, gather feedback, close gaps, and keep improving.",
+    body: "If a game can be improved this fast, so can the tools people use to access health coverage and services. Working prototypes, early feedback, and rapid iteration create better outcomes.",
   },
 ];
 

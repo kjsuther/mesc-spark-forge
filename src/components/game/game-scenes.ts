@@ -2733,17 +2733,48 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // ================= ZONE 6: Choosing Your Path — pick a plan, get a key =================
     const kx0 = BIOME_W * 6;
+    // The plans used to sit on the ground in the running path, so the first
+    // one got collected by accident. They now live on a raised ledge reached
+    // by a smaller stepping platform, making the choice deliberate.
+    const PLAN_STEP_Y = GROUND_Y - 72;
+    const PLAN_LEDGE_Y = GROUND_Y - 156;
+    const PLAN_LEDGE_L = kx0 + 380;
+    const PLAN_LEDGE_R = kx0 + 920;
+    const addStaticPlat = (cx: number, cy: number, w: number, h: number) => {
+      k.add([
+        k.rect(w, h),
+        k.pos(cx, cy),
+        k.anchor("center"),
+        k.color(200, 195, 210),
+        k.outline(2, k.rgb(90, 90, 110)),
+        k.area(),
+        k.body({ isStatic: true }),
+        k.z(LAYERS.PLATFORM),
+        "platform",
+        { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(cx, cy) },
+      ]);
+    };
+    // Stepping stone up to the ledge.
+    addStaticPlat(kx0 + 270, PLAN_STEP_Y, 96, 14);
+    // The ledge itself, holding all three plans.
+    addStaticPlat(
+      (PLAN_LEDGE_L + PLAN_LEDGE_R) / 2,
+      PLAN_LEDGE_Y,
+      PLAN_LEDGE_R - PLAN_LEDGE_L,
+      16,
+    );
+    const PLAN_TOP_Y = PLAN_LEDGE_Y - 8; // top surface of the ledge
     const planDefs: Array<{ x: number; sprite: string; label: string }> = [
-      { x: kx0 + 260, sprite: "plan-blue", label: "Blue Cross / Blue Shield" },
-      { x: kx0 + 560, sprite: "plan-green", label: "HealthPartners" },
-      { x: kx0 + 860, sprite: "plan-orange", label: "Medica" },
+      { x: kx0 + 460, sprite: "plan-blue", label: "Blue Cross / Blue Shield" },
+      { x: kx0 + 650, sprite: "plan-green", label: "HealthPartners" },
+      { x: kx0 + 840, sprite: "plan-orange", label: "Medica" },
     ];
     for (const p of planDefs) {
       const dh = DISPLAY_H[p.sprite];
       const dw = displaySize(p.sprite, sizes).w;
       k.add([
         k.rect(dw + 12, 10),
-        k.pos(p.x, GROUND_Y),
+        k.pos(p.x, PLAN_TOP_Y),
         k.anchor("bot"),
         k.color(120, 100, 80),
         k.outline(2, k.rgb(60, 45, 30)),
@@ -2751,7 +2782,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]);
       const item = k.add([
         k.sprite(p.sprite, { width: dw, height: dh }),
-        k.pos(p.x, GROUND_Y - 10),
+        k.pos(p.x, PLAN_TOP_Y - 10),
         k.anchor("bot"),
         k.area({ shape: new k.Rect(k.vec2(0, 0), dw, dh) }),
         k.z(LAYERS.PROP),
@@ -2759,9 +2790,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { planLabel: p.label, bonus: 800 },
       ]) as AnyObj;
       void item;
-      addSpeech(k, p.x, GROUND_Y - dh - 26, p.label, [30, 30, 60]);
+      addSpeech(k, p.x, PLAN_TOP_Y - dh - 26, p.label, [30, 30, 60]);
     }
-    addSpeech(k, kx0 + 560, GROUND_Y - 220, "Pick ONE plan", [30, 60, 120]);
+    addSpeech(k, kx0 + 650, PLAN_TOP_Y - 150, "Jump up and pick ONE plan", [30, 60, 120]);
+
     zoneObjectives[6] = {
       hudLabel: () =>
         zoneState.hasKey

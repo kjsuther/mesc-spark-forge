@@ -4,6 +4,13 @@ import { SiteFooter } from "@/components/site-footer";
 import { MountainScape } from "@/components/trail/mountain-scape";
 import { SectionHeading } from "@/components/trail/section-heading";
 import { PixelLevelStrip } from "@/components/pixel/pixel-art";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
+
 
 
 export const Route = createFileRoute("/")({

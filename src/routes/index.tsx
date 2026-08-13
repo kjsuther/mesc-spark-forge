@@ -3,21 +3,22 @@ import { SiteChrome } from "@/components/site-chrome";
 import { SiteFooter } from "@/components/site-footer";
 import { MountainScape } from "@/components/trail/mountain-scape";
 import { SectionHeading } from "@/components/trail/section-heading";
+import { PixelLevelStrip } from "@/components/pixel/pixel-art";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Blazing the Trail to Coverage — MESC 2026 Demo" },
+      { title: "Ideas to Working Software, Live — MESC 2026 Demo" },
       {
         name: "description",
         content:
-          "Play a 16-bit retro video game about applying for Medicaid, tell us what to improve, and come back to play the version built from your feedback.",
+          "A MESC 2026 demonstration of AI-assisted development and rapid feedback loops. A 16-bit Medicaid journey game is the example; faster alignment between business and technology teams is the point.",
       },
-      { property: "og:title", content: "Blazing the Trail to Coverage — MESC 2026 Demo" },
+      { property: "og:title", content: "Ideas to Working Software, Live — MESC 2026 Demo" },
       {
         property: "og:description",
         content:
-          "Play the game, share your feedback, and replay the version we build from it — live during the session.",
+          "See how rapid prototyping and continuous feedback close the gap between business intent and delivered technology — demonstrated live through a 16-bit game.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -25,6 +26,7 @@ export const Route = createFileRoute("/")({
   }),
   component: WelcomePage,
 });
+
 
 type Step = {
   num: number;

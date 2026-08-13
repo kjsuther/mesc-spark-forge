@@ -2735,43 +2735,51 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const kx0 = BIOME_W * 6;
     // The plans used to sit on the ground in the running path, so the first
     // one got collected by accident. Each plan now sits on its OWN high
-    // platform reached by its own stepping platform, so picking one is a
-    // deliberate two-hop climb.
+    // platform reached by its own step-up BLOCK that rests on the ground —
+    // a solid pillar, not a floating ledge, so there is nothing to get
+    // wedged under while dodging the bear's paperwork.
     //
     // Physics budget: gravity 1800, JUMP_VEL 720 -> max rise 144px.
     // Peak feet = GROUND_Y - 144, peak head = GROUND_Y - 210 (hero 66 tall).
-    // Plan platform underside sits above that peak head so the hero can jump
-    // freely underneath while dodging the boss's paperwork (lane GROUND_Y-26).
+    // Plan platform underside (GROUND_Y - 252) sits above that peak head, so
+    // a full jump anywhere under a plan island never bonks a ceiling.
+    // The whole plan area is also placed LEFT of the bear's patrol range
+    // (he roams BIOME_W*6 + 840 .. +1260) so the fight lane stays clear floor.
     const PLAN_PLAT_TOP = GROUND_Y - 240; // underside ≈ GROUND_Y - 252
-    const PLAN_STEP_TOP = GROUND_Y - 132; // reachable in one jump from ground
+    const PLAN_STEP_TOP = GROUND_Y - 112; // pillar top: 144px jump reaches -256
+    // IMPORTANT: the ride/snap system treats a platform's pos as its TOP-LEFT
+    // corner (plat.pos.y is the walkable surface, plat.pos.x the left edge).
+    // These are positioned that way — a centered anchor made the hero snap to
+    // the block's mid-height and jam against its side.
     const addStaticPlat = (cx: number, topY: number, w: number, h: number) => {
-      const cy = topY + h / 2;
+      const left = cx - w / 2;
       k.add([
         k.rect(w, h),
-        k.pos(cx, cy),
-        k.anchor("center"),
+        k.pos(left, topY),
         k.color(200, 195, 210),
         k.outline(2, k.rgb(90, 90, 110)),
         k.area(),
         k.body({ isStatic: true }),
         k.z(LAYERS.PLATFORM),
         "platform",
-        { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(cx, cy) },
+        { platformSpeed: k.vec2(0, 0), lastPos: k.vec2(left, topY) },
       ]);
     };
+
     const planDefs: Array<{ x: number; sprite: string; label: string }> = [
-      { x: kx0 + 420, sprite: "plan-blue", label: "Blue Cross / Blue Shield" },
-      { x: kx0 + 680, sprite: "plan-green", label: "HealthPartners" },
-      { x: kx0 + 940, sprite: "plan-orange", label: "Medica" },
+      { x: kx0 + 300, sprite: "plan-blue", label: "Blue Cross / Blue Shield" },
+      { x: kx0 + 520, sprite: "plan-green", label: "HealthPartners" },
+      { x: kx0 + 740, sprite: "plan-orange", label: "Medica" },
     ];
     for (const p of planDefs) {
       const dh = DISPLAY_H[p.sprite];
       const dw = displaySize(p.sprite, sizes).w;
       // Its own island up top…
       addStaticPlat(p.x, PLAN_PLAT_TOP, 128, 14);
-      // …and its own step-up, tucked in the gap before it so it never hangs
-      // over the middle of the dodging lane.
-      addStaticPlat(p.x - 110, PLAN_STEP_TOP, 76, 12);
+      // …and its own step-up: a solid block standing ON the ground just left
+      // of the island (8px air gap). Nothing overhangs the running lane, and
+      // it can be mounted from either side.
+      addStaticPlat(p.x - 104, PLAN_STEP_TOP, 64, 112);
       k.add([
         k.rect(dw + 12, 10),
         k.pos(p.x, PLAN_PLAT_TOP),
@@ -2784,7 +2792,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.sprite(p.sprite, { width: dw, height: dh }),
         k.pos(p.x, PLAN_PLAT_TOP - 10),
         k.anchor("bot"),
-        k.area({ shape: new k.Rect(k.vec2(0, 0), dw, dh) }),
+        // anchor("bot"): keep the pickup box ON the island, not hanging down
+        // into the running lane where it could be grabbed from the ground.
+        k.area({ shape: new k.Rect(k.vec2(-dw / 2, -dh), dw, dh) }),
+
         k.z(LAYERS.PROP),
         "plan-pick",
         { planLabel: p.label, bonus: 800 },
@@ -2792,7 +2803,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       void item;
       addSpeech(k, p.x, PLAN_PLAT_TOP - dh - 26, p.label, [30, 30, 60]);
     }
-    addSpeech(k, kx0 + 680, GROUND_Y - 186, "Step up and pick ONE plan", [30, 60, 120]);
+    addSpeech(k, kx0 + 520, GROUND_Y - 186, "Step up and pick ONE plan", [30, 60, 120]);
+
 
 
     zoneObjectives[6] = {
@@ -3090,6 +3102,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       else if (next === "slide") setSprite("hero-slide-0");
       else setSprite(`hero-walk-0${facingSuffix("hero-walk-0")}`);
     }
+
+    /** Turn the hero right (toward the bear, who always comes from the right)
+     *  and refresh his sprite so the mirrored frames update immediately. */
+    function faceTheBear() {
+      player.facing = 1;
+      player.flipX = false;
+      setSprite(`hero-idle${facingSuffix("hero-idle")}`);
+    }
+
+
 
     type PlatformRide = {
       pos: { x: number; y: number };
@@ -4263,12 +4285,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       pauseGameplay();
       const p = player as AnyObj;
       const heroX = player.pos.x;
+      // The plan is picked up on a raised island; drop the hero to the ground
+      // and turn him to face the bear's approach from the right.
+      p.pos.y = GROUND_Y;
+      p.vel = k.vec2(0, 0);
+      faceTheBear();
       const bh = DISPLAY_H["boss-idle"];
       const bw = displaySize("boss-idle", sizes).w;
       // He stalks in from off-camera on the right and stops a respectful,
       // very unrespectful, distance away.
       const bearTargetX = heroX + 300;
       const bear = k.add([
+
         k.sprite("boss-idle", { width: bw, height: bh }),
         k.pos(heroX + 720, GROUND_Y),
         k.anchor("bot"),
@@ -4469,6 +4497,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Gameplay stays frozen (the ready card already paused it) so the player
       // can just watch; objects created here are not part of that snapshot.
       setMusic("boss");
+      // Face the hero toward the charging bear.
+      faceTheBear();
+
       const targetX = BIOME_W * 6 + 1050;
       const bh = DISPLAY_H["boss-idle"];
       const bw = displaySize("boss-idle", sizes).w;
@@ -4924,7 +4955,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       zoneState.bossSpawned = true;
       // The ogre is here — drop into the tense battle theme.
       setMusic("boss");
+      faceTheBear();
       const bx = BIOME_W * 6 + 1050;
+
       const bh = DISPLAY_H["boss-idle"];
       const bw = displaySize("boss-idle", sizes).w;
       const boss = spawnGrounded(k, "boss-idle", sizes, {

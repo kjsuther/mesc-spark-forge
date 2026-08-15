@@ -1156,20 +1156,52 @@ async function registerLeftMirrors(
 ): Promise<SpriteSizes> {
   const out: SpriteSizes = {};
   // Reload the source hero sheet once and re-slice using the trim bboxes we
-  // already recorded on ASSET_REPORT.entries.
+  // already recorded on ASSET_REPORT.entries. One scratch canvas is reused for
+  // every frame: mobile Safari is far more likely to fail (or return a blank
+  // bitmap) when a handful of canvases are allocated back to back.
+  const cvs = document.createElement("canvas");
+  const cx = cvs.getContext("2d");
+  if (!cx) return out;
+  const sheetCache = new Map<string, HTMLImageElement>();
+  const objectUrls: string[] = [];
+
+  const encode = (canvas: HTMLCanvasElement): Promise<string> =>
+    new Promise((resolve) => {
+      try {
+        if (typeof canvas.toBlob === "function") {
+          canvas.toBlob((blob) => {
+            if (!blob) {
+              resolve(canvas.toDataURL("image/png"));
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            objectUrls.push(url);
+            resolve(url);
+          }, "image/png");
+          return;
+        }
+      } catch {
+        /* fall through to data URL */
+      }
+      resolve(canvas.toDataURL("image/png"));
+    });
+
   for (const name of names) {
     const entry = ASSET_REPORT.entries[name];
     const src = sizes[name];
     if (!entry || !entry.sheetUrl || !entry.sheetRect || !entry.trimBBox || !src) continue;
     try {
-      const img = await loadImageEl(entry.sheetUrl);
+      let img = sheetCache.get(entry.sheetUrl);
+      if (!img) {
+        img = await loadImageEl(entry.sheetUrl);
+        sheetCache.set(entry.sheetUrl, img);
+      }
       const { fx, fy } = entry.sheetRect;
       const bb = entry.trimBBox;
-      const cvs = document.createElement("canvas");
       cvs.width = src.w;
       cvs.height = src.h;
-      const cx = cvs.getContext("2d");
-      if (!cx) continue;
+      cx.setTransform(1, 0, 0, 1, 0, 0);
+      cx.clearRect(0, 0, src.w, src.h);
       cx.imageSmoothingEnabled = false;
       const dx = Math.floor((src.w - bb.w) / 2);
       const dy = src.h - bb.h;
@@ -1179,7 +1211,7 @@ async function registerLeftMirrors(
       cx.drawImage(img, fx + bb.x, fy + bb.y, bb.w, bb.h, src.w - dx - bb.w, dy, bb.w, bb.h);
       cx.restore();
       const leftName = `${name}-left`;
-      await k.loadSprite(leftName, cvs.toDataURL("image/png"));
+      await k.loadSprite(leftName, await encode(cvs));
       out[leftName] = { w: src.w, h: src.h };
       ASSET_REPORT.entries[leftName] = {
         ...entry,
@@ -1189,10 +1221,24 @@ async function registerLeftMirrors(
       };
     } catch (err) {
       console.warn(`[assets] mirror failed: ${name}`, err);
+      ASSET_REPORT.entries[`${name}-left`] = {
+        ...entry,
+        name: `${name}-left`,
+        sheetLabel: `${entry.sheetLabel ?? ""} (mirror)`,
+        status: "failed",
+      };
     }
+  }
+  // The engine has decoded every mirror by now; release the blob handles so
+  // they do not count against mobile memory for the rest of the run.
+  if (objectUrls.length) {
+    setTimeout(() => {
+      for (const url of objectUrls) URL.revokeObjectURL(url);
+    }, 5000);
   }
   return out;
 }
+
 
 // ============================ Spawn helpers ============================
 
@@ -3096,6 +3142,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // (grouped in the trim step), so swapping never causes horizontal jitter.
     let currentSpriteName = "hero-idle";
     function setSprite(name: string) {
+      // Pre-mirrored "-left" frames can fail to register on memory-constrained
+      // mobile browsers. When we end up on a right-facing frame while facing
+      // left, flip at render time so the hero always turns instead of
+      // moon-walking backwards.
+      const wantFlip = player.facing < 0 && !name.endsWith("-left");
+      if (player.flipX !== wantFlip) player.flipX = wantFlip;
       if (currentSpriteName === name) return;
       currentSpriteName = name;
       setGameObjSprite(player, name);
@@ -3106,6 +3158,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (player.facing >= 0) return "";
       return sizes[`${baseName}-left`] ? "-left" : "";
     }
+
     function setAnim(next: "idle" | "walk" | "jump" | "slide") {
       if (player.animState === next) return;
       player.animState = next;

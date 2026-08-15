@@ -302,11 +302,14 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       if (destroy) destroy();
       destroy = null;
       // Explicitly hand the retired canvas's graphics context back. Browsers
-      // cap live contexts per page, and a discarded canvas can hold on to its
-      // own long enough that the next boot fails at shader compile.
-      if (bootedCanvas && bootedCanvas !== canvasRef.current) releaseCanvasContext(bootedCanvas);
+      // cap live contexts per page, and a discarded canvas holds on to its own
+      // long enough that the next boot fails at shader compile ("failed to
+      // load shaders" on the second play). The canvas element is keyed per
+      // effect run, so the element booted here is always the retired one.
+      releaseCanvasContext(bootedCanvas);
       bootedCanvas = null;
     };
+
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [launchMode, engineGeneration]);
@@ -938,7 +941,8 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         }
       >
         <canvas
-          key={engineGeneration}
+          key={`${launchMode ?? "idle"}-${engineGeneration}`}
+
           ref={canvasRef}
           onPointerDown={focusCanvas}
           onContextMenu={(e) => e.preventDefault()}
@@ -1457,9 +1461,11 @@ function PadButton({
   );
 
   // Safety net: if the browser eats the pointerup (scroll takeover, gesture
-  // cancel, tab switch, fullscreen transition) the direction must not stick.
+  // cancel, tab switch, fullscreen transition) the direction must not stick —
+  // and, just as important, the stale pointer id must be cleared so the NEXT
+  // tap is not swallowed. These listeners stay mounted for the button's whole
+  // life, not only while it reads as pressed.
   useEffect(() => {
-    if (!pressed) return;
     const off = () => release();
     const offId = (e: PointerEvent) => release(e.pointerId);
     window.addEventListener("pointerup", offId);
@@ -1472,7 +1478,8 @@ function PadButton({
       window.removeEventListener("blur", off);
       document.removeEventListener("visibilitychange", off);
     };
-  }, [pressed, release]);
+  }, [release]);
+
 
   const bg = accent
     ? "rgba(214, 90, 49, 0.82)" // orange
@@ -1487,12 +1494,18 @@ function PadButton({
       onPointerDown={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (activePointerRef.current !== null) return;
+        // Never drop a fresh press: if a previous pointer's up/cancel was
+        // swallowed (fullscreen or orientation transitions do this), adopt the
+        // new pointer instead of ignoring the tap.
+        if (activePointerRef.current !== null && activePointerRef.current !== e.pointerId) {
+          release();
+        }
         activePointerRef.current = e.pointerId;
         setPressed(true);
         try {
           (e.currentTarget as HTMLButtonElement).setPointerCapture?.(e.pointerId);
         } catch {
+
           /* noop */
         }
         onDown();

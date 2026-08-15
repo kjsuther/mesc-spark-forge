@@ -12,6 +12,8 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "sonner";
+import { useGamepadNavigation } from "@/hooks/use-gamepad-navigation";
+
 
 function NotFoundComponent() {
   return (

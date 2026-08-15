@@ -1233,33 +1233,24 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         {launchMode && isTouch && !presentation && !endResult && (
           <>
             {/* D-pad, bottom-left */}
+            {/* Thumb joystick, bottom-left. One continuous touch can slide
+                across centre to reverse direction with no neutral gap. */}
             <div
               className="pointer-events-none absolute z-30 flex"
               style={{
-                gap: padGap,
                 left: `calc(env(safe-area-inset-left, 0px) + ${padEdge}px)`,
                 bottom: `calc(env(safe-area-inset-bottom, 0px) + ${padEdge}px)`,
               }}
             >
-              <PadButton
-                label="LEFT"
-                aria="Move left"
-                size={padUnit}
-                onDown={() => setBtn("left", true)}
-                onUp={() => setBtn("left", false)}
-              >
-                ◀
-              </PadButton>
-              <PadButton
-                label="RIGHT"
-                aria="Move right"
-                size={padUnit}
-                onDown={() => setBtn("right", true)}
-                onUp={() => setBtn("right", false)}
-              >
-                ▶
-              </PadButton>
+              <JoystickPad
+                size={Math.round(padUnit * 1.55)}
+                onChange={(dir) => {
+                  setBtn("left", dir < 0);
+                  setBtn("right", dir > 0);
+                }}
+              />
             </div>
+
             {/* Action cluster, bottom-right */}
             <div
               className="pointer-events-none absolute z-30 flex items-end"

@@ -1461,9 +1461,11 @@ function PadButton({
   );
 
   // Safety net: if the browser eats the pointerup (scroll takeover, gesture
-  // cancel, tab switch, fullscreen transition) the direction must not stick.
+  // cancel, tab switch, fullscreen transition) the direction must not stick —
+  // and, just as important, the stale pointer id must be cleared so the NEXT
+  // tap is not swallowed. These listeners stay mounted for the button's whole
+  // life, not only while it reads as pressed.
   useEffect(() => {
-    if (!pressed) return;
     const off = () => release();
     const offId = (e: PointerEvent) => release(e.pointerId);
     window.addEventListener("pointerup", offId);
@@ -1476,7 +1478,8 @@ function PadButton({
       window.removeEventListener("blur", off);
       document.removeEventListener("visibilitychange", off);
     };
-  }, [pressed, release]);
+  }, [release]);
+
 
   const bg = accent
     ? "rgba(214, 90, 49, 0.82)" // orange

@@ -3096,6 +3096,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // (grouped in the trim step), so swapping never causes horizontal jitter.
     let currentSpriteName = "hero-idle";
     function setSprite(name: string) {
+      // Pre-mirrored "-left" frames can fail to register on memory-constrained
+      // mobile browsers. When we end up on a right-facing frame while facing
+      // left, flip at render time so the hero always turns instead of
+      // moon-walking backwards.
+      const wantFlip = player.facing < 0 && !name.endsWith("-left");
+      if (player.flipX !== wantFlip) player.flipX = wantFlip;
       if (currentSpriteName === name) return;
       currentSpriteName = name;
       setGameObjSprite(player, name);
@@ -3106,6 +3112,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (player.facing >= 0) return "";
       return sizes[`${baseName}-left`] ? "-left" : "";
     }
+
     function setAnim(next: "idle" | "walk" | "jump" | "slide") {
       if (player.animState === next) return;
       player.animState = next;

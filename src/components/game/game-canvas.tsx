@@ -796,14 +796,20 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
     overlayFs && isTouch && menuScreen === "trailmap" ? Math.min(uiScale, 0.5) : uiScale;
   const menuSafePadding = overlayFs && isTouch ? 4 : 8;
 
-  // Touch button sizing: proportional to the visible stage, clamped to a
-  // comfortable finger target on the smallest phones and prevented from
-  // swallowing gameplay on tablets.
-  const padUnit = Math.round(Math.max(52, Math.min(84, stageBox.h * 0.2)));
-  const padGap = Math.max(8, Math.round(padUnit * 0.14));
-  const padEdge = Math.max(10, Math.round(padUnit * 0.18));
-  const jumpSize = Math.round(padUnit * 1.15);
-  const resetSize = Math.round(padUnit * 0.7);
+  // Touch button sizing: driven by the SHORTER edge of the visible stage so a
+  // squat windowed canvas gets a compact set while a fullscreen landscape
+  // phone gets a comfortable one. Both modes stay above a 44px tap target and
+  // below a ceiling that keeps the controls off the play area.
+  const padBase = Math.min(stageBox.w, stageBox.h);
+  const padUnit = Math.round(
+    Math.max(44, Math.min(overlayFs ? 66 : 54, padBase * (overlayFs ? 0.16 : 0.13))),
+  );
+  const padGap = Math.max(6, Math.round(padUnit * 0.12));
+  const padEdge = Math.max(8, Math.round(padUnit * 0.16));
+  const jumpSize = Math.round(padUnit * 1.02);
+  const resetSize = Math.round(padUnit * 0.58);
+  const stickSize = Math.round(padUnit * 1.2);
+
 
   const containerStyle: React.CSSProperties = overlayFs
     ? {
@@ -1243,7 +1249,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
               }}
             >
               <JoystickPad
-                size={Math.round(padUnit * 1.55)}
+                size={stickSize}
                 onChange={(dir) => {
                   setBtn("left", dir < 0);
                   setBtn("right", dir > 0);
@@ -1437,8 +1443,15 @@ function PadButton({
   accent?: boolean;
   dim?: boolean;
 }) {
+  const btnRef = useRef<HTMLButtonElement | null>(null);
   const activePointerRef = useRef<number | null>(null);
+  const touchIdRef = useRef<number | null>(null);
   const [pressed, setPressed] = useState(false);
+  // Latest-callback refs so the native listeners below can be registered once.
+  const onDownRef = useRef(onDown);
+  const onUpRef = useRef(onUp);
+  onDownRef.current = onDown;
+  onUpRef.current = onUp;
 
   const release = useCallback(
     (pointerId?: number) => {
@@ -1451,13 +1464,58 @@ function PadButton({
     [onUp],
   );
 
-  // Safety net: if the browser eats the pointerup (scroll takeover, gesture
-  // cancel, tab switch, fullscreen transition) the direction must not stick —
-  // and, just as important, the stale pointer id must be cleared so the NEXT
-  // tap is not swallowed. These listeners stay mounted for the button's whole
-  // life, not only while it reads as pressed.
+  // Native touch path. Touch events are delivered reliably to a second finger
+  // even while another element holds a pointer capture (the joystick), which
+  // is exactly the case where the Pointer Events path can silently drop a
+  // JUMP tap made while a direction is being held.
   useEffect(() => {
-    const off = () => release();
+    const el = btnRef.current;
+    if (!el) return;
+    const start = (e: TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (touchIdRef.current !== null) return;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      touchIdRef.current = t.identifier;
+      setPressed(true);
+      onDownRef.current();
+    };
+    const end = (e: TouchEvent) => {
+      if (touchIdRef.current === null) return;
+      for (const t of Array.from(e.changedTouches)) {
+        if (t.identifier === touchIdRef.current) {
+          touchIdRef.current = null;
+          setPressed(false);
+          onUpRef.current?.();
+          return;
+        }
+      }
+    };
+    el.addEventListener("touchstart", start, { passive: false });
+    el.addEventListener("touchend", end, { passive: true });
+    el.addEventListener("touchcancel", end, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchend", end);
+      el.removeEventListener("touchcancel", end);
+    };
+  }, []);
+
+  // Safety net: if the browser eats the pointerup/touchend (scroll takeover,
+  // gesture cancel, tab switch, fullscreen transition) the direction must not
+  // stick — and the stale id must be cleared so the NEXT tap is not swallowed.
+  useEffect(() => {
+    const clearTouch = () => {
+      if (touchIdRef.current === null) return;
+      touchIdRef.current = null;
+      setPressed(false);
+      onUpRef.current?.();
+    };
+    const off = () => {
+      release();
+      clearTouch();
+    };
     const offId = (e: PointerEvent) => release(e.pointerId);
     window.addEventListener("pointerup", offId);
     window.addEventListener("pointercancel", offId);
@@ -1471,7 +1529,6 @@ function PadButton({
     };
   }, [release]);
 
-
   const bg = accent
     ? "rgba(214, 90, 49, 0.82)" // orange
     : dim
@@ -1480,38 +1537,31 @@ function PadButton({
   const border = accent ? "var(--color-accent-gold)" : "var(--color-cream)";
   return (
     <button
+      ref={btnRef}
       type="button"
       aria-label={aria}
       onPointerDown={(e) => {
+        // Touch is handled by the native listeners above; taking it here too
+        // would double-fire and re-introduce the capture problem.
+        if (e.pointerType === "touch") return;
         e.preventDefault();
         e.stopPropagation();
-        // Never drop a fresh press: if a previous pointer's up/cancel was
-        // swallowed (fullscreen or orientation transitions do this), adopt the
-        // new pointer instead of ignoring the tap.
         if (activePointerRef.current !== null && activePointerRef.current !== e.pointerId) {
           release();
         }
         activePointerRef.current = e.pointerId;
         setPressed(true);
-        try {
-          (e.currentTarget as HTMLButtonElement).setPointerCapture?.(e.pointerId);
-        } catch {
-
-          /* noop */
-        }
-        onDown();
+        onDownRef.current();
       }}
       onPointerUp={(e) => {
+        if (e.pointerType === "touch") return;
         e.preventDefault();
         e.stopPropagation();
         release(e.pointerId);
       }}
-      // Deliberately NO pointerleave/pointerout handler: with pointer capture
-      // a finger that drifts a couple of pixels still fires those, which used
-      // to cancel movement mid-hold.
       onPointerCancel={(e) => release(e.pointerId)}
-      onLostPointerCapture={(e) => release(e.pointerId)}
       onContextMenu={(e) => e.preventDefault()}
+
       className="pointer-events-auto relative touch-none select-none font-black text-cream"
       style={{
         width: size,
@@ -1537,19 +1587,24 @@ function PadButton({
         WebkitTapHighlightColor: "transparent",
       }}
     >
-      <span
-        style={{
-          position: "absolute",
-          top: 3,
-          left: 5,
-          fontSize: 7,
-          letterSpacing: 1,
-          color: "rgba(245, 232, 199, 0.85)",
-          fontFamily: '"Press Start 2P", ui-monospace, monospace',
-        }}
-      >
-        {label}
-      </span>
+      {/* Corner caption only where it fits: on the compact RESET button the
+          glyph alone reads cleanly and the word would overflow the pad. */}
+      {size >= 52 && !accent && (
+        <span
+          style={{
+            position: "absolute",
+            top: 3,
+            left: 5,
+            fontSize: Math.max(6, Math.round(size * 0.11)),
+            letterSpacing: 1,
+            color: "rgba(245, 232, 199, 0.85)",
+            fontFamily: '"Press Start 2P", ui-monospace, monospace',
+          }}
+        >
+          {label}
+        </span>
+      )}
+
       <span style={{ display: "inline-block", lineHeight: 1 }}>{children}</span>
     </button>
   );
@@ -1563,7 +1618,9 @@ function PadButton({
  * holdable button.
  */
 function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 | 1) => void }) {
+  const padRef = useRef<HTMLDivElement | null>(null);
   const activePointerRef = useRef<number | null>(null);
+  const touchIdRef = useRef<number | null>(null);
   const originRef = useRef(0);
   const dirRef = useRef<-1 | 0 | 1>(0);
   const [knob, setKnob] = useState(0);
@@ -1573,31 +1630,98 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
   const maxTravel = radius * 0.62;
   const deadZone = radius * 0.18;
 
-  const emit = useCallback(
-    (dir: -1 | 0 | 1) => {
-      if (dirRef.current === dir) return;
-      dirRef.current = dir;
-      onChange(dir);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  const emit = useCallback((dir: -1 | 0 | 1) => {
+    if (dirRef.current === dir) return;
+    dirRef.current = dir;
+    onChangeRef.current(dir);
+  }, []);
+
+  const track = useCallback(
+    (clientX: number) => {
+      const dx = clientX - originRef.current;
+      setKnob(Math.max(-maxTravel, Math.min(maxTravel, dx)));
+      emit(dx > deadZone ? 1 : dx < -deadZone ? -1 : 0);
     },
-    [onChange],
+    [emit, maxTravel, deadZone],
   );
+
+  const neutral = useCallback(() => {
+    setActive(false);
+    setKnob(0);
+    emit(0);
+  }, [emit]);
 
   const release = useCallback(
     (pointerId?: number) => {
       if (activePointerRef.current === null) return;
       if (pointerId !== undefined && pointerId !== activePointerRef.current) return;
       activePointerRef.current = null;
-      setActive(false);
-      setKnob(0);
-      emit(0);
+      neutral();
     },
-    [emit],
+    [neutral],
   );
 
-  // Safety net: a swallowed pointerup (gesture takeover, fullscreen or
+  // Native touch path (no pointer capture). Capturing the steering pointer is
+  // what made a concurrent second-finger JUMP tap unreliable, so the stick
+  // tracks its own touch id through window-level touch listeners instead —
+  // the thumb can still drift off the pad without dropping input.
+  useEffect(() => {
+    const el = padRef.current;
+    if (!el) return;
+    const start = (e: TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (touchIdRef.current !== null) return;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      touchIdRef.current = t.identifier;
+      const box = el.getBoundingClientRect();
+      originRef.current = box.left + box.width / 2;
+      setActive(true);
+      track(t.clientX);
+    };
+    const findTouch = (list: TouchList) => {
+      for (const t of Array.from(list)) if (t.identifier === touchIdRef.current) return t;
+      return null;
+    };
+    const move = (e: TouchEvent) => {
+      if (touchIdRef.current === null) return;
+      const t = findTouch(e.touches);
+      if (!t) return;
+      e.preventDefault();
+      track(t.clientX);
+    };
+    const end = (e: TouchEvent) => {
+      if (touchIdRef.current === null) return;
+      if (!findTouch(e.changedTouches)) return;
+      touchIdRef.current = null;
+      neutral();
+    };
+    el.addEventListener("touchstart", start, { passive: false });
+    window.addEventListener("touchmove", move, { passive: false });
+    window.addEventListener("touchend", end, { passive: true });
+    window.addEventListener("touchcancel", end, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", start);
+      window.removeEventListener("touchmove", move);
+      window.removeEventListener("touchend", end);
+      window.removeEventListener("touchcancel", end);
+    };
+  }, [track, neutral]);
+
+  // Safety net: a swallowed pointerup/touchend (gesture takeover, fullscreen or
   // orientation transition, tab switch) must never leave the hero running.
   useEffect(() => {
-    const off = () => release();
+    const off = () => {
+      release();
+      if (touchIdRef.current !== null) {
+        touchIdRef.current = null;
+        neutral();
+      }
+    };
     const offId = (e: PointerEvent) => release(e.pointerId);
     window.addEventListener("pointerup", offId);
     window.addEventListener("pointercancel", offId);
@@ -1609,17 +1733,11 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
       window.removeEventListener("blur", off);
       document.removeEventListener("visibilitychange", off);
     };
-  }, [release]);
-
-  const track = (clientX: number) => {
-    const dx = clientX - originRef.current;
-    const clamped = Math.max(-maxTravel, Math.min(maxTravel, dx));
-    setKnob(clamped);
-    emit(dx > deadZone ? 1 : dx < -deadZone ? -1 : 0);
-  };
+  }, [release, neutral]);
 
   return (
     <div
+      ref={padRef}
       role="slider"
       aria-label="Move left or right"
       aria-valuemin={-1}
@@ -1627,14 +1745,13 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
       aria-valuenow={dirRef.current}
       tabIndex={-1}
       onPointerDown={(e) => {
+        if (e.pointerType === "touch") return; // handled natively above
         e.preventDefault();
         e.stopPropagation();
         if (activePointerRef.current !== null && activePointerRef.current !== e.pointerId) {
           release();
         }
         activePointerRef.current = e.pointerId;
-        // Anchor to the pad centre so the first press already registers the
-        // direction the thumb landed on.
         originRef.current = e.currentTarget.getBoundingClientRect().left + radius;
         setActive(true);
         try {
@@ -1645,18 +1762,20 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
         track(e.clientX);
       }}
       onPointerMove={(e) => {
+        if (e.pointerType === "touch") return;
         if (activePointerRef.current !== e.pointerId) return;
         e.preventDefault();
         track(e.clientX);
       }}
       onPointerUp={(e) => {
+        if (e.pointerType === "touch") return;
         e.preventDefault();
         e.stopPropagation();
         release(e.pointerId);
       }}
       onPointerCancel={(e) => release(e.pointerId)}
-      onLostPointerCapture={(e) => release(e.pointerId)}
       onContextMenu={(e) => e.preventDefault()}
+
       className="pointer-events-auto relative touch-none select-none"
       style={{
         width: size,

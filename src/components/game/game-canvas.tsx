@@ -1581,6 +1581,7 @@ const TRAIL_PATH_D = [
  *  player knows the controls on whichever device they're on. */
 function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack: () => void }) {
   const [touch, setTouch] = useState(false);
+  const pad = useGamepadConnected();
   // Shared detector, so the instruction card can never disagree with whether
   // the on-screen pads are actually rendered.
   useEffect(() => {
@@ -1599,9 +1600,20 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
     ["Tap", "Continue screens"],
     ["⛶", "Full screen"],
   ];
+  const gamepad: Array<[string, string]> = [
+    ["STICK ← →", "Move"],
+    ["BUTTON 1", "Jump / Continue"],
+    ["STICK ↑", "Jump"],
+    ["SELECT", "Restart run"],
+  ];
 
-  const rows = touch ? mobile : desktop;
-  const heading = touch ? "MOBILE CONTROLS" : "DESKTOP / LAPTOP CONTROLS";
+  const rows = pad ? gamepad : touch ? mobile : desktop;
+  const heading = pad
+    ? "JOYSTICK CONTROLS"
+    : touch
+      ? "MOBILE CONTROLS"
+      : "DESKTOP / LAPTOP CONTROLS";
+
 
   return (
     <div

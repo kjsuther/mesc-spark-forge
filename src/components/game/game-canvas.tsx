@@ -699,6 +699,53 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [launchMode, error, advanceMenu]);
 
+  // ---- USB controller (Trooper 2 arcade stick and other standard gamepads) --
+  // Menus advance on any button; during a run the stick drives movement and
+  // the main button jumps. Enter is also forwarded to the canvas so in-game
+  // "press to continue" prompts respond to the stick too.
+  useEffect(() => {
+    const w = window as unknown as {
+      __gameInput?: TouchInput;
+      __gamepadGameCapture?: boolean;
+    };
+    w.__gamepadGameCapture = true;
+    let lastMenuAdvance = 0;
+    const unsub = subscribeGamepad((f) => {
+      if (error) return;
+      if (!launchMode) {
+        const now = performance.now();
+        if ((f.confirm || f.start) && now - lastMenuAdvance > 260) {
+          lastMenuAdvance = now;
+          advanceMenu();
+        }
+        return;
+      }
+      const input = w.__gameInput;
+      if (input) {
+        input.left = f.left;
+        input.right = f.right;
+        if (f.confirm || f.tapUp) input.jumpReq = true;
+        if (f.select) input.resetReq = true;
+      }
+      if (f.left || f.right || f.confirm) setShowHint(false);
+      if (f.confirm || f.start) {
+        const canvas = canvasRef.current;
+        if (canvas) {
+          for (const type of ["keydown", "keyup"] as const) {
+            canvas.dispatchEvent(
+              new KeyboardEvent(type, { key: "Enter", code: "Enter", bubbles: true }),
+            );
+          }
+        }
+      }
+    });
+    return () => {
+      w.__gamepadGameCapture = false;
+      unsub();
+    };
+  }, [launchMode, error, advanceMenu]);
+
+
   function setBtn(k: "left" | "right", v: boolean) {
     const w = window as unknown as { __gameInput?: TouchInput };
     if (w.__gameInput) w.__gameInput[k] = v;

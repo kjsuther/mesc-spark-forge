@@ -1613,7 +1613,9 @@ function PadButton({
  * holdable button.
  */
 function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 | 1) => void }) {
+  const padRef = useRef<HTMLDivElement | null>(null);
   const activePointerRef = useRef<number | null>(null);
+  const touchIdRef = useRef<number | null>(null);
   const originRef = useRef(0);
   const dirRef = useRef<-1 | 0 | 1>(0);
   const [knob, setKnob] = useState(0);
@@ -1623,31 +1625,98 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
   const maxTravel = radius * 0.62;
   const deadZone = radius * 0.18;
 
-  const emit = useCallback(
-    (dir: -1 | 0 | 1) => {
-      if (dirRef.current === dir) return;
-      dirRef.current = dir;
-      onChange(dir);
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
+  const emit = useCallback((dir: -1 | 0 | 1) => {
+    if (dirRef.current === dir) return;
+    dirRef.current = dir;
+    onChangeRef.current(dir);
+  }, []);
+
+  const track = useCallback(
+    (clientX: number) => {
+      const dx = clientX - originRef.current;
+      setKnob(Math.max(-maxTravel, Math.min(maxTravel, dx)));
+      emit(dx > deadZone ? 1 : dx < -deadZone ? -1 : 0);
     },
-    [onChange],
+    [emit, maxTravel, deadZone],
   );
+
+  const neutral = useCallback(() => {
+    setActive(false);
+    setKnob(0);
+    emit(0);
+  }, [emit]);
 
   const release = useCallback(
     (pointerId?: number) => {
       if (activePointerRef.current === null) return;
       if (pointerId !== undefined && pointerId !== activePointerRef.current) return;
       activePointerRef.current = null;
-      setActive(false);
-      setKnob(0);
-      emit(0);
+      neutral();
     },
-    [emit],
+    [neutral],
   );
 
-  // Safety net: a swallowed pointerup (gesture takeover, fullscreen or
+  // Native touch path (no pointer capture). Capturing the steering pointer is
+  // what made a concurrent second-finger JUMP tap unreliable, so the stick
+  // tracks its own touch id through window-level touch listeners instead —
+  // the thumb can still drift off the pad without dropping input.
+  useEffect(() => {
+    const el = padRef.current;
+    if (!el) return;
+    const start = (e: TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (touchIdRef.current !== null) return;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      touchIdRef.current = t.identifier;
+      const box = el.getBoundingClientRect();
+      originRef.current = box.left + box.width / 2;
+      setActive(true);
+      track(t.clientX);
+    };
+    const findTouch = (list: TouchList) => {
+      for (const t of Array.from(list)) if (t.identifier === touchIdRef.current) return t;
+      return null;
+    };
+    const move = (e: TouchEvent) => {
+      if (touchIdRef.current === null) return;
+      const t = findTouch(e.touches);
+      if (!t) return;
+      e.preventDefault();
+      track(t.clientX);
+    };
+    const end = (e: TouchEvent) => {
+      if (touchIdRef.current === null) return;
+      if (!findTouch(e.changedTouches)) return;
+      touchIdRef.current = null;
+      neutral();
+    };
+    el.addEventListener("touchstart", start, { passive: false });
+    window.addEventListener("touchmove", move, { passive: false });
+    window.addEventListener("touchend", end, { passive: true });
+    window.addEventListener("touchcancel", end, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", start);
+      window.removeEventListener("touchmove", move);
+      window.removeEventListener("touchend", end);
+      window.removeEventListener("touchcancel", end);
+    };
+  }, [track, neutral]);
+
+  // Safety net: a swallowed pointerup/touchend (gesture takeover, fullscreen or
   // orientation transition, tab switch) must never leave the hero running.
   useEffect(() => {
-    const off = () => release();
+    const off = () => {
+      release();
+      if (touchIdRef.current !== null) {
+        touchIdRef.current = null;
+        neutral();
+      }
+    };
     const offId = (e: PointerEvent) => release(e.pointerId);
     window.addEventListener("pointerup", offId);
     window.addEventListener("pointercancel", offId);
@@ -1659,17 +1728,11 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
       window.removeEventListener("blur", off);
       document.removeEventListener("visibilitychange", off);
     };
-  }, [release]);
-
-  const track = (clientX: number) => {
-    const dx = clientX - originRef.current;
-    const clamped = Math.max(-maxTravel, Math.min(maxTravel, dx));
-    setKnob(clamped);
-    emit(dx > deadZone ? 1 : dx < -deadZone ? -1 : 0);
-  };
+  }, [release, neutral]);
 
   return (
     <div
+      ref={padRef}
       role="slider"
       aria-label="Move left or right"
       aria-valuemin={-1}
@@ -1677,14 +1740,13 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
       aria-valuenow={dirRef.current}
       tabIndex={-1}
       onPointerDown={(e) => {
+        if (e.pointerType === "touch") return; // handled natively above
         e.preventDefault();
         e.stopPropagation();
         if (activePointerRef.current !== null && activePointerRef.current !== e.pointerId) {
           release();
         }
         activePointerRef.current = e.pointerId;
-        // Anchor to the pad centre so the first press already registers the
-        // direction the thumb landed on.
         originRef.current = e.currentTarget.getBoundingClientRect().left + radius;
         setActive(true);
         try {
@@ -1695,18 +1757,20 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
         track(e.clientX);
       }}
       onPointerMove={(e) => {
+        if (e.pointerType === "touch") return;
         if (activePointerRef.current !== e.pointerId) return;
         e.preventDefault();
         track(e.clientX);
       }}
       onPointerUp={(e) => {
+        if (e.pointerType === "touch") return;
         e.preventDefault();
         e.stopPropagation();
         release(e.pointerId);
       }}
       onPointerCancel={(e) => release(e.pointerId)}
-      onLostPointerCapture={(e) => release(e.pointerId)}
       onContextMenu={(e) => e.preventDefault()}
+
       className="pointer-events-auto relative touch-none select-none"
       style={{
         width: size,

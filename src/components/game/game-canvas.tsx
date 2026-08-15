@@ -1759,7 +1759,7 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
     ["Esc", "Pause"],
   ];
   const mobile: Array<[string, string]> = [
-    ["◀ ▶", "Move"],
+    ["STICK ◀ ▶", "Slide to move (slide across to turn)"],
     ["⤒", "Jump"],
     ["Tap", "Continue screens"],
     ["⛶", "Full screen"],

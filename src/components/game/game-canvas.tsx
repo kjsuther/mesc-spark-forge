@@ -1249,7 +1249,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
               }}
             >
               <JoystickPad
-                size={Math.round(padUnit * 1.55)}
+                size={stickSize}
                 onChange={(dir) => {
                   setBtn("left", dir < 0);
                   setBtn("right", dir > 0);

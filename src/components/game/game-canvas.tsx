@@ -302,11 +302,14 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       if (destroy) destroy();
       destroy = null;
       // Explicitly hand the retired canvas's graphics context back. Browsers
-      // cap live contexts per page, and a discarded canvas can hold on to its
-      // own long enough that the next boot fails at shader compile.
-      if (bootedCanvas && bootedCanvas !== canvasRef.current) releaseCanvasContext(bootedCanvas);
+      // cap live contexts per page, and a discarded canvas holds on to its own
+      // long enough that the next boot fails at shader compile ("failed to
+      // load shaders" on the second play). The canvas element is keyed per
+      // effect run, so the element booted here is always the retired one.
+      releaseCanvasContext(bootedCanvas);
       bootedCanvas = null;
     };
+
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [launchMode, engineGeneration]);

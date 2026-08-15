@@ -1309,7 +1309,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       {launchMode && !overlayFs && !presentation && (
         <p className="mt-2 text-center text-xs font-semibold text-dark-gray/70">
           {isTouch
-            ? "Hold ◀ ▶ to move · JUMP to hop · ⟳ to restart · ⛶ for full screen"
+            ? "Slide the stick to move · JUMP to hop · ⟳ to restart · ⛶ for full screen"
             : "← → to move · Space / ↑ to jump · R to reset · ⛶ for fullscreen"}
         </p>
       )}

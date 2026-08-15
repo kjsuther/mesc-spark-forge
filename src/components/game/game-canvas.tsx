@@ -1555,6 +1555,166 @@ function PadButton({
   );
 }
 
+/**
+ * Compact digital thumbstick for touch play. Horizontal axis only: sliding a
+ * held thumb across the centre reverses direction inside one gesture, which
+ * the old two-button D-pad could not do (it needed a release + retap).
+ * Vertical movement is ignored so JUMP stays a separate, simultaneously
+ * holdable button.
+ */
+function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 | 1) => void }) {
+  const activePointerRef = useRef<number | null>(null);
+  const originRef = useRef(0);
+  const dirRef = useRef<-1 | 0 | 1>(0);
+  const [knob, setKnob] = useState(0);
+  const [active, setActive] = useState(false);
+
+  const radius = size / 2;
+  const maxTravel = radius * 0.62;
+  const deadZone = radius * 0.18;
+
+  const emit = useCallback(
+    (dir: -1 | 0 | 1) => {
+      if (dirRef.current === dir) return;
+      dirRef.current = dir;
+      onChange(dir);
+    },
+    [onChange],
+  );
+
+  const release = useCallback(
+    (pointerId?: number) => {
+      if (activePointerRef.current === null) return;
+      if (pointerId !== undefined && pointerId !== activePointerRef.current) return;
+      activePointerRef.current = null;
+      setActive(false);
+      setKnob(0);
+      emit(0);
+    },
+    [emit],
+  );
+
+  // Safety net: a swallowed pointerup (gesture takeover, fullscreen or
+  // orientation transition, tab switch) must never leave the hero running.
+  useEffect(() => {
+    const off = () => release();
+    const offId = (e: PointerEvent) => release(e.pointerId);
+    window.addEventListener("pointerup", offId);
+    window.addEventListener("pointercancel", offId);
+    window.addEventListener("blur", off);
+    document.addEventListener("visibilitychange", off);
+    return () => {
+      window.removeEventListener("pointerup", offId);
+      window.removeEventListener("pointercancel", offId);
+      window.removeEventListener("blur", off);
+      document.removeEventListener("visibilitychange", off);
+    };
+  }, [release]);
+
+  const track = (clientX: number) => {
+    const dx = clientX - originRef.current;
+    const clamped = Math.max(-maxTravel, Math.min(maxTravel, dx));
+    setKnob(clamped);
+    emit(dx > deadZone ? 1 : dx < -deadZone ? -1 : 0);
+  };
+
+  return (
+    <div
+      role="slider"
+      aria-label="Move left or right"
+      aria-valuemin={-1}
+      aria-valuemax={1}
+      aria-valuenow={dirRef.current}
+      tabIndex={-1}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (activePointerRef.current !== null && activePointerRef.current !== e.pointerId) {
+          release();
+        }
+        activePointerRef.current = e.pointerId;
+        // Anchor to the pad centre so the first press already registers the
+        // direction the thumb landed on.
+        originRef.current = e.currentTarget.getBoundingClientRect().left + radius;
+        setActive(true);
+        try {
+          (e.currentTarget as HTMLDivElement).setPointerCapture?.(e.pointerId);
+        } catch {
+          /* noop */
+        }
+        track(e.clientX);
+      }}
+      onPointerMove={(e) => {
+        if (activePointerRef.current !== e.pointerId) return;
+        e.preventDefault();
+        track(e.clientX);
+      }}
+      onPointerUp={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        release(e.pointerId);
+      }}
+      onPointerCancel={(e) => release(e.pointerId)}
+      onLostPointerCapture={(e) => release(e.pointerId)}
+      onContextMenu={(e) => e.preventDefault()}
+      className="pointer-events-auto relative touch-none select-none"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: "rgba(30, 41, 82, 0.62)",
+        border: "3px solid var(--color-cream)",
+        boxShadow: "inset 0 -4px 0 rgba(0,0,0,0.35), inset 0 3px 0 rgba(255,255,255,0.18)",
+        backdropFilter: "blur(4px)",
+        WebkitBackdropFilter: "blur(4px)",
+        touchAction: "none",
+        WebkitUserSelect: "none",
+        WebkitTouchCallout: "none",
+        WebkitTapHighlightColor: "transparent",
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: 0,
+          right: 0,
+          transform: "translateY(-50%)",
+          display: "flex",
+          justifyContent: "space-between",
+          padding: `0 ${Math.round(size * 0.09)}px`,
+          fontSize: Math.round(size * 0.14),
+          lineHeight: 1,
+          color: "rgba(245, 232, 199, 0.7)",
+        }}
+      >
+        <span>◀</span>
+        <span>▶</span>
+      </span>
+      <span
+        aria-hidden
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          width: Math.round(size * 0.46),
+          height: Math.round(size * 0.46),
+          marginTop: Math.round(size * -0.23),
+          marginLeft: Math.round(size * -0.23),
+          transform: `translateX(${knob}px)`,
+          borderRadius: "50%",
+          background: active ? "var(--color-accent-gold)" : "rgba(245, 232, 199, 0.85)",
+          border: "2px solid rgba(30, 41, 82, 0.8)",
+          boxShadow: "0 2px 0 rgba(0,0,0,0.45)",
+        }}
+      />
+    </div>
+  );
+}
+
+
+
 // SNES-style top-down trail map. The overlay traces the trail painted on the
 // map artwork: waypoints below are measured marker centers of the printed
 // 1-8 stops in the image's own 800x400 coordinate space.

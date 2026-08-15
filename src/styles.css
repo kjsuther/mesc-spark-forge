@@ -196,3 +196,11 @@
 }
 
 
+
+/* Focus ring for USB-controller navigation (programmatic focus doesn't
+   trigger :focus-visible in every browser). */
+.gamepad-focus {
+  outline: 3px solid var(--color-accent-gold);
+  outline-offset: 3px;
+  border-radius: 4px;
+}

@@ -1587,19 +1587,24 @@ function PadButton({
         WebkitTapHighlightColor: "transparent",
       }}
     >
-      <span
-        style={{
-          position: "absolute",
-          top: 3,
-          left: 5,
-          fontSize: 7,
-          letterSpacing: 1,
-          color: "rgba(245, 232, 199, 0.85)",
-          fontFamily: '"Press Start 2P", ui-monospace, monospace',
-        }}
-      >
-        {label}
-      </span>
+      {/* Corner caption only where it fits: on the compact RESET button the
+          glyph alone reads cleanly and the word would overflow the pad. */}
+      {size >= 52 && (
+        <span
+          style={{
+            position: "absolute",
+            top: 3,
+            left: 5,
+            fontSize: Math.max(6, Math.round(size * 0.11)),
+            letterSpacing: 1,
+            color: "rgba(245, 232, 199, 0.85)",
+            fontFamily: '"Press Start 2P", ui-monospace, monospace',
+          }}
+        >
+          {label}
+        </span>
+      )}
+
       <span style={{ display: "inline-block", lineHeight: 1 }}>{children}</span>
     </button>
   );

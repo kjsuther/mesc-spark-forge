@@ -941,7 +941,8 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         }
       >
         <canvas
-          key={engineGeneration}
+          key={`${launchMode ?? "idle"}-${engineGeneration}`}
+
           ref={canvasRef}
           onPointerDown={focusCanvas}
           onContextMenu={(e) => e.preventDefault()}

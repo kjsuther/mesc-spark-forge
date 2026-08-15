@@ -1443,8 +1443,15 @@ function PadButton({
   accent?: boolean;
   dim?: boolean;
 }) {
+  const btnRef = useRef<HTMLButtonElement | null>(null);
   const activePointerRef = useRef<number | null>(null);
+  const touchIdRef = useRef<number | null>(null);
   const [pressed, setPressed] = useState(false);
+  // Latest-callback refs so the native listeners below can be registered once.
+  const onDownRef = useRef(onDown);
+  const onUpRef = useRef(onUp);
+  onDownRef.current = onDown;
+  onUpRef.current = onUp;
 
   const release = useCallback(
     (pointerId?: number) => {
@@ -1457,13 +1464,58 @@ function PadButton({
     [onUp],
   );
 
-  // Safety net: if the browser eats the pointerup (scroll takeover, gesture
-  // cancel, tab switch, fullscreen transition) the direction must not stick —
-  // and, just as important, the stale pointer id must be cleared so the NEXT
-  // tap is not swallowed. These listeners stay mounted for the button's whole
-  // life, not only while it reads as pressed.
+  // Native touch path. Touch events are delivered reliably to a second finger
+  // even while another element holds a pointer capture (the joystick), which
+  // is exactly the case where the Pointer Events path can silently drop a
+  // JUMP tap made while a direction is being held.
   useEffect(() => {
-    const off = () => release();
+    const el = btnRef.current;
+    if (!el) return;
+    const start = (e: TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (touchIdRef.current !== null) return;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      touchIdRef.current = t.identifier;
+      setPressed(true);
+      onDownRef.current();
+    };
+    const end = (e: TouchEvent) => {
+      if (touchIdRef.current === null) return;
+      for (const t of Array.from(e.changedTouches)) {
+        if (t.identifier === touchIdRef.current) {
+          touchIdRef.current = null;
+          setPressed(false);
+          onUpRef.current?.();
+          return;
+        }
+      }
+    };
+    el.addEventListener("touchstart", start, { passive: false });
+    el.addEventListener("touchend", end, { passive: true });
+    el.addEventListener("touchcancel", end, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", start);
+      el.removeEventListener("touchend", end);
+      el.removeEventListener("touchcancel", end);
+    };
+  }, []);
+
+  // Safety net: if the browser eats the pointerup/touchend (scroll takeover,
+  // gesture cancel, tab switch, fullscreen transition) the direction must not
+  // stick — and the stale id must be cleared so the NEXT tap is not swallowed.
+  useEffect(() => {
+    const clearTouch = () => {
+      if (touchIdRef.current === null) return;
+      touchIdRef.current = null;
+      setPressed(false);
+      onUpRef.current?.();
+    };
+    const off = () => {
+      release();
+      clearTouch();
+    };
     const offId = (e: PointerEvent) => release(e.pointerId);
     window.addEventListener("pointerup", offId);
     window.addEventListener("pointercancel", offId);
@@ -1477,7 +1529,6 @@ function PadButton({
     };
   }, [release]);
 
-
   const bg = accent
     ? "rgba(214, 90, 49, 0.82)" // orange
     : dim
@@ -1486,38 +1537,31 @@ function PadButton({
   const border = accent ? "var(--color-accent-gold)" : "var(--color-cream)";
   return (
     <button
+      ref={btnRef}
       type="button"
       aria-label={aria}
       onPointerDown={(e) => {
+        // Touch is handled by the native listeners above; taking it here too
+        // would double-fire and re-introduce the capture problem.
+        if (e.pointerType === "touch") return;
         e.preventDefault();
         e.stopPropagation();
-        // Never drop a fresh press: if a previous pointer's up/cancel was
-        // swallowed (fullscreen or orientation transitions do this), adopt the
-        // new pointer instead of ignoring the tap.
         if (activePointerRef.current !== null && activePointerRef.current !== e.pointerId) {
           release();
         }
         activePointerRef.current = e.pointerId;
         setPressed(true);
-        try {
-          (e.currentTarget as HTMLButtonElement).setPointerCapture?.(e.pointerId);
-        } catch {
-
-          /* noop */
-        }
-        onDown();
+        onDownRef.current();
       }}
       onPointerUp={(e) => {
+        if (e.pointerType === "touch") return;
         e.preventDefault();
         e.stopPropagation();
         release(e.pointerId);
       }}
-      // Deliberately NO pointerleave/pointerout handler: with pointer capture
-      // a finger that drifts a couple of pixels still fires those, which used
-      // to cancel movement mid-hold.
       onPointerCancel={(e) => release(e.pointerId)}
-      onLostPointerCapture={(e) => release(e.pointerId)}
       onContextMenu={(e) => e.preventDefault()}
+
       className="pointer-events-auto relative touch-none select-none font-black text-cream"
       style={{
         width: size,

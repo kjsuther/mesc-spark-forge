@@ -1494,12 +1494,18 @@ function PadButton({
       onPointerDown={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (activePointerRef.current !== null) return;
+        // Never drop a fresh press: if a previous pointer's up/cancel was
+        // swallowed (fullscreen or orientation transitions do this), adopt the
+        // new pointer instead of ignoring the tap.
+        if (activePointerRef.current !== null && activePointerRef.current !== e.pointerId) {
+          release();
+        }
         activePointerRef.current = e.pointerId;
         setPressed(true);
         try {
           (e.currentTarget as HTMLButtonElement).setPointerCapture?.(e.pointerId);
         } catch {
+
           /* noop */
         }
         onDown();

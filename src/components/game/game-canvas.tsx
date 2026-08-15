@@ -1589,7 +1589,7 @@ function PadButton({
     >
       {/* Corner caption only where it fits: on the compact RESET button the
           glyph alone reads cleanly and the word would overflow the pad. */}
-      {size >= 52 && (
+      {size >= 52 && !accent && (
         <span
           style={{
             position: "absolute",

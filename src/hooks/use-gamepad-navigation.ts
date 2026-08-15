@@ -34,12 +34,16 @@ export function useGamepadNavigation() {
       if (items.length === 0) return;
       const active = document.activeElement as HTMLElement | null;
       const idx = active ? items.indexOf(active) : -1;
-      const next = items[(((idx === -1 ? (delta > 0 ? -1 : 0) : idx) + delta) % items.length +
-        items.length) %
-        items.length];
-      next?.focus();
-      next?.scrollIntoView({ block: "center", behavior: "smooth" });
+      const base = idx === -1 ? (delta > 0 ? -1 : 0) : idx;
+      const next = items[(((base + delta) % items.length) + items.length) % items.length];
+      if (!next) return;
+      active?.classList.remove("gamepad-focus");
+      next.focus({ preventScroll: true });
+      next.classList.add("gamepad-focus");
+      next.addEventListener("blur", () => next.classList.remove("gamepad-focus"), { once: true });
+      next.scrollIntoView({ block: "center", behavior: "smooth" });
     };
+
 
     return subscribeGamepad((f) => {
       if (captured()) return;

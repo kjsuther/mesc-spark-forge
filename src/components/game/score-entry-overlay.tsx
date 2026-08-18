@@ -425,6 +425,9 @@ export function ScoreEntryOverlay({
 
           <Link
             to="/feedback"
+            {...(openFeedbackInNewTab
+              ? { target: "_blank" as const, rel: "noopener noreferrer" }
+              : {})}
             className="mt-5 inline-flex min-h-[44px] items-center justify-center border-4 px-4 py-3 text-[8px] leading-relaxed tracking-widest"
             style={{
               fontFamily: PIXEL_FONT,

@@ -18,6 +18,7 @@
 import type { KAPLAYCtx } from "kaplay";
 import type { ImprovementKey } from "@/lib/game.functions";
 import { FeatureFlags } from "@/lib/game-features";
+import { t as tr } from "@/lib/i18n";
 import { computeFinalScore, zoneSpeedBonus } from "@/lib/game-score";
 
 import {
@@ -53,6 +54,7 @@ import bgMountainUrl from "@/assets/game/bg-mountain.webp";
 import bgMarketUrl from "@/assets/game/bg-market.webp";
 import bgClinicUrl from "@/assets/game/bg-clinic.webp";
 import bgThanksUrl from "@/assets/game/bg-thankyou-office.webp";
+import bgBonusUrl from "@/assets/game/bg-bonus-portland.webp";
 import doorSheetUrl from "@/assets/game/door-sheet.webp";
 import credentialsSheetUrl from "@/assets/game/credentials-sheet.webp";
 import goldKeyUrl from "@/assets/game/gold-key.webp";
@@ -1107,6 +1109,7 @@ async function loadAllSprites(k: Ctx): Promise<SpriteSizes> {
     safeLoadBackground(k, "bg-market", bgMarketUrl),
     safeLoadBackground(k, "bg-clinic", bgClinicUrl),
     safeLoadBackground(k, "bg-thanks", bgThanksUrl),
+    safeLoadBackground(k, "bg-bonus", bgBonusUrl),
     safeLoadBackground(k, "hero-portrait", heroPortraitUrl),
     safeLoadBackground(k, "hero-sitting", heroSittingUrl),
     safeLoadBackground(k, "ranger-guide", rangerGuideUrl),
@@ -1398,6 +1401,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   // that is what makes text look jagged in windowed mode. Sprite sampling
   // stays crisp inside the GL pipeline; only the final present is smoothed.
   if (opts.canvas) opts.canvas.style.imageRendering = "auto";
+
+  // Localization hook: every text component created from here on is routed
+  // through the translation dictionary, so scene code keeps its English
+  // literals while the rendered glyphs follow the player's language choice.
+  {
+    const rawText = k.text.bind(k) as Ctx["text"];
+    (k as unknown as { text: Ctx["text"] }).text = ((value: unknown, options?: unknown) =>
+      rawText(tr(String(value ?? "")), options as never)) as Ctx["text"];
+  }
 
   // ---- Live layout watcher ------------------------------------------------
   // The canvas keeps its logical resolution, but the CSS box it is painted
@@ -2010,10 +2022,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // ================= ZONE 1: Setting Up Camp — create account =================
     const sx0 = BIOME_W;
-    const laptopSpots = [sx0 + 180, sx0 + 380, sx0 + 560];
+    // Player-feedback fix: the decorative laptops used to stand in the running
+    // lane and read as hazards. They now sit BEHIND the play plane, tucked at
+    // the zone edges and dimmed, so the zone keeps its density while every
+    // object the player can actually touch stays unambiguous.
+    const laptopSpots = [sx0 + 120, sx0 + 1160];
     for (const lx of laptopSpots) {
-      spawnDecor(k, "laptop", sizes, { x: lx, z: LAYERS.PROP });
+      const d = spawnDecor(k, "laptop", sizes, {
+        x: lx,
+        groundY: GROUND_Y - 96,
+        z: LAYERS.BG_NEAR + 1,
+      });
+      (d as AnyObj).use(k.opacity(0.5));
     }
+
 
     // --- Background sightings: the boss bear glimpsed through Zones 1-6 ------
     // Purely decorative and painted INTO the backdrop: no drawn ledges, no
@@ -2227,9 +2249,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
       item.sign = addSpeech(k, px, py - 32, "PASSWORD", [30, 60, 130]);
     }
-    // Password padlock enemy patrol
+    // Password padlock enemy patrol.
+    // Player-feedback fix: this lock used to sit RIGHT of the Z1 gap, which
+    // left two locks crowding the narrow landing. It now patrols well LEFT of
+    // the gap where there is room to time the jump.
     {
-      const px = sx0 + 900;
+      const px = sx0 + 300;
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
       const speed = 54;
@@ -2237,7 +2262,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         x: px,
         z: LAYERS.ACTOR,
         tag: "monster",
-        props: { dir: 1, home: px, range: 60 },
+        props: { dir: 1, home: px, range: 90 },
         hitboxScale: { x: -pw / 2, w: pw, h: ph },
       });
       m.onUpdate(() => {
@@ -2253,17 +2278,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
       });
     }
-    // Two more padlocks LEFT of the Z1 gap. Difficulty pass: they no longer
-    // cross paths at high speed — one crossing pair became a single slower
-    // guard, and the door guard slowed down too.
+    // Gap guards. Final layout: TWO locks left of the Z1 gap (the one above
+    // plus this roamer) and exactly ONE on the right, whose patrol is kept
+    // short so the landing ledge always has clear space.
     {
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
       const spots: Array<{ x: number; dir: 1 | -1; speed: number; range: number }> = [
-        { x: sx0 + 490, dir: 1, speed: 122, range: 240 },
-        // Padlock guarding the approach to the door on the right.
-        { x: sx0 + 1000, dir: -1, speed: 116, range: 140 },
+        { x: sx0 + 560, dir: 1, speed: 116, range: 110 },
+        // The single padlock guarding the approach to the door on the right.
+        { x: sx0 + 1010, dir: -1, speed: 104, range: 110 },
       ];
+
       for (const s of spots) {
         const m = spawnGrounded(k, "padlock", sizes, {
           x: s.x,
@@ -3498,7 +3524,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ];
       const shadow = {
         set text(v: string) {
-          for (const n of halo) n.text = v;
+          for (const n of halo) n.text = tr(v);
         },
         set opacity(v: number) {
           for (const n of halo) n.opacity = v;
@@ -3517,8 +3543,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           return main.text as string;
         },
         set text(v: string) {
-          main.text = v;
-          shadow.text = v;
+          main.text = tr(v);
+          shadow.text = tr(v);
         },
         get opacity() {
           return main.opacity as number;
@@ -3624,7 +3650,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       opacity: 0,
     });
     function showHint(msg: string) {
-      hintHud.text = msg;
+      hintHud.text = tr(msg);
       hintHud.opacity = 1;
       hintUntil = k.time() + 1.8;
     }
@@ -3712,16 +3738,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           return;
         }
         t.opacity = 1;
-        t.text = `${row.carried ? "✓" : "○"} ${row.label}`;
+        t.text = tr(`${row.carried ? "✓" : "○"} ${row.label}`);
         t.setPos(UPG_X + 6, UPG_Y + 17 + i * UPG_ROW_H);
       });
     }
 
     function updateHud() {
-      scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
+      scoreHud.text = tr(`SCORE ${Math.max(0, Math.round(player.score))}`);
       {
         const t = runClock();
-        timeHud.text = `TIME ${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+        timeHud.text = tr(`TIME ${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`);
       }
 
       appIcons.forEach((g, i) => {
@@ -3738,7 +3764,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           : "";
       const z = player.farthestZone;
       const obj = zoneObjectives[z];
-      objectiveHud.text = obj ? obj.hudLabel() : "";
+      objectiveHud.text = tr(obj ? obj.hudLabel() : "");
 
       // Zone-5 big countdown: visible while player is in Zone 5 with an
       // active wait timer, or briefly flashes APPROVED! at 0.
@@ -3754,13 +3780,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         waitLabel.opacity = 1;
         waitCountdown.opacity = 1;
         if (approvedFlash) {
-          waitLabel.text = "APPROVED!";
-          waitCountdown.text = "✓";
+          waitLabel.text = tr("APPROVED!");
+          waitCountdown.text = tr("✓");
           // Color for this label is set on the node itself; nothing to do here.
         } else {
-          waitLabel.text = started ? "AWAITING DECISION" : "STEP INTO THE MOUNTAIN";
+          waitLabel.text = tr(started ? "AWAITING DECISION" : "STEP INTO THE MOUNTAIN");
           const secs = Math.ceil(remaining);
-          waitCountdown.text = `0:${String(secs).padStart(2, "0")}`;
+          waitCountdown.text = tr(`0:${String(secs).padStart(2, "0")}`);
         }
       } else {
         waitBg.opacity = 0;
@@ -4765,7 +4791,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           );
         }
       }
-      debugBody.text = lines.join("\n");
+      debugBody.text = tr(lines.join("\n"));
     }
     // Auto-size panel roughly to content height.
     k.onUpdate(() => {
@@ -5152,7 +5178,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         boss.hurtUntil = now + 1.05;
         zoneState.bossHits = boss.hits;
         player.score += 400;
-        hearts.text = "♥".repeat(Math.max(0, BOSS_MAX_HITS - boss.hits));
+        hearts.text = tr("♥".repeat(Math.max(0, BOSS_MAX_HITS - boss.hits)));
         sparkleBurst(sx, sy, [120, 255, 180]);
         if (boss.hits >= BOSS_MAX_HITS) defeatBoss();
         else showHint(`Boss hit! ${BOSS_MAX_HITS - boss.hits} to go.`);
@@ -5376,6 +5402,181 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       loseLife("boulder");
     });
     player.onCollide("water", () => loseLife("water"));
+
+    // ================= 1-UP collectibles =================
+    // A 16-bit heart badge. Grabbing it grants an extra application (life);
+    // if the player is already carrying the maximum, it pays points instead so
+    // the pickup is never a dud.
+    const LIFE_CAP = 5;
+    function spawn1UP(x: number, y: number) {
+      const badge = k.add([
+        k.rect(30, 26, { radius: 4 }),
+        k.pos(x, y),
+        k.anchor("center"),
+        k.color(230, 60, 90),
+        k.outline(3, k.rgb(255, 245, 235)),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), 30, 26) }),
+        k.z(LAYERS.EFFECT),
+        "oneup",
+        { baseY: y },
+      ]) as AnyObj;
+      const label = k.add([
+        k.text("1UP", { size: 11, font: UI_FONT }),
+        k.pos(x, y),
+        k.anchor("center"),
+        k.color(255, 255, 255),
+        k.z(LAYERS.EFFECT + 1),
+      ]) as AnyObj;
+      badge.onUpdate(() => {
+        badge.pos.y = badge.baseY + Math.sin(k.time() * 3) * 7;
+        label.pos = k.vec2(badge.pos.x, badge.pos.y);
+      });
+      badge.onDestroy(() => label.destroy());
+      return badge;
+    }
+
+    player.onCollide("oneup", (o: AnyObj) => {
+      o.destroy();
+      playSfx("pickup");
+      sparkleBurst(player.pos.x, player.pos.y - 40, [255, 120, 150]);
+      if (player.maxLives < LIFE_CAP) {
+        player.maxLives += 1;
+        player.lives += 1;
+        showHint("Extra life! You're back in the game.");
+      } else if (player.lives < player.maxLives) {
+        player.lives += 1;
+        showHint("Extra life! You're back in the game.");
+      } else {
+        player.score += 400;
+        showHint("Full on lives — bonus points instead!");
+      }
+      updateHud();
+    });
+
+    // Two extra lives are hidden along the main trail, both reachable only
+    // with a deliberate jump so they read as a reward, not a handout.
+    spawn1UP(BIOME_W * 3 + 640, GROUND_Y - 190);
+    spawn1UP(BIOME_W * 5 + 520, GROUND_Y - 200);
+
+    // ================= Secret bonus stage (Portland waterfront) =================
+    // Falling into the Zone 2 gap normally costs a life. The FIRST time it
+    // happens the trail instead warps the player to a hidden pocket built far
+    // above the level: a calm Portland waterfront with no enemies, a row of
+    // treats and a 1-UP. Walking off its right edge drops them back onto the
+    // trail just past the gap, so the run continues untouched.
+    const BONUS_DY = -1600;
+    const BONUS_X0 = BIOME_W + 120;
+    const BONUS_X1 = BIOME_W + 1080;
+    const BONUS_GROUND_Y = GROUND_Y + BONUS_DY;
+    let bonusActive = false;
+    let bonusUsed = false;
+    let bonusBuilt = false;
+
+    function buildBonusStage() {
+      if (bonusBuilt) return;
+      bonusBuilt = true;
+      k.add([
+        k.rect(BONUS_X1 - BONUS_X0 + 240, 540),
+        k.pos(BONUS_X0 - 120, BONUS_GROUND_Y - 430),
+        k.color(30, 60, 90),
+        k.z(LAYERS.BG_FAR - 1),
+      ]);
+      k.add([
+        k.sprite("bg-bonus", { width: BONUS_X1 - BONUS_X0 + 240, height: 540 }),
+        k.pos(BONUS_X0 - 120, BONUS_GROUND_Y - 430),
+        k.z(LAYERS.BG_FAR),
+      ]);
+      addGround(k, BONUS_X0 - 120, BONUS_X1 + 120, BONUS_GROUND_Y, [90, 140, 90], [60, 50, 40]);
+
+      showFloatingSign(BONUS_X0 + 150, BONUS_GROUND_Y - 250, "SECRET FOUND!", [255, 220, 90]);
+      showFloatingSign(BONUS_X0 + 150, BONUS_GROUND_Y - 210, "PORTLAND WATERFRONT", [255, 255, 255]);
+      showFloatingSign(
+        BONUS_X0 + 150,
+        BONUS_GROUND_Y - 176,
+        "Collect everything — no enemies here!",
+        [190, 235, 255],
+      );
+      showFloatingSign(BONUS_X1 - 130, BONUS_GROUND_Y - 210, "EXIT →", [255, 220, 90]);
+
+      // Treats: a simple arc of collectible points across the waterfront.
+      for (let i = 0; i < 9; i++) {
+        const cx = BONUS_X0 + 220 + i * 78;
+        const cy = BONUS_GROUND_Y - 90 - Math.round(Math.sin((i / 8) * Math.PI) * 120);
+        const treat = k.add([
+          k.rect(22, 22, { radius: 5 }),
+          k.pos(cx, cy),
+          k.anchor("center"),
+          k.color(210, 160, 80),
+          k.outline(3, k.rgb(255, 245, 230)),
+          k.area({ shape: new k.Rect(k.vec2(0, 0), 22, 22) }),
+          k.z(LAYERS.EFFECT),
+          "bonus-treat",
+          { baseY: cy },
+        ]) as AnyObj;
+        treat.onUpdate(() => {
+          treat.pos.y = treat.baseY + Math.sin(k.time() * 3 + i) * 5;
+        });
+      }
+      spawn1UP(BONUS_X0 + 610, BONUS_GROUND_Y - 250);
+    }
+
+    function showFloatingSign(x: number, y: number, msg: string, rgb: [number, number, number]) {
+      k.add([
+        k.text(msg, { size: 15, font: UI_FONT }),
+        k.pos(x, y),
+        k.anchor("center"),
+        k.color(...rgb),
+        k.outline(3, k.rgb(10, 15, 30)),
+        k.z(LAYERS.EFFECT + 2),
+      ]);
+    }
+
+    player.onCollide("bonus-treat", (o: AnyObj) => {
+      o.destroy();
+      playSfx("pickup");
+      player.score += 120;
+      updateHud();
+    });
+
+    function enterBonusStage() {
+      bonusUsed = true;
+      bonusActive = true;
+      buildBonusStage();
+      player.pos = k.vec2(BONUS_X0, BONUS_GROUND_Y - 30);
+      player.vel = k.vec2(0, 0);
+      player.riding = null;
+      player.invulnUntil = k.time() + 1.2;
+      playSfx("pickup");
+      sparkleBurst(player.pos.x, player.pos.y - 40, [255, 220, 120]);
+      showHint("SECRET FOUND!");
+    }
+
+    function exitBonusStage() {
+      bonusActive = false;
+      player.pos = k.vec2(Z1_GAP_X1 + 70, GROUND_Y - 60);
+      player.vel = k.vec2(0, 0);
+      player.riding = null;
+      player.invulnUntil = k.time() + 1.0;
+      player.score += 250;
+      showHint("BONUS COMPLETE!");
+      updateHud();
+    }
+
+    /** True when the fall was consumed by the secret warp (no life lost). */
+    function bonusInterceptsFall(): boolean {
+      if (bonusActive) return false;
+      if (bonusUsed || DEMO) return false;
+      if (player.pos.x < Z1_GAP_X0 - 40 || player.pos.x > Z1_GAP_X1 + 40) return false;
+      enterBonusStage();
+      return true;
+    }
+
+    /** Runs every frame while the hidden stage is on screen. */
+    function updateBonusStage() {
+      if (!bonusActive) return;
+      if (player.pos.x > BONUS_X1 || player.pos.y > BONUS_GROUND_Y + 220) exitBonusStage();
+      else if (player.pos.x < BONUS_X0 - 100) player.pos.x = BONUS_X0 - 100;
+    }
 
     function buildCheckpoint(): CheckpointSnapshot {
       return {
@@ -6167,7 +6368,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Camera follow with integer pixel snap (uses LOGICAL_* so it never
       // drifts when the CSS box or DPR changes).
       const camX = Math.max(VIEW_W / 2, Math.min(player.pos.x, LEVEL_END - VIEW_W / 2));
-      k.setCamPos(px(camX), px(LOGICAL_H / 2));
+      k.setCamPos(px(camX), px(LOGICAL_H / 2 + (bonusActive ? BONUS_DY : 0)));
     });
 
     for (const key of jumpKeys) k.onKeyPress(key as never, () => tryJump());
@@ -6191,7 +6392,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     (player as AnyObj).use(k.opacity(1));
     player.onUpdate(() => {
-      if (player.pos.y > 720) loseLife("fell");
+      updateBonusStage();
+      if (player.pos.y > 720 && !bonusActive) {
+        if (!bonusInterceptsFall()) loseLife("fell");
+      }
       const now = k.time();
       const p = player as AnyObj;
       if (now < player.invulnUntil) {

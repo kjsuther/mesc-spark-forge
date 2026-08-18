@@ -252,6 +252,7 @@ const ES: Record<string, string> = {
   "APPROVED! →": "¡APROBADO! →",
   "APPROVED!": "¡APROBADO!",
   "DOOR OPEN  →": "PUERTA ABIERTA  →",
+  "Go right to the door": "Ve a la derecha hacia la puerta",
   "AWAITING DECISION": "ESPERANDO DECISIÓN",
   "STEP INTO THE MOUNTAIN": "ENTRA EN LA MONTAÑA",
   "Awaiting a decision": "Esperando una decisión",

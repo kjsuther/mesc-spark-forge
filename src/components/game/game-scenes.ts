@@ -2019,9 +2019,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const sign = addSignPlaque(k, m.x, BRICK_Y - 42, m.label, m.icon, `sign-${m.icon}`);
       methodStations.push({ label: m.label, icon: m.icon, brick, sign });
     }
-    // Called once the player collects a method: the remaining bricks stop
-    // responding to head bumps, any loose icon is cleared away, and the
-    // unchosen signposts grey out so only the picked route reads as live.
+    // Called once the player collects a method: the unchosen bricks POP out of
+    // existence (players read a greyed-out block as still interactive), their
+    // signposts come down, and any loose icon is swept away — so the only
+    // choice left standing on the trail is the one the player made.
     const lockApplyMethods = (chosen: string) => {
       for (const st of methodStations) {
         const picked = st.label === chosen;
@@ -2035,16 +2036,70 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           }
           continue;
         }
-        // The brick reads as already-spent and its signpost comes down, so the
-        // only choice still standing on the trail is the one the player made.
-        setGameObjSprite(st.brick, "brick-hit");
+        sparkleBurst(st.brick.pos.x, st.brick.pos.y, [235, 205, 150]);
+        (st.brick as unknown as { destroy: () => void }).destroy();
         for (const part of st.sign) (part as unknown as { destroy: () => void }).destroy();
         // Belt-and-braces: also sweep by tag in case a piece outlived its ref.
         for (const part of k.get(signTag)) (part as unknown as { destroy: () => void }).destroy();
       }
       // Sweep up icons that were knocked out of other bricks earlier.
       for (const leftover of k.get("method")) (leftover as unknown as AnyObj).destroy();
+      spawnExitArrow();
     };
+
+    // Persistent "keep going right" guide shown after the pick: a blinking
+    // yellow chevron + caption that floats beside the hero until the player
+    // leaves Zone 1. Transient hint text alone was missed by testers.
+    let exitArrow: AnyObj | null = null;
+    function spawnExitArrow() {
+      if (exitArrow) return;
+      const guide = k.add([
+        k.pos(player.pos.x + 90, GROUND_Y - 120),
+        k.anchor("center"),
+        k.opacity(1),
+        k.z(LAYERS.EFFECT + 2),
+      ]) as AnyObj;
+      const parts: AnyObj[] = [];
+      parts.push(guide.add([
+        k.text("▶", { size: Math.round(26 * UI_TEXT_SCALE), font: UI_FONT }),
+        k.pos(0, 0),
+        k.anchor("center"),
+        k.color(255, 220, 90),
+        k.opacity(1),
+        k.outline(2, k.rgb(40, 30, 10)),
+      ]) as AnyObj);
+      const cap = tr("Go right to the door");
+      const capW = Math.max(120, cap.length * 6 * UI_TEXT_SCALE + 18);
+      parts.push(guide.add([
+        k.rect(capW, Math.round(18 * UI_TEXT_SCALE), { radius: 3 }),
+        k.pos(0, Math.round(22 * UI_TEXT_SCALE)),
+        k.anchor("center"),
+        k.color(20, 24, 40),
+        k.opacity(1),
+        k.outline(2, k.rgb(255, 220, 90)),
+      ]) as AnyObj);
+      parts.push(guide.add([
+        k.text(cap, { size: Math.round(10 * UI_TEXT_SCALE), font: UI_FONT }),
+        k.pos(0, Math.round(22 * UI_TEXT_SCALE)),
+        k.anchor("center"),
+        k.color(255, 240, 190),
+        k.opacity(1),
+      ]) as AnyObj);
+      guide.onUpdate(() => {
+        // Gone the moment the player steps into the next zone.
+        if (player.pos.x >= BIOME_W - 20) {
+          guide.destroy();
+          exitArrow = null;
+          return;
+        }
+        guide.pos.x = player.pos.x + 90;
+        guide.pos.y = GROUND_Y - 120 + Math.sin(k.time() * 5) * 5;
+        // Blink the caption/arrow themselves (children don't inherit opacity).
+        const a = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(k.time() * 6));
+        for (const p of parts) p.opacity = a;
+      });
+      exitArrow = guide;
+    }
     zoneObjectives[0] = {
       hudLabel: () => `METHOD ${zoneState.methodTouched ? "✓" : "☐"}`,
       met: () => zoneState.methodTouched,

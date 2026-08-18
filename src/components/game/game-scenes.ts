@@ -142,6 +142,8 @@ export type StartGameOpts = {
   onLose?: (result: WinResult) => void;
   /** Lets the scene ask the host for a different music theme. */
   onMusicTheme?: (theme: MusicTheme) => void;
+  /** Attract mode: the hero plays himself, can't die, and nothing is scored. */
+  demo?: boolean;
 };
 
 type Ctx = KAPLAYCtx;
@@ -1471,6 +1473,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
   k.scene("trail", (spawnX: number = 40, lives: number = 1, resume: RunSnapshot | null = null) => {
     const startTime = k.time();
+    /** Attract mode — autopilot drives, hits never cost a life. */
+    const DEMO = opts.demo === true;
     // Screens from the previous scene are gone; drop their relayout hooks so
     // a resize can never resurrect destroyed nodes.
     uiRelayout.clear();
@@ -4146,6 +4150,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
         k.onKeyPress(key as never, () => close()),
       );
+      // Attract mode reads the briefing for the audience, then moves on.
+      if (DEMO) k.wait(3.2, () => close());
       const blink = k.onUpdate(() => {
         if (promptNode) promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.3;
       });
@@ -4905,7 +4911,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (zoneState.planPicked) return;
       // Guard only against grabbing a card while clearly down in the running
       // lane below the island; anything at (or near) island level counts.
-      if (player.pos.y > GROUND_Y - 60) return;
+      if (!DEMO && player.pos.y > GROUND_Y - 60) return;
 
       const item = p as unknown as {
         planLabel: string;
@@ -5384,6 +5390,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     function loseLife(cause: FailCause) {
       if (player.dead || player.won) return;
       if (k.time() < player.invulnUntil) return;
+      if (DEMO) {
+        // Attract mode never fails: shrug the hit off and keep the show going.
+        player.invulnUntil = k.time() + INVULN_S;
+        if (player.pos.y > GROUND_Y + 40) {
+          const zoneEntryX = Math.max(40, currentZone * BIOME_W + 60);
+          player.pos = k.vec2(zoneEntryX, GROUND_Y - 40);
+          player.vel = k.vec2(0, 0);
+          player.riding = null;
+          resetRiverPlatforms();
+        }
+        return;
+      }
       player.invulnUntil = k.time() + INVULN_S;
       player.lives -= 1;
       player.deaths += 1;

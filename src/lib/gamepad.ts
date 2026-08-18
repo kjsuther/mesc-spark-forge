@@ -229,6 +229,7 @@ function emitReleaseFrame() {
     back: false,
     start: false,
     select: false,
+    exit: false,
     jump: false,
     anyPress: false,
   };
@@ -282,6 +283,7 @@ function poll() {
     back: pressed(1) || pressed(3),
     start: pressed(9),
     select: pressed(8),
+    exit: pressed(10) || pressed(11),
     // Any face button jumps: on an arcade stick the "main" button varies.
     jump: pressed(0) || pressed(1) || pressed(2) || pressed(3),
     anyPress,

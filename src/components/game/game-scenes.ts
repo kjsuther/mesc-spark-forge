@@ -2010,10 +2010,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     // ================= ZONE 1: Setting Up Camp — create account =================
     const sx0 = BIOME_W;
-    const laptopSpots = [sx0 + 180, sx0 + 380, sx0 + 560];
+    // Player-feedback fix: the decorative laptops used to stand in the running
+    // lane and read as hazards. They now sit BEHIND the play plane, tucked at
+    // the zone edges and dimmed, so the zone keeps its density while every
+    // object the player can actually touch stays unambiguous.
+    const laptopSpots = [sx0 + 120, sx0 + 1160];
     for (const lx of laptopSpots) {
-      spawnDecor(k, "laptop", sizes, { x: lx, z: LAYERS.PROP });
+      const d = spawnDecor(k, "laptop", sizes, {
+        x: lx,
+        groundY: GROUND_Y - 96,
+        z: LAYERS.BG_NEAR + 1,
+      });
+      (d as AnyObj).use(k.opacity(0.5));
     }
+
 
     // --- Background sightings: the boss bear glimpsed through Zones 1-6 ------
     // Purely decorative and painted INTO the backdrop: no drawn ledges, no

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { DemoOverlay } from "./demo-overlay";
 import { Leaderboard } from "./leaderboard";
 import { ScoreEntryOverlay } from "./score-entry-overlay";
 import { GameMusic, type MusicTheme } from "@/lib/game-music";

@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { resetLeaderboard } from "@/lib/game.functions";
+import { getLastWipe, resetLeaderboard, restoreLastWipe } from "@/lib/game.functions";
 import { gameFeedbackQuery, splitFeedback } from "@/lib/feedback.queries";
 
 export const Route = createFileRoute("/admin/game")({
@@ -14,18 +14,37 @@ export const Route = createFileRoute("/admin/game")({
 
 function AdminGamePage() {
   const wipeScores = useServerFn(resetLeaderboard);
+  const restoreScores = useServerFn(restoreLastWipe);
+  const fetchLastWipe = useServerFn(getLastWipe);
   const { data: rows = [] } = useQuery(gameFeedbackQuery);
   const { backlog, implemented } = splitFeedback(rows);
+  const { data: lastWipe, refetch: refetchWipe } = useQuery({
+    queryKey: ["leaderboard_wipes", "last"],
+    queryFn: () => fetchLastWipe(),
+  });
 
   async function handleResetScores() {
     if (!confirm("Wipe the entire High Scores leaderboard? This cannot be undone.")) return;
     try {
       await wipeScores();
       toast.success("High scores cleared.");
+      refetchWipe();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to reset high scores");
     }
   }
+
+  async function handleRestoreScores() {
+    if (!confirm("Restore the scores removed by the most recent wipe?")) return;
+    try {
+      const res = await restoreScores();
+      toast.success(`Restored ${res.restored} score${res.restored === 1 ? "" : "s"}.`);
+      refetchWipe();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to restore high scores");
+    }
+  }
+
 
   return (
     <div>

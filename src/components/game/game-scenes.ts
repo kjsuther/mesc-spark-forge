@@ -2237,9 +2237,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
       item.sign = addSpeech(k, px, py - 32, "PASSWORD", [30, 60, 130]);
     }
-    // Password padlock enemy patrol
+    // Password padlock enemy patrol.
+    // Player-feedback fix: this lock used to sit RIGHT of the Z1 gap, which
+    // left two locks crowding the narrow landing. It now patrols well LEFT of
+    // the gap where there is room to time the jump.
     {
-      const px = sx0 + 900;
+      const px = sx0 + 300;
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
       const speed = 54;
@@ -2247,7 +2250,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         x: px,
         z: LAYERS.ACTOR,
         tag: "monster",
-        props: { dir: 1, home: px, range: 60 },
+        props: { dir: 1, home: px, range: 90 },
         hitboxScale: { x: -pw / 2, w: pw, h: ph },
       });
       m.onUpdate(() => {
@@ -2263,17 +2266,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
       });
     }
-    // Two more padlocks LEFT of the Z1 gap. Difficulty pass: they no longer
-    // cross paths at high speed — one crossing pair became a single slower
-    // guard, and the door guard slowed down too.
+    // Gap guards. Final layout: TWO locks left of the Z1 gap (the one above
+    // plus this roamer) and exactly ONE on the right, whose patrol is kept
+    // short so the landing ledge always has clear space.
     {
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
       const spots: Array<{ x: number; dir: 1 | -1; speed: number; range: number }> = [
-        { x: sx0 + 490, dir: 1, speed: 122, range: 240 },
-        // Padlock guarding the approach to the door on the right.
-        { x: sx0 + 1000, dir: -1, speed: 116, range: 140 },
+        { x: sx0 + 560, dir: 1, speed: 116, range: 110 },
+        // The single padlock guarding the approach to the door on the right.
+        { x: sx0 + 1010, dir: -1, speed: 104, range: 110 },
       ];
+
       for (const s of spots) {
         const m = spawnGrounded(k, "padlock", sizes, {
           x: s.x,

@@ -2059,28 +2059,32 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.opacity(1),
         k.z(LAYERS.EFFECT + 2),
       ]) as AnyObj;
-      guide.add([
+      const parts: AnyObj[] = [];
+      parts.push(guide.add([
         k.text("▶", { size: Math.round(26 * UI_TEXT_SCALE), font: UI_FONT }),
         k.pos(0, 0),
         k.anchor("center"),
         k.color(255, 220, 90),
+        k.opacity(1),
         k.outline(2, k.rgb(40, 30, 10)),
-      ]);
+      ]) as AnyObj);
       const cap = tr("Go right to the door");
       const capW = Math.max(120, cap.length * 6 * UI_TEXT_SCALE + 18);
-      guide.add([
+      parts.push(guide.add([
         k.rect(capW, Math.round(18 * UI_TEXT_SCALE), { radius: 3 }),
         k.pos(0, Math.round(22 * UI_TEXT_SCALE)),
         k.anchor("center"),
         k.color(20, 24, 40),
+        k.opacity(1),
         k.outline(2, k.rgb(255, 220, 90)),
-      ]);
-      guide.add([
+      ]) as AnyObj);
+      parts.push(guide.add([
         k.text(cap, { size: Math.round(10 * UI_TEXT_SCALE), font: UI_FONT }),
         k.pos(0, Math.round(22 * UI_TEXT_SCALE)),
         k.anchor("center"),
         k.color(255, 240, 190),
-      ]);
+        k.opacity(1),
+      ]) as AnyObj);
       guide.onUpdate(() => {
         // Gone the moment the player steps into the next zone.
         if (player.pos.x >= BIOME_W - 20) {
@@ -2090,7 +2094,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
         guide.pos.x = player.pos.x + 90;
         guide.pos.y = GROUND_Y - 120 + Math.sin(k.time() * 5) * 5;
-        guide.opacity = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(k.time() * 6));
+        // Blink the caption/arrow themselves (children don't inherit opacity).
+        const a = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(k.time() * 6));
+        for (const p of parts) p.opacity = a;
       });
       exitArrow = guide;
     }

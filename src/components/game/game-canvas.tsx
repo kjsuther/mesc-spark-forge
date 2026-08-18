@@ -742,7 +742,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   // starts playing itself so passers-by can see the trail in motion.
   const DEMO_IDLE_MS = 60_000;
   useEffect(() => {
-    if (launchMode || error || presentation) return;
+    if (launchMode || error) return;
     if (menuScreen !== "title") return;
     let last = Date.now();
     const bump = () => {

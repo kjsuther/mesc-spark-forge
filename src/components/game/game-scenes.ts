@@ -5425,8 +5425,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (!pendingLose) return;
       const r = pendingLose;
       pendingLose = null;
+      setPromptFlag(isPaused());
       opts.onLose?.(r);
     }
+
 
     /**
      * Stamps the split time for a finished zone and pays a speed bonus.

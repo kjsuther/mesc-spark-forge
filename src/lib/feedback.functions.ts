@@ -8,6 +8,12 @@ function clean(value: unknown, min: number, max: number, label: string): string 
   return s.slice(0, max);
 }
 
+/** Optional free-text follow-up: blank is fine, we just record nothing. */
+function optional(value: unknown, max = 60): string | null {
+  const s = typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+  return s ? s.slice(0, max) : null;
+}
+
 /** Public: an attendee submits one piece of feedback about the game. */
 export const submitGameFeedback = createServerFn({ method: "POST" })
   .validator(

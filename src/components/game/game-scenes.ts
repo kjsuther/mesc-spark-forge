@@ -1995,6 +1995,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const BRICK_Y = GROUND_Y - 150;
     const bw = displaySize("brick-idle", sizes).w;
     const bh = DISPLAY_H["brick-idle"];
+    // Player feedback: picking one channel must visibly close the others, so
+    // every brick + signpost is kept here and switched off on selection.
+    const methodStations: { label: string; icon: string; brick: AnyObj; sign: AnyObj[] }[] = [];
     for (const m of applyMethods) {
       const brick = k.add([
         k.sprite("brick-idle", { width: bw, height: bh }),
@@ -2013,8 +2016,35 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
       });
       // Floating label above the brick so player knows what each represents.
-      addSignPlaque(k, m.x, BRICK_Y - 42, m.label, m.icon);
+      const sign = addSignPlaque(k, m.x, BRICK_Y - 42, m.label, m.icon, `sign-${m.icon}`);
+      methodStations.push({ label: m.label, icon: m.icon, brick, sign });
     }
+    // Called once the player collects a method: the remaining bricks stop
+    // responding to head bumps, any loose icon is cleared away, and the
+    // unchosen signposts grey out so only the picked route reads as live.
+    const lockApplyMethods = (chosen: string) => {
+      for (const st of methodStations) {
+        const picked = st.label === chosen;
+        const signTag = `sign-${st.icon}`;
+        // Head-bump handler exits early on `hit`, so this disables the brick.
+        (st.brick as unknown as { hit: boolean }).hit = true;
+        if (picked) {
+          const labelObj = st.sign[st.sign.length - 1] as unknown as { text?: string };
+          if (labelObj && typeof labelObj.text === "string" && !labelObj.text.includes("✓")) {
+            labelObj.text = `${labelObj.text} ✓`;
+          }
+          continue;
+        }
+        // The brick reads as already-spent and its signpost comes down, so the
+        // only choice still standing on the trail is the one the player made.
+        setGameObjSprite(st.brick, "brick-hit");
+        for (const part of st.sign) (part as unknown as { destroy: () => void }).destroy();
+        // Belt-and-braces: also sweep by tag in case a piece outlived its ref.
+        for (const part of k.get(signTag)) (part as unknown as { destroy: () => void }).destroy();
+      }
+      // Sweep up icons that were knocked out of other bricks earlier.
+      for (const leftover of k.get("method")) (leftover as unknown as AnyObj).destroy();
+    };
     zoneObjectives[0] = {
       hudLabel: () => `METHOD ${zoneState.methodTouched ? "✓" : "☐"}`,
       met: () => zoneState.methodTouched,
@@ -3649,10 +3679,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       align: "center",
       opacity: 0,
     });
-    function showHint(msg: string) {
+    function showHint(msg: string, seconds = 1.8) {
       hintHud.text = tr(msg);
       hintHud.opacity = 1;
-      hintUntil = k.time() + 1.8;
+      hintUntil = k.time() + seconds;
     }
 
     // Big Zone-5 "Awaiting a decision" countdown, top-center.
@@ -4874,8 +4904,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       zoneState.methodTouched = true;
       player.score += 400;
       const item = m as unknown as { methodLabel?: string; destroy: () => void };
-      showHint(`${item.methodLabel ?? "Method"} chosen — door unlocked!`);
+      const chosen = item.methodLabel ?? "Method";
       item.destroy();
+      lockApplyMethods(chosen);
+      showHint(`You picked ${chosen}. Now walk right and go through the door.`, 3.2);
     });
 
     player.onCollide("credential", (c) => {
@@ -6775,7 +6807,16 @@ const METHOD_ICON_PIXELS: Record<string, IconPixel[]> = {
 /** High-contrast wooden trail-sign plaque used for Zone 1 apply methods.
  *  Draws a solid cream card with a dark outline, an icon badge on top, and
  *  the sign label in dark brown so it stays readable over the foggy forest. */
-function addSignPlaque(k: Ctx, x: number, topY: number, label: string, badge: string) {
+function addSignPlaque(
+  k: Ctx,
+  x: number,
+  topY: number,
+  label: string,
+  badge: string,
+  tag?: string,
+): AnyObj[] {
+  const parts: AnyObj[] = [];
+  const tagged = tag ? [tag] : [];
   const T = UI_TEXT_SCALE;
   const badgeSize = Math.round(10 * T);
   const labelSize = Math.round(11 * T);
@@ -6786,53 +6827,61 @@ function addSignPlaque(k: Ctx, x: number, topY: number, label: string, badge: st
   const totalH = badgeH + gap + labelH;
   const cy = topY - totalH / 2;
   // Badge (top)
-  k.add([
+  parts.push(k.add([
     k.rect(w, badgeH, { radius: 3 }),
     k.pos(x, cy - totalH / 2 + badgeH / 2),
     k.anchor("center"),
     k.color(40, 55, 90),
     k.outline(2, k.rgb(20, 25, 40)),
     k.z(LAYERS.EFFECT),
-  ]);
+    ...tagged,
+  ]) as AnyObj);
   const badgeTextY = cy - totalH / 2 + badgeH / 2 + 1;
-  k.add([
+  parts.push(k.add([
     k.text(badge, { size: badgeSize, font: UI_FONT }),
     k.pos(x + 1, badgeTextY + 1),
     k.anchor("center"),
     k.color(0, 0, 0),
     k.z(LAYERS.EFFECT + 1),
-  ]);
-  k.add([
+    ...tagged,
+  ]) as AnyObj);
+  parts.push(k.add([
     k.text(badge, { size: badgeSize, font: UI_FONT }),
     k.pos(x, badgeTextY),
     k.anchor("center"),
     k.color(255, 235, 150),
     k.z(LAYERS.EFFECT + 2),
-  ]);
+    ...tagged,
+  ]) as AnyObj);
   // Label plaque (bottom)
-  k.add([
+  parts.push(k.add([
     k.rect(w, labelH, { radius: 3 }),
     k.pos(x, cy + totalH / 2 - labelH / 2),
     k.anchor("center"),
     k.color(250, 240, 210),
     k.outline(2, k.rgb(80, 55, 25)),
     k.z(LAYERS.EFFECT),
-  ]);
+    ...tagged,
+  ]) as AnyObj);
   const labelTextY = cy + totalH / 2 - labelH / 2 + 1;
-  k.add([
+  parts.push(k.add([
     k.text(label, { size: labelSize, font: UI_FONT }),
     k.pos(x + 1, labelTextY + 1),
     k.anchor("center"),
     k.color(255, 240, 220),
     k.z(LAYERS.EFFECT + 1),
-  ]);
-  k.add([
+    ...tagged,
+  ]) as AnyObj);
+  const labelText = k.add([
     k.text(label, { size: labelSize, font: UI_FONT }),
     k.pos(x, labelTextY),
     k.anchor("center"),
     k.color(30, 20, 10),
     k.z(LAYERS.EFFECT + 2),
-  ]);
+    ...tagged,
+  ]) as AnyObj;
+  parts.push(labelText);
+  return parts;
 }
 
 function addSpeech(

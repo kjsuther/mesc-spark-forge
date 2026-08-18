@@ -3797,6 +3797,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       pausedTotal += frozenFor;
 
       pausedNow = false;
+      setPromptFlag(!!pendingLose);
+
       for (const o of pausedObjs) {
         try {
           o.paused = false;

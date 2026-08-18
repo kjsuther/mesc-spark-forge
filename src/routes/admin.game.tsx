@@ -69,7 +69,26 @@ function AdminGamePage() {
         >
           Reset High Scores leaderboard
         </button>
+        <button
+          onClick={handleRestoreScores}
+          className="rounded border-2 border-mn-green px-4 py-2 text-sm font-bold uppercase text-mn-green hover:bg-mn-green/10"
+        >
+          Restore last wipe
+        </button>
+      </section>
+
+      <section className="rounded-lg border-2 border-dark-gray/20 bg-cream p-4 text-sm text-dark-gray/80">
+        <strong className="font-black uppercase tracking-wide text-mn-blue">Leaderboard log</strong>
+        <p className="mt-1">
+          {lastWipe
+            ? `Last wipe: ${new Date(lastWipe.wiped_at).toLocaleString()} — ${lastWipe.row_count} score${lastWipe.row_count === 1 ? "" : "s"} removed${lastWipe.restored_at ? " (restored)" : ""}.`
+            : "No leaderboard wipe on record. Scores are never cleared by publishing an update."}
+        </p>
+        <p className="mt-1 text-xs">
+          Every deleted score is archived automatically, so a wipe can always be undone.
+        </p>
       </section>
     </div>
   );
 }
+

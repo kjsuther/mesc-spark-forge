@@ -321,6 +321,9 @@ const RULES: Array<[RegExp, string]> = [
     "Elegiste $1: prepárate, algo viene entre los árboles..."],
   [/^Zone (\d+)\/(\d+) · (.+)$/, "Zona $1/$2 · $3"],
   [/^\+(\d+)$/, "+$1"],
+  // Composed sentences: the leading fragment is itself a dictionary entry
+  // (e.g. the device-specific jump prompt), so it is translated recursively.
+  [/^(.+) to hit the brick and collect your application\.$/, "@1 para golpear el bloque y recoger tu solicitud."],
 ];
 
 /** Translate one English string into the active language. */
@@ -330,8 +333,14 @@ export function t(input: string): string {
   const exact = ES[input];
   if (exact !== undefined) return exact;
 
-  for (const [re, out] of RULES) {
-    if (re.test(input)) return input.replace(re, out);
+  const ruled = ruleHit(input);
+  if (ruled !== undefined) return ruled;
+
+  // Bulleted / decorated lines: translate the payload, keep the marker.
+  const decorated = input.match(/^([•\-–★▶\s]+)(.+)$/);
+  if (decorated) {
+    const inner = t(decorated[2]);
+    if (inner !== decorated[2]) return decorated[1] + inner;
   }
 
   if (input.includes("\n")) {
@@ -352,7 +361,13 @@ export function t(input: string): string {
 
 function ruleHit(s: string): string | undefined {
   for (const [re, out] of RULES) {
-    if (re.test(s)) return s.replace(re, out);
+    const m = s.match(re);
+    if (!m) continue;
+    // "@n" placeholders recurse through the dictionary; "$n" are literal.
+    return out.replace(/[@$](\d)/g, (_all, d: string) => {
+      const captured = m[Number(d)] ?? "";
+      return _all.startsWith("@") ? t(captured) : captured;
+    });
   }
   return undefined;
 }

@@ -24,7 +24,10 @@ export const submitGameScore = createServerFn({ method: "POST" })
       import("@/integrations/supabase/client.server"),
       import("./public-submission.server"),
     ]);
-    enforceSubmissionCooldown("score", 5_000);
+    // Short anti-spam window only — kiosk play means several people submit
+    // from the same device back to back, and no run should be lost to it.
+    enforceSubmissionCooldown("score", 1_000);
+
     const { error } = await supabaseAdmin.from("game_scores").insert({
       display_name: data.displayName,
       score: data.score,

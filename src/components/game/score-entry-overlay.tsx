@@ -147,11 +147,19 @@ export function ScoreEntryOverlay({
           mode: "after" as const,
         },
       });
-    } catch {
+    } catch (e) {
       setSaving(false);
-      setErr("COULD NOT SAVE — TRY AGAIN");
+      const msg = e instanceof Error ? e.message : "";
+      setErr(
+        /wait a few seconds/i.test(msg)
+          ? "WAIT A MOMENT — PRESS SAVE AGAIN"
+          : msg
+            ? msg.toUpperCase().slice(0, 48)
+            : "COULD NOT SAVE — TRY AGAIN",
+      );
       return;
     }
+
     setSaving(false);
     try {
       localStorage.setItem(LS_KEY, JSON.stringify({ first: f, initial: i }));

@@ -291,7 +291,11 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         if (cancelled) return;
 
         const flags = BUILD_FLAGS;
+        // From here on this element owns a live context and must be released
+        // on teardown.
+        bootedCanvases.add(canvas);
         const teardown = await startGame({
+
           canvas,
 
           flags,

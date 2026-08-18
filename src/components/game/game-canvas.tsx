@@ -705,21 +705,29 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   }, [launchMode, error, advanceMenu]);
 
   // ---- USB controller (Trooper 2 arcade stick and other standard gamepads) --
-  // Menus advance on any button; during a run the stick drives movement and
-  // the main button jumps. Enter is also forwarded to the canvas so in-game
-  // "press to continue" prompts respond to the stick too.
+  // Menus advance on any button; during a run the stick drives movement and any
+  // face button jumps. Enter is forwarded to the canvas only while a paused
+  // card is up, so a jump during live play can't also dismiss a prompt.
   useEffect(() => {
     const w = window as unknown as {
       __gameInput?: TouchInput;
       __gamepadGameCapture?: boolean;
+      __gamePrompt?: boolean;
     };
     w.__gamepadGameCapture = true;
     let lastMenuAdvance = 0;
+    // Never leave a direction latched if the pad unplugs or focus is lost.
+    const releaseMovement = () => {
+      const input = w.__gameInput;
+      if (!input) return;
+      input.left = false;
+      input.right = false;
+    };
     const unsub = subscribeGamepad((f) => {
       if (error) return;
       if (!launchMode) {
         const now = performance.now();
-        if ((f.confirm || f.start) && now - lastMenuAdvance > 260) {
+        if ((f.jump || f.start) && now - lastMenuAdvance > 260) {
           lastMenuAdvance = now;
           advanceMenu();
         }
@@ -729,11 +737,12 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       if (input) {
         input.left = f.left;
         input.right = f.right;
-        if (f.confirm || f.tapUp) input.jumpReq = true;
+        if (f.jump || f.tapUp) input.jumpReq = true;
         if (f.select) input.resetReq = true;
       }
-      if (f.left || f.right || f.confirm) setShowHint(false);
-      if (f.confirm || f.start) {
+      if (f.left || f.right || f.jump) setShowHint(false);
+      const promptOpen = w.__gamePrompt === true;
+      if (promptOpen && (f.jump || f.start)) {
         const canvas = canvasRef.current;
         if (canvas) {
           for (const type of ["keydown", "keyup"] as const) {
@@ -744,11 +753,22 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         }
       }
     });
+    const onHide = () => {
+      if (document.visibilityState !== "visible") releaseMovement();
+    };
+    window.addEventListener("blur", releaseMovement);
+    window.addEventListener("gamepaddisconnected", releaseMovement);
+    document.addEventListener("visibilitychange", onHide);
     return () => {
       w.__gamepadGameCapture = false;
+      window.removeEventListener("blur", releaseMovement);
+      window.removeEventListener("gamepaddisconnected", releaseMovement);
+      document.removeEventListener("visibilitychange", onHide);
+      releaseMovement();
       unsub();
     };
   }, [launchMode, error, advanceMenu]);
+
 
 
   function setBtn(k: "left" | "right", v: boolean) {

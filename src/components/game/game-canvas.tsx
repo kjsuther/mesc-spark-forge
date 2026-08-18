@@ -31,7 +31,7 @@ const BUILD_FLAGS: GameFlags = {
 
 type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
 
-type LaunchMode = "standard" | "fullscreen";
+type LaunchMode = "standard" | "fullscreen" | "demo";
 type MenuScreen = "title" | "explainer" | "trailmap" | "controls" | "scores";
 
 /** Single shared detector — see src/lib/device.ts. */
@@ -181,6 +181,29 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   /** Full run state, kept so a context-loss recovery resumes an honest run. */
   const snapshotRef = useRef<RunSnapshot | null>(null);
   const recoveryPendingRef = useRef(false);
+  /** Attract mode: the title screen plays itself when nobody is around. */
+  const isDemo = launchMode === "demo";
+  const restartDemoRef = useRef<(() => void) | null>(null);
+  const exitDemo = useCallback(() => {
+    resumeZoneRef.current = 0;
+    snapshotRef.current = null;
+    setEndResult(null);
+    setLaunchMode(null);
+    setMenuScreen("title");
+  }, []);
+  useEffect(() => {
+    if (!isDemo) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    restartDemoRef.current = () => {
+      resumeZoneRef.current = 0;
+      snapshotRef.current = null;
+      timer = setTimeout(() => setEngineGeneration((g) => g + 1), 4000);
+    };
+    return () => {
+      restartDemoRef.current = null;
+      if (timer) clearTimeout(timer);
+    };
+  }, [isDemo]);
 
   const music = useMemo(() => new GameMusic(), []);
   const [musicOn, setMusicOn] = useState(false);
@@ -253,6 +276,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
           canvas,
 
           flags,
+          demo: launchMode === "demo",
           resumeZone: clampResumeZone(resumeZoneRef.current),
           resumeSnapshot: isResumableSnapshot(snapshotRef.current) ? snapshotRef.current : null,
           onSafeProgress: (zone: number) => {
@@ -263,11 +287,20 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
           },
           onWin: (r: WinResult) => {
             snapshotRef.current = null;
+            // Attract mode is a loop, not a run: never score it, just replay.
+            if (launchMode === "demo") {
+              restartDemoRef.current?.();
+              return;
+            }
             setEndResult(r);
             onWin?.(r);
           },
           onLose: (r: WinResult) => {
             snapshotRef.current = null;
+            if (launchMode === "demo") {
+              restartDemoRef.current?.();
+              return;
+            }
             setEndResult(r);
             onLose?.(r);
           },
@@ -704,6 +737,38 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [launchMode, error, advanceMenu]);
 
+  // Idle attract mode: after a minute untouched on the title screen the game
+  // starts playing itself so passers-by can see the trail in motion.
+  const DEMO_IDLE_MS = 60_000;
+  useEffect(() => {
+    if (launchMode || error || presentation) return;
+    if (menuScreen !== "title") return;
+    let last = Date.now();
+    const bump = () => {
+      last = Date.now();
+    };
+    const events = ["pointerdown", "keydown", "wheel", "touchstart", "mousemove"] as const;
+    for (const type of events) window.addEventListener(type, bump, { passive: true });
+    const tick = setInterval(() => {
+      if (Date.now() - last >= DEMO_IDLE_MS) setLaunchMode("demo");
+    }, 1000);
+    return () => {
+      clearInterval(tick);
+      for (const type of events) window.removeEventListener(type, bump);
+    };
+  }, [launchMode, error, presentation, menuScreen]);
+
+  // Any deliberate input leaves the demo and hands the game back to a player.
+  useEffect(() => {
+    if (!isDemo) return;
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      exitDemo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isDemo, exitDemo]);
+
   // ---- USB controller (Trooper 2 arcade stick and other standard gamepads) --
   // Menus advance on any button; during a run the stick drives movement and any
   // face button jumps. Enter is forwarded to the canvas only while a paused
@@ -731,6 +796,10 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
           lastMenuAdvance = now;
           advanceMenu();
         }
+        return;
+      }
+      if (launchMode === "demo") {
+        if (f.exit || f.start || f.back || f.confirm || f.jump) exitDemo();
         return;
       }
       const input = w.__gameInput;
@@ -768,7 +837,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       releaseMovement();
       unsub();
     };
-  }, [launchMode, error, advanceMenu]);
+  }, [launchMode, error, advanceMenu, exitDemo]);
 
 
 
@@ -989,6 +1058,31 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
           tabIndex={0}
           aria-label="Blazing the Trail to Coverage game"
         />
+
+        {/* Attract mode: banner + tap-anywhere exit back to the title */}
+        {isDemo && (
+          <div
+            className="absolute inset-0 z-40 flex justify-center"
+            style={{ touchAction: "manipulation" }}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              exitDemo();
+            }}
+          >
+            <div
+              className="mt-0 h-fit w-full border-b-4 border-accent-gold bg-mn-blue/90 px-3 py-2 text-center text-cream"
+              style={{
+                fontFamily: '"Press Start 2P", ui-monospace, monospace',
+                paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
+              }}
+            >
+              <p className="text-[10px] tracking-widest text-accent-gold">★ DEMO MODE ★</p>
+              <p className="mt-1 text-[7px] leading-relaxed tracking-wider text-cream/90">
+                Press ESC, click the left joystick button, or tap the screen to play
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* In-window SNES name entry the moment a run ends */}
         {endResult && !presentation && launchMode && (
@@ -1257,7 +1351,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
             devices, in windowed play as well as fullscreen, so they can never
             scroll out of reach. Gated on real touch capability, never on a
             width breakpoint (a landscape phone is 900px wide). */}
-        {launchMode && isTouch && !presentation && !endResult && (
+        {launchMode && isTouch && !presentation && !endResult && !isDemo && (
           <>
             {/* D-pad, bottom-left */}
             {/* Thumb joystick, bottom-left. One continuous touch can slide

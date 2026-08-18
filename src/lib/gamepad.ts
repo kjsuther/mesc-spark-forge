@@ -35,6 +35,8 @@ export type GamepadFrame = {
   back: boolean; // button 1 (B)
   start: boolean; // button 9
   select: boolean; // button 8
+  /** Stick click (button 10 / 11) — used to leave demo mode. */
+  exit: boolean;
   /** Any face button just pressed — the game treats all four as "jump". */
   jump: boolean;
   /** Any button just pressed — useful for "press anything to continue". */
@@ -227,6 +229,7 @@ function emitReleaseFrame() {
     back: false,
     start: false,
     select: false,
+    exit: false,
     jump: false,
     anyPress: false,
   };
@@ -280,6 +283,7 @@ function poll() {
     back: pressed(1) || pressed(3),
     start: pressed(9),
     select: pressed(8),
+    exit: pressed(10) || pressed(11),
     // Any face button jumps: on an arcade stick the "main" button varies.
     jump: pressed(0) || pressed(1) || pressed(2) || pressed(3),
     anyPress,

@@ -47,7 +47,9 @@ export function useGamepadNavigation() {
 
     return subscribeGamepad((f) => {
       if (captured()) return;
-      const typing =
+      // Never let a stray controller press reach destructive admin controls.
+      if (window.location.pathname.startsWith("/admin")) return;
+
         document.activeElement instanceof HTMLInputElement ||
         document.activeElement instanceof HTMLTextAreaElement;
 

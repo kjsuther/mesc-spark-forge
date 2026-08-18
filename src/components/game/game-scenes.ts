@@ -18,6 +18,7 @@
 import type { KAPLAYCtx } from "kaplay";
 import type { ImprovementKey } from "@/lib/game.functions";
 import { FeatureFlags } from "@/lib/game-features";
+import { t as tr } from "@/lib/i18n";
 import { computeFinalScore, zoneSpeedBonus } from "@/lib/game-score";
 
 import {
@@ -1398,6 +1399,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   // that is what makes text look jagged in windowed mode. Sprite sampling
   // stays crisp inside the GL pipeline; only the final present is smoothed.
   if (opts.canvas) opts.canvas.style.imageRendering = "auto";
+
+  // Localization hook: every text component created from here on is routed
+  // through the translation dictionary, so scene code keeps its English
+  // literals while the rendered glyphs follow the player's language choice.
+  {
+    const rawText = k.text.bind(k) as Ctx["text"];
+    (k as unknown as { text: Ctx["text"] }).text = ((value: unknown, options?: unknown) =>
+      rawText(tr(String(value ?? "")), options as never)) as Ctx["text"];
+  }
 
   // ---- Live layout watcher ------------------------------------------------
   // The canvas keeps its logical resolution, but the CSS box it is painted
@@ -3512,7 +3522,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ];
       const shadow = {
         set text(v: string) {
-          for (const n of halo) n.text = v;
+          for (const n of halo) n.text = tr(v);
         },
         set opacity(v: number) {
           for (const n of halo) n.opacity = v;
@@ -3531,8 +3541,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           return main.text as string;
         },
         set text(v: string) {
-          main.text = v;
-          shadow.text = v;
+          main.text = tr(v);
+          shadow.text = tr(v);
         },
         get opacity() {
           return main.opacity as number;
@@ -3638,7 +3648,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       opacity: 0,
     });
     function showHint(msg: string) {
-      hintHud.text = msg;
+      hintHud.text = tr(msg);
       hintHud.opacity = 1;
       hintUntil = k.time() + 1.8;
     }
@@ -3726,16 +3736,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           return;
         }
         t.opacity = 1;
-        t.text = `${row.carried ? "✓" : "○"} ${row.label}`;
+        t.text = tr(`${row.carried ? "✓" : "○"} ${row.label}`);
         t.setPos(UPG_X + 6, UPG_Y + 17 + i * UPG_ROW_H);
       });
     }
 
     function updateHud() {
-      scoreHud.text = `SCORE ${Math.max(0, Math.round(player.score))}`;
+      scoreHud.text = tr(`SCORE ${Math.max(0, Math.round(player.score))}`);
       {
         const t = runClock();
-        timeHud.text = `TIME ${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+        timeHud.text = tr(`TIME ${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`);
       }
 
       appIcons.forEach((g, i) => {
@@ -3752,7 +3762,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           : "";
       const z = player.farthestZone;
       const obj = zoneObjectives[z];
-      objectiveHud.text = obj ? obj.hudLabel() : "";
+      objectiveHud.text = tr(obj ? obj.hudLabel() : "");
 
       // Zone-5 big countdown: visible while player is in Zone 5 with an
       // active wait timer, or briefly flashes APPROVED! at 0.
@@ -3768,13 +3778,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         waitLabel.opacity = 1;
         waitCountdown.opacity = 1;
         if (approvedFlash) {
-          waitLabel.text = "APPROVED!";
-          waitCountdown.text = "✓";
+          waitLabel.text = tr("APPROVED!");
+          waitCountdown.text = tr("✓");
           // Color for this label is set on the node itself; nothing to do here.
         } else {
-          waitLabel.text = started ? "AWAITING DECISION" : "STEP INTO THE MOUNTAIN";
+          waitLabel.text = tr(started ? "AWAITING DECISION" : "STEP INTO THE MOUNTAIN");
           const secs = Math.ceil(remaining);
-          waitCountdown.text = `0:${String(secs).padStart(2, "0")}`;
+          waitCountdown.text = tr(`0:${String(secs).padStart(2, "0")}`);
         }
       } else {
         waitBg.opacity = 0;
@@ -4779,7 +4789,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           );
         }
       }
-      debugBody.text = lines.join("\n");
+      debugBody.text = tr(lines.join("\n"));
     }
     // Auto-size panel roughly to content height.
     k.onUpdate(() => {
@@ -5166,7 +5176,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         boss.hurtUntil = now + 1.05;
         zoneState.bossHits = boss.hits;
         player.score += 400;
-        hearts.text = "♥".repeat(Math.max(0, BOSS_MAX_HITS - boss.hits));
+        hearts.text = tr("♥".repeat(Math.max(0, BOSS_MAX_HITS - boss.hits)));
         sparkleBurst(sx, sy, [120, 255, 180]);
         if (boss.hits >= BOSS_MAX_HITS) defeatBoss();
         else showHint(`Boss hit! ${BOSS_MAX_HITS - boss.hits} to go.`);

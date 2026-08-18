@@ -1637,6 +1637,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       bossDefeated: false,
       bossSpawned: false,
     };
+    // Attract mode keeps moving: the approval wait is trimmed so the demo
+    // loop doesn't stall a watcher on a countdown.
+    if (DEMO) zoneState.waitDur = 5;
+
 
     // Zone 3 collapsing platforms — registered on build so a life loss can
     // restore every one of them for the next attempt.
@@ -5695,13 +5699,16 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     let lastFeatureSweep = 0;
 
     // ===== Attract-mode autopilot =====
-    // A deliberately simple bot: always walk right, hop over anything in the
-    // way, and never get stuck. It exists to show the journey to passers-by,
-    // not to play well.
+    // An objective-aware bot: it walks to whatever the current zone actually
+    // requires (brick, credentials, documents, replies, plan card, key, ID
+    // card), fights the bear, and only then heads for the door — so a passer-by
+    // sees a genuine end-to-end run rather than doors popping open on a timer.
     let demoLastX = player.pos.x;
     let demoLastProgressAt = 0;
     let demoZoneEnteredAt = 0;
     let demoZoneWatched = -1;
+    let demoLastTargetX = 0;
+    let demoTargetSince = 0;
 
     function demoNear(tag: string, ahead: number, vertical: number): boolean {
       const list = k.get(tag) as unknown as Array<{ pos: { x: number; y: number } }>;
@@ -5710,6 +5717,82 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (dx > -30 && dx < ahead && Math.abs(o.pos.y - player.pos.y) < vertical) return true;
       }
       return false;
+    }
+
+    type DemoObj = { pos: { x: number; y: number }; hit?: boolean };
+
+    /** Closest object carrying `tag` (optionally filtered), by horizontal distance. */
+    function demoNearest(tag: string, keep?: (o: DemoObj) => boolean): DemoObj | null {
+      const list = k.get(tag) as unknown as DemoObj[];
+      let best: DemoObj | null = null;
+      let bestD = Infinity;
+      for (const o of list) {
+        if (keep && !keep(o)) continue;
+        const d = Math.abs(o.pos.x - player.pos.x);
+        if (d < bestD) {
+          bestD = d;
+          best = o;
+        }
+      }
+      return best;
+    }
+
+    /** What the bot should be walking toward right now, if anything. */
+    function demoTarget(): { x: number; y: number; bump?: boolean } | null {
+      const z = currentZone;
+      if (z === 0 && !zoneState.methodTouched) {
+        // The icon pops out of a smashed brick; grab it if it's already out.
+        const icon = demoNearest("method");
+        if (icon) return { x: icon.pos.x, y: icon.pos.y };
+        const brick = demoNearest("brick", (o) => !o.hit);
+        if (brick) return { x: brick.pos.x, y: brick.pos.y, bump: true };
+      }
+      if (z === 1 && !(zoneState.userGot && zoneState.passGot)) {
+        const cred = demoNearest("credential");
+        if (cred) return { x: cred.pos.x, y: cred.pos.y };
+      }
+      if (z === 3 && zoneState.docsInZone < 3) {
+        const doc = demoNearest("doc");
+        if (doc) return { x: doc.pos.x, y: doc.pos.y };
+      }
+      if (z === 4 && zoneState.repliesGot < zoneState.repliesNeeded) {
+        const rep = demoNearest("reply");
+        if (rep) return { x: rep.pos.x, y: rep.pos.y };
+      }
+      if (z === 6) {
+        if (!zoneState.planPicked) {
+          const plan = demoNearest("plan-pick");
+          if (plan) {
+            // Each card sits on a high island reached from its own step block.
+            const onStep = player.pos.y <= PLAN_STEP_TOP + 12;
+            if (!onStep) return { x: plan.pos.x - 104, y: PLAN_STEP_TOP };
+            return { x: plan.pos.x, y: plan.pos.y };
+          }
+        } else if (zoneState.bossDefeated && !zoneState.hasKey) {
+          const key = demoNearest("gold-key");
+          if (key) return { x: key.pos.x, y: key.pos.y };
+        }
+      }
+      if (z === 7 && !zoneState.idCardCollected) {
+        const card = demoNearest("id-card");
+        if (card) return { x: card.pos.x, y: card.pos.y };
+      }
+      return null;
+    }
+
+    /**
+     * Boss lane: hold a firing stance to the LEFT of the bear (never turning
+     * around, so the auto-fired "+" shots always travel toward him) and hop his
+     * paperwork until all his hearts are gone.
+     */
+    function demoBoss(grounded: boolean): number {
+      const boss = demoNearest("boss");
+      if (!boss) return 0;
+      const gap = boss.pos.x - player.pos.x;
+      if (demoNear("boss-shot", 210, 220) && grounded) tryJump();
+      // Only ever advance: moving left would flip the hero and waste shots.
+      if (gap > 430) return 1;
+      return 0;
     }
 
     function demoAutopilot(now: number): number {
@@ -5721,17 +5804,55 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       if (demoLastProgressAt === 0) demoLastProgressAt = now;
 
-      // Objectives can need item pickups the bot may miss — after a while the
-      // door opens anyway so the demo always reaches the finale.
+      // Silent long-stop: only if the bot is genuinely wedged for a full
+      // minute does a zone open itself, so the normal demo shows real play.
       if (currentZone !== demoZoneWatched) {
         demoZoneWatched = currentZone;
         demoZoneEnteredAt = now;
-      } else if (now - demoZoneEnteredAt > 22) {
+      } else if (now - demoZoneEnteredAt > 60) {
         const d = doors[currentZone];
         if (d && !d.unlocked) unlockDoor(currentZone);
       }
 
+      // Boss battle takes over the whole lane while the bear is alive.
+      if (currentZone === 6 && zoneState.planPicked && !zoneState.bossDefeated) {
+        // Standing and firing is intentional progress — don't let the
+        // anti-stuck nudge teleport the hero out of the arena.
+        demoLastX = player.pos.x;
+        demoLastProgressAt = now;
+        return demoBoss(grounded);
+      }
+
+
+      let dir = 1;
       let jump = false;
+      const target = demoTarget();
+      if (target) {
+        const dx = target.x - player.pos.x;
+        const dy = player.pos.y - target.y;
+        if (target.bump) {
+          // Stand under the brick and head-bump it.
+          dir = Math.abs(dx) < 8 ? 0 : Math.sign(dx);
+          if (Math.abs(dx) < 14) jump = true;
+        } else {
+          dir = Math.abs(dx) < 12 ? 0 : Math.sign(dx);
+          // Pickup sits above us and is close enough to reach with a hop.
+          if (dy > 40 && Math.abs(dx) < 150) jump = true;
+        }
+        // Nudge out of a standoff where the target can't be reached.
+        if (Math.abs(target.x - demoLastTargetX) > 24) {
+          demoLastTargetX = target.x;
+          demoTargetSince = now;
+        } else if (demoTargetSince === 0) {
+          demoTargetSince = now;
+        } else if (now - demoTargetSince > 9) {
+          jump = true;
+          demoTargetSince = now - 5;
+        }
+      } else {
+        demoTargetSince = 0;
+      }
+
       // Enemies, incoming paperwork and pits all get the same answer: hop.
       if (demoNear("monster", 150, 130)) jump = true;
       if (demoNear("boss-shot", 220, 150)) jump = true;
@@ -5743,22 +5864,32 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         width: number;
       }>;
       for (const pf of plats) {
-        const dx = pf.pos.x - player.pos.x;
-        const dy = player.pos.y - pf.pos.y;
-        if (dx > 10 && dx < 150 && dy > 20 && dy < 170) jump = true;
+        const pdx = pf.pos.x - player.pos.x;
+        const pdy = player.pos.y - pf.pos.y;
+        if (dir >= 0 && pdx > 10 && pdx < 150 && pdy > 20 && pdy < 170) jump = true;
+      }
+      // Waiting out the approval clock (or parked on a pickup) is deliberate
+      // standing still, not being wedged.
+      const waitingOnClock = currentZone === 5 && !(zoneObjectives[5]?.met() ?? true);
+      const parkedOnTarget = !!target && Math.abs(target.x - player.pos.x) < 20;
+      if (waitingOnClock || parkedOnTarget) {
+        demoLastX = player.pos.x;
+        demoLastProgressAt = now;
       }
       // Last resort: wedged against something for a while.
       if (now - demoLastProgressAt > 2.5) jump = true;
-      if (now - demoLastProgressAt > 7) {
+      if (now - demoLastProgressAt > 9) {
         player.pos.x += 70;
         player.pos.y = Math.min(player.pos.y, GROUND_Y - 40);
         demoLastX = player.pos.x;
         demoLastProgressAt = now;
       }
 
+
       if (jump && grounded) tryJump();
-      return 1;
+      return dir;
     }
+
 
     k.onUpdate(() => {
       if (w?.__gameInput?.resetReq) {

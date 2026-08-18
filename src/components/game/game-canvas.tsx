@@ -761,6 +761,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
     document.addEventListener("visibilitychange", onHide);
     return () => {
       w.__gamepadGameCapture = false;
+      w.__gamePrompt = false;
       window.removeEventListener("blur", releaseMovement);
       window.removeEventListener("gamepaddisconnected", releaseMovement);
       document.removeEventListener("visibilitychange", onHide);

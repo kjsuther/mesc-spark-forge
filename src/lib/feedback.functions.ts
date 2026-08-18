@@ -27,10 +27,9 @@ export const submitGameFeedback = createServerFn({ method: "POST" })
         description: clean(data?.description, 3, 280, "Feedback"),
         submitterName: clean(data?.submitterName, 2, 60, "Your name"),
         role,
-        roleOther: role === "Other" ? clean(data?.roleOther, 2, 60, "Your role") : null,
+        roleOther: role === "Other" ? optional(data?.roleOther) : null,
         locationState: locationState === OUTSIDE_US ? null : locationState,
-        locationCountry:
-          locationState === OUTSIDE_US ? clean(data?.locationCountry, 2, 60, "Country") : null,
+        locationCountry: locationState === OUTSIDE_US ? optional(data?.locationCountry) : null,
       };
     },
   )

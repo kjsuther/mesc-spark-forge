@@ -737,6 +737,38 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [launchMode, error, advanceMenu]);
 
+  // Idle attract mode: after a minute untouched on the title screen the game
+  // starts playing itself so passers-by can see the trail in motion.
+  const DEMO_IDLE_MS = 60_000;
+  useEffect(() => {
+    if (launchMode || error || presentation) return;
+    if (menuScreen !== "title") return;
+    let last = Date.now();
+    const bump = () => {
+      last = Date.now();
+    };
+    const events = ["pointerdown", "keydown", "wheel", "touchstart", "mousemove"] as const;
+    for (const type of events) window.addEventListener(type, bump, { passive: true });
+    const tick = setInterval(() => {
+      if (Date.now() - last >= DEMO_IDLE_MS) setLaunchMode("demo");
+    }, 1000);
+    return () => {
+      clearInterval(tick);
+      for (const type of events) window.removeEventListener(type, bump);
+    };
+  }, [launchMode, error, presentation, menuScreen]);
+
+  // Any deliberate input leaves the demo and hands the game back to a player.
+  useEffect(() => {
+    if (!isDemo) return;
+    const onKey = (e: KeyboardEvent) => {
+      e.preventDefault();
+      exitDemo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isDemo, exitDemo]);
+
   // ---- USB controller (Trooper 2 arcade stick and other standard gamepads) --
   // Menus advance on any button; during a run the stick drives movement and any
   // face button jumps. Enter is forwarded to the canvas only while a paused
@@ -764,6 +796,10 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
           lastMenuAdvance = now;
           advanceMenu();
         }
+        return;
+      }
+      if (launchMode === "demo") {
+        if (f.exit || f.start || f.back || f.confirm || f.jump) exitDemo();
         return;
       }
       const input = w.__gameInput;
@@ -801,7 +837,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       releaseMovement();
       unsub();
     };
-  }, [launchMode, error, advanceMenu]);
+  }, [launchMode, error, advanceMenu, exitDemo]);
 
 
 
@@ -1290,7 +1326,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
             devices, in windowed play as well as fullscreen, so they can never
             scroll out of reach. Gated on real touch capability, never on a
             width breakpoint (a landscape phone is 900px wide). */}
-        {launchMode && isTouch && !presentation && !endResult && (
+        {launchMode && isTouch && !presentation && !endResult && !isDemo && (
           <>
             {/* D-pad, bottom-left */}
             {/* Thumb joystick, bottom-left. One continuous touch can slide

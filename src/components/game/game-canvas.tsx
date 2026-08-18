@@ -1064,9 +1064,10 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         {isDemo && <DemoOverlay onExit={exitDemo} />}
 
         {/* In-window SNES name entry the moment a run ends */}
-        {endResult && !presentation && launchMode && (
+        {endResult && launchMode && !isDemo && (
           <ScoreEntryOverlay
             result={endResult}
+            openFeedbackInNewTab={presentation}
             onClose={() => {
               // If the player doesn't choose "Play Again", send them back to
               // the title screen so the run doesn't sit idle on the canvas.

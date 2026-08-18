@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -23,6 +24,7 @@ export function FeedbackForm() {
   const [locationState, setLocationState] = useState("");
   const [country, setCountry] = useState("");
   const [busy, setBusy] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,6 +41,7 @@ export function FeedbackForm() {
         },
       });
       setDescription("");
+      setSubmitted(true);
       toast.success("Thanks! Your feedback is on the backlog.");
       qc.invalidateQueries({ queryKey: ["game_feedback"] });
     } catch (err) {
@@ -48,11 +51,56 @@ export function FeedbackForm() {
     }
   }
 
+  if (submitted) {
+    return (
+      <section
+        id="feedback"
+        className="mt-10 rounded-lg border-2 border-mn-green/50 bg-cream p-6 text-center scroll-mt-24"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="text-3xl" aria-hidden="true">
+          ✅
+        </div>
+        <h2 className="mt-2 font-display text-2xl uppercase tracking-wide text-mn-blue">
+          Feedback received!
+        </h2>
+        <p className="mx-auto mt-2 max-w-xl text-sm text-dark-gray/80">
+          Thanks — your idea is on the public backlog. The poster team reviews new items live during
+          the session, builds the winners on the spot, and you can come back and replay the improved
+          version.
+        </p>
+        <div className="mt-5 flex flex-wrap justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => setSubmitted(false)}
+            className="rounded bg-accent-orange px-5 py-3 text-sm font-black uppercase tracking-wide text-white hover:brightness-110"
+          >
+            ✎ Add another idea
+          </button>
+          <Link
+            to="/backlog"
+            className="rounded bg-mn-blue px-5 py-3 text-sm font-black uppercase tracking-wide text-white hover:brightness-110"
+          >
+            📋 See the backlog
+          </Link>
+          <Link
+            to="/tool"
+            className="rounded border-2 border-mn-blue/30 px-5 py-3 text-sm font-black uppercase tracking-wide text-mn-blue hover:bg-white"
+          >
+            ▶ Back to the game
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section
       id="feedback"
       className="mt-10 rounded-lg border-2 border-mn-blue/30 bg-cream p-5 scroll-mt-24"
     >
+
       <h2 className="font-display text-2xl uppercase tracking-wide text-mn-blue">
         Tell us how to make the trail better
       </h2>

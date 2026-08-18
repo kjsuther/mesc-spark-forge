@@ -49,10 +49,10 @@ type Listener = (frame: GamepadFrame) => void;
 const MOVE_ON = 0.2;
 /** …and release a touch later so a stick resting on the threshold can't chatter. */
 const MOVE_OFF = 0.15;
-/** Menu navigation keeps a firm dead zone so lists don't race past entries. */
-const NAV_ZONE = 0.45;
-const REPEAT_DELAY = 380;
-const REPEAT_RATE = 130;
+/** Menu navigation needs a deliberate push: well above any resting drift. */
+const NAV_ZONE = 0.75;
+/** The stick must fall back below this before another menu move counts. */
+const NAV_RELEASE = 0.35;
 const SAMPLE_MS = 4;
 
 const listeners = new Set<Listener>();
@@ -179,22 +179,17 @@ function hold(active: boolean, value: number, sign: 1 | -1): boolean {
   return magnitude > MOVE_ON;
 }
 
-function edgeDir(dir: "left" | "right" | "up" | "down", held: boolean, now: number): boolean {
-  if (!held) {
-    heldSince[dir] = 0;
-    nextRepeat[dir] = 0;
-    return false;
-  }
-  if (!heldSince[dir]) {
-    heldSince[dir] = now;
-    nextRepeat[dir] = now + REPEAT_DELAY;
-    return true;
-  }
-  if (now >= nextRepeat[dir]) {
-    nextRepeat[dir] = now + REPEAT_RATE;
-    return true;
-  }
-  return false;
+/**
+ * Edge-only menu direction: fires once per physical push. Holding the stick
+ * does nothing more until it returns near center, so a drifting or leaned-on
+ * stick can't cycle the page through every link and form field.
+ */
+function edgeDir(dir: "left" | "right" | "up" | "down", held: boolean, released: boolean): boolean {
+  if (released) heldSince[dir] = 0;
+  if (!held) return false;
+  if (heldSince[dir]) return false;
+  heldSince[dir] = 1;
+  return true;
 }
 
 function clearInputState() {
@@ -245,8 +240,6 @@ function emitReleaseFrame() {
 function poll() {
   // rAF can coalesce; make sure we have a reading even if the timer is starved.
   sample();
-  const now = performance.now();
-
   heldLeft = hold(heldLeft, sampleX, -1);
   heldRight = hold(heldRight, sampleX, 1);
   heldUp = hold(heldUp, sampleY, -1);
@@ -275,10 +268,10 @@ function poll() {
     right: heldRight,
     up: heldUp,
     down: heldDown,
-    tapLeft: edgeDir("left", navLeft, now),
-    tapRight: edgeDir("right", navRight, now),
-    tapUp: edgeDir("up", navUp, now),
-    tapDown: edgeDir("down", navDown, now),
+    tapLeft: edgeDir("left", navLeft, sampleX > -NAV_RELEASE),
+    tapRight: edgeDir("right", navRight, sampleX < NAV_RELEASE),
+    tapUp: edgeDir("up", navUp, sampleY > -NAV_RELEASE),
+    tapDown: edgeDir("down", navDown, sampleY < NAV_RELEASE),
     confirm: pressed(0) || pressed(2),
     back: pressed(1) || pressed(3),
     start: pressed(9),

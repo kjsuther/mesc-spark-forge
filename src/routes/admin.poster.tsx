@@ -112,7 +112,7 @@ function PosterView() {
   const { implemented } = splitFeedback(rows);
 
   return (
-    <div className="h-[100dvh] overflow-hidden bg-mn-blue text-cream flex flex-col">
+    <div className="relative h-[100dvh] overflow-hidden bg-mn-blue text-cream flex flex-col">
       <header
         className={`px-6 py-3 border-b-2 border-accent-orange/70 flex items-center justify-between gap-3 flex-wrap transition-opacity duration-200 ${
           fullscreen

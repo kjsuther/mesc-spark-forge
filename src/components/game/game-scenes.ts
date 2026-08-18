@@ -3028,7 +3028,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           : zoneState.bossDefeated
             ? "GRAB KEY →"
             : zoneState.planPicked
-              ? `BOSS ${zoneState.bossHits}/3`
+              ? `BOSS ${zoneState.bossHits}/4`
               : "PLAN ☐",
       met: () => zoneState.hasKey,
     };
@@ -5140,7 +5140,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // Bound the number in flight without blocking the next timed wave. At
       // 470px/s a shot clears the battle viewport in a few seconds, so eight
       // permits uninterrupted two-shot waves while remaining dodgeable.
-      if (k.get("boss-shot").length >= 8) return;
+      if (k.get("boss-shot").length >= 5) return;
 
       const sw = displaySize("denied", sizes).w;
       const sh = DISPLAY_H["denied"];
@@ -5152,7 +5152,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.area({ shape: new k.Rect(k.vec2(0, 0), sw - 8, sh - 8) }),
         k.z(LAYERS.EFFECT),
         "boss-shot",
-        { vx: dirX * 470, born: k.time() },
+        { vx: dirX * 380, born: k.time() },
       ]) as AnyObj;
       shot.onUpdate(() => {
         const dt = k.dt();
@@ -5227,7 +5227,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (!zoneState.planPicked || zoneState.bossDefeated) return;
       const now = k.time();
       if (now < nextPlusShot) return;
-      nextPlusShot = now + 0.5;
+      nextPlusShot = now + 0.4;
       spawnPlusShot();
     });
 
@@ -5236,6 +5236,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       (o as unknown as { destroy: () => void }).destroy();
       if (k.time() < player.invulnUntil) return;
       loseLife("monster");
+      // A little extra mercy window so one unlucky hit can't chain into another.
+      player.invulnUntil = Math.max(player.invulnUntil, k.time() + 0.5);
     });
 
     function spawnPlanBoss() {
@@ -5266,8 +5268,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         },
         hitboxScale: { x: -bw / 2, w: bw, h: bh },
       });
-      const BOSS_MAX_HITS = 6;
-      // Hearts HUD above the boss (5 hits to defeat).
+      const BOSS_MAX_HITS = 4;
+      // Hearts HUD above the boss.
       const hearts = k.add([
         k.text("♥".repeat(BOSS_MAX_HITS), { size: 16, font: UI_FONT }),
         k.pos(bx, GROUND_Y - bh - 40),
@@ -5314,9 +5316,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         if (boss.dead) return;
         const dt = k.dt();
         const now = k.time();
-        // Rage phase: once he is down to his last two hearts he speeds up.
-        const rage = boss.hits >= BOSS_MAX_HITS - 2 ? 1.32 : 1;
-        const speed = 132 * rage;
+        // Rage phase: only on his final heart, and a gentler speed-up.
+        const rage = boss.hits >= BOSS_MAX_HITS - 1 ? 1.15 : 1;
+        const speed = 110 * rage;
         boss.pos.x += boss.dir * speed * dt;
         if (boss.pos.x > boss.home + boss.range) {
           boss.pos.x = boss.home + boss.range;
@@ -5332,7 +5334,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
         if (now >= boss.nextHop && boss.pos.y >= GROUND_Y) {
           boss.vy = -470;
-          boss.nextHop = now + (0.22 + Math.random() * 0.18) / rage;
+          boss.nextHop = now + (0.4 + Math.random() * 0.3) / rage;
           boss.armedShot = true; // this jump will throw on the way up and down
         }
 
@@ -5365,9 +5367,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
               spawnBossShot(burstX + toward * (bw / 2), burstY - 60, toward, 30);
             });
           }
-          // Wave every ~1.2-1.6s (tighter in the rage phase) — continuous, but
+          // Wave every ~1.8-2.3s (tighter in the rage phase) — continuous, but
           // with a readable gap to land the dodge in.
-          boss.nextShot = now + (1.2 + Math.random() * 0.4) / rage;
+          boss.nextShot = now + (1.8 + Math.random() * 0.5) / rage;
         }
 
         // Flash while invulnerable.

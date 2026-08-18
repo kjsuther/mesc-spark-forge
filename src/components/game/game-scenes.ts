@@ -3769,15 +3769,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     const isPaused = () => pausedNow;
 
+    /** Tells the controller bridge whether a prompt/card is asking for input,
+     *  so a jump press only doubles as "continue" while one is showing. */
+    const setPromptFlag = (open: boolean) => {
+      try {
+        (window as unknown as { __gamePrompt?: boolean }).__gamePrompt = open;
+      } catch {
+        /* SSR / locked-down window */
+      }
+    };
+
     function pauseGameplay() {
       if (pausedNow) return;
       pausedNow = true;
+      setPromptFlag(true);
       pauseStartedAt = k.time();
       pausedObjs = (k.get("*", { recursive: true }) as unknown as AnyObj[]).filter(
         (o) => !o.paused,
       );
       for (const o of pausedObjs) o.paused = true;
     }
+
 
     function resumeGameplay() {
       if (!pausedNow) return;

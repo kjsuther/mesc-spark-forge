@@ -4320,6 +4320,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const keyHandlers = ["enter", "space", "kpenter"].map((key) =>
         k.onKeyPress(key as never, () => close()),
       );
+      if (DEMO) k.wait(2.6, () => close());
       const blink = k.onUpdate(() => {
         if (promptNode) promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.35;
       });

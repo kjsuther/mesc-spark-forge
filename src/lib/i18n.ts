@@ -85,7 +85,6 @@ const ES: Record<string, string> = {
   "Arrow Keys or A / D": "Flechas o A / D",
 
   // ---- Awaiting Decision (calendar rain) ------------------------------
-  "AWAITING DECISION": "ESPERANDO DECISIÓN",
   "Dodge the dates for 10 seconds — then they stop.":
     "Esquiva las fechas 10 segundos: luego se detienen.",
   "Avoid the falling calendar dates for 10 seconds.":

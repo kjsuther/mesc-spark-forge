@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.archive_deleted_game_score() FROM PUBLIC, anon, authenticated;

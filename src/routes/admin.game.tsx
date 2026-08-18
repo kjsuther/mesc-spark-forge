@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { resetLeaderboard } from "@/lib/game.functions";
+import { getLastWipe, resetLeaderboard, restoreLastWipe } from "@/lib/game.functions";
 import { gameFeedbackQuery, splitFeedback } from "@/lib/feedback.queries";
 
 export const Route = createFileRoute("/admin/game")({
@@ -14,18 +14,37 @@ export const Route = createFileRoute("/admin/game")({
 
 function AdminGamePage() {
   const wipeScores = useServerFn(resetLeaderboard);
+  const restoreScores = useServerFn(restoreLastWipe);
+  const fetchLastWipe = useServerFn(getLastWipe);
   const { data: rows = [] } = useQuery(gameFeedbackQuery);
   const { backlog, implemented } = splitFeedback(rows);
+  const { data: lastWipe, refetch: refetchWipe } = useQuery({
+    queryKey: ["leaderboard_wipes", "last"],
+    queryFn: () => fetchLastWipe(),
+  });
 
   async function handleResetScores() {
     if (!confirm("Wipe the entire High Scores leaderboard? This cannot be undone.")) return;
     try {
       await wipeScores();
       toast.success("High scores cleared.");
+      refetchWipe();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to reset high scores");
     }
   }
+
+  async function handleRestoreScores() {
+    if (!confirm("Restore the scores removed by the most recent wipe?")) return;
+    try {
+      const res = await restoreScores();
+      toast.success(`Restored ${res.restored} score${res.restored === 1 ? "" : "s"}.`);
+      refetchWipe();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to restore high scores");
+    }
+  }
+
 
   return (
     <div>
@@ -69,7 +88,26 @@ function AdminGamePage() {
         >
           Reset High Scores leaderboard
         </button>
+        <button
+          onClick={handleRestoreScores}
+          className="rounded border-2 border-mn-green px-4 py-2 text-sm font-bold uppercase text-mn-green hover:bg-mn-green/10"
+        >
+          Restore last wipe
+        </button>
+      </section>
+
+      <section className="rounded-lg border-2 border-dark-gray/20 bg-cream p-4 text-sm text-dark-gray/80">
+        <strong className="font-black uppercase tracking-wide text-mn-blue">Leaderboard log</strong>
+        <p className="mt-1">
+          {lastWipe
+            ? `Last wipe: ${new Date(lastWipe.wiped_at).toLocaleString()} — ${lastWipe.row_count} score${lastWipe.row_count === 1 ? "" : "s"} removed${lastWipe.restored_at ? " (restored)" : ""}.`
+            : "No leaderboard wipe on record. Scores are never cleared by publishing an update."}
+        </p>
+        <p className="mt-1 text-xs">
+          Every deleted score is archived automatically, so a wipe can always be undone.
+        </p>
       </section>
     </div>
   );
 }
+

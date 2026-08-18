@@ -191,6 +191,60 @@ export type Database = {
         }
         Relationships: []
       }
+      game_scores_archive: {
+        Row: {
+          archive_id: string
+          created_at: string
+          deleted_at: string
+          display_name: string
+          duration_ms: number
+          id: string
+          mode: string
+          score: number
+        }
+        Insert: {
+          archive_id?: string
+          created_at: string
+          deleted_at?: string
+          display_name: string
+          duration_ms: number
+          id: string
+          mode: string
+          score: number
+        }
+        Update: {
+          archive_id?: string
+          created_at?: string
+          deleted_at?: string
+          display_name?: string
+          duration_ms?: number
+          id?: string
+          mode?: string
+          score?: number
+        }
+        Relationships: []
+      }
+      leaderboard_wipes: {
+        Row: {
+          id: string
+          restored_at: string | null
+          row_count: number
+          wiped_at: string
+        }
+        Insert: {
+          id?: string
+          restored_at?: string | null
+          row_count?: number
+          wiped_at?: string
+        }
+        Update: {
+          id?: string
+          restored_at?: string | null
+          row_count?: number
+          wiped_at?: string
+        }
+        Relationships: []
+      }
       team_members: {
         Row: {
           bio: string | null

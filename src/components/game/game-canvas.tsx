@@ -757,7 +757,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       clearInterval(tick);
       for (const type of events) window.removeEventListener(type, bump);
     };
-  }, [launchMode, error, presentation, menuScreen]);
+  }, [launchMode, error, menuScreen]);
 
   // Any deliberate input leaves the demo and hands the game back to a player.
   useEffect(() => {

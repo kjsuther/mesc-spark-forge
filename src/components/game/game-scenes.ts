@@ -1408,7 +1408,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   {
     const rawText = k.text.bind(k) as Ctx["text"];
     (k as unknown as { text: Ctx["text"] }).text = ((value: unknown, options?: unknown) =>
-      rawText(tr(String(value ?? "")), options as never)) as Ctx["text"];
+      {
+        const raw = String(value ?? "");
+        const out = tr(raw);
+        if (out === raw && raw.trim()) console.log("[i18n-miss]", JSON.stringify(raw));
+        return rawText(out, options as never);
+      }) as Ctx["text"];
   }
 
   // ---- Live layout watcher ------------------------------------------------

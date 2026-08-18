@@ -84,6 +84,21 @@ const ES: Record<string, string> = {
   "RESTART": "REINICIAR",
   "Arrow Keys or A / D": "Flechas o A / D",
 
+  // ---- Awaiting Decision (calendar rain) ------------------------------
+  "Dodge the dates for 10 seconds — then they stop.":
+    "Esquiva las fechas 10 segundos: luego se detienen.",
+  "Avoid the falling calendar dates for 10 seconds.":
+    "Evita las fechas del calendario durante 10 segundos.",
+  "If a date hits you, the 10 seconds start over.":
+    "Si una fecha te golpea, los 10 segundos empiezan de nuevo.",
+  "Make it 10 seconds and the dates stop falling —":
+    "Aguanta 10 segundos y las fechas dejan de caer:",
+  "then walk right through the unlocked door.":
+    "luego camina a la derecha y cruza la puerta abierta.",
+  "Hit! The 10 seconds start over.": "¡Golpe! Los 10 segundos empiezan de nuevo.",
+  "Approved — the calendar stops. Head right to the door.":
+    "Aprobado: el calendario se detiene. Ve a la derecha hacia la puerta.",
+
   // ---- Warm-up (practice trail) ---------------------------------------
   "WARM-UP · PRACTICE TRAIL": "CALENTAMIENTO · SENDERO DE PRÁCTICA",
   "WARM-UP": "CALENTAMIENTO",

@@ -2759,6 +2759,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
     }
     refillCalBag();
+    // Once the 10-second wait is survived the sky clears: no new pages are
+    // scheduled and anything mid-air is swept away, so the walk to the exit
+    // door is completely safe.
+    let calDone = false;
+    const calPages: AnyObj[] = [];
     /** Next drop column from the shuffled sweep (jittered inside the column). */
     function pickCalX(): number {
       if (calBag.length === 0) refillCalBag();
@@ -2788,6 +2793,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         },
       });
       b.use(k.rotate(0));
+      calPages.push(b);
       /** Park the page off-screen and schedule its next telegraphed drop. */
       const rearm = () => {
         b.falling = false;
@@ -2797,6 +2803,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       rearm();
       b.onUpdate(() => {
         const now = k.time();
+        if (calDone) return;
         if (!b.falling) {
           // Only rain while the player is actually in the waiting zone.
           if (player.pos.x < mx0 - 200 || player.pos.x > mx0 + BIOME_W + 200) return;
@@ -2833,7 +2840,36 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
 
+    /** Sweep every page (and its shadow marker) out of the sky, for good. */
+    function clearCalendarRain() {
+      if (calDone) return;
+      calDone = true;
+      for (const page of calPages) {
+        if (page.falling) sparkleBurst(page.pos.x, page.pos.y, [255, 255, 255]);
+        page.falling = false;
+        page.pos = k.vec2((CAL_L + CAL_R) / 2, -900);
+        if (page.marker) {
+          try {
+            page.marker.destroy();
+          } catch {
+            /* marker already gone */
+          }
+          page.marker = null;
+        }
+      }
+      showHint("Approved — the calendar stops. Head right to the door.", 3.5);
+    }
+
     addSpeech(k, mx0 + 500, 90, "Awaiting a decision…", [50, 40, 80]);
+    // Entrance signpost: the same instruction as the briefing, for anyone who
+    // clicked past the step screen.
+    addSignPlaque(
+      k,
+      mx0 + 150,
+      GROUND_Y - 210,
+      "Dodge the dates for 10 seconds — then they stop.",
+      "AWAITING DECISION",
+    );
     zoneObjectives[5] = {
       hudLabel: () => {
         if (zoneState.waitStart === 0) return "WAIT 0:10";
@@ -3804,6 +3840,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const remaining = started ? Math.max(0, zoneState.waitDur - elapsed) : zoneState.waitDur;
       const approvedFlash =
         started && elapsed >= zoneState.waitDur && elapsed < zoneState.waitDur + 1.5;
+      // Survived the wait: the rain is over for the rest of this zone.
+      if (started && elapsed >= zoneState.waitDur) clearCalendarRain();
       const showTimer = inZone5;
       if (showTimer) {
         waitBg.opacity = 0.85;
@@ -3942,9 +3980,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         title: "STEP 6 · AWAITING DECISION",
         subtitle: "Waiting Mountain",
         lines: [
-          "Avoid the falling calendar dates.",
-          "Survive for 10 seconds without being hit.",
-          "The exit door unlocks automatically.",
+          "Avoid the falling calendar dates for 10 seconds.",
+          "If a date hits you, the 10 seconds start over.",
+          "Make it 10 seconds and the dates stop falling —",
+          "then walk right through the unlocked door.",
         ],
         icons: [{ sprite: "calendar-page", label: "FALLING DATE" }],
       },
@@ -5428,8 +5467,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         return;
       }
       const alive = !player.dead && !player.won && k.time() >= player.invulnUntil;
-      if (zoneNow === ZONE_INDEX.awaitDecision && alive && zoneState.waitStart > 0) {
+      // Attract mode shrugs off hits, so it must not reset the countdown too —
+      // otherwise the demo stalls in the waiting zone forever.
+      if (!DEMO && zoneNow === ZONE_INDEX.awaitDecision && alive && zoneState.waitStart > 0) {
         zoneState.waitStart = k.time();
+        showHint("Hit! The 10 seconds start over.", 2.2);
       }
       loseLife("boulder");
     });

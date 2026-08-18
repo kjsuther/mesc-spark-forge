@@ -739,7 +739,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
 
   // Idle attract mode: after a minute untouched on the title screen the game
   // starts playing itself so passers-by can see the trail in motion.
-  const DEMO_IDLE_MS = 6_000;
+  const DEMO_IDLE_MS = 60_000;
   useEffect(() => {
     if (launchMode || error || presentation) return;
     if (menuScreen !== "title") return;

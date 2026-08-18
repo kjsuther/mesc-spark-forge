@@ -1234,7 +1234,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
                         setLangState(next);
                       }}
                     >
-                      {L("🌐 Español", "🌐 English")}
+                      {L("ESPAÑOL", "ENGLISH")}
                     </MenuButton>
                   </div>
                 </div>

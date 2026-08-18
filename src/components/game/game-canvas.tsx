@@ -181,6 +181,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   /** Full run state, kept so a context-loss recovery resumes an honest run. */
   const snapshotRef = useRef<RunSnapshot | null>(null);
   const recoveryPendingRef = useRef(false);
+  console.log("[demo] render", launchMode, menuScreen, error);
   /** Attract mode: the title screen plays itself when nobody is around. */
   const isDemo = launchMode === "demo";
   const restartDemoRef = useRef<(() => void) | null>(null);

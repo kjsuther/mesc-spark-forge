@@ -181,7 +181,6 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   /** Full run state, kept so a context-loss recovery resumes an honest run. */
   const snapshotRef = useRef<RunSnapshot | null>(null);
   const recoveryPendingRef = useRef(false);
-  console.log("[demo] render", launchMode, menuScreen, error);
   /** Attract mode: the title screen plays itself when nobody is around. */
   const isDemo = launchMode === "demo";
   const restartDemoRef = useRef<(() => void) | null>(null);
@@ -740,7 +739,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
 
   // Idle attract mode: after a minute untouched on the title screen the game
   // starts playing itself so passers-by can see the trail in motion.
-  const DEMO_IDLE_MS = 60_000;
+  const DEMO_IDLE_MS = 6_000;
   useEffect(() => {
     if (launchMode || error || presentation) return;
     if (menuScreen !== "title") return;
@@ -751,7 +750,6 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
     const events = ["pointerdown", "keydown", "wheel", "touchstart", "mousemove"] as const;
     for (const type of events) window.addEventListener(type, bump, { passive: true });
     const tick = setInterval(() => {
-      console.log("[demo] idle", Date.now() - last);
       if (Date.now() - last >= DEMO_IDLE_MS) setLaunchMode("demo");
     }, 1000);
     return () => {

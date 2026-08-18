@@ -328,6 +328,10 @@ const RULES: Array<[RegExp, string]> = [
     "Elegiste $1: prepárate, algo viene entre los árboles..."],
   [/^Zone (\d+)\/(\d+) · (.+)$/, "Zona $1/$2 · $3"],
   [/^\+(\d+)$/, "+$1"],
+  [
+    /^You picked (.+)\. Now walk right and go through the door\.$/,
+    "Elegiste @1. Ahora camina a la derecha y cruza la puerta.",
+  ],
   // Composed sentences: the leading fragment is itself a dictionary entry
   // (e.g. the device-specific jump prompt), so it is translated recursively.
   [/^(.+) to hit the brick and collect your application\.$/, "@1 para golpear el bloque y recoger tu solicitud."],

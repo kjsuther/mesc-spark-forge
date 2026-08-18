@@ -6249,6 +6249,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       opts.onSnapshot?.(null);
       k.go("trail", START_X(), 1, null);
     };
+    // Attract mode has nobody to press "play again": hold the finale long
+    // enough to read, then loop the demo back to the start of the trail.
+    if (opts.demo === true) k.wait(9, () => leaveThanks());
+
     const W = k.width();
     const H = k.height();
 

@@ -5588,7 +5588,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // The name-entry / feedback panel is held back until the player
         // acknowledges the failure screen.
         pendingLose = buildResult(false);
+        setPromptFlag(true);
       }
+
     }
 
     // ================= Controls =================

@@ -31,7 +31,7 @@ const BUILD_FLAGS: GameFlags = {
 
 type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
 
-type LaunchMode = "standard" | "fullscreen";
+type LaunchMode = "standard" | "fullscreen" | "demo";
 type MenuScreen = "title" | "explainer" | "trailmap" | "controls" | "scores";
 
 /** Single shared detector — see src/lib/device.ts. */
@@ -253,6 +253,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
           canvas,
 
           flags,
+          demo: launchMode === "demo",
           resumeZone: clampResumeZone(resumeZoneRef.current),
           resumeSnapshot: isResumableSnapshot(snapshotRef.current) ? snapshotRef.current : null,
           onSafeProgress: (zone: number) => {
@@ -263,11 +264,20 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
           },
           onWin: (r: WinResult) => {
             snapshotRef.current = null;
+            // Attract mode is a loop, not a run: never score it, just replay.
+            if (launchMode === "demo") {
+              restartDemoRef.current?.();
+              return;
+            }
             setEndResult(r);
             onWin?.(r);
           },
           onLose: (r: WinResult) => {
             snapshotRef.current = null;
+            if (launchMode === "demo") {
+              restartDemoRef.current?.();
+              return;
+            }
             setEndResult(r);
             onLose?.(r);
           },

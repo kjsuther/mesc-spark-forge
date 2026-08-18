@@ -750,6 +750,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
     const events = ["pointerdown", "keydown", "wheel", "touchstart", "mousemove"] as const;
     for (const type of events) window.addEventListener(type, bump, { passive: true });
     const tick = setInterval(() => {
+      console.log("[demo] idle", Date.now() - last);
       if (Date.now() - last >= DEMO_IDLE_MS) setLaunchMode("demo");
     }, 1000);
     return () => {

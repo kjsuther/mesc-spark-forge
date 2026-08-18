@@ -11,6 +11,7 @@ import { clampResumeZone, isResumableSnapshot, shouldRecoverGameAfterResume } fr
 import { selectViewportSnapshot } from "./viewport";
 import { isTouchDevice, useDeviceProfile } from "@/lib/device";
 import { subscribeGamepad, useGamepadConnected } from "@/lib/gamepad";
+import { getLang, setLang, type Lang } from "@/lib/i18n";
 
 
 type Props = {
@@ -166,6 +167,10 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   const [fauxFullscreen, setFauxFullscreen] = useState(false);
   const [launchMode, setLaunchMode] = useState<LaunchMode | null>(null);
   const [menuScreen, setMenuScreen] = useState<MenuScreen>("title");
+  // Language choice lives on the title screen; `L(en, es)` renders the menu
+  // copy while `t()` inside the engine handles everything drawn on canvas.
+  const [lang, setLangState] = useState<Lang>(() => getLang());
+  const L = (en: string, es: string) => (lang === "es" ? es : en);
   const [showHint, setShowHint] = useState(true);
   const [loading, setLoading] = useState(false);
   const [recovering, setRecovering] = useState(false);
@@ -1158,7 +1163,10 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
                     }}
                   >
                     <p className="mb-3 text-[8px] leading-relaxed tracking-widest text-accent-gold sm:text-[10px]">
-                      ★ MINNESOTA HEALTH COVERAGE QUEST ★
+                      {L(
+                        "★ MINNESOTA HEALTH COVERAGE QUEST ★",
+                        "★ AVENTURA DE COBERTURA DE MINNESOTA ★",
+                      )}
                     </p>
                     <h2
                       className="text-[18px] leading-[1.4] text-cream sm:text-[28px]"
@@ -1167,14 +1175,14 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
                           "3px 3px 0 var(--color-accent-orange), 6px 6px 0 rgba(0,0,0,0.4)",
                       }}
                     >
-                      BLAZING
+                      {L("BLAZING", "ABRIENDO")}
                       <br />
-                      THE TRAIL
+                      {L("THE TRAIL", "EL CAMINO")}
                       <br />
-                      TO COVERAGE
+                      {L("TO COVERAGE", "A LA COBERTURA")}
                     </h2>
                     <p className="mt-5 animate-pulse text-[8px] tracking-widest text-cream sm:text-[10px]">
-                      - PRESS START -
+                      {L("- PRESS START -", "- PULSA START -")}
                     </p>
                   </div>
                   <div
@@ -1196,7 +1204,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
                         }
                       }}
                     >
-                      ▶ Start Game
+                      {L("▶ Start Game", "▶ Comenzar Juego")}
                     </MenuButton>
                     <MenuButton
                       onClick={() => {
@@ -1204,7 +1212,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
                         setMenuScreen("scores");
                       }}
                     >
-                      ★ High Scores
+                      {L("★ High Scores", "★ Mejores Puntajes")}
                     </MenuButton>
                     {/* Full screen is a first-class title-screen option, not a
                       hidden control that only appears mid-run. */}
@@ -1214,7 +1222,19 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
                         void toggleFullscreen();
                       }}
                     >
-                      {isFullscreen || fauxFullscreen ? "⤡ Exit Full Screen" : "⛶ Full Screen"}
+                      {isFullscreen || fauxFullscreen
+                        ? L("⤡ Exit Full Screen", "⤡ Salir de Pantalla Completa")
+                        : L("⛶ Full Screen", "⛶ Pantalla Completa")}
+                    </MenuButton>
+                    {/* Language toggle — English / Español, game text only. */}
+                    <MenuButton
+                      onClick={() => {
+                        const next: Lang = lang === "es" ? "en" : "es";
+                        setLang(next);
+                        setLangState(next);
+                      }}
+                    >
+                      {L("🌐 Español", "🌐 English")}
                     </MenuButton>
                   </div>
                 </div>
@@ -1234,22 +1254,28 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
                     }}
                   >
                     <p className="mb-3 text-center text-[9px] tracking-widest text-accent-gold sm:text-[11px]">
-                      ★ THE JOURNEY ★
+                      {L("★ THE JOURNEY ★", "★ EL RECORRIDO ★")}
                     </p>
                     <p className="text-[9px] leading-[1.9] text-cream sm:text-[11px]">
-                      Applying for health coverage is a LONG road. Without the right tools it can
-                      feel impossible &mdash; forms pile up, letters get lost, deadlines slip, and
-                      many people GIVE UP before the finish line.
+                      {L(
+                        "Applying for health coverage is a LONG road. Without the right tools it can feel impossible — forms pile up, letters get lost, deadlines slip, and many people GIVE UP before the finish line.",
+                        "Solicitar cobertura de salud es un camino LARGO. Sin las herramientas correctas puede parecer imposible: los formularios se acumulan, las cartas se pierden, las fechas límite se escapan y muchas personas SE RINDEN antes de llegar a la meta.",
+                      )}
                     </p>
                     <p className="mt-4 text-[9px] leading-[1.9] text-cream sm:text-[11px]">
-                      Go as far as you can down the trail. When your run ends, tell us what would
-                      have made the journey easier &mdash; the team builds that feedback into the
-                      next version.
+                      {L(
+                        "Go as far as you can down the trail. When your run ends, tell us what would have made the journey easier — the team builds that feedback into the next version.",
+                        "Avanza lo más lejos que puedas. Cuando termine tu partida, cuéntanos qué habría hecho el recorrido más fácil: el equipo convierte esos comentarios en la próxima versión.",
+                      )}
                     </p>
                   </div>
                   <div className="mx-auto flex max-w-xs flex-col gap-3">
-                    <MenuButton onClick={() => setMenuScreen("trailmap")}>▶ Continue</MenuButton>
-                    <MenuButton onClick={() => setMenuScreen("title")}>Back</MenuButton>
+                    <MenuButton onClick={() => setMenuScreen("trailmap")}>
+                      {L("▶ Continue", "▶ Continuar")}
+                    </MenuButton>
+                    <MenuButton onClick={() => setMenuScreen("title")}>
+                      {L("Back", "Atrás")}
+                    </MenuButton>
                   </div>
                 </div>
               )}

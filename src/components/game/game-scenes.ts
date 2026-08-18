@@ -5467,7 +5467,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         return;
       }
       const alive = !player.dead && !player.won && k.time() >= player.invulnUntil;
-      if (zoneNow === ZONE_INDEX.awaitDecision && alive && zoneState.waitStart > 0) {
+      // Attract mode shrugs off hits, so it must not reset the countdown too —
+      // otherwise the demo stalls in the waiting zone forever.
+      if (!DEMO && zoneNow === ZONE_INDEX.awaitDecision && alive && zoneState.waitStart > 0) {
         zoneState.waitStart = k.time();
         showHint("Hit! The 10 seconds start over.", 2.2);
       }

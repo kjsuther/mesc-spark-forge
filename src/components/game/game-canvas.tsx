@@ -1330,24 +1330,49 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         )}
 
         {error && (
-          <div className="absolute inset-0 z-40 grid place-items-center bg-mn-blue/95 p-6 text-center text-cream">
+          <div className="absolute inset-0 z-50 grid place-items-center bg-mn-blue/95 p-6 text-center text-cream">
             <div>
               <p className="font-bold mb-2">The game hit a snag</p>
               <p className="text-sm opacity-80 mb-4">{error}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null);
-                  setLoading(true);
-                  setEngineGeneration((generation) => generation + 1);
-                }}
-                className="rounded-md border-2 border-accent-gold bg-mn-blue px-5 py-3 text-sm font-bold uppercase tracking-wide text-cream"
-              >
-                ⟳ Tap to retry
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Hand the failed canvas's context back before booting a
+                    // replacement, so a retry never stacks a second context.
+                    releaseCanvasContext(canvasRef.current);
+                    setError(null);
+                    setEndResult(null);
+                    setLoading(true);
+                    setEngineGeneration((generation) => generation + 1);
+                  }}
+                  className="rounded-md border-2 border-accent-gold bg-mn-blue px-5 py-3 text-sm font-bold uppercase tracking-wide text-cream"
+                >
+                  ⟳ Tap to retry
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Always leave a way back into the game on a kiosk.
+                    releaseCanvasContext(canvasRef.current);
+                    setError(null);
+                    setEndResult(null);
+                    setLoading(false);
+                    resumeZoneRef.current = 0;
+                    snapshotRef.current = null;
+                    setLaunchMode(null);
+                    setMenuScreen("title");
+                    setEngineGeneration((generation) => generation + 1);
+                  }}
+                  className="rounded-md border-2 border-cream/50 bg-transparent px-5 py-3 text-sm font-bold uppercase tracking-wide text-cream"
+                >
+                  ⌂ Back to title
+                </button>
+              </div>
             </div>
           </div>
         )}
+
 
         {/* Overlay touch controls — always ON TOP of the canvas on touch
             devices, in windowed play as well as fullscreen, so they can never

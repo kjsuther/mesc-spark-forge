@@ -66,16 +66,8 @@ export function ScoreEntryOverlay({
   const isHighScore = top.length < 10 || score > (top[top.length - 1]?.score ?? 0);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY);
-      if (raw) {
-        const j = JSON.parse(raw) as { first?: string; initial?: string };
-        if (j.first) setFirst(j.first.toUpperCase().slice(0, 12));
-        if (j.initial) setInitial(j.initial.toUpperCase().slice(0, 1));
-      }
-    } catch {
-      // ignore
-    }
+    // Kiosk: always start blank so the next player never sees the previous
+    // player's name already filled in.
     // Focus after mount, and again on the next frame: entering/leaving
     // fullscreen re-parents the canvas host and can drop the caret.
     const focus = () => firstRef.current?.focus();

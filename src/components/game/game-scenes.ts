@@ -5726,7 +5726,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (currentZone !== demoZoneWatched) {
         demoZoneWatched = currentZone;
         demoZoneEnteredAt = now;
-      } else if (now - demoZoneEnteredAt > 42) {
+      } else if (now - demoZoneEnteredAt > 22) {
         const d = doors[currentZone];
         if (d && !d.unlocked) unlockDoor(currentZone);
       }

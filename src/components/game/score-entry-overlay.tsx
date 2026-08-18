@@ -44,11 +44,13 @@ export function ScoreEntryOverlay({
   onClose,
   onRestart,
   uiScale = 1,
+  openFeedbackInNewTab = false,
 }: {
   result: WinResult;
   onClose: () => void;
   onRestart?: () => void;
   uiScale?: number;
+  openFeedbackInNewTab?: boolean;
 }) {
   const qc = useQueryClient();
   const submitScore = useServerFn(submitGameScore);

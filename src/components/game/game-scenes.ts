@@ -3769,9 +3769,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     const isPaused = () => pausedNow;
 
+    /** Tells the controller bridge whether a prompt/card is asking for input,
+     *  so a jump press only doubles as "continue" while one is showing. */
+    const setPromptFlag = (open: boolean) => {
+      try {
+        (window as unknown as { __gamePrompt?: boolean }).__gamePrompt = open;
+      } catch {
+        /* SSR / locked-down window */
+      }
+    };
+
     function pauseGameplay() {
       if (pausedNow) return;
       pausedNow = true;
+      setPromptFlag(true);
       pauseStartedAt = k.time();
       pausedObjs = (k.get("*", { recursive: true }) as unknown as AnyObj[]).filter(
         (o) => !o.paused,
@@ -3779,12 +3790,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       for (const o of pausedObjs) o.paused = true;
     }
 
+
     function resumeGameplay() {
       if (!pausedNow) return;
       const frozenFor = k.time() - pauseStartedAt;
       pausedTotal += frozenFor;
 
       pausedNow = false;
+      setPromptFlag(!!pendingLose);
+
       for (const o of pausedObjs) {
         try {
           o.paused = false;
@@ -5411,8 +5425,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (!pendingLose) return;
       const r = pendingLose;
       pendingLose = null;
+      setPromptFlag(isPaused());
       opts.onLose?.(r);
     }
+
 
     /**
      * Stamps the split time for a finished zone and pays a speed bonus.
@@ -5572,7 +5588,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // The name-entry / feedback panel is held back until the player
         // acknowledges the failure screen.
         pendingLose = buildResult(false);
+        setPromptFlag(true);
       }
+
     }
 
     // ================= Controls =================

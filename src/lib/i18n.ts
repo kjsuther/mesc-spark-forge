@@ -280,6 +280,13 @@ const ES: Record<string, string> = {
   DONUT: "DONA",
   "FOOD CART": "CARRITO DE COMIDA",
 
+  // ---- Boss briefing ---------------------------------------------------
+  'Dodge the paperwork he throws — your "+" shots won\'t stop it.':
+    'Esquiva el papeleo que lanza: tus disparos "+" no lo detienen.',
+  "He fires when he jumps, so watch his height.":
+    "Dispara cuando salta, así que vigila su altura.",
+  "Land 5 hits to win.": "Acierta 5 golpes para ganar.",
+
   // ---- Failure / victory ---------------------------------------------
   "ACCOUNT NOT CREATED": "CUENTA NO CREADA",
   "MISSING PAPERWORK": "FALTA PAPELEO",
@@ -349,8 +356,8 @@ export function t(input: string): string {
     const mapped = lines.map((line) => {
       const trimmed = line.trim();
       if (!trimmed) return line;
-      const hit = ES[trimmed] ?? ruleHit(trimmed);
-      if (hit === undefined) return line;
+      const hit = t(trimmed);
+      if (hit === trimmed) return line;
       changed = true;
       return line.replace(trimmed, hit);
     });

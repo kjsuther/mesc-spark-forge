@@ -5694,6 +5694,72 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     applyFeatures();
     let lastFeatureSweep = 0;
 
+    // ===== Attract-mode autopilot =====
+    // A deliberately simple bot: always walk right, hop over anything in the
+    // way, and never get stuck. It exists to show the journey to passers-by,
+    // not to play well.
+    let demoLastX = player.pos.x;
+    let demoLastProgressAt = 0;
+    let demoZoneEnteredAt = 0;
+    let demoZoneWatched = -1;
+
+    function demoNear(tag: string, ahead: number, vertical: number): boolean {
+      const list = k.get(tag) as unknown as Array<{ pos: { x: number; y: number } }>;
+      for (const o of list) {
+        const dx = o.pos.x - player.pos.x;
+        if (dx > -30 && dx < ahead && Math.abs(o.pos.y - player.pos.y) < vertical) return true;
+      }
+      return false;
+    }
+
+    function demoAutopilot(now: number): number {
+      const grounded = player.isGrounded() || !!player.riding;
+      // Keep the run honest about progress so a wedged bot can free itself.
+      if (player.pos.x > demoLastX + 10) {
+        demoLastX = player.pos.x;
+        demoLastProgressAt = now;
+      }
+      if (demoLastProgressAt === 0) demoLastProgressAt = now;
+
+      // Objectives can need item pickups the bot may miss — after a while the
+      // door opens anyway so the demo always reaches the finale.
+      if (currentZone !== demoZoneWatched) {
+        demoZoneWatched = currentZone;
+        demoZoneEnteredAt = now;
+      } else if (now - demoZoneEnteredAt > 42) {
+        const d = doors[currentZone];
+        if (d && !d.unlocked) unlockDoor(currentZone);
+      }
+
+      let jump = false;
+      // Enemies, incoming paperwork and pits all get the same answer: hop.
+      if (demoNear("monster", 150, 130)) jump = true;
+      if (demoNear("boss-shot", 220, 150)) jump = true;
+      if (demoNear("water", 170, 400)) jump = true;
+      if (demoNear("hazard", 150, 200)) jump = true;
+      // Climbable platform just ahead and above the hero's feet.
+      const plats = k.get("platform") as unknown as Array<{
+        pos: { x: number; y: number };
+        width: number;
+      }>;
+      for (const pf of plats) {
+        const dx = pf.pos.x - player.pos.x;
+        const dy = player.pos.y - pf.pos.y;
+        if (dx > 10 && dx < 150 && dy > 20 && dy < 170) jump = true;
+      }
+      // Last resort: wedged against something for a while.
+      if (now - demoLastProgressAt > 2.5) jump = true;
+      if (now - demoLastProgressAt > 7) {
+        player.pos.x += 70;
+        player.pos.y = Math.min(player.pos.y, GROUND_Y - 40);
+        demoLastX = player.pos.x;
+        demoLastProgressAt = now;
+      }
+
+      if (jump && grounded) tryJump();
+      return 1;
+    }
+
     k.onUpdate(() => {
       if (w?.__gameInput?.resetReq) {
         w.__gameInput.resetReq = false;
@@ -5855,6 +5921,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         } else {
           dir = 0;
         }
+      } else if (DEMO) {
+        dir = demoAutopilot(now);
       } else {
         // Fresh-input gate: a direction only counts once it has been released
         // at least one frame since this run started. Without it, a key or an

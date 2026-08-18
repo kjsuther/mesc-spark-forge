@@ -6627,14 +6627,433 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     }
   });
 
+  // ==================== Warm-up (practice trail) ====================
+  // A safe Portland-forest clearing that runs BEFORE Zone 1: no enemies, no
+  // pits, no clock, no lives. The player tries moving, jumping and grabbing a
+  // pickup; once all three are done (or 20 seconds pass) the trail-head door
+  // opens and the real run begins.
+  k.scene("warmup", () => {
+    uiRelayout.clear();
+    UI_TEXT_SCALE = computeUiTextScale(opts.canvas, k.width());
+    setMusic(zoneMusic(0));
+    const touch = isCoarsePointer();
+    const T = UI_TEXT_SCALE;
+
+    const STAGE_END = 1700;
+    const DOOR_X = STAGE_END - 150;
+
+    // ---- Scenery: same 16-bit Oregon forest plate as Zone 1 --------------
+    k.add([
+      k.rect(STAGE_END + 400, 540),
+      k.pos(-200, 0),
+      k.color(128, 190, 220),
+      k.z(LAYERS.BG_FAR - 1),
+    ]);
+    for (let i = 0; i < 2; i++) {
+      k.add([
+        k.sprite("bg-forest", { width: BIOME_W, height: 540 }),
+        k.pos(i * BIOME_W, 0),
+        k.z(LAYERS.BG_FAR),
+      ]);
+    }
+    // Unbroken ground — there is nothing here to fall into.
+    addGround(k, -200, STAGE_END + 200, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
+    // Invisible walls keep the practice pen closed on both ends.
+    for (const wx of [-60, STAGE_END]) {
+      k.add([
+        k.rect(40, 600),
+        k.pos(wx, GROUND_Y - 600),
+        k.opacity(0),
+        k.area(),
+        k.body({ isStatic: true }),
+        k.z(LAYERS.BOUND),
+      ]);
+    }
+
+    // ---- Player ----------------------------------------------------------
+    const spawnX = START_X();
+    const hero = k.add([
+      k.sprite("hero-idle", {
+        width: displaySize("hero-idle", sizes).w,
+        height: DISPLAY_H["hero-idle"],
+      }),
+      k.pos(spawnX, GROUND_Y - 20),
+      k.area({ shape: new k.Rect(k.vec2(0, 0), PLAYER_HITBOX.w, PLAYER_HITBOX.h) }),
+      k.body(),
+      k.anchor("bot"),
+      k.z(LAYERS.PLAYER),
+      "player",
+      { facing: 1 as 1 | -1, animState: "idle" as "idle" | "walk" | "jump", walkFrame: 0 },
+    ]);
+
+    let spriteName = "hero-idle";
+    const suffix = (base: string) => (hero.facing < 0 && sizes[`${base}-left`] ? "-left" : "");
+    const setHeroSprite = (name: string) => {
+      const wantFlip = hero.facing < 0 && !name.endsWith("-left");
+      if (hero.flipX !== wantFlip) hero.flipX = wantFlip;
+      if (spriteName === name) return;
+      spriteName = name;
+      const ds = displaySize(name, sizes);
+      hero.sprite = name;
+      hero.width = ds.w;
+      hero.height = DISPLAY_H[name] ?? ds.h;
+      hero.frame = 0;
+    };
+
+    // ---- Practice checklist ---------------------------------------------
+    const done = { move: false, jump: false, collect: false };
+    let ready = false;
+    let left = false;
+
+    // ---- Coach plaques (device-aware copy) -------------------------------
+    addSignPlaque(k, spawnX + 40, GROUND_Y - 210, "Practice here. Nothing can hurt you.", "WARM-UP");
+    addSignPlaque(
+      k,
+      spawnX + 40,
+      GROUND_Y - 150,
+      touch ? "Slide the joystick left and right" : "Arrow keys or A / D",
+      "MOVE",
+    );
+    addSignPlaque(
+      k,
+      700,
+      GROUND_Y - 230,
+      touch ? "Tap the JUMP button" : "Space or Up Arrow to jump",
+      "JUMP",
+    );
+    addSignPlaque(k, 1120, GROUND_Y - 250, "Bump the brick above you", "COLLECT");
+
+    // ---- Practice platforms ---------------------------------------------
+    const addLedge = (x: number, y: number, w: number) => {
+      k.add([
+        k.rect(w, 18, { radius: 2 }),
+        k.pos(x, y),
+        k.color(120, 92, 54),
+        k.outline(2, k.rgb(58, 40, 22)),
+        k.area(),
+        k.body({ isStatic: true }),
+        k.z(LAYERS.PLATFORM),
+      ]);
+      k.add([k.rect(w, 6), k.pos(x, y), k.color(96, 148, 72), k.z(LAYERS.PLATFORM + 1)]);
+    };
+    addLedge(620, GROUND_Y - 110, 150);
+    addLedge(880, GROUND_Y - 190, 150);
+
+    // ---- Practice brick + pack ------------------------------------------
+    const brickDisp = displaySize("brick-idle", sizes);
+    const brick = k.add([
+      k.sprite("brick-idle", { width: brickDisp.w, height: DISPLAY_H["brick-idle"] }),
+      k.pos(1150, GROUND_Y - 150),
+      k.anchor("center"),
+      k.area(),
+      k.z(LAYERS.PROP),
+      "pbrick",
+      { popped: false },
+    ]) as AnyObj;
+
+    const popPack = () => {
+      const disp = displaySize("backpack", sizes);
+      const pack = k.add([
+        k.sprite("backpack", { width: disp.w, height: DISPLAY_H["backpack"] }),
+        k.pos(brick.pos.x, brick.pos.y - 30),
+        k.anchor("center"),
+        k.area(),
+        k.z(LAYERS.PROP + 1),
+        "ppack",
+        { t: 0, baseY: brick.pos.y - 58 },
+      ]) as AnyObj;
+      pack.onUpdate(() => {
+        pack.t += k.dt();
+        pack.pos.y = pack.baseY + Math.sin(pack.t * 3) * 6;
+      });
+    };
+
+    hero.onCollide("pbrick", (b: unknown) => {
+      const bb = b as AnyObj;
+      if (bb.popped || hero.vel.y >= 0) return;
+      bb.popped = true;
+      const hitDisp = displaySize("brick-hit", sizes);
+      bb.sprite = "brick-hit";
+      bb.width = hitDisp.w;
+      bb.height = DISPLAY_H["brick-hit"];
+      playSfx("pickup");
+      popPack();
+    });
+
+    hero.onCollide("ppack", (p: unknown) => {
+      (p as AnyObj).destroy();
+      done.collect = true;
+      playSfx("pickup");
+      showBanner("Nice grab! That's how you pick things up.");
+    });
+
+    // ---- HUD: checklist + banner ----------------------------------------
+    const hudPanel = k.add([
+      k.rect(Math.round(228 * T), Math.round(92 * T), { radius: 4 }),
+      k.pos(14, 14),
+      k.color(26, 30, 42),
+      k.outline(3, k.rgb(250, 240, 210)),
+      k.opacity(0.92),
+      k.fixed(),
+      k.z(LAYERS.HUD),
+    ]);
+    const hudTitle = k.add([
+      k.text("WARM-UP · PRACTICE TRAIL", { size: Math.round(11 * T), font: UI_FONT }),
+      k.pos(26, 24),
+      k.color(255, 226, 120),
+      k.fixed(),
+      k.z(LAYERS.HUD + 1),
+    ]) as AnyObj;
+    const hudList = k.add([
+      k.text("", { size: Math.round(12 * T), font: UI_FONT, lineSpacing: 4 }),
+      k.pos(26, Math.round(24 + 18 * T)),
+      k.color(250, 246, 235),
+      k.fixed(),
+      k.z(LAYERS.HUD + 1),
+    ]) as AnyObj;
+
+    const bannerY = 470;
+    let bannerParts: AnyObj[] = [];
+    function showBanner(msg: string, hold = 3) {
+      for (const p of bannerParts) p.destroy();
+      const size = Math.round(13 * T);
+      const w = Math.min(k.width() - 40, Math.max(320, msg.length * 7.4 * T));
+      const bg = k.add([
+        k.rect(w, Math.round(34 * T), { radius: 4 }),
+        k.pos(k.width() / 2, bannerY),
+        k.anchor("center"),
+        k.color(22, 26, 38),
+        k.outline(3, k.rgb(255, 226, 120)),
+        k.opacity(0.95),
+        k.fixed(),
+        k.z(LAYERS.HUD + 4),
+      ]) as AnyObj;
+      const tx = k.add([
+        k.text(msg, { size, font: UI_FONT, width: w - 24, align: "center" }),
+        k.pos(k.width() / 2, bannerY),
+        k.anchor("center"),
+        k.color(255, 252, 240),
+        k.fixed(),
+        k.z(LAYERS.HUD + 5),
+      ]) as AnyObj;
+      bannerParts = [bg, tx];
+      const mine = bannerParts;
+      if (hold > 0) {
+        k.wait(hold, () => {
+          if (bannerParts !== mine) return;
+          for (const p of mine) p.destroy();
+          bannerParts = [];
+        });
+      }
+    }
+
+    // ---- Skip button ------------------------------------------------------
+    const skipW = Math.round(150 * T);
+    const skipH = Math.round(30 * T);
+    const skipBtn = k.add([
+      k.rect(skipW, skipH, { radius: 4 }),
+      k.pos(k.width() - skipW - 16, 16),
+      k.color(40, 46, 62),
+      k.outline(3, k.rgb(250, 240, 210)),
+      k.opacity(0.92),
+      k.area(),
+      k.fixed(),
+      k.z(LAYERS.HUD + 2),
+    ]) as AnyObj;
+    k.add([
+      k.text(touch ? "SKIP WARM-UP" : "SKIP WARM-UP (ENTER)", {
+        size: Math.round(9 * T),
+        font: UI_FONT,
+      }),
+      k.pos(k.width() - skipW / 2 - 16, 16 + skipH / 2),
+      k.anchor("center"),
+      k.color(255, 226, 120),
+      k.fixed(),
+      k.z(LAYERS.HUD + 3),
+    ]);
+
+    // ---- Door -------------------------------------------------------------
+    const doorDisp = displaySize("door-closed", sizes);
+    const door = k.add([
+      k.sprite("door-closed", { width: doorDisp.w, height: DISPLAY_H["door-closed"] }),
+      k.pos(DOOR_X, GROUND_Y),
+      k.anchor("bot"),
+      k.z(LAYERS.PROP + 2),
+    ]) as AnyObj;
+    const doorBar = k.add([
+      k.rect(14, 560),
+      k.pos(DOOR_X - 7, GROUND_Y - 560),
+      k.color(60, 40, 20),
+      k.opacity(0),
+      k.area(),
+      k.body({ isStatic: true }),
+      k.z(LAYERS.PROP),
+    ]) as AnyObj;
+    const lockDisp = displaySize("door-lock", sizes);
+    const lockBadge = k.add([
+      k.sprite("door-lock", { width: lockDisp.w, height: DISPLAY_H["door-lock"] }),
+      k.pos(DOOR_X, GROUND_Y - DISPLAY_H["door-closed"] / 2),
+      k.anchor("center"),
+      k.z(LAYERS.PROP + 3),
+    ]) as AnyObj;
+    const doorSign = addSignPlaque(
+      k,
+      DOOR_X,
+      GROUND_Y - DISPLAY_H["door-closed"] - 24,
+      "Try moving, jumping and grabbing the pack.",
+      "TRAIL HEAD",
+    );
+
+    function makeReady() {
+      if (ready) return;
+      ready = true;
+      playSfx("door-unlock");
+      k.wait(0.4, () => {
+        playSfx("door-open");
+        const openDisp = displaySize("door-open", sizes);
+        door.sprite = "door-open";
+        door.width = openDisp.w;
+        door.height = DISPLAY_H["door-open"];
+        doorBar.destroy();
+        lockBadge.destroy();
+        for (const part of doorSign) part.destroy();
+        addSignPlaque(
+          k,
+          DOOR_X,
+          GROUND_Y - DISPLAY_H["door-open"] - 24,
+          "You're ready — go through the door to start.",
+          "READY!",
+        );
+      });
+      showBanner("You're ready — go through the door to start.", 0);
+    }
+
+    function leaveWarmup() {
+      if (left) return;
+      left = true;
+      const w =
+        typeof window !== "undefined"
+          ? (window as unknown as {
+              __gameInput?: { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
+            })
+          : undefined;
+      if (w?.__gameInput) {
+        w.__gameInput.left = false;
+        w.__gameInput.right = false;
+        w.__gameInput.jumpReq = false;
+        w.__gameInput.resetReq = false;
+      }
+      opts.onSnapshot?.(null);
+      k.go("trail", START_X(), 1, null);
+    }
+
+    skipBtn.onClick(() => leaveWarmup());
+    k.onKeyPress("enter", () => leaveWarmup());
+
+    // Nobody is stranded here: after 20 seconds the door opens regardless.
+    k.wait(20, () => makeReady());
+    showBanner("Practice here — nothing can hurt you. Move, jump and grab the pack.", 5);
+
+    // ---- Movement + jump --------------------------------------------------
+    const wIn =
+      typeof window !== "undefined"
+        ? (window as unknown as {
+            __gameInput?: { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
+          })
+        : undefined;
+    let leftArmed = false;
+    let rightArmed = false;
+    let lastGrounded = k.time();
+
+    const tryJump = () => {
+      if (left) return;
+      if (hero.isGrounded() || k.time() - lastGrounded < COYOTE_S) {
+        hero.jump(JUMP_VEL);
+        done.jump = true;
+      }
+    };
+    for (const key of ["space", "up", "w"]) k.onKeyPress(key as never, () => tryJump());
+
+    k.onUpdate(() => {
+      let dir = 0;
+      let rawLeft = false;
+      let rawRight = false;
+      for (const key of ["left", "a"]) if (k.isKeyDown(key as never)) rawLeft = true;
+      for (const key of ["right", "d"]) if (k.isKeyDown(key as never)) rawRight = true;
+      if (wIn?.__gameInput?.left) rawLeft = true;
+      if (wIn?.__gameInput?.right) rawRight = true;
+      if (!rawLeft) leftArmed = true;
+      if (!rawRight) rightArmed = true;
+      if (rawLeft && leftArmed) dir -= 1;
+      if (rawRight && rightArmed) dir += 1;
+      dir = Math.sign(dir);
+
+      hero.move(dir * MOVE_SPEED, 0);
+      if (dir !== 0) {
+        hero.facing = dir as 1 | -1;
+        done.move = true;
+      }
+
+      if (wIn?.__gameInput?.jumpReq) {
+        wIn.__gameInput.jumpReq = false;
+        tryJump();
+      }
+      if (wIn?.__gameInput?.resetReq) {
+        wIn.__gameInput.resetReq = false;
+        leaveWarmup();
+      }
+
+      const grounded = hero.isGrounded();
+      if (grounded) lastGrounded = k.time();
+
+      if (!grounded) {
+        setHeroSprite(`hero-jump${suffix("hero-jump")}`);
+      } else if (dir !== 0) {
+        const idx = Math.floor(Math.abs(hero.pos.x) / 12) % 4;
+        setHeroSprite(`hero-walk-${idx}${suffix(`hero-walk-${idx}`)}`);
+        hero.height = (DISPLAY_H[`hero-walk-${idx}`] ?? hero.height) - (idx % 2 === 0 ? 2 : 0);
+      } else {
+        setHeroSprite(`hero-idle${suffix("hero-idle")}`);
+      }
+
+      // Checklist HUD
+      const mark = (ok: boolean) => (ok ? "✓" : "☐");
+      hudList.text =
+        `${mark(done.move)} MOVE\n` +
+        `${mark(done.jump)} JUMP\n` +
+        `${mark(done.collect)} COLLECT`;
+      hudPanel.opacity = 0.92;
+      hudTitle.opacity = 1;
+
+      if (!ready && done.move && done.jump && done.collect) makeReady();
+
+      // Walk through the open door to begin Zone 1.
+      if (ready && hero.pos.x >= DOOR_X - 16 && hero.pos.x <= DOOR_X + 90) leaveWarmup();
+
+      const camX = Math.max(
+        Math.min(k.width(), VIEW_W) / 2,
+        Math.min(hero.pos.x, STAGE_END - VIEW_W / 2),
+      );
+      k.setCamPos(px(camX), px(LOGICAL_H / 2));
+    });
+  });
+
   const resumeZone = Math.min(ZONES.length - 1, Math.max(0, Math.floor(opts.resumeZone ?? 0)));
   const bootSnapshot = opts.resumeSnapshot ?? null;
-  k.go(
-    "trail",
-    (bootSnapshot ? bootSnapshot.zone : resumeZone) * BIOME_W + START_X(),
-    1,
-    bootSnapshot,
-  );
+  // A fresh Zone 1 start (not a resume, not attract mode) begins in the
+  // practice trail so players can learn the controls without risk.
+  const startInWarmup = !bootSnapshot && resumeZone === 0 && opts.demo !== true;
+  if (startInWarmup) {
+    k.go("warmup");
+  } else {
+    k.go(
+      "trail",
+      (bootSnapshot ? bootSnapshot.zone : resumeZone) * BIOME_W + START_X(),
+      1,
+      bootSnapshot,
+    );
+  }
+
 
   return () => {
     try {

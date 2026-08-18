@@ -83,6 +83,35 @@ const ES: Record<string, string> = {
   "PAUSE": "PAUSA",
   "RESTART": "REINICIAR",
   "Arrow Keys or A / D": "Flechas o A / D",
+
+  // ---- Warm-up (practice trail) ---------------------------------------
+  "WARM-UP · PRACTICE TRAIL": "CALENTAMIENTO · SENDERO DE PRÁCTICA",
+  "WARM-UP": "CALENTAMIENTO",
+  "TRAIL HEAD": "INICIO DEL SENDERO",
+  "READY!": "¡LISTO!",
+  COLLECT: "RECOGER",
+  "Practice here. Nothing can hurt you.": "Practica aquí. Nada puede hacerte daño.",
+  "Practice here — nothing can hurt you. Move, jump and grab the pack.":
+    "Practica aquí — nada puede hacerte daño. Muévete, salta y toma la mochila.",
+  "Slide the joystick left and right": "Desliza la palanca a izquierda y derecha",
+  "Arrow keys or A / D": "Flechas o A / D",
+  "Tap the JUMP button": "Toca el botón SALTAR",
+  "Space or Up Arrow to jump": "Espacio o Flecha Arriba para saltar",
+  "Bump the brick above you": "Golpea el ladrillo de arriba",
+  "Nice grab! That's how you pick things up.":
+    "¡Bien hecho! Así se recogen las cosas.",
+  "Try moving, jumping and grabbing the pack.":
+    "Prueba moverte, saltar y tomar la mochila.",
+  "You're ready — go through the door to start.":
+    "Estás listo: cruza la puerta para empezar.",
+  "SKIP WARM-UP": "SALTAR CALENTAMIENTO",
+  "SKIP WARM-UP (ENTER)": "SALTAR CALENTAMIENTO (ENTER)",
+  "☐ MOVE": "☐ MOVERSE",
+  "✓ MOVE": "✓ MOVERSE",
+  "☐ JUMP": "☐ SALTAR",
+  "✓ JUMP": "✓ SALTAR",
+  "☐ COLLECT": "☐ RECOGER",
+  "✓ COLLECT": "✓ RECOGER",
   "Up Arrow, W or Space": "Flecha Arriba, W o Espacio",
 
   // ---- HUD -----------------------------------------------------------

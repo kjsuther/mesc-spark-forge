@@ -35,6 +35,8 @@ export type GamepadFrame = {
   back: boolean; // button 1 (B)
   start: boolean; // button 9
   select: boolean; // button 8
+  /** Stick click (button 10 / 11) — used to leave demo mode. */
+  exit: boolean;
   /** Any face button just pressed — the game treats all four as "jump". */
   jump: boolean;
   /** Any button just pressed — useful for "press anything to continue". */

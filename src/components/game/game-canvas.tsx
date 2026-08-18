@@ -1059,6 +1059,31 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
           aria-label="Blazing the Trail to Coverage game"
         />
 
+        {/* Attract mode: banner + tap-anywhere exit back to the title */}
+        {isDemo && (
+          <div
+            className="absolute inset-0 z-40 flex justify-center"
+            style={{ touchAction: "manipulation" }}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              exitDemo();
+            }}
+          >
+            <div
+              className="mt-0 h-fit w-full border-b-4 border-accent-gold bg-mn-blue/90 px-3 py-2 text-center text-cream"
+              style={{
+                fontFamily: '"Press Start 2P", ui-monospace, monospace',
+                paddingTop: "calc(env(safe-area-inset-top, 0px) + 8px)",
+              }}
+            >
+              <p className="text-[10px] tracking-widest text-accent-gold">★ DEMO MODE ★</p>
+              <p className="mt-1 text-[7px] leading-relaxed tracking-wider text-cream/90">
+                Press ESC, click the left joystick button, or tap the screen to play
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* In-window SNES name entry the moment a run ends */}
         {endResult && !presentation && launchMode && (
           <ScoreEntryOverlay

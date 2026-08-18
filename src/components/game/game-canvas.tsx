@@ -124,21 +124,39 @@ function useViewportSize() {
 }
 
 /**
+ * Canvases that actually booted an engine. Only these hold a live WebGL
+ * context, so only these may be released — asking a fresh canvas for a context
+ * would create one (and requesting the wrong type permanently poisons the
+ * element, because the engine boots with plain "webgl").
+ */
+const bootedCanvases = new WeakSet<HTMLCanvasElement>();
+
+/**
  * Give a retired canvas's WebGL context back to the browser immediately.
- * Without this, discarded canvases keep their contexts until GC, and mobile
- * browsers (which allow only a handful) start failing the next boot at shader
- * compile time with a generic "failed to load".
+ * Without this, discarded canvases keep their contexts until GC, and browsers
+ * (which allow only a handful per page) fail the next boot outright with
+ * "WebGL not supported".
  */
 function releaseCanvasContext(canvas: HTMLCanvasElement | null) {
-  if (!canvas) return;
+  if (!canvas || !bootedCanvases.has(canvas)) return;
+  bootedCanvases.delete(canvas);
   try {
-    const gl = (canvas.getContext("webgl2") ||
-      canvas.getContext("webgl")) as WebGLRenderingContext | null;
+    // Same type the engine booted with — never "webgl2".
+    const gl = canvas.getContext("webgl") as WebGLRenderingContext | null;
     gl?.getExtension("WEBGL_lose_context")?.loseContext();
   } catch {
     /* context already gone */
   }
+  try {
+    // Drop the drawing buffer too, so the retired canvas stops holding GPU
+    // memory while it waits to be collected.
+    canvas.width = 1;
+    canvas.height = 1;
+  } catch {
+    /* detached element */
+  }
 }
+
 
 export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -273,7 +291,11 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         if (cancelled) return;
 
         const flags = BUILD_FLAGS;
+        // From here on this element owns a live context and must be released
+        // on teardown.
+        bootedCanvases.add(canvas);
         const teardown = await startGame({
+
           canvas,
 
           flags,
@@ -1308,24 +1330,49 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
         )}
 
         {error && (
-          <div className="absolute inset-0 z-40 grid place-items-center bg-mn-blue/95 p-6 text-center text-cream">
+          <div className="absolute inset-0 z-50 grid place-items-center bg-mn-blue/95 p-6 text-center text-cream">
             <div>
               <p className="font-bold mb-2">The game hit a snag</p>
               <p className="text-sm opacity-80 mb-4">{error}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  setError(null);
-                  setLoading(true);
-                  setEngineGeneration((generation) => generation + 1);
-                }}
-                className="rounded-md border-2 border-accent-gold bg-mn-blue px-5 py-3 text-sm font-bold uppercase tracking-wide text-cream"
-              >
-                ⟳ Tap to retry
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Hand the failed canvas's context back before booting a
+                    // replacement, so a retry never stacks a second context.
+                    releaseCanvasContext(canvasRef.current);
+                    setError(null);
+                    setEndResult(null);
+                    setLoading(true);
+                    setEngineGeneration((generation) => generation + 1);
+                  }}
+                  className="rounded-md border-2 border-accent-gold bg-mn-blue px-5 py-3 text-sm font-bold uppercase tracking-wide text-cream"
+                >
+                  ⟳ Tap to retry
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Always leave a way back into the game on a kiosk.
+                    releaseCanvasContext(canvasRef.current);
+                    setError(null);
+                    setEndResult(null);
+                    setLoading(false);
+                    resumeZoneRef.current = 0;
+                    snapshotRef.current = null;
+                    setLaunchMode(null);
+                    setMenuScreen("title");
+                    setEngineGeneration((generation) => generation + 1);
+                  }}
+                  className="rounded-md border-2 border-cream/50 bg-transparent px-5 py-3 text-sm font-bold uppercase tracking-wide text-cream"
+                >
+                  ⌂ Back to title
+                </button>
+              </div>
             </div>
           </div>
         )}
+
 
         {/* Overlay touch controls — always ON TOP of the canvas on touch
             devices, in windowed play as well as fullscreen, so they can never

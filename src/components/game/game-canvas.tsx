@@ -181,6 +181,29 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   /** Full run state, kept so a context-loss recovery resumes an honest run. */
   const snapshotRef = useRef<RunSnapshot | null>(null);
   const recoveryPendingRef = useRef(false);
+  /** Attract mode: the title screen plays itself when nobody is around. */
+  const isDemo = launchMode === "demo";
+  const restartDemoRef = useRef<(() => void) | null>(null);
+  const exitDemo = useCallback(() => {
+    resumeZoneRef.current = 0;
+    snapshotRef.current = null;
+    setEndResult(null);
+    setLaunchMode(null);
+    setMenuScreen("title");
+  }, []);
+  useEffect(() => {
+    if (!isDemo) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    restartDemoRef.current = () => {
+      resumeZoneRef.current = 0;
+      snapshotRef.current = null;
+      timer = setTimeout(() => setEngineGeneration((g) => g + 1), 4000);
+    };
+    return () => {
+      restartDemoRef.current = null;
+      if (timer) clearTimeout(timer);
+    };
+  }, [isDemo]);
 
   const music = useMemo(() => new GameMusic(), []);
   const [musicOn, setMusicOn] = useState(false);

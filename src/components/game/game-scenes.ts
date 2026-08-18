@@ -7028,7 +7028,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (!ready && done.move && done.jump && done.collect) makeReady();
 
       // Walk through the open door to begin Zone 1.
-      if (ready && hero.pos.x >= DOOR_X - 16 && hero.pos.x <= DOOR_X + 90) leaveWarmup();
+      if (ready && hero.pos.x >= DOOR_X - 16) leaveWarmup();
 
       const camX = Math.max(
         Math.min(k.width(), VIEW_W) / 2,

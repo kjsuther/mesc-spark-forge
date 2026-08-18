@@ -742,7 +742,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   // starts playing itself so passers-by can see the trail in motion.
   const DEMO_IDLE_MS = 60_000;
   useEffect(() => {
-    if (launchMode || error || presentation) return;
+    if (launchMode || error) return;
     if (menuScreen !== "title") return;
     let last = Date.now();
     const bump = () => {
@@ -757,7 +757,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       clearInterval(tick);
       for (const type of events) window.removeEventListener(type, bump);
     };
-  }, [launchMode, error, presentation, menuScreen]);
+  }, [launchMode, error, menuScreen]);
 
   // Any deliberate input leaves the demo and hands the game back to a player.
   useEffect(() => {

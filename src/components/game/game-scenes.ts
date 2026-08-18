@@ -6247,11 +6247,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       leftThanks = true;
       flushPendingWin();
       opts.onSnapshot?.(null);
-      k.go("trail", START_X(), 1, null);
+      // Park on the finale either way — never auto-restart gameplay here.
+      // Real run: the host shows the score / feedback screen over this frame
+      // and returns to the title when the player closes it.
+      // Demo: the host reboots the engine for a fresh attract loop.
     };
     // Attract mode has nobody to press "play again": hold the finale long
-    // enough to read, then loop the demo back to the start of the trail.
+    // enough to read, then hand the loop back to the host.
     if (opts.demo === true) k.wait(9, () => leaveThanks());
+
 
     const W = k.width();
     const H = k.height();

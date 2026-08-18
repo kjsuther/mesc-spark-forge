@@ -110,10 +110,8 @@ export function FeedbackForm() {
               <input
                 value={roleOther}
                 onChange={(e) => setRoleOther(e.target.value)}
-                required
-                minLength={2}
                 maxLength={60}
-                placeholder="Tell us your role"
+                placeholder="Tell us your role (optional)"
                 className={FIELD}
               />
             )}
@@ -139,10 +137,8 @@ export function FeedbackForm() {
               <input
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
-                required
-                minLength={2}
                 maxLength={60}
-                placeholder="Your country"
+                placeholder="Your country (optional)"
                 className={FIELD}
               />
             )}

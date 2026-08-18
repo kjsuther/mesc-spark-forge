@@ -51,8 +51,15 @@ export function useGamepadNavigation() {
       if (window.location.pathname.startsWith("/admin")) return;
       const typing =
         document.activeElement instanceof HTMLInputElement ||
-        document.activeElement instanceof HTMLTextAreaElement;
+        document.activeElement instanceof HTMLTextAreaElement ||
+        document.activeElement instanceof HTMLSelectElement;
 
+      // While someone is filling in a field, the stick stays out of the way:
+      // no focus hopping mid-answer.
+      if (typing) {
+        if (f.back) (document.activeElement as HTMLElement).blur();
+        return;
+      }
 
       if (f.tapDown || f.tapRight) move(1);
       else if (f.tapUp || f.tapLeft) move(-1);

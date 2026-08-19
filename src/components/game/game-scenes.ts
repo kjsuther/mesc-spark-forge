@@ -20,6 +20,7 @@ import type { ImprovementKey } from "@/lib/game.functions";
 import { FeatureFlags } from "@/lib/game-features";
 import { t as tr } from "@/lib/i18n";
 import { computeFinalScore, zoneSpeedBonus } from "@/lib/game-score";
+import { pumpGamepadInput } from "@/lib/gamepad";
 
 import {
   PlayerManager,
@@ -6391,6 +6392,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         // at least one frame since this run started. Without it, a key or an
         // on-screen button still held when the scene restarts makes the hero
         // auto-run the moment the new run begins.
+        // Sample the USB controller here, one instruction before the hero
+        // reads it, so stick and button state is never a frame stale.
+        if (w?.__gameInput) pumpGamepadInput(w.__gameInput);
         let rawLeft = false;
         let rawRight = false;
         for (const key of leftKeys) if (k.isKeyDown(key as never)) rawLeft = true;
@@ -7075,6 +7079,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     k.onUpdate(() => {
       let dir = 0;
+      if (wIn?.__gameInput) pumpGamepadInput(wIn.__gameInput);
       let rawLeft = false;
       let rawRight = false;
       for (const key of ["left", "a"]) if (k.isKeyDown(key as never)) rawLeft = true;

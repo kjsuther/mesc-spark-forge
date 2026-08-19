@@ -46,9 +46,9 @@ export type GamepadFrame = {
 type Listener = (frame: GamepadFrame) => void;
 
 /** Movement: engage early so the stick feels as immediate as a key press… */
-const MOVE_ON = 0.2;
+const MOVE_ON = 0.13;
 /** …and release a touch later so a stick resting on the threshold can't chatter. */
-const MOVE_OFF = 0.15;
+const MOVE_OFF = 0.09;
 /** Menu navigation needs a deliberate push: well above any resting drift. */
 const NAV_ZONE = 0.75;
 /** The stick must fall back below this before another menu move counts. */
@@ -169,7 +169,10 @@ function sample() {
   sampleX = x;
   sampleY = y;
   heldButtons = down;
-  for (const i of down) latchedButtons.add(i);
+  for (const i of down) {
+    latchedButtons.add(i);
+    pullLatched.add(i);
+  }
 }
 
 /** Held-with-hysteresis: engage at MOVE_ON, stay on until below MOVE_OFF. */
@@ -199,6 +202,9 @@ function clearInputState() {
   sampleX = 0;
   sampleY = 0;
   heldLeft = heldRight = heldUp = heldDown = false;
+  pullLatched.clear();
+  pullPrev = new Set<number>();
+  padOwnsLeft = padOwnsRight = false;
   for (const dir of ["left", "right", "up", "down"] as const) {
     heldSince[dir] = 0;
     nextRepeat[dir] = 0;
@@ -356,6 +362,69 @@ export function subscribeGamepad(fn: Listener): () => void {
     listeners.delete(fn);
     if (listeners.size === 0) stop();
   };
+}
+
+/** Face buttons that all count as "jump" on an arcade stick. */
+const FACE_BUTTONS = [0, 1, 2, 3];
+/** Buttons pressed since the last direct pull (sub-frame taps land here). */
+const pullLatched = new Set<number>();
+/** Buttons already held at the previous direct pull. */
+let pullPrev = new Set<number>();
+/** Whether the pad — rather than touch/keyboard — set each held direction. */
+let padOwnsLeft = false;
+let padOwnsRight = false;
+
+/**
+ * Read the controller synchronously and write straight into the game's shared
+ * input object. Called from the engine's own update loop so stick and button
+ * state is sampled microseconds before the hero moves — no extra frame of lag
+ * from the subscription pipeline.
+ *
+ * Touch and keyboard input share the same object, so directions the pad is not
+ * driving are left untouched.
+ */
+export function pumpGamepadInput(target: {
+  left: boolean;
+  right: boolean;
+  jumpReq: boolean;
+}): void {
+  if (typeof navigator === "undefined") return;
+  if (!connected && pads().length === 0) {
+    padOwnsLeft = padOwnsRight = false;
+    return;
+  }
+
+  sample();
+  heldLeft = hold(heldLeft, sampleX, -1);
+  heldRight = hold(heldRight, sampleX, 1);
+  if (heldLeft && heldRight) {
+    if (sampleX < 0) heldRight = false;
+    else heldLeft = false;
+  }
+
+  if (heldLeft) {
+    target.left = true;
+    padOwnsLeft = true;
+  } else if (padOwnsLeft) {
+    target.left = false;
+    padOwnsLeft = false;
+  }
+  if (heldRight) {
+    target.right = true;
+    padOwnsRight = true;
+  } else if (padOwnsRight) {
+    target.right = false;
+    padOwnsRight = false;
+  }
+
+  for (const i of FACE_BUTTONS) {
+    if ((pullLatched.has(i) || heldButtons.has(i)) && !pullPrev.has(i)) {
+      target.jumpReq = true;
+      break;
+    }
+  }
+  pullPrev = new Set(heldButtons);
+  pullLatched.clear();
 }
 
 export function isGamepadConnected(): boolean {

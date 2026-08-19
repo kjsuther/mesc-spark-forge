@@ -6219,7 +6219,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const rightKeys = ["right", "d"];
     const jumpKeys = ["space", "up", "w"];
 
-    type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
+    type TouchInput = {
+      left: boolean;
+      right: boolean;
+      jumpReq: boolean;
+      resetReq: boolean;
+      down?: boolean;
+    };
     const w =
       typeof window !== "undefined"
         ? (window as unknown as { __gameInput?: TouchInput })
@@ -6231,6 +6237,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       w.__gameInput.right = false;
       w.__gameInput.jumpReq = false;
       w.__gameInput.resetReq = false;
+      w.__gameInput.down = false;
     }
     let leftArmed = false;
     let rightArmed = false;

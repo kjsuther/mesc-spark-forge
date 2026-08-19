@@ -2117,6 +2117,21 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
           </p>
         </div>
 
+        <div
+          className="mt-3 border-4 px-3 py-3"
+          style={{ borderColor: "#7ef09a", background: "rgba(90,230,130,0.14)" }}
+        >
+          <p className="text-[8px] leading-[1.8] text-accent-gold sm:text-[10px]">
+            WHAT TO COLLECT
+          </p>
+          <p className="mt-2 text-[8px] leading-[1.9] sm:text-[10px]" style={{ color: "#bff5cd" }}>
+            Anything with a green glow and a blinking green arrow is a pickup — walk into it. Red
+            AVOID markers mean danger.
+          </p>
+        </div>
+
+
+
         <p className="mt-4 text-[7px] leading-[1.9] text-cream sm:text-[9px]">
           Reach the clinic at the end of the trail. Collect your documents, jump over every enemy,
           and don&apos;t give up.

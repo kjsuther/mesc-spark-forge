@@ -346,6 +346,8 @@ const GROUND_Y = 470;
 const LEVEL_END = ZONES.length * BIOME_W;
 const MOVE_SPEED = 260;
 const JUMP_VEL = 720;
+// Mid-air second jump: a boost, not flight — slightly weaker than the launch.
+const AIR_JUMP_VEL = Math.round(720 * 0.85);
 // Forgiving jump windows: you can still jump shortly after walking off an
 // edge, and a jump pressed just before landing still fires.
 const COYOTE_S = 0.2;

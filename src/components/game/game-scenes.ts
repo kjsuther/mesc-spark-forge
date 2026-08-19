@@ -1559,6 +1559,39 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   // stays crisp inside the GL pipeline; only the final present is smoothed.
   if (opts.canvas) opts.canvas.style.imageRendering = "auto";
 
+  // ---- Physics crash guard ------------------------------------------------
+  // Kaplay's `body` component interpolates between fixed-update steps using a
+  // seed position that is cleared at the start of every fixed step and only
+  // re-seeded on some frames. Freezing objects for a long pause (a briefing
+  // card, the Zone 7 boss cinematic) can leave a body whose render-frame
+  // update runs while that seed is missing, and the engine throws
+  // "Cannot read properties of null" from inside its own loop — which kills
+  // the entire frame loop, so the game silently stops responding to any input.
+  // Swallowing that one transient error costs a single interpolation frame and
+  // keeps the run alive.
+  {
+    const rawBody = k.body.bind(k) as Ctx["body"];
+    (k as unknown as { body: Ctx["body"] }).body = ((options?: unknown) => {
+      const comp = rawBody(options as never) as unknown as {
+        update?: () => void;
+        fixedUpdate?: () => void;
+      };
+      for (const hook of ["update", "fixedUpdate"] as const) {
+        const original = comp[hook];
+        if (!original) continue;
+        comp[hook] = function guarded(this: unknown) {
+          try {
+            original.call(this);
+          } catch {
+            /* interpolation seed lost across a pause — skip this frame */
+          }
+        };
+      }
+      return comp as ReturnType<Ctx["body"]>;
+    }) as Ctx["body"];
+  }
+
+
   // Localization hook: every text component created from here on is routed
   // through the translation dictionary, so scene code keeps its English
   // literals while the rendered glyphs follow the player's language choice.

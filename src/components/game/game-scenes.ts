@@ -79,6 +79,7 @@ import dhsLogo16Url from "@/assets/game/mn-dhs-logo-16bit.webp";
 import docIdAsset from "@/assets/game/doc-id.png.asset.json";
 import { ZONE_THEMES, type MusicTheme } from "@/lib/game-music";
 import { playSfx } from "@/lib/game-sfx";
+import { pulse } from "@/lib/haptics";
 import docPaystubAsset from "@/assets/game/doc-paystub.png.asset.json";
 import docEnvelopeAsset from "@/assets/game/doc-envelope.png.asset.json";
 import formMonsterV2Asset from "@/assets/game/form-monster-v2.png.asset.json";
@@ -6982,9 +6983,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
         const canUmbrella = zoneNow === ZONE_INDEX.awaitDecision && !player.dead && !player.won;
         const nowUp = downHeld && canUmbrella;
-        if (nowUp && !umbrellaState.up && !umbrellaState.taught) {
-          umbrellaState.taught = true;
-          showHint(tr("Umbrella up! Falling dates bounce off while you hold it."), 2.6);
+        if (nowUp && !umbrellaState.up) {
+          // Deploy moment only — subtle canopy pop + light haptic pulse.
+          playSfx("umbrella");
+          pulse(35, 0.35);
+          if (!umbrellaState.taught) {
+            umbrellaState.taught = true;
+            showHint(tr("Umbrella up! Falling dates bounce off while you hold it."), 2.6);
+          }
         }
         umbrellaState.up = nowUp;
       }

@@ -5963,7 +5963,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       playSfx("pickup");
       sparkleBurst(player.pos.x, player.pos.y - 40, [255, 220, 120]);
       showHint("SECRET FOUND!");
+      // Explain the pocket the same way every other zone explains itself.
+      showStepScreen(BONUS_STEP_ID, undefined, BONUS_STEP_SCREEN);
     }
+
 
     function exitBonusStage() {
       bonusActive = false;

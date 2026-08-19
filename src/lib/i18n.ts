@@ -105,6 +105,9 @@ const ES: Record<string, string> = {
   "TRAIL HEAD": "INICIO DEL SENDERO",
   "READY!": "¡LISTO!",
   COLLECT: "RECOGER",
+  GRAB: "TOMAR",
+  KEY: "LLAVE",
+  "PICK ONE": "ELIGE UNO",
   "Practice here. Nothing can hurt you.": "Practica aquí. Nada puede hacerte daño.",
   "Practice here — nothing can hurt you. Move, jump and grab the pack.":
     "Practica aquí — nada puede hacerte daño. Muévete, salta y toma la mochila.",

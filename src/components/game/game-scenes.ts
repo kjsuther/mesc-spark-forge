@@ -2714,14 +2714,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
     }
     {
-      // Difficulty pass: three Envelope-Gremlins, each patrolling its own
-      // third of the relay stretch so they can't bunch into one wall.
+      // Difficulty pass: two Envelope-Gremlins (down from three), each
+      // patrolling its own half of the relay stretch so they can't bunch up.
       const mh = DISPLAY_H["envelope-gremlin-0"];
       const mw = displaySize("envelope-gremlin-0", sizes).w;
       const zoneL = relayBase + 80;
       const zoneR = relayBase + BIOME_W - 80;
-      const laneW = (zoneR - zoneL) / 3;
-      const startXs = [relayBase + 340, relayBase + 660, relayBase + 940];
+      const laneW = (zoneR - zoneL) / 2;
+      const startXs = [relayBase + 400, relayBase + 880];
       let nextDiveAllowedAt = 3;
 
       for (let gi = 0; gi < startXs.length; gi++) {

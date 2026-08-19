@@ -6931,6 +6931,41 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       popPack();
     });
 
+    // ---- Harmless practice enemy ----------------------------------------
+    // The first enemy anyone meets should be one that cannot kill them, so the
+    // "jump over it" habit is learned here instead of in Zone 2.
+    {
+      const ENEMY_HOME = 1330;
+      const ph = DISPLAY_H["padlock"];
+      const pw = displaySize("padlock", sizes).w;
+      const foe = k.add([
+        k.sprite("padlock", { width: pw, height: ph }),
+        k.pos(ENEMY_HOME, GROUND_Y),
+        k.anchor("bot"),
+        k.area({ shape: new k.Rect(k.vec2(-pw / 2, -ph), pw, ph) }),
+        k.z(LAYERS.ACTOR),
+        { dir: 1 as 1 | -1 },
+      ]) as AnyObj;
+      addSignPlaque(k, ENEMY_HOME, GROUND_Y - 250, "Jump over me — in the real zones I cost a life!", "ENEMY");
+      let cleared = false;
+      let bumped = 0;
+      foe.onUpdate(() => {
+        foe.pos.x += foe.dir * 46 * k.dt();
+        if (foe.pos.x > ENEMY_HOME + 80) foe.dir = -1;
+        if (foe.pos.x < ENEMY_HOME - 80) foe.dir = 1;
+        const overlapping =
+          Math.abs(hero.pos.x - foe.pos.x) < pw * 0.6 && hero.pos.y > GROUND_Y - ph;
+        if (overlapping && k.time() - bumped > 2) {
+          bumped = k.time();
+          showBanner("That would have cost a life! Jump over enemies.", 3);
+        }
+        if (!cleared && hero.pos.x > ENEMY_HOME + 120) {
+          cleared = true;
+          showBanner("Perfect — that's how you get past an enemy.", 3);
+        }
+      });
+    }
+
     hero.onCollide("ppack", (p: unknown) => {
       (p as AnyObj).destroy();
       done.collect = true;

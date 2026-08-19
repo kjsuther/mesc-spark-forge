@@ -31,7 +31,14 @@ const BUILD_FLAGS: GameFlags = {
   resume_checkpoint: false,
 };
 
-type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
+type TouchInput = {
+  left: boolean;
+  right: boolean;
+  jumpReq: boolean;
+  resetReq: boolean;
+  /** Held "down" — raises the umbrella in the waiting zone. */
+  down: boolean;
+};
 
 type LaunchMode = "standard" | "fullscreen" | "demo";
 type MenuScreen = "title" | "explainer" | "trailmap" | "controls" | "scores";
@@ -259,7 +266,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   useEffect(() => {
     if (!launchMode) return;
     const w = window as unknown as { __gameInput?: TouchInput };
-    w.__gameInput = { left: false, right: false, jumpReq: false, resetReq: false };
+    w.__gameInput = { left: false, right: false, jumpReq: false, resetReq: false, down: false };
 
     // Start a fresh run on the default theme.
     music.reset();
@@ -384,6 +391,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       w.__gameInput.right = false;
       w.__gameInput.jumpReq = false;
       w.__gameInput.resetReq = false;
+      w.__gameInput.down = false;
     }
     setEndResult(null);
     setError(null);
@@ -409,6 +417,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       w.__gameInput.left = false;
       w.__gameInput.right = false;
       w.__gameInput.jumpReq = false;
+      w.__gameInput.down = false;
     };
     const onContextLost = (event: Event) => {
       event.preventDefault();
@@ -837,6 +846,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       if (input) {
         input.left = f.left;
         input.right = f.right;
+        input.down = f.down;
         if (f.jump || f.tapUp) input.jumpReq = true;
         if (f.select) input.resetReq = true;
       }
@@ -872,7 +882,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
 
 
 
-  function setBtn(k: "left" | "right", v: boolean) {
+  function setBtn(k: "left" | "right" | "down", v: boolean) {
     const w = window as unknown as { __gameInput?: TouchInput };
     if (w.__gameInput) w.__gameInput[k] = v;
     if (v) setShowHint(false);
@@ -1425,6 +1435,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
                   setBtn("left", dir < 0);
                   setBtn("right", dir > 0);
                 }}
+                onDownChange={(held) => setBtn("down", held)}
               />
             </div>
 

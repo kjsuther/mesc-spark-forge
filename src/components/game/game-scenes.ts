@@ -3806,8 +3806,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const shielded = powerUps.shieldActive(zoneNow);
       shieldRing.opacity = shielded ? 0.35 + Math.sin(k.time() * 8) * 0.15 : 0;
       shieldRing.pos = k.vec2(player.pos.x, player.pos.y - 26);
-      const umb = powerUps.umbrellaActive(zoneNow) || umbrellaState.up;
-      umbrella.opacity = umb ? 1 : 0;
+      // The umbrella only exists while the player holds Down — the Email
+      // power-up makes sheltering free of the slow-down, it does not open it.
+      umbrella.opacity = umbrellaState.up ? 1 : 0;
+
       umbrella.pos = k.vec2(player.pos.x, player.pos.y - DISPLAY_H["hero-idle"] - 10);
     });
 

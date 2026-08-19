@@ -6845,6 +6845,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.z(LAYERS.BG_FAR),
       ]);
     }
+    spawnMosquitoSwarm(k, 0, STAGE_END, isTouchDevice() ? 2 : 3);
+
     // Unbroken ground — there is nothing here to fall into.
     addGround(k, -200, STAGE_END + 200, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
     // Invisible walls keep the practice pen closed on both ends.

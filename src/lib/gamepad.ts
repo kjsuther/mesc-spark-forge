@@ -202,6 +202,9 @@ function clearInputState() {
   sampleX = 0;
   sampleY = 0;
   heldLeft = heldRight = heldUp = heldDown = false;
+  pullLatched.clear();
+  pullPrev = new Set<number>();
+  padOwnsLeft = padOwnsRight = false;
   for (const dir of ["left", "right", "up", "down"] as const) {
     heldSince[dir] = 0;
     nextRepeat[dir] = 0;

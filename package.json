@@ -12,7 +12,9 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "node --experimental-strip-types --test src/components/game/*.test.ts src/lib/*.test.ts",
-    "test:game": "node --experimental-strip-types --test src/components/game/*.test.ts"
+    "test:game": "node --experimental-strip-types --test src/components/game/*.test.ts",
+    "test:regression": "npm run test && python3 tests/regression/game_regression.py",
+    "test:regression:browser": "python3 tests/regression/game_regression.py"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

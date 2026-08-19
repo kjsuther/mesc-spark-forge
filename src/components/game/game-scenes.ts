@@ -2864,12 +2864,18 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     zoneState.repliesNeeded = relaySpots.length;
     for (const rx of relaySpots) {
       const dh = DISPLAY_H["mailbox"];
-      spawnGrounded(k, "mailbox", sizes, {
+      const reply = spawnGrounded(k, "mailbox", sizes, {
         x: rx,
         z: LAYERS.PROP,
         tag: "reply",
         props: { bonus: 400 },
         hitboxScale: { x: -dh / 2, w: dh, h: dh },
+      });
+      markCollectible(k, reply, {
+        label: "COLLECT",
+        width: displaySize("mailbox", sizes).w,
+        height: dh,
+        anchorBot: true,
       });
     }
     {

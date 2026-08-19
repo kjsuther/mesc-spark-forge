@@ -6214,7 +6214,56 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       return 0;
     }
 
+
+    /** Attract mode only: hard cap on how long one zone may hold the loop. */
+    const DEMO_ZONE_TIMEOUT = 15;
+
+    /** Satisfy the zone's objective the same way play would, then open the
+     *  door, so the attract loop always advances instead of stalling. */
+    function demoForceZoneComplete(z: number) {
+      switch (z) {
+        case 0:
+          zoneState.methodTouched = true;
+          break;
+        case 1:
+          zoneState.userGot = true;
+          zoneState.passGot = true;
+          break;
+        case 2:
+          // Positional objective — nudge the hero to the far bank.
+          if (player.pos.x < BIOME_W * 3 - 150) {
+            player.pos.x = BIOME_W * 3 - 150;
+            player.pos.y = GROUND_Y - 40;
+            player.vel = k.vec2(0, 0);
+            player.riding = null;
+            resetRiverPlatforms();
+          }
+          break;
+        case 3:
+          zoneState.docsInZone = 3;
+          break;
+        case 4:
+          zoneState.repliesGot = Math.max(zoneState.repliesGot, zoneState.repliesNeeded);
+          break;
+        case 5:
+          if (zoneState.waitStart === 0) zoneState.waitStart = k.time() - zoneState.waitDur;
+          else zoneState.waitStart = Math.min(zoneState.waitStart, k.time() - zoneState.waitDur);
+          break;
+        case 6:
+          zoneState.planPicked = true;
+          zoneState.bossDefeated = true;
+          zoneState.hasKey = true;
+          break;
+        case 7:
+          zoneState.idCardCollected = true;
+          break;
+      }
+      const d = doors[z];
+      if (d && !d.unlocked) unlockDoor(z);
+    }
+
     function demoAutopilot(now: number): number {
+
       const grounded = player.isGrounded() || !!player.riding;
       // Keep the run honest about progress so a wedged bot can free itself.
       if (player.pos.x > demoLastX + 10) {

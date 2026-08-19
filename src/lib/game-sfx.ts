@@ -17,7 +17,8 @@ export type SfxKind =
   | "roar"
   | "impact"
   | "pickup"
-  | "whoosh";
+  | "whoosh"
+  | "umbrella";
 
 
 let ctx: AudioContext | null = null;
@@ -148,6 +149,11 @@ export function playSfx(kind: SfxKind) {
       break;
     case "whoosh":
       burst(t, 0.4, 0.16, 200, 2600);
+      break;
+    case "umbrella":
+      // Canopy pop: quick airy whoosh + soft click, kept under the music.
+      burst(t, 0.09, 0.1, 400, 2200);
+      tone(520, t + 0.02, 0.07, "triangle", 0.08, 760);
       break;
 
   }

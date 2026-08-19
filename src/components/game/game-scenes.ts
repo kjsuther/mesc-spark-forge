@@ -1549,6 +1549,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]);
     });
 
+    // ---- Decorative mosquito swarm (backdrop only, no collision) ---------
+    {
+      const perZone = isTouchDevice() ? 2 : 3;
+      ZONES.forEach((_z, i) => spawnMosquitoSwarm(k, i * BIOME_W, BIOME_W, perZone));
+    }
+
+
     // ---- Ground ----
     // Zone 0: 3 small jump gaps carved BETWEEN the four brick positions
     // (bricks live at x = 220, 460, 720, 980) so a gap never blocks reaching a brick.

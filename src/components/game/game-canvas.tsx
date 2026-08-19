@@ -1845,9 +1845,15 @@ function JoystickPad({
       const dx = clientX - originRef.current;
       setKnob(Math.max(-maxTravel, Math.min(maxTravel, dx)));
       const dy = clientY === undefined ? 0 : clientY - originYRef.current;
-      // Down wins only when the pull is clearly more vertical than horizontal,
-      // so steering never accidentally opens the umbrella.
-      emitDown(dy > deadZone * 1.6 && Math.abs(dy) > Math.abs(dx));
+      // Down wins only on a deliberate, clearly vertical pull — and once up it
+      // stays up until the thumb comes most of the way back, so a resting
+      // finger never leaves the umbrella open.
+      const onAt = deadZone * 2.4;
+      const offAt = deadZone * 1.2;
+      emitDown(
+        (downRef.current ? dy > offAt : dy > onAt) && Math.abs(dy) > Math.abs(dx) * 1.2,
+      );
+
       emit(dx > deadZone ? 1 : dx < -deadZone ? -1 : 0);
     },
     [emit, emitDown, maxTravel, deadZone],

@@ -3806,8 +3806,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const shielded = powerUps.shieldActive(zoneNow);
       shieldRing.opacity = shielded ? 0.35 + Math.sin(k.time() * 8) * 0.15 : 0;
       shieldRing.pos = k.vec2(player.pos.x, player.pos.y - 26);
-      const umb = powerUps.umbrellaActive(zoneNow) || umbrellaState.up;
-      umbrella.opacity = umb ? 1 : 0;
+      // The umbrella only exists while the player holds Down — the Email
+      // power-up makes sheltering free of the slow-down, it does not open it.
+      umbrella.opacity = umbrellaState.up ? 1 : 0;
+
       umbrella.pos = k.vec2(player.pos.x, player.pos.y - DISPLAY_H["hero-idle"] - 10);
     });
 
@@ -4296,9 +4298,28 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const stepScreensShown = new Set<number>();
     let stepScreenOpen = false;
 
+    /** Pseudo-zone index for the hidden bonus stage briefing. */
+    const BONUS_STEP_ID = -7;
+    const BONUS_STEP_SCREEN: StepScreen = {
+      title: "SECRET · PORTLAND WATERFRONT",
+      subtitle: "You found the hidden trail!",
+      lines: [
+        "There are no enemies here — nothing in this pocket can hurt you.",
+        "Grab the coffee, donuts and cart snacks for extra points.",
+        "Look up high for an extra life.",
+        "When you're done, walk into the EXIT door on the right.",
+        "The door drops you at the start of Step 3.",
+      ],
+      icons: [
+        { shape: "platform", label: "TREATS" },
+        { glyph: "+", label: "EXTRA LIFE" },
+        { sprite: "door-open", label: "EXIT DOOR" },
+      ],
+    };
+
     /** Pause the run and show the briefing for `z` — once per run per zone. */
-    function showStepScreen(z: number, onDone?: () => void) {
-      const data = STEP_SCREENS[z];
+    function showStepScreen(z: number, onDone?: () => void, custom?: StepScreen) {
+      const data = custom ?? STEP_SCREENS[z];
       if (!data || stepScreenOpen || stepScreensShown.has(z) || player.dead || player.won) {
         onDone?.();
         return;
@@ -4306,6 +4327,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       stepScreensShown.add(z);
       stepScreenOpen = true;
       pauseGameplay();
+
 
       let nodes: AnyObj[] = [];
       let promptNode: AnyObj | null = null;
@@ -5943,7 +5965,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       playSfx("pickup");
       sparkleBurst(player.pos.x, player.pos.y - 40, [255, 220, 120]);
       showHint("SECRET FOUND!");
+      // Explain the pocket the same way every other zone explains itself.
+      showStepScreen(BONUS_STEP_ID, undefined, BONUS_STEP_SCREEN);
     }
+
 
     function exitBonusStage() {
       bonusActive = false;
@@ -6808,8 +6833,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         umbrellaState.up = nowUp;
       }
 
-      // Sheltering slows you down — you can walk, but not sprint, under it.
-      player.move(dir * MOVE_SPEED * (umbrellaState.up ? 0.45 : 1), 0);
+      // Sheltering slows you down — unless the Email power-up is carried, which
+      // is now its benefit: shelter at full walking speed.
+      {
+        const zoneNow = Math.floor(player.pos.x / BIOME_W);
+        const slow = umbrellaState.up && !powerUps.umbrellaActive(zoneNow) ? 0.45 : 1;
+        player.move(dir * MOVE_SPEED * slow, 0);
+      }
+
       if (dir > 0 && !zoneState.cutscene) player.score += 1;
 
       // A collapsing Zone 3 platform stops being ground the instant it lets

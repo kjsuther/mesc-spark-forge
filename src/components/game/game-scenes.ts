@@ -2794,7 +2794,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // scheduler instead of raining continuously. Every drop is telegraphed,
     // never lands on the column the player is standing in, and keeps a minimum
     // horizontal gap from the previous drop, so there is always a safe lane.
-    const CAL_COUNT = 20;
+    const CAL_COUNT = 19;
     const CAL_L = mx0 + 40;
     const CAL_R = mx0 + BIOME_W - 40;
     const CAL_MIN_GAP = 0.13; // seconds between two pages starting to fall

@@ -4301,7 +4301,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.text(icon.label, { size: capSize, font: UI_FONT, align: "center" }),
           k.pos(ix, centerY + iconBox / 2 + px(12)),
           k.anchor("top"),
-          k.color(...(icon.danger ? ([255, 120, 110] as const) : ([200, 215, 255] as const))),
+          icon.danger ? k.color(255, 120, 110) : k.color(200, 215, 255),
           k.fixed(),
           k.z(303),
         ]);

@@ -2808,6 +2808,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       });
       // Sign above the document; destroyed the moment it's collected.
       doc.sign = addSpeech(k, x, GROUND_Y - dh - 30, key.toUpperCase(), [30, 60, 130]);
+      markCollectible(k, doc, {
+        label: "GRAB",
+        width: displaySize(prop, sizes).w,
+        height: dh,
+        anchorBot: true,
+        topLift: 30,
+      });
     }
 
     {

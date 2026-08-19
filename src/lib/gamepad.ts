@@ -53,6 +53,14 @@ const MOVE_OFF = 0.09;
 const NAV_ZONE = 0.75;
 /** The stick must fall back below this before another menu move counts. */
 const NAV_RELEASE = 0.35;
+/**
+ * Pulling DOWN raises the in-game umbrella, so it must be a deliberate push:
+ * resting drift on a cheap arcade stick easily clears the movement threshold
+ * and would leave the umbrella permanently open.
+ */
+const DOWN_ON = 0.55;
+const DOWN_OFF = 0.3;
+
 const SAMPLE_MS = 4;
 
 const listeners = new Set<Listener>();

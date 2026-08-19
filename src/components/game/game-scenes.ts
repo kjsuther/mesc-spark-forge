@@ -7198,6 +7198,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       "JUMP",
     );
     addSignPlaque(k, 1120, GROUND_Y - 250, "Bump the brick above you", "COLLECT");
+    addSignPlaque(
+      k,
+      900,
+      GROUND_Y - 300,
+      touch
+        ? "Tap JUMP again in mid-air to jump twice"
+        : "Press jump again in mid-air to jump twice",
+      "DOUBLE JUMP",
+    );
 
     // ---- Practice platforms ---------------------------------------------
     const addLedge = (x: number, y: number, w: number) => {

@@ -6798,7 +6798,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         const nowUp = downHeld && canUmbrella;
         if (nowUp && !umbrellaState.up && !umbrellaState.taught) {
           umbrellaState.taught = true;
-          showHint(t("Umbrella up! Falling dates bounce off while you hold it."), 2.6);
+          showHint(tr("Umbrella up! Falling dates bounce off while you hold it."), 2.6);
         }
         umbrellaState.up = nowUp;
       }

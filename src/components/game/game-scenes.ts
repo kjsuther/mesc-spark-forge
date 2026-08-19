@@ -5285,7 +5285,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.area({ shape: new k.Rect(k.vec2(0, 0), kw, kh) }),
         k.z(LAYERS.EFFECT),
         "gold-key",
-      ]);
+      ]) as AnyObj;
+      markCollectible(k, keyItem as AnyObj, { label: "KEY", width: kw, height: kh });
       keyItem.onUpdate(() => {
         const dx = player.pos.x - keyItem.pos.x;
         const dy = player.pos.y - kh - keyItem.pos.y;

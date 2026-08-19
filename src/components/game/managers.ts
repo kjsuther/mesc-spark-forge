@@ -146,19 +146,19 @@ export class EnemyManager {
 
   /**
    * Single arbitration point for "does this contact hurt the player?".
-   * Falling calendars are blocked only by the umbrella; ground enemies are
-   * blocked only by the chat shield; pits always hurt.
+   * Falling calendars are blocked only while the player actually holds Down to
+   * raise their umbrella (the Email power-up removes the slow-down, it does not
+   * hold the umbrella for you); ground enemies are blocked only by the chat
+   * shield; pits always hurt.
    */
   blocksDamage(source: DamageSource, zoneIdx: number, manualUmbrella = false): boolean {
     if (source === "water") return false;
     if (source === "boulder") {
-      // Either the Email power-up umbrella or the player holding Down to raise
-      // their own umbrella in the waiting zone deflects a falling date.
-      if (manualUmbrella && zoneIdx === ZONE_INDEX.awaitDecision) return true;
-      return this.powerups.umbrellaActive(zoneIdx);
+      return manualUmbrella && zoneIdx === ZONE_INDEX.awaitDecision;
     }
     return this.powerups.shieldActive(zoneIdx);
   }
+
 }
 
 // ------------------------------------------------------------------- Boss ---

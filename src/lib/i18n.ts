@@ -403,6 +403,29 @@ const ES: Record<string, string> = {
   "Land 5 hits to win.": "Acierta 5 golpes para ganar.",
 
   // ---- Failure / victory ---------------------------------------------
+  "STILL NEEDED AT THIS STEP": "LO QUE FALTABA EN ESTE PASO",
+  "…then still ahead:": "…y después te faltaba:",
+  "more steps": "pasos más",
+  "Pick how you want to apply": "Elige cómo quieres solicitar",
+  "Collect your username": "Consigue tu nombre de usuario",
+  "Collect your password": "Consigue tu contraseña",
+  "Cross the river to the door": "Cruza el río hasta la puerta",
+  "Survive the 10-second wait": "Sobrevive los 10 segundos de espera",
+  "Pick a health plan": "Elige un plan de salud",
+  "Get past the bear": "Supera al oso",
+  "Grab the key": "Toma la llave",
+  "Grab your medical ID card": "Toma tu tarjeta médica",
+  "Slide down the pole to the clinic": "Baja por el poste hasta la clínica",
+  // Journey step names (failure screen "still ahead" list)
+  "Choose how to apply": "Elegir cómo solicitar",
+  "Create your account": "Crear tu cuenta",
+  "Complete your application": "Completar tu solicitud",
+  "Gather your documents": "Reunir tus documentos",
+  "Respond to the request": "Responder a la solicitud",
+  "Await the decision": "Esperar la decisión",
+  "Choose your health plan": "Elegir tu plan de salud",
+  "Use your coverage": "Usar tu cobertura",
+
   "ACCOUNT NOT CREATED": "CUENTA NO CREADA",
   "MISSING PAPERWORK": "FALTA PAPELEO",
   "REQUEST UNANSWERED": "SOLICITUD SIN RESPUESTA",
@@ -424,6 +447,15 @@ const ES: Record<string, string> = {
 
 /** Counter/interpolated strings that can't be matched literally. */
 const RULES: Array<[RegExp, string]> = [
+  // Failure-screen checklist rows (checkbox marker + counted labels).
+  [/^([✓☐]) (.+)$/, "$1 @2"],
+  [/^\+(\d+) (.+)$/, "+$1 @2"],
+  [
+    /^Gather (\d+) more verification documents?$/,
+    "Reúne $1 documento(s) de verificación más",
+  ],
+  [/^Send (\d+) more repl(?:y|ies) to the request$/, "Envía $1 respuesta(s) más a la solicitud"],
+
   [/^SCORE (.+)$/, "PUNTOS $1"],
   [/^TIME (.+)$/, "TIEMPO $1"],
   [/^WAIT (.+)$/, "ESPERA $1"],

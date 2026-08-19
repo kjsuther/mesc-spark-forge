@@ -5794,6 +5794,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         label.pos = k.vec2(badge.pos.x, badge.pos.y);
       });
       badge.onDestroy(() => label.destroy());
+      markCollectible(k, badge, { label: "EXTRA LIFE", width: 30, height: 26, topLift: 4 });
       return badge;
     }
 

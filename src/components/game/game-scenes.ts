@@ -3126,7 +3126,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k,
       mx0 + 150,
       GROUND_Y - 210,
-      "Dodge the dates for 10 seconds — then they stop.",
+      isCoarsePointer()
+        ? "Dodge the dates 10 seconds. Pull the stick DOWN for your umbrella."
+        : "Dodge the dates 10 seconds. Hold DOWN for your umbrella.",
       "AWAITING DECISION",
     );
     zoneObjectives[5] = {
@@ -4258,7 +4260,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         lines: [
           "Avoid the falling calendar dates for 10 seconds.",
           "A date that touches you costs a life and restarts the 10 seconds.",
-          "Make it 10 seconds and the dates stop falling —",
+          isCoarsePointer()
+            ? "NEW: pull the joystick DOWN to raise your umbrella — dates bounce off"
+            : "NEW: hold DOWN (↓ / S / stick down) to raise your umbrella — dates bounce off",
+          "(you move slower under it). Survive 10 seconds and the dates stop —",
           "then walk right through the unlocked door.",
         ],
         icons: [{ sprite: "calendar-page", label: "FALLING DATE", danger: true }],

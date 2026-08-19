@@ -2083,6 +2083,7 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
     ["← →", "Move"],
     ["Space / ↑", "Jump"],
     ["Space / ↑ ×2", "Double jump (press again in mid-air)"],
+    ["↓ / S", "Hold to raise your umbrella (waiting zone only)"],
     ["R", "Restart run"],
     ["Esc", "Pause"],
   ];
@@ -2090,6 +2091,7 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
     ["STICK ◀ ▶", "Slide to move (slide across to turn)"],
     ["⤒", "Jump"],
     ["⤒ ⤒", "Double jump (tap again in mid-air)"],
+    ["STICK ▼", "Pull down to raise your umbrella (waiting zone only)"],
     ["Tap", "Continue screens"],
     ["⛶", "Full screen"],
   ];
@@ -2098,6 +2100,7 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
     ["BUTTON 1", "Jump / Continue"],
     ["BUTTON 1 ×2", "Double jump (press again in mid-air)"],
     ["STICK ↑", "Jump"],
+    ["STICK ▼", "Hold down to raise your umbrella (waiting zone only)"],
     ["SELECT", "Restart run"],
   ];
 

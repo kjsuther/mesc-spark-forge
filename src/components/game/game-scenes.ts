@@ -1315,6 +1315,146 @@ function spawnAirborne(k: Ctx, name: string, sizes: SpriteSizes, opts: SpawnAirb
   return k.add(comps as never) as AnyObj;
 }
 
+/**
+ * Shared "collect me" treatment. Playtesters could not tell pickups apart from
+ * scenery, so every required item now wears the SAME green kit: a pulsing glow
+ * ring behind it, a couple of twinkling sparkles, a blinking chevron pointing
+ * down at it and a short caption. Hazards keep their red AVOID styling, so the
+ * colour alone answers "grab it or dodge it?".
+ *
+ * The decorations are separate root objects that follow the item every frame
+ * (children would inherit anchors/rotation from wildly different sprites) and
+ * they self-destruct with it.
+ */
+function markCollectible(
+  k: Ctx,
+  obj: AnyObj,
+  opts: {
+    /** Caption under the chevron. Pass "" for no caption. */
+    label?: string;
+    /** Item height, used to centre the ring and place the chevron. */
+    height?: number;
+    /** Item width, used to size the ring. */
+    width?: number;
+    /** true when the object uses anchor("bot") instead of anchor("center"). */
+    anchorBot?: boolean;
+    /** Extra lift for the chevron/caption (px). */
+    topLift?: number;
+  } = {},
+) {
+  const h = opts.height ?? 34;
+  const w = opts.width ?? 34;
+  const centerDy = opts.anchorBot ? -h / 2 : 0;
+  const topDy = (opts.anchorBot ? -h : -h / 2) - 16 - (opts.topLift ?? 0);
+  const radius = Math.max(w, h) * 0.72;
+  const lowFx = isTouchDevice();
+
+  const ring = k.add([
+    k.circle(radius),
+    k.pos(obj.pos.x, obj.pos.y + centerDy),
+    k.anchor("center"),
+    k.color(120, 240, 150),
+    k.opacity(0.2),
+    k.scale(1),
+    k.z(LAYERS.BG_NEAR + 4),
+  ]) as AnyObj;
+  const ring2 = k.add([
+    k.circle(radius * 0.62),
+    k.pos(obj.pos.x, obj.pos.y + centerDy),
+    k.anchor("center"),
+    k.color(230, 255, 235),
+    k.opacity(0.16),
+    k.z(LAYERS.BG_NEAR + 5),
+  ]) as AnyObj;
+
+  const sparkCount = lowFx ? 2 : 3;
+  const sparks: AnyObj[] = [];
+  for (let i = 0; i < sparkCount; i++) {
+    sparks.push(
+      k.add([
+        k.rect(4, 4),
+        k.pos(obj.pos.x, obj.pos.y + centerDy),
+        k.anchor("center"),
+        k.color(255, 255, 210),
+        k.opacity(0.9),
+        k.z(LAYERS.EFFECT - 1),
+      ]) as AnyObj,
+    );
+  }
+
+  const chev = k.add([
+    k.polygon([k.vec2(-9, -7), k.vec2(9, -7), k.vec2(0, 7)]),
+    k.pos(obj.pos.x, obj.pos.y + topDy),
+    k.color(120, 240, 150),
+    k.outline(2, k.rgb(20, 60, 35)),
+    k.opacity(1),
+    k.z(LAYERS.EFFECT + 1),
+  ]) as AnyObj;
+
+  const text = opts.label ?? "GRAB";
+  const caption: AnyObj[] = [];
+  if (text) {
+    const cy = obj.pos.y + topDy - 22;
+    caption.push(
+      k.add([
+        k.text(text, { size: 12, font: UI_FONT }),
+        k.pos(obj.pos.x + 1, cy + 1),
+        k.anchor("center"),
+        k.color(10, 30, 18),
+        k.z(LAYERS.EFFECT),
+      ]) as AnyObj,
+      k.add([
+        k.text(text, { size: 12, font: UI_FONT }),
+        k.pos(obj.pos.x, cy),
+        k.anchor("center"),
+        k.color(150, 250, 175),
+        k.z(LAYERS.EFFECT + 1),
+      ]) as AnyObj,
+    );
+  }
+
+  const decor: AnyObj[] = [ring, ring2, chev, ...sparks, ...caption];
+
+  obj.onUpdate(() => {
+    const t = k.time();
+    const cx = obj.pos.x;
+    const cy = obj.pos.y + centerDy;
+    const pulse = 0.5 + Math.sin(t * 3) * 0.5;
+    ring.pos = k.vec2(cx, cy);
+    ring.opacity = 0.14 + pulse * 0.2;
+    ring.scale = k.vec2(0.94 + pulse * 0.14, 0.94 + pulse * 0.14);
+    ring2.pos = k.vec2(cx, cy);
+    ring2.opacity = 0.1 + (1 - pulse) * 0.18;
+    for (let i = 0; i < sparks.length; i++) {
+      const a = t * 1.6 + (i * Math.PI * 2) / sparks.length;
+      sparks[i].pos = k.vec2(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius * 0.55);
+      sparks[i].opacity = 0.35 + Math.abs(Math.sin(a * 1.7)) * 0.65;
+    }
+    const bob = Math.sin(t * 4) * 4;
+    chev.pos = k.vec2(cx, obj.pos.y + topDy + bob);
+    chev.opacity = Math.sin(t * 6) > -0.3 ? 1 : 0.25;
+    if (caption.length) {
+      const capY = obj.pos.y + topDy - 22 + bob * 0.5;
+      caption[0].pos = k.vec2(cx + 1, capY + 1);
+      caption[1].pos = k.vec2(cx, capY);
+    }
+  });
+
+  obj.onDestroy(() => {
+    for (const d of decor) {
+      try {
+        d.destroy();
+      } catch {
+        /* already gone */
+      }
+    }
+  });
+
+  return obj;
+}
+
+
+
 function spawnDecor(
   k: Ctx,
   name: string,

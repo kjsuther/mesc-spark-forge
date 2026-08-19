@@ -7601,7 +7601,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
 
       const grounded = hero.isGrounded();
-      if (grounded) lastGrounded = k.time();
+      if (grounded) {
+        lastGrounded = k.time();
+        airJumpsLeft = 1;
+      }
 
       if (!grounded) {
         setHeroSprite(`hero-jump${suffix("hero-jump")}`);

@@ -2363,14 +2363,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         }
       });
     }
-    // Gap guards. Final layout: TWO locks left of the Z1 gap (the one above
-    // plus this roamer) and exactly ONE on the right, whose patrol is kept
-    // short so the landing ledge always has clear space.
+    // Gap guards. Final layout: ONE lock left of the Z1 gap (the patroller
+    // above) and exactly ONE on the right, whose patrol is kept short so the
+    // landing ledge always has clear space. The second left-side roamer was
+    // removed per player feedback — the approach was too crowded.
     {
       const ph = DISPLAY_H["padlock"];
       const pw = displaySize("padlock", sizes).w;
       const spots: Array<{ x: number; dir: 1 | -1; speed: number; range: number }> = [
-        { x: sx0 + 560, dir: 1, speed: 116, range: 110 },
         // The single padlock guarding the approach to the door on the right.
         { x: sx0 + 1010, dir: -1, speed: 104, range: 110 },
       ];

@@ -2045,18 +2045,21 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
   const desktop: Array<[string, string]> = [
     ["← →", "Move"],
     ["Space / ↑", "Jump"],
+    ["Space / ↑ ×2", "Double jump (press again in mid-air)"],
     ["R", "Restart run"],
     ["Esc", "Pause"],
   ];
   const mobile: Array<[string, string]> = [
     ["STICK ◀ ▶", "Slide to move (slide across to turn)"],
     ["⤒", "Jump"],
+    ["⤒ ⤒", "Double jump (tap again in mid-air)"],
     ["Tap", "Continue screens"],
     ["⛶", "Full screen"],
   ];
   const gamepad: Array<[string, string]> = [
     ["STICK ← →", "Move"],
     ["BUTTON 1", "Jump / Continue"],
+    ["BUTTON 1 ×2", "Double jump (press again in mid-air)"],
     ["STICK ↑", "Jump"],
     ["SELECT", "Restart run"],
   ];

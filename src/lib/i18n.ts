@@ -105,6 +105,17 @@ const ES: Record<string, string> = {
   "TRAIL HEAD": "INICIO DEL SENDERO",
   "READY!": "¡LISTO!",
   COLLECT: "RECOGER",
+  "DOUBLE JUMP": "SALTO DOBLE",
+  "☐ DOUBLE JUMP": "☐ SALTO DOBLE",
+  "✓ DOUBLE JUMP": "✓ SALTO DOBLE",
+  "Tap JUMP again in mid-air to jump twice":
+    "Toca SALTAR otra vez en el aire para saltar dos veces",
+  "Press jump again in mid-air to jump twice":
+    "Pulsa saltar otra vez en el aire para saltar dos veces",
+  "Double jump! Tap jump again in mid-air for extra height.":
+    "¡Salto doble! Toca saltar otra vez en el aire para llegar más alto.",
+  "Double jump (press again in mid-air)": "Salto doble (pulsa otra vez en el aire)",
+  "Double jump (tap again in mid-air)": "Salto doble (toca otra vez en el aire)",
   GRAB: "TOMAR",
   KEY: "LLAVE",
   "PICK ONE": "ELIGE UNO",

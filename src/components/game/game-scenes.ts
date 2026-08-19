@@ -346,6 +346,8 @@ const GROUND_Y = 470;
 const LEVEL_END = ZONES.length * BIOME_W;
 const MOVE_SPEED = 260;
 const JUMP_VEL = 720;
+// Mid-air second jump: a boost, not flight — slightly weaker than the launch.
+const AIR_JUMP_VEL = Math.round(720 * 0.85);
 // Forgiving jump windows: you can still jump shortly after walking off an
 // edge, and a jump pressed just before landing still fires.
 const COYOTE_S = 0.2;
@@ -3445,6 +3447,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         invulnUntil: 0,
         lastGroundedAt: k.time(),
         jumpBufferedAt: -1,
+        airJumpsLeft: 1,
         farthestZone: Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W))),
         rightmostX: spawnX,
         wasGrounded: true,
@@ -6269,14 +6272,47 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (player.isGrounded() || player.riding || canCoyote) {
         player.jump(JUMP_VEL);
         player.jumpBufferedAt = -1;
+        player.airJumpsLeft = 1;
         if (player.riding) {
           player.vel.x += player.riding.platformSpeed.x;
           player.riding = null;
         }
+      } else if (player.airJumpsLeft > 0) {
+        // Mid-air double jump: kill any downward speed first so it also
+        // rescues a fall, then boost.
+        player.airJumpsLeft -= 1;
+        if (player.vel.y > 0) player.vel.y = 0;
+        player.jump(AIR_JUMP_VEL);
+        player.jumpBufferedAt = -1;
+        airJumpPuff(player.pos.x, player.pos.y);
       } else {
         player.jumpBufferedAt = now;
       }
     }
+
+    /** Small pixel puff at the hero's feet so the air jump reads clearly. */
+    function airJumpPuff(x: number, y: number) {
+      for (let i = 0; i < 6; i++) {
+        const ang = (Math.PI / 5) * i + Math.PI * 0.1;
+        const puff = k.add([
+          k.rect(4, 4),
+          k.pos(x, y - 4),
+          k.anchor("center"),
+          k.color(255, 255, 255),
+          k.opacity(0.9),
+          k.z(LAYERS.PROP + 2),
+          { t: 0, vx: Math.cos(ang) * 70, vy: -Math.abs(Math.sin(ang)) * 20 + 30 },
+        ]) as AnyObj;
+        puff.onUpdate(() => {
+          puff.t += k.dt();
+          puff.pos.x += puff.vx * k.dt();
+          puff.pos.y += puff.vy * k.dt();
+          puff.opacity = Math.max(0, 0.9 - puff.t * 2.6);
+          if (puff.t > 0.4) k.destroy(puff);
+        });
+      }
+    }
+
 
     // ===== Feature-flag reconciliation =====
     // One place where a live toggle is applied to a run in progress. Called
@@ -6776,7 +6812,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       player.wasGrounded = groundedNow;
 
-      if (groundedNow) player.lastGroundedAt = now;
+      if (groundedNow) {
+        player.lastGroundedAt = now;
+        player.airJumpsLeft = 1;
+      }
 
       // ---- Animation state machine ----
       if (dir !== 0) {
@@ -7138,7 +7177,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     };
 
     // ---- Practice checklist ---------------------------------------------
-    const done = { move: false, jump: false, collect: false };
+    const done = { move: false, jump: false, dbl: false, collect: false };
     let ready = false;
     let left = false;
 
@@ -7159,6 +7198,15 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       "JUMP",
     );
     addSignPlaque(k, 1120, GROUND_Y - 250, "Bump the brick above you", "COLLECT");
+    addSignPlaque(
+      k,
+      900,
+      GROUND_Y - 300,
+      touch
+        ? "Tap JUMP again in mid-air to jump twice"
+        : "Press jump again in mid-air to jump twice",
+      "DOUBLE JUMP",
+    );
 
     // ---- Practice platforms ---------------------------------------------
     const addLedge = (x: number, y: number, w: number) => {
@@ -7175,6 +7223,33 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     };
     addLedge(620, GROUND_Y - 110, 150);
     addLedge(880, GROUND_Y - 190, 150);
+
+    // ---- Double-jump practice star (out of reach of a single jump) --------
+    const star = k.add([
+      k.rect(26, 26, { radius: 3 }),
+      k.pos(955, GROUND_Y - 380),
+      k.anchor("center"),
+      k.rotate(45),
+      k.color(255, 214, 92),
+      k.outline(2, k.rgb(120, 84, 12)),
+      k.area(),
+      k.z(LAYERS.PROP + 1),
+      { t: 0, baseY: GROUND_Y - 380 },
+    ]) as AnyObj;
+    markCollectible(k, star, { label: "DOUBLE JUMP", width: 26, height: 26 });
+    star.onUpdate(() => {
+      star.t += k.dt();
+      star.pos.y = star.baseY + Math.sin(star.t * 3) * 7;
+      star.angle = 45 + Math.sin(star.t * 2) * 12;
+    });
+    star.onCollide("player", () => {
+      if (!star.exists()) return;
+      done.dbl = true;
+      showBanner("Double jump! Tap jump again in mid-air for extra height.", 3);
+      k.destroy(star);
+    });
+
+
 
     // ---- Practice brick + pack ------------------------------------------
     const brickDisp = displaySize("brick-idle", sizes);
@@ -7454,12 +7529,43 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     let leftArmed = false;
     let rightArmed = false;
     let lastGrounded = k.time();
+    let airJumpsLeft = 1;
+
+    const puffAt = (x: number, y: number) => {
+      for (let i = 0; i < 6; i++) {
+        const ang = (Math.PI / 5) * i + Math.PI * 0.1;
+        const puff = k.add([
+          k.rect(4, 4),
+          k.pos(x, y - 4),
+          k.anchor("center"),
+          k.color(255, 255, 255),
+          k.opacity(0.9),
+          k.z(LAYERS.PROP + 2),
+          { t: 0, vx: Math.cos(ang) * 70, vy: 30 },
+        ]) as AnyObj;
+        puff.onUpdate(() => {
+          puff.t += k.dt();
+          puff.pos.x += puff.vx * k.dt();
+          puff.pos.y += puff.vy * k.dt();
+          puff.opacity = Math.max(0, 0.9 - puff.t * 2.6);
+          if (puff.t > 0.4) k.destroy(puff);
+        });
+      }
+    };
 
     const tryJump = () => {
       if (left) return;
       if (hero.isGrounded() || k.time() - lastGrounded < COYOTE_S) {
         hero.jump(JUMP_VEL);
+        airJumpsLeft = 1;
         done.jump = true;
+      } else if (airJumpsLeft > 0) {
+        airJumpsLeft -= 1;
+        if (hero.vel.y > 0) hero.vel.y = 0;
+        hero.jump(AIR_JUMP_VEL);
+        puffAt(hero.pos.x, hero.pos.y);
+        done.jump = true;
+        done.dbl = true;
       }
     };
     for (const key of ["space", "up", "w"]) k.onKeyPress(key as never, () => tryJump());
@@ -7495,7 +7601,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
 
       const grounded = hero.isGrounded();
-      if (grounded) lastGrounded = k.time();
+      if (grounded) {
+        lastGrounded = k.time();
+        airJumpsLeft = 1;
+      }
 
       if (!grounded) {
         setHeroSprite(`hero-jump${suffix("hero-jump")}`);
@@ -7512,11 +7621,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       hudList.text =
         `${mark(done.move)} MOVE\n` +
         `${mark(done.jump)} JUMP\n` +
+        `${mark(done.dbl)} DOUBLE JUMP\n` +
         `${mark(done.collect)} COLLECT`;
       hudPanel.opacity = 0.92;
       hudTitle.opacity = 1;
 
-      if (!ready && done.move && done.jump && done.collect) makeReady();
+      if (!ready && done.move && done.jump && done.dbl && done.collect) makeReady();
 
       // Walk through the open door to begin Zone 1.
       if (ready && hero.pos.x >= DOOR_X - 16) leaveWarmup();

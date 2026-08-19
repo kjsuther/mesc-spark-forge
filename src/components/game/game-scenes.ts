@@ -6278,6 +6278,98 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
             k.fixed(),
             k.z(LAYERS.OVERLAY_TEXT),
           ]);
+          // ---- "STILL NEEDED" checklist -------------------------------
+          // Everything the player had left to do on the step they lost at,
+          // plus the steps of the journey they never reached.
+          const tasks = remainingTasks(zone);
+          const ahead = STEP_NAMES.slice(zone + 1);
+          const aheadShown = ahead.slice(0, 3);
+          const aheadRest = ahead.length - aheadShown.length;
+          const rowSize = Math.max(10, Math.round(12 * T));
+          const headSize = Math.max(11, Math.round(13 * T));
+          const rowGap = Math.round(rowSize * 1.45);
+          const pad = Math.round(12 * T);
+
+          const rows: { text: string; rgb: [number, number, number] }[] = [];
+          for (const t of tasks) {
+            rows.push({
+              text: `${t.done ? "✓" : "☐"} ${tr(t.label)}`,
+              rgb: t.done ? [130, 150, 170] : [255, 255, 255],
+            });
+          }
+          if (aheadShown.length) {
+            rows.push({ text: tr("…then still ahead:"), rgb: [255, 220, 90] });
+            for (const s of aheadShown) rows.push({ text: `☐ ${tr(s)}`, rgb: [200, 210, 230] });
+            if (aheadRest > 0) {
+              rows.push({
+                text: `+${aheadRest} ${tr("more steps")}`,
+                rgb: [160, 175, 200],
+              });
+            }
+          }
+
+          const bodyW = Math.min(720 * T, W - 40);
+          const panelW = Math.max(
+            Math.round(190 * T),
+            Math.min(Math.round(300 * T), Math.floor(W * 0.34)),
+          );
+          const headText = tr("STILL NEEDED AT THIS STEP");
+          const panelH = pad * 2 + Math.round(headSize * 2.1) + rows.length * rowGap;
+          // Right rail when there is real room beside the message; otherwise it
+          // tucks under the message and the restart prompt slides below it.
+          const sideRoom = W - (W / 2 + bodyW / 2) - Math.round(16 * T);
+          const onSide = rows.length > 0 && sideRoom >= panelW && H > panelH + Math.round(120 * T);
+          let promptY = H / 2 + Math.round(100 * T);
+          let panelX = W - panelW - Math.round(14 * T);
+          let panelY = Math.floor(H / 2 - panelH / 2);
+          if (!onSide) {
+            panelX = Math.floor(W / 2 - panelW / 2);
+            panelY = Math.round(H / 2 + 42 * T);
+            promptY = Math.min(H - Math.round(16 * T), panelY + panelH + Math.round(18 * T));
+          }
+
+          if (rows.length > 0) {
+            put([
+              k.rect(panelW, panelH, { radius: 4 }),
+              k.pos(panelX, panelY),
+              k.color(16, 22, 52),
+              k.opacity(0.95),
+              k.outline(3, k.rgb(255, 220, 90)),
+              k.fixed(),
+              k.z(LAYERS.OVERLAY_TEXT),
+            ]);
+            put([
+              k.text(headText, {
+                size: headSize,
+                font: UI_FONT,
+                width: panelW - pad * 2,
+                align: "left",
+              }),
+              k.pos(panelX + pad, panelY + pad),
+              k.anchor("topleft"),
+              k.color(255, 220, 90),
+              k.fixed(),
+              k.z(LAYERS.OVERLAY_TEXT + 1),
+            ]);
+            let ry = panelY + pad + Math.round(headSize * 1.9);
+            for (const row of rows) {
+              put([
+                k.text(row.text, {
+                  size: rowSize,
+                  font: UI_FONT,
+                  width: panelW - pad * 2,
+                  align: "left",
+                }),
+                k.pos(panelX + pad, ry),
+                k.anchor("topleft"),
+                k.color(...row.rgb),
+                k.fixed(),
+                k.z(LAYERS.OVERLAY_TEXT + 1),
+              ]);
+              ry += rowGap;
+            }
+          }
+
           put([
             k.text(restartPrompt(), {
               size: Math.round(14 * T),
@@ -6285,12 +6377,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
               width: W - Math.round(40 * T),
               align: "center",
             }),
-            k.pos(W / 2, H / 2 + Math.round(100 * T)),
+            k.pos(W / 2, promptY),
             k.anchor("center"),
             k.color(220, 220, 220),
             k.fixed(),
             k.z(LAYERS.OVERLAY_TEXT),
           ]);
+
         }
       }
 

@@ -7224,6 +7224,33 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     addLedge(620, GROUND_Y - 110, 150);
     addLedge(880, GROUND_Y - 190, 150);
 
+    // ---- Double-jump practice star (out of reach of a single jump) --------
+    const star = k.add([
+      k.rect(26, 26, { radius: 3 }),
+      k.pos(955, GROUND_Y - 380),
+      k.anchor("center"),
+      k.rotate(45),
+      k.color(255, 214, 92),
+      k.outline(2, k.rgb(120, 84, 12)),
+      k.area(),
+      k.z(LAYERS.PROP + 1),
+      { t: 0, baseY: GROUND_Y - 380 },
+    ]) as AnyObj;
+    markCollectible(k, star, { label: "DOUBLE JUMP", width: 26, height: 26 });
+    star.onUpdate(() => {
+      star.t += k.dt();
+      star.pos.y = star.baseY + Math.sin(star.t * 3) * 7;
+      star.angle = 45 + Math.sin(star.t * 2) * 12;
+    });
+    star.onCollide("player", () => {
+      if (!star.exists()) return;
+      done.dbl = true;
+      showBanner("Double jump! Tap jump again in mid-air for extra height.", 3);
+      k.destroy(star);
+    });
+
+
+
     // ---- Practice brick + pack ------------------------------------------
     const brickDisp = displaySize("brick-idle", sizes);
     const brick = k.add([

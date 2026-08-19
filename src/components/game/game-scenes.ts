@@ -6223,15 +6223,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       if (demoLastProgressAt === 0) demoLastProgressAt = now;
 
-      // Silent long-stop: only if the bot is genuinely wedged for a full
-      // minute does a zone open itself, so the normal demo shows real play.
+      // Safety valve: no zone may hold the attract loop for more than ~15s.
+      // The objective is satisfied the same way play would satisfy it, so the
+      // HUD, door and score bookkeeping all stay consistent.
       if (currentZone !== demoZoneWatched) {
         demoZoneWatched = currentZone;
         demoZoneEnteredAt = now;
-      } else if (now - demoZoneEnteredAt > 60) {
-        const d = doors[currentZone];
-        if (d && !d.unlocked) unlockDoor(currentZone);
+      } else if (now - demoZoneEnteredAt > DEMO_ZONE_TIMEOUT) {
+        demoForceZoneComplete(currentZone);
+        demoZoneEnteredAt = now;
       }
+
 
       // Boss battle takes over the whole lane while the bear is alive.
       if (currentZone === 6 && zoneState.planPicked && !zoneState.bossDefeated) {

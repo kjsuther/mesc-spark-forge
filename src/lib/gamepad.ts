@@ -373,6 +373,7 @@ let pullPrev = new Set<number>();
 /** Whether the pad — rather than touch/keyboard — set each held direction. */
 let padOwnsLeft = false;
 let padOwnsRight = false;
+let padOwnsDown = false;
 
 /**
  * Read the controller synchronously and write straight into the game's shared

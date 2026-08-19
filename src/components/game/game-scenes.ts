@@ -4296,9 +4296,28 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const stepScreensShown = new Set<number>();
     let stepScreenOpen = false;
 
+    /** Pseudo-zone index for the hidden bonus stage briefing. */
+    const BONUS_STEP_ID = -7;
+    const BONUS_STEP_SCREEN: StepScreen = {
+      title: "SECRET · PORTLAND WATERFRONT",
+      subtitle: "You found the hidden trail!",
+      lines: [
+        "There are no enemies here — nothing in this pocket can hurt you.",
+        "Grab the coffee, donuts and cart snacks for extra points.",
+        "Look up high for an extra life.",
+        "When you're done, walk into the EXIT door on the right.",
+        "The door drops you at the start of Step 3.",
+      ],
+      icons: [
+        { shape: "platform", label: "TREATS" },
+        { glyph: "+", label: "EXTRA LIFE" },
+        { sprite: "door-open", label: "EXIT DOOR" },
+      ],
+    };
+
     /** Pause the run and show the briefing for `z` — once per run per zone. */
-    function showStepScreen(z: number, onDone?: () => void) {
-      const data = STEP_SCREENS[z];
+    function showStepScreen(z: number, onDone?: () => void, custom?: StepScreen) {
+      const data = custom ?? STEP_SCREENS[z];
       if (!data || stepScreenOpen || stepScreensShown.has(z) || player.dead || player.won) {
         onDone?.();
         return;
@@ -4306,6 +4325,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       stepScreensShown.add(z);
       stepScreenOpen = true;
       pauseGameplay();
+
 
       let nodes: AnyObj[] = [];
       let promptNode: AnyObj | null = null;

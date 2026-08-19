@@ -381,7 +381,6 @@ const ES: Record<string, string> = {
   "The door drops you at the start of Step 3.":
     "La puerta te deja al inicio del Paso 3.",
   TREATS: "ANTOJITOS",
-  "EXTRA LIFE": "VIDA EXTRA",
   "EXIT DOOR": "PUERTA DE SALIDA",
 
   "PORTLAND BONUS": "BONUS DE PORTLAND",

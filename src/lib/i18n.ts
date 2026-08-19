@@ -447,6 +447,15 @@ const ES: Record<string, string> = {
 
 /** Counter/interpolated strings that can't be matched literally. */
 const RULES: Array<[RegExp, string]> = [
+  // Failure-screen checklist rows (checkbox marker + counted labels).
+  [/^([✓☐]) (.+)$/, "$1 @2"],
+  [/^\+(\d+) (.+)$/, "+$1 @2"],
+  [
+    /^Gather (\d+) more verification documents?$/,
+    "Reúne $1 documento(s) de verificación más",
+  ],
+  [/^Send (\d+) more repl(?:y|ies) to the request$/, "Envía $1 respuesta(s) más a la solicitud"],
+
   [/^SCORE (.+)$/, "PUNTOS $1"],
   [/^TIME (.+)$/, "TIEMPO $1"],
   [/^WAIT (.+)$/, "ESPERA $1"],

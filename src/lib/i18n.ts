@@ -176,6 +176,25 @@ const ES: Record<string, string> = {
   "Collect the Username item.": "Recoge el Usuario.",
   "Collect the Password item.": "Recoge la Contraseña.",
   "Jump over the Account Locks.": "Salta sobre los Candados de Cuenta.",
+  "Account Locks hurt — jump over them or you lose a life.":
+    "Los Candados de Cuenta hacen daño: salta sobre ellos o pierdes una vida.",
+  "Evil Clipboards hurt — jump over them or you lose a life.":
+    "Los Portapapeles Malvados hacen daño: salta sobre ellos o pierdes una vida.",
+  "Monster Envelopes hurt — jump over them or you lose a life.":
+    "Los Sobres Monstruo hacen daño: salta sobre ellos o pierdes una vida.",
+  "A date that touches you costs a life and restarts the 10 seconds.":
+    "Una hoja que te toque te cuesta una vida y reinicia los 10 segundos.",
+  "! NEVER TOUCH A RED-MARKED ENEMY — JUMP OVER IT !":
+    "¡ NUNCA TOQUES A UN ENEMIGO MARCADO EN ROJO — SALTA SOBRE ÉL !",
+  AVOID: "EVITAR",
+  "JUMP OVER ME!": "¡SALTA SOBRE MÍ!",
+  "Jump over me — in the real zones I cost a life!":
+    "Salta sobre mí: en las zonas reales te cuesto una vida.",
+  ENEMY: "ENEMIGO",
+  "That would have cost a life! Jump over enemies.":
+    "¡Eso te habría costado una vida! Salta sobre los enemigos.",
+  "Perfect — that's how you get past an enemy.":
+    "Perfecto: así se esquiva a un enemigo.",
   "Platforms fall away once you step on them — keep moving!":
     "Las plataformas caen al pisarlas: ¡no te detengas!",
   "Reaching the other side unlocks the exit door.":

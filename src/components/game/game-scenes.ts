@@ -2363,6 +2363,32 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           m.dir = 1;
         }
       });
+
+      // First real enemy of the run: a blinking coach caption rides above it
+      // until the player has cleared it, so nobody learns the rule by dying.
+      let coach: AnyObj[] | null = addSpeech(k, px, GROUND_Y - ph - 46, "JUMP OVER ME!", [
+        200, 40, 40,
+      ]);
+      const coachOffsets = coach.map((part) => ({
+        part,
+        dx: part.pos.x - px,
+        dy: part.pos.y - (GROUND_Y - ph - 46),
+      }));
+      m.onUpdate(() => {
+        if (!coach) return;
+        const hero = k.get("player")[0] as AnyObj | undefined;
+        if (hero && hero.pos.x > m.home + m.range + 120) {
+          for (const part of coach) part.destroy();
+          coach = null;
+          return;
+        }
+        const blink = Math.sin(k.time() * 6) > -0.35 ? 1 : 0.15;
+        for (const { part, dx, dy } of coachOffsets) {
+          part.pos.x = m.pos.x + dx;
+          part.pos.y = GROUND_Y - ph - 46 + dy;
+          part.opacity = blink;
+        }
+      });
     }
     // Gap guards. Final layout: ONE lock left of the Z1 gap (the patroller
     // above) and exactly ONE on the right, whose patrol is kept short so the
@@ -3977,6 +4003,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       glyph?: string;
       shape?: "platform" | "stairs";
       label: string;
+      /** Enemies/hazards: captioned in red with an AVOID tag. */
+      danger?: boolean;
     };
     type StepScreen = { title: string; subtitle: string; lines: string[]; icons: StepIcon[] };
     const STEP_SCREENS: StepScreen[] = [
@@ -3995,12 +4023,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         lines: [
           "Collect the Username item.",
           "Collect the Password item.",
-          "Jump over the Account Locks.",
+          "Account Locks hurt — jump over them or you lose a life.",
         ],
         icons: [
           { sprite: "username", label: "USERNAME" },
           { sprite: "password", label: "PASSWORD" },
-          { sprite: "padlock", label: "ACCOUNT LOCK" },
+          { sprite: "padlock", label: "ACCOUNT LOCK", danger: true },
         ],
       },
       {
@@ -4015,21 +4043,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       {
         title: "STEP 4 · GATHER YOUR DOCUMENTS",
         subtitle: "Gathering Supplies",
-        lines: ["Collect all 3 required documents.", "Jump over the Evil Clipboards."],
+        lines: [
+          "Collect all 3 required documents.",
+          "Evil Clipboards hurt — jump over them or you lose a life.",
+        ],
         icons: [
           { sprite: "id", label: "ID" },
           { sprite: "paystub", label: "INCOME" },
           { sprite: "envelope", label: "HOUSEHOLD" },
-          { sprite: "form-monster", label: "EVIL CLIPBOARD" },
+          { sprite: "form-monster", label: "EVIL CLIPBOARD", danger: true },
         ],
       },
       {
         title: "STEP 5 · RESPOND TO REQUEST",
         subtitle: "Answering the Call",
-        lines: ["Collect all 4 mailboxes.", "Jump over the Monster Envelopes."],
+        lines: [
+          "Collect all 4 mailboxes.",
+          "Monster Envelopes hurt — jump over them or you lose a life.",
+        ],
         icons: [
           { sprite: "mailbox", label: "MAILBOX" },
-          { sprite: "envelope-gremlin-0", label: "MONSTER ENVELOPE" },
+          { sprite: "envelope-gremlin-0", label: "MONSTER ENVELOPE", danger: true },
         ],
       },
       {
@@ -4037,11 +4071,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         subtitle: "Waiting Mountain",
         lines: [
           "Avoid the falling calendar dates for 10 seconds.",
-          "If a date hits you, the 10 seconds start over.",
+          "A date that touches you costs a life and restarts the 10 seconds.",
           "Make it 10 seconds and the dates stop falling —",
           "then walk right through the unlocked door.",
         ],
-        icons: [{ sprite: "calendar-page", label: "FALLING DATE" }],
+        icons: [{ sprite: "calendar-page", label: "FALLING DATE", danger: true }],
       },
       {
         title: "STEP 7 · SELECTING YOUR MANAGED CARE PLAN",
@@ -4187,6 +4221,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       label(data.subtitle, 17, [180, 205, 255], textW - px(48), { fit: true, min: 10 });
       y += px(4);
       label(data.lines.map((l) => `• ${l}`).join("\n"), 19, [245, 245, 245], textW - px(60));
+      // Enemy zones repeat the one rule new players miss, in danger red.
+      if (data.icons.some((i) => i.danger)) {
+        label("! NEVER TOUCH A RED-MARKED ENEMY — JUMP OVER IT !", 17, [255, 120, 110], textW - px(60));
+      }
 
       // Sprite strip: what you'll meet in this zone.
       const iconTop = Math.min(y + px(8), panelY + panelH - px(124));
@@ -4263,10 +4301,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.text(icon.label, { size: capSize, font: UI_FONT, align: "center" }),
           k.pos(ix, centerY + iconBox / 2 + px(12)),
           k.anchor("top"),
-          k.color(200, 215, 255),
+          icon.danger ? k.color(255, 120, 110) : k.color(200, 215, 255),
           k.fixed(),
           k.z(303),
         ]);
+        if (icon.danger) {
+          put([
+            k.text("AVOID", { size: capSize, font: UI_FONT, align: "center" }),
+            k.pos(ix, centerY + iconBox / 2 + px(12) + capSize + px(4)),
+            k.anchor("top"),
+            k.color(255, 220, 90),
+            k.fixed(),
+            k.z(303),
+          ]);
+        }
 
         ix += iconBox + gap;
       }
@@ -6882,6 +6930,41 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       playSfx("pickup");
       popPack();
     });
+
+    // ---- Harmless practice enemy ----------------------------------------
+    // The first enemy anyone meets should be one that cannot kill them, so the
+    // "jump over it" habit is learned here instead of in Zone 2.
+    {
+      const ENEMY_HOME = 1330;
+      const ph = DISPLAY_H["padlock"];
+      const pw = displaySize("padlock", sizes).w;
+      const foe = k.add([
+        k.sprite("padlock", { width: pw, height: ph }),
+        k.pos(ENEMY_HOME, GROUND_Y),
+        k.anchor("bot"),
+        k.area({ shape: new k.Rect(k.vec2(-pw / 2, -ph), pw, ph) }),
+        k.z(LAYERS.ACTOR),
+        { dir: 1 as 1 | -1 },
+      ]) as AnyObj;
+      addSignPlaque(k, ENEMY_HOME, GROUND_Y - 250, "Jump over me — in the real zones I cost a life!", "ENEMY");
+      let cleared = false;
+      let bumped = 0;
+      foe.onUpdate(() => {
+        foe.pos.x += foe.dir * 46 * k.dt();
+        if (foe.pos.x > ENEMY_HOME + 80) foe.dir = -1;
+        if (foe.pos.x < ENEMY_HOME - 80) foe.dir = 1;
+        const overlapping =
+          Math.abs(hero.pos.x - foe.pos.x) < pw * 0.6 && hero.pos.y > GROUND_Y - ph;
+        if (overlapping && k.time() - bumped > 2) {
+          bumped = k.time();
+          showBanner("That would have cost a life! Jump over enemies.", 3);
+        }
+        if (!cleared && hero.pos.x > ENEMY_HOME + 120) {
+          cleared = true;
+          showBanner("Perfect — that's how you get past an enemy.", 3);
+        }
+      });
+    }
 
     hero.onCollide("ppack", (p: unknown) => {
       (p as AnyObj).destroy();

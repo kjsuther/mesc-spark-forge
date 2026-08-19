@@ -7529,12 +7529,43 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     let leftArmed = false;
     let rightArmed = false;
     let lastGrounded = k.time();
+    let airJumpsLeft = 1;
+
+    const puffAt = (x: number, y: number) => {
+      for (let i = 0; i < 6; i++) {
+        const ang = (Math.PI / 5) * i + Math.PI * 0.1;
+        const puff = k.add([
+          k.rect(4, 4),
+          k.pos(x, y - 4),
+          k.anchor("center"),
+          k.color(255, 255, 255),
+          k.opacity(0.9),
+          k.z(LAYERS.PROP + 2),
+          { t: 0, vx: Math.cos(ang) * 70, vy: 30 },
+        ]) as AnyObj;
+        puff.onUpdate(() => {
+          puff.t += k.dt();
+          puff.pos.x += puff.vx * k.dt();
+          puff.pos.y += puff.vy * k.dt();
+          puff.opacity = Math.max(0, 0.9 - puff.t * 2.6);
+          if (puff.t > 0.4) k.destroy(puff);
+        });
+      }
+    };
 
     const tryJump = () => {
       if (left) return;
       if (hero.isGrounded() || k.time() - lastGrounded < COYOTE_S) {
         hero.jump(JUMP_VEL);
+        airJumpsLeft = 1;
         done.jump = true;
+      } else if (airJumpsLeft > 0) {
+        airJumpsLeft -= 1;
+        if (hero.vel.y > 0) hero.vel.y = 0;
+        hero.jump(AIR_JUMP_VEL);
+        puffAt(hero.pos.x, hero.pos.y);
+        done.jump = true;
+        done.dbl = true;
       }
     };
     for (const key of ["space", "up", "w"]) k.onKeyPress(key as never, () => tryJump());

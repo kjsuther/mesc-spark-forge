@@ -7626,7 +7626,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       hudPanel.opacity = 0.92;
       hudTitle.opacity = 1;
 
-      if (!ready && done.move && done.jump && done.collect) makeReady();
+      if (!ready && done.move && done.jump && done.dbl && done.collect) makeReady();
 
       // Walk through the open door to begin Zone 1.
       if (ready && hero.pos.x >= DOOR_X - 16) leaveWarmup();

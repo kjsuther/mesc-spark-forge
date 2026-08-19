@@ -2363,6 +2363,32 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           m.dir = 1;
         }
       });
+
+      // First real enemy of the run: a blinking coach caption rides above it
+      // until the player has cleared it, so nobody learns the rule by dying.
+      let coach: AnyObj[] | null = addSpeech(k, px, GROUND_Y - ph - 46, "JUMP OVER ME!", [
+        200, 40, 40,
+      ]);
+      const coachOffsets = coach.map((part) => ({
+        part,
+        dx: part.pos.x - px,
+        dy: part.pos.y - (GROUND_Y - ph - 46),
+      }));
+      m.onUpdate(() => {
+        if (!coach) return;
+        const hero = k.get("player")[0] as AnyObj | undefined;
+        if (hero && hero.pos.x > m.home + m.range + 120) {
+          for (const part of coach) part.destroy();
+          coach = null;
+          return;
+        }
+        const blink = Math.sin(k.time() * 6) > -0.35 ? 1 : 0.15;
+        for (const { part, dx, dy } of coachOffsets) {
+          part.pos.x = m.pos.x + dx;
+          part.pos.y = GROUND_Y - ph - 46 + dy;
+          part.opacity = blink;
+        }
+      });
     }
     // Gap guards. Final layout: ONE lock left of the Z1 gap (the patroller
     // above) and exactly ONE on the right, whose patrol is kept short so the

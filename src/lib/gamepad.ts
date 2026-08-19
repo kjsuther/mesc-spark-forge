@@ -373,6 +373,7 @@ let pullPrev = new Set<number>();
 /** Whether the pad — rather than touch/keyboard — set each held direction. */
 let padOwnsLeft = false;
 let padOwnsRight = false;
+let padOwnsDown = false;
 
 /**
  * Read the controller synchronously and write straight into the game's shared
@@ -387,20 +388,31 @@ export function pumpGamepadInput(target: {
   left: boolean;
   right: boolean;
   jumpReq: boolean;
+  down?: boolean;
 }): void {
   if (typeof navigator === "undefined") return;
   if (!connected && pads().length === 0) {
-    padOwnsLeft = padOwnsRight = false;
+    padOwnsLeft = padOwnsRight = padOwnsDown = false;
     return;
   }
 
   sample();
   heldLeft = hold(heldLeft, sampleX, -1);
   heldRight = hold(heldRight, sampleX, 1);
+  heldDown = hold(heldDown, sampleY, 1);
   if (heldLeft && heldRight) {
     if (sampleX < 0) heldRight = false;
     else heldLeft = false;
   }
+
+  if (heldDown) {
+    target.down = true;
+    padOwnsDown = true;
+  } else if (padOwnsDown) {
+    target.down = false;
+    padOwnsDown = false;
+  }
+
 
   if (heldLeft) {
     target.left = true;

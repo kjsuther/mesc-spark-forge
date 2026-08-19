@@ -31,7 +31,14 @@ const BUILD_FLAGS: GameFlags = {
   resume_checkpoint: false,
 };
 
-type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
+type TouchInput = {
+  left: boolean;
+  right: boolean;
+  jumpReq: boolean;
+  resetReq: boolean;
+  /** Held "down" — raises the umbrella in the waiting zone. */
+  down: boolean;
+};
 
 type LaunchMode = "standard" | "fullscreen" | "demo";
 type MenuScreen = "title" | "explainer" | "trailmap" | "controls" | "scores";
@@ -259,7 +266,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
   useEffect(() => {
     if (!launchMode) return;
     const w = window as unknown as { __gameInput?: TouchInput };
-    w.__gameInput = { left: false, right: false, jumpReq: false, resetReq: false };
+    w.__gameInput = { left: false, right: false, jumpReq: false, resetReq: false, down: false };
 
     // Start a fresh run on the default theme.
     music.reset();
@@ -384,6 +391,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       w.__gameInput.right = false;
       w.__gameInput.jumpReq = false;
       w.__gameInput.resetReq = false;
+      w.__gameInput.down = false;
     }
     setEndResult(null);
     setError(null);
@@ -409,6 +417,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       w.__gameInput.left = false;
       w.__gameInput.right = false;
       w.__gameInput.jumpReq = false;
+      w.__gameInput.down = false;
     };
     const onContextLost = (event: Event) => {
       event.preventDefault();
@@ -837,6 +846,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
       if (input) {
         input.left = f.left;
         input.right = f.right;
+        input.down = f.down;
         if (f.jump || f.tapUp) input.jumpReq = true;
         if (f.select) input.resetReq = true;
       }
@@ -872,7 +882,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
 
 
 
-  function setBtn(k: "left" | "right", v: boolean) {
+  function setBtn(k: "left" | "right" | "down", v: boolean) {
     const w = window as unknown as { __gameInput?: TouchInput };
     if (w.__gameInput) w.__gameInput[k] = v;
     if (v) setShowHint(false);
@@ -1425,6 +1435,7 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
                   setBtn("left", dir < 0);
                   setBtn("right", dir > 0);
                 }}
+                onDownChange={(held) => setBtn("down", held)}
               />
             </div>
 
@@ -1788,12 +1799,22 @@ function PadButton({
  * Vertical movement is ignored so JUMP stays a separate, simultaneously
  * holdable button.
  */
-function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 | 1) => void }) {
+function JoystickPad({
+  size,
+  onChange,
+  onDownChange,
+}: {
+  size: number;
+  onChange: (dir: -1 | 0 | 1) => void;
+  onDownChange?: (held: boolean) => void;
+}) {
   const padRef = useRef<HTMLDivElement | null>(null);
   const activePointerRef = useRef<number | null>(null);
   const touchIdRef = useRef<number | null>(null);
   const originRef = useRef(0);
+  const originYRef = useRef(0);
   const dirRef = useRef<-1 | 0 | 1>(0);
+  const downRef = useRef(false);
   const [knob, setKnob] = useState(0);
   const [active, setActive] = useState(false);
 
@@ -1803,6 +1824,8 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onDownRef = useRef(onDownChange);
+  onDownRef.current = onDownChange;
 
   const emit = useCallback((dir: -1 | 0 | 1) => {
     if (dirRef.current === dir) return;
@@ -1810,20 +1833,32 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
     onChangeRef.current(dir);
   }, []);
 
+  /** Pulling the stick down raises the umbrella (waiting zone only). */
+  const emitDown = useCallback((held: boolean) => {
+    if (downRef.current === held) return;
+    downRef.current = held;
+    onDownRef.current?.(held);
+  }, []);
+
   const track = useCallback(
-    (clientX: number) => {
+    (clientX: number, clientY?: number) => {
       const dx = clientX - originRef.current;
       setKnob(Math.max(-maxTravel, Math.min(maxTravel, dx)));
+      const dy = clientY === undefined ? 0 : clientY - originYRef.current;
+      // Down wins only when the pull is clearly more vertical than horizontal,
+      // so steering never accidentally opens the umbrella.
+      emitDown(dy > deadZone * 1.6 && Math.abs(dy) > Math.abs(dx));
       emit(dx > deadZone ? 1 : dx < -deadZone ? -1 : 0);
     },
-    [emit, maxTravel, deadZone],
+    [emit, emitDown, maxTravel, deadZone],
   );
 
   const neutral = useCallback(() => {
     setActive(false);
     setKnob(0);
     emit(0);
-  }, [emit]);
+    emitDown(false);
+  }, [emit, emitDown]);
 
   const release = useCallback(
     (pointerId?: number) => {
@@ -1851,8 +1886,9 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
       touchIdRef.current = t.identifier;
       const box = el.getBoundingClientRect();
       originRef.current = box.left + box.width / 2;
+      originYRef.current = box.top + box.height / 2;
       setActive(true);
-      track(t.clientX);
+      track(t.clientX, t.clientY);
     };
     const findTouch = (list: TouchList) => {
       for (const t of Array.from(list)) if (t.identifier === touchIdRef.current) return t;
@@ -1863,7 +1899,7 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
       const t = findTouch(e.touches);
       if (!t) return;
       e.preventDefault();
-      track(t.clientX);
+      track(t.clientX, t.clientY);
     };
     const end = (e: TouchEvent) => {
       if (touchIdRef.current === null) return;
@@ -1924,19 +1960,20 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
         }
         activePointerRef.current = e.pointerId;
         originRef.current = e.currentTarget.getBoundingClientRect().left + radius;
+        originYRef.current = e.currentTarget.getBoundingClientRect().top + radius;
         setActive(true);
         try {
           (e.currentTarget as HTMLDivElement).setPointerCapture?.(e.pointerId);
         } catch {
           /* noop */
         }
-        track(e.clientX);
+        track(e.clientX, e.clientY);
       }}
       onPointerMove={(e) => {
         if (e.pointerType === "touch") return;
         if (activePointerRef.current !== e.pointerId) return;
         e.preventDefault();
-        track(e.clientX);
+        track(e.clientX, e.clientY);
       }}
       onPointerUp={(e) => {
         if (e.pointerType === "touch") return;
@@ -2046,6 +2083,7 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
     ["← →", "Move"],
     ["Space / ↑", "Jump"],
     ["Space / ↑ ×2", "Double jump (press again in mid-air)"],
+    ["↓ / S", "Hold to raise your umbrella (waiting zone only)"],
     ["R", "Restart run"],
     ["Esc", "Pause"],
   ];
@@ -2053,6 +2091,7 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
     ["STICK ◀ ▶", "Slide to move (slide across to turn)"],
     ["⤒", "Jump"],
     ["⤒ ⤒", "Double jump (tap again in mid-air)"],
+    ["STICK ▼", "Pull down to raise your umbrella (waiting zone only)"],
     ["Tap", "Continue screens"],
     ["⛶", "Full screen"],
   ];
@@ -2061,6 +2100,7 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
     ["BUTTON 1", "Jump / Continue"],
     ["BUTTON 1 ×2", "Double jump (press again in mid-air)"],
     ["STICK ↑", "Jump"],
+    ["STICK ▼", "Hold down to raise your umbrella (waiting zone only)"],
     ["SELECT", "Restart run"],
   ];
 

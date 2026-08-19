@@ -330,6 +330,24 @@ const ES: Record<string, string> = {
   "Resumed from your saved checkpoint.": "Continuaste desde tu punto guardado.",
   "Live chat open — you're shielded in this zone!":
     "Chat en vivo abierto: ¡estás protegido en esta zona!",
+  "NEW: hold DOWN (↓ / S / stick down) to raise your umbrella — dates bounce off":
+    "NUEVO: mantén ABAJO (↓ / S / palanca abajo) para abrir tu paraguas: las fechas rebotan",
+  "NEW: pull the joystick DOWN to raise your umbrella — dates bounce off":
+    "NUEVO: tira la palanca ABAJO para abrir tu paraguas: las fechas rebotan",
+  "(you move slower under it). Survive 10 seconds and the dates stop —":
+    "(te mueves más lento debajo). Sobrevive 10 segundos y las fechas paran:",
+  "Umbrella up! Falling dates bounce off while you hold it.":
+    "¡Paraguas arriba! Las fechas rebotan mientras lo sostienes.",
+  "Hold to raise your umbrella (waiting zone only)":
+    "Mantén presionado para abrir tu paraguas (solo en la zona de espera)",
+  "Pull down to raise your umbrella (waiting zone only)":
+    "Tira hacia abajo para abrir tu paraguas (solo en la zona de espera)",
+  "Hold down to raise your umbrella (waiting zone only)":
+    "Mantén abajo para abrir tu paraguas (solo en la zona de espera)",
+  "Dodge the dates 10 seconds. Hold DOWN for your umbrella.":
+    "Esquiva las fechas 10 segundos. Mantén ABAJO para tu paraguas.",
+  "Dodge the dates 10 seconds. Pull the stick DOWN for your umbrella.":
+    "Esquiva las fechas 10 segundos. Tira la palanca ABAJO para tu paraguas.",
   "Emailed your case worker — umbrella up!":
     "Enviaste un correo a tu trabajador social: ¡paraguas arriba!",
   "Navigator joined you — they'll handle the boss!":

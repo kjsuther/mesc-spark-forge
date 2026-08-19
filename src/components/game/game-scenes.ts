@@ -1775,6 +1775,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       met: () => boolean;
     };
     const zoneObjectives: (ZoneObjective | null)[] = new Array(ZONES.length).fill(null);
+    // Manual umbrella: held Down in the Awaiting-Decision zone. Tracked here so
+    // the visual, the movement penalty and the damage check all read one flag.
+    const umbrellaState = { up: false, taught: false };
     const zoneState = {
       methodTouched: false,
       userGot: false,
@@ -3123,7 +3126,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       k,
       mx0 + 150,
       GROUND_Y - 210,
-      "Dodge the dates for 10 seconds — then they stop.",
+      isCoarsePointer()
+        ? "Dodge the dates 10 seconds. Pull the stick DOWN for your umbrella."
+        : "Dodge the dates 10 seconds. Hold DOWN for your umbrella.",
       "AWAITING DECISION",
     );
     zoneObjectives[5] = {
@@ -3801,7 +3806,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       const shielded = powerUps.shieldActive(zoneNow);
       shieldRing.opacity = shielded ? 0.35 + Math.sin(k.time() * 8) * 0.15 : 0;
       shieldRing.pos = k.vec2(player.pos.x, player.pos.y - 26);
-      const umb = powerUps.umbrellaActive(zoneNow);
+      const umb = powerUps.umbrellaActive(zoneNow) || umbrellaState.up;
       umbrella.opacity = umb ? 1 : 0;
       umbrella.pos = k.vec2(player.pos.x, player.pos.y - DISPLAY_H["hero-idle"] - 10);
     });
@@ -4255,7 +4260,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         lines: [
           "Avoid the falling calendar dates for 10 seconds.",
           "A date that touches you costs a life and restarts the 10 seconds.",
-          "Make it 10 seconds and the dates stop falling —",
+          isCoarsePointer()
+            ? "NEW: pull the joystick DOWN to raise your umbrella — dates bounce off"
+            : "NEW: hold DOWN (↓ / S / stick down) to raise your umbrella — dates bounce off",
+          "(you move slower under it). Survive 10 seconds and the dates stop —",
           "then walk right through the unlocked door.",
         ],
         icons: [{ sprite: "calendar-page", label: "FALLING DATE", danger: true }],
@@ -5747,7 +5755,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       // In the Awaiting-Decision zone, a calendar hit also resets the countdown
       // to the full 10 seconds — feels like the clock starting over.
       const zoneNow = Math.floor(player.pos.x / BIOME_W);
-      if (enemyMgr.blocksDamage("boulder", zoneNow)) {
+      if (enemyMgr.blocksDamage("boulder", zoneNow, umbrellaState.up)) {
         // Umbrella: the calendar bounces away instead of hurting.
         const obj = b as unknown as { pos: { x: number; y: number }; spd?: number; baseX?: number };
         obj.pos.y = -80;
@@ -6219,7 +6227,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const rightKeys = ["right", "d"];
     const jumpKeys = ["space", "up", "w"];
 
-    type TouchInput = { left: boolean; right: boolean; jumpReq: boolean; resetReq: boolean };
+    type TouchInput = {
+      left: boolean;
+      right: boolean;
+      jumpReq: boolean;
+      resetReq: boolean;
+      down?: boolean;
+    };
     const w =
       typeof window !== "undefined"
         ? (window as unknown as { __gameInput?: TouchInput })
@@ -6231,6 +6245,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       w.__gameInput.right = false;
       w.__gameInput.jumpReq = false;
       w.__gameInput.resetReq = false;
+      w.__gameInput.down = false;
     }
     let leftArmed = false;
     let rightArmed = false;
@@ -6776,7 +6791,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         dir = Math.sign(dir);
       }
 
-      player.move(dir * MOVE_SPEED, 0);
+      // ----- Umbrella: hold Down in the waiting zone to shelter -----
+      {
+        const zoneNow = Math.floor(player.pos.x / BIOME_W);
+        let downHeld = false;
+        if (!DEMO) {
+          for (const key of ["down", "s"]) if (k.isKeyDown(key as never)) downHeld = true;
+          if (w?.__gameInput?.down) downHeld = true;
+        }
+        const canUmbrella = zoneNow === ZONE_INDEX.awaitDecision && !player.dead && !player.won;
+        const nowUp = downHeld && canUmbrella;
+        if (nowUp && !umbrellaState.up && !umbrellaState.taught) {
+          umbrellaState.taught = true;
+          showHint(tr("Umbrella up! Falling dates bounce off while you hold it."), 2.6);
+        }
+        umbrellaState.up = nowUp;
+      }
+
+      // Sheltering slows you down — you can walk, but not sprint, under it.
+      player.move(dir * MOVE_SPEED * (umbrellaState.up ? 0.45 : 1), 0);
       if (dir > 0 && !zoneState.cutscene) player.score += 1;
 
       // A collapsing Zone 3 platform stops being ground the instant it lets

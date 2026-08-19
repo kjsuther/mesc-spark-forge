@@ -149,9 +149,14 @@ export class EnemyManager {
    * Falling calendars are blocked only by the umbrella; ground enemies are
    * blocked only by the chat shield; pits always hurt.
    */
-  blocksDamage(source: DamageSource, zoneIdx: number): boolean {
+  blocksDamage(source: DamageSource, zoneIdx: number, manualUmbrella = false): boolean {
     if (source === "water") return false;
-    if (source === "boulder") return this.powerups.umbrellaActive(zoneIdx);
+    if (source === "boulder") {
+      // Either the Email power-up umbrella or the player holding Down to raise
+      // their own umbrella in the waiting zone deflects a falling date.
+      if (manualUmbrella && zoneIdx === ZONE_INDEX.awaitDecision) return true;
+      return this.powerups.umbrellaActive(zoneIdx);
+    }
     return this.powerups.shieldActive(zoneIdx);
   }
 }

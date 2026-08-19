@@ -2462,6 +2462,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         item.pos.y = item.basY + Math.sin(k.time() * 2) * 5;
       });
       item.sign = addSpeech(k, ux, uy - 32, "USERNAME", [30, 60, 130]);
+      markCollectible(k, item, {
+        label: "GRAB",
+        width: disp.w,
+        height: DISPLAY_H["username"],
+        topLift: 26,
+      });
     }
     // Password collectible + patrolling padlock
     {

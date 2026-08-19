@@ -169,7 +169,10 @@ function sample() {
   sampleX = x;
   sampleY = y;
   heldButtons = down;
-  for (const i of down) latchedButtons.add(i);
+  for (const i of down) {
+    latchedButtons.add(i);
+    pullLatched.add(i);
+  }
 }
 
 /** Held-with-hysteresis: engage at MOVE_ON, stay on until below MOVE_OFF. */

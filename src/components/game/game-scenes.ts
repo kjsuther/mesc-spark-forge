@@ -4195,6 +4195,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       label(data.subtitle, 17, [180, 205, 255], textW - px(48), { fit: true, min: 10 });
       y += px(4);
       label(data.lines.map((l) => `• ${l}`).join("\n"), 19, [245, 245, 245], textW - px(60));
+      // Enemy zones repeat the one rule new players miss, in danger red.
+      if (data.icons.some((i) => i.danger)) {
+        label("! NEVER TOUCH A RED-MARKED ENEMY — JUMP OVER IT !", 17, [255, 120, 110], textW - px(60));
+      }
 
       // Sprite strip: what you'll meet in this zone.
       const iconTop = Math.min(y + px(8), panelY + panelH - px(124));
@@ -4271,10 +4275,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           k.text(icon.label, { size: capSize, font: UI_FONT, align: "center" }),
           k.pos(ix, centerY + iconBox / 2 + px(12)),
           k.anchor("top"),
-          k.color(200, 215, 255),
+          k.color(...(icon.danger ? ([255, 120, 110] as const) : ([200, 215, 255] as const))),
           k.fixed(),
           k.z(303),
         ]);
+        if (icon.danger) {
+          put([
+            k.text("AVOID", { size: capSize, font: UI_FONT, align: "center" }),
+            k.pos(ix, centerY + iconBox / 2 + px(12) + capSize + px(4)),
+            k.anchor("top"),
+            k.color(255, 220, 90),
+            k.fixed(),
+            k.z(303),
+          ]);
+        }
 
         ix += iconBox + gap;
       }

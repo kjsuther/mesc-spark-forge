@@ -1549,6 +1549,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       ]);
     });
 
+    // ---- Decorative mosquito swarm (backdrop only, no collision) ---------
+    {
+      const perZone = isTouchDevice() ? 2 : 3;
+      ZONES.forEach((_z, i) => spawnMosquitoSwarm(k, i * BIOME_W, BIOME_W, perZone));
+    }
+
+
     // ---- Ground ----
     // Zone 0: 3 small jump gaps carved BETWEEN the four brick positions
     // (bricks live at x = 220, 460, 720, 980) so a gap never blocks reaching a brick.
@@ -6838,6 +6845,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.z(LAYERS.BG_FAR),
       ]);
     }
+    spawnMosquitoSwarm(k, 0, STAGE_END, isTouchDevice() ? 2 : 3);
+
     // Unbroken ground — there is nothing here to fall into.
     addGround(k, -200, STAGE_END + 200, GROUND_Y, ZONES[0].ground, ZONES[0].soil);
     // Invisible walls keep the practice pen closed on both ends.
@@ -7577,6 +7586,98 @@ function removeSpeech(parts?: AnyObj[] | null) {
     } catch {
       /* already gone */
     }
+  }
+}
+
+/** Tiny decorative mosquito that flies back and forth across a stretch of the
+ *  backdrop with a fluttering wobble. Purely cosmetic: no area, no collision,
+ *  no gameplay effect. Drawn on BG_NEAR so it never covers gameplay or UI. */
+function spawnMosquito(k: Ctx, x: number, y: number, range: number) {
+  const scale = 0.8 + Math.random() * 0.7;
+  const speed = (26 + Math.random() * 26) * scale;
+  const bobAmp = 5 + Math.random() * 7;
+  const bobSpeed = 1.4 + Math.random() * 1.2;
+  const phase = Math.random() * Math.PI * 2;
+  const left = x - range / 2;
+  const right = x + range / 2;
+  const z = LAYERS.BG_NEAR + 1;
+  const body = k.add([
+    k.rect(6 * scale, 3 * scale),
+    k.pos(x, y),
+    k.anchor("center"),
+    k.color(38, 34, 44),
+    k.opacity(0.9),
+    k.z(z),
+  ]) as AnyObj;
+  const head = k.add([
+    k.rect(3 * scale, 3 * scale),
+    k.pos(x, y),
+    k.anchor("center"),
+    k.color(28, 24, 34),
+    k.opacity(0.9),
+    k.z(z),
+  ]) as AnyObj;
+  const beak = k.add([
+    k.rect(4 * scale, 1 * scale),
+    k.pos(x, y),
+    k.anchor("center"),
+    k.color(28, 24, 34),
+    k.opacity(0.85),
+    k.z(z),
+  ]) as AnyObj;
+  const wingA = k.add([
+    k.rect(5 * scale, 2 * scale),
+    k.pos(x, y),
+    k.anchor("center"),
+    k.color(225, 235, 245),
+    k.opacity(0.6),
+    k.z(z),
+  ]) as AnyObj;
+  const wingB = k.add([
+    k.rect(5 * scale, 2 * scale),
+    k.pos(x, y),
+    k.anchor("center"),
+    k.color(225, 235, 245),
+    k.opacity(0.6),
+    k.z(z),
+  ]) as AnyObj;
+
+  let px = x;
+  let dir = Math.random() < 0.5 ? -1 : 1;
+  k.onUpdate(() => {
+    px += dir * speed * k.dt();
+    if (px < left) {
+      px = left;
+      dir = 1;
+    } else if (px > right) {
+      px = right;
+      dir = -1;
+    }
+    const t = k.time();
+    const py = y + Math.sin(t * bobSpeed + phase) * bobAmp;
+    // 2-frame wing flutter (fast up/down flap).
+    const flap = Math.sin(t * 26 + phase) > 0 ? -2 * scale : 1 * scale;
+    body.pos.x = px;
+    body.pos.y = py;
+    head.pos.x = px + dir * 4 * scale;
+    head.pos.y = py;
+    beak.pos.x = px + dir * 7.5 * scale;
+    beak.pos.y = py;
+    wingA.pos.x = px - dir * 1 * scale;
+    wingA.pos.y = py + flap - 2 * scale;
+    wingB.pos.x = px - dir * 3 * scale;
+    wingB.pos.y = py - flap - 1 * scale;
+  });
+}
+
+/** Scatter a small swarm of decorative mosquitoes over a horizontal span. */
+function spawnMosquitoSwarm(k: Ctx, x0: number, width: number, count: number) {
+  const n = Math.max(0, Math.min(4, count));
+  for (let i = 0; i < n; i++) {
+    const cx = x0 + width * (0.15 + (0.7 * (i + 0.5)) / n) + (Math.random() - 0.5) * 60;
+    const cy = 90 + Math.random() * 210;
+    const range = 90 + Math.random() * 150;
+    spawnMosquito(k, cx, cy, range);
   }
 }
 

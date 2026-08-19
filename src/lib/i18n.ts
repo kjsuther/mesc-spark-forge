@@ -176,6 +176,9 @@ const ES: Record<string, string> = {
   "Collect the Username item.": "Recoge el Usuario.",
   "Collect the Password item.": "Recoge la Contraseña.",
   "Jump over the Account Locks.": "Salta sobre los Candados de Cuenta.",
+  EXIT: "SALIDA",
+  "Walk into the door to rejoin the trail":
+    "Entra por la puerta para volver al camino",
   "Account Locks hurt — jump over them or you lose a life.":
     "Los Candados de Cuenta hacen daño: salta sobre ellos o pierdes una vida.",
   "Evil Clipboards hurt — jump over them or you lose a life.":

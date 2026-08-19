@@ -5648,6 +5648,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     const BONUS_X0 = BIOME_W + 120;
     const BONUS_X1 = BIOME_W + 1080;
     const BONUS_GROUND_Y = GROUND_Y + BONUS_DY;
+    const BONUS_EXIT_X = BONUS_X1 - 90;
     let bonusActive = false;
     let bonusUsed = false;
     let bonusBuilt = false;
@@ -5676,7 +5677,26 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         "Collect everything — no enemies here!",
         [190, 235, 255],
       );
-      showFloatingSign(BONUS_X1 - 130, BONUS_GROUND_Y - 210, "EXIT →", [255, 220, 90]);
+      // Visible exit door — the bonus stage now ends at a real doorway instead
+      // of an unmarked drop off the right edge.
+      {
+        const disp = displaySize("door-open", sizes);
+        k.add([
+          k.sprite("door-open", { width: disp.w, height: DISPLAY_H["door-open"] }),
+          k.pos(BONUS_EXIT_X, BONUS_GROUND_Y),
+          k.anchor("bot"),
+          k.z(LAYERS.PROP + 2),
+        ]);
+        showFloatingSign(BONUS_EXIT_X, BONUS_GROUND_Y - DISPLAY_H["door-open"] - 46, "EXIT", [
+          255, 220, 90,
+        ]);
+        showFloatingSign(
+          BONUS_EXIT_X,
+          BONUS_GROUND_Y - DISPLAY_H["door-open"] - 22,
+          "Walk into the door to rejoin the trail",
+          [190, 235, 255],
+        );
+      }
 
       // Treats: a simple arc of collectible points across the waterfront.
       for (let i = 0; i < 9; i++) {
@@ -5733,7 +5753,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
     function exitBonusStage() {
       bonusActive = false;
-      player.pos = k.vec2(Z1_GAP_X1 + 70, GROUND_Y - 60);
+      // The bonus pocket replaces the rest of Zone 2, so credit that zone's
+      // objective and open its door before we move: the per-frame zone change
+      // handler below then sees a coherent state when it fires for Zone 3.
+      zoneState.userGot = true;
+      zoneState.passGot = true;
+      unlockDoor(1);
+      player.pos = k.vec2(BIOME_W * 2 + 70, GROUND_Y - 60);
       player.vel = k.vec2(0, 0);
       player.riding = null;
       player.invulnUntil = k.time() + 1.0;
@@ -5754,7 +5780,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     /** Runs every frame while the hidden stage is on screen. */
     function updateBonusStage() {
       if (!bonusActive) return;
-      if (player.pos.x > BONUS_X1 || player.pos.y > BONUS_GROUND_Y + 220) exitBonusStage();
+      const atDoor =
+        Math.abs(player.pos.x - BONUS_EXIT_X) < 34 && player.pos.y > BONUS_GROUND_Y - 150;
+      // Door is the intended exit; the edge/fall checks stay as a safety net so
+      // nobody can strand themselves out here.
+      if (atDoor || player.pos.x > BONUS_X1 || player.pos.y > BONUS_GROUND_Y + 220)
+        exitBonusStage();
       else if (player.pos.x < BONUS_X0 - 100) player.pos.x = BONUS_X0 - 100;
     }
 

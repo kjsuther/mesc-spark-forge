@@ -3445,6 +3445,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         invulnUntil: 0,
         lastGroundedAt: k.time(),
         jumpBufferedAt: -1,
+        airJumpsLeft: 1,
         farthestZone: Math.min(ZONES.length - 1, Math.max(0, Math.floor(spawnX / BIOME_W))),
         rightmostX: spawnX,
         wasGrounded: true,

@@ -6294,9 +6294,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
 
 
+      // Zone 5 is a timed wait: make sure the clock is actually running (the
+      // briefing normally starts it) so the demo can't idle here forever.
+      if (currentZone === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
+
       let dir = 1;
       let jump = false;
       const target = demoTarget();
+      const openDoor = doors[currentZone];
       if (target) {
         const dx = target.x - player.pos.x;
         const dy = player.pos.y - target.y;
@@ -6315,13 +6320,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           demoTargetSince = now;
         } else if (demoTargetSince === 0) {
           demoTargetSince = now;
-        } else if (now - demoTargetSince > 9) {
+        } else if (now - demoTargetSince > 6) {
           jump = true;
-          demoTargetSince = now - 5;
+          demoTargetSince = now - 3;
         }
+      } else if (openDoor?.unlocked && currentZone < 7) {
+        // Nothing left to collect: walk straight at the open doorway so the
+        // walk-through transition always fires.
+        const ddx = openDoor.obj.pos.x - player.pos.x;
+        dir = ddx < -8 ? -1 : 1;
+        demoTargetSince = 0;
       } else {
         demoTargetSince = 0;
       }
+
 
       // Enemies, incoming paperwork and pits all get the same answer: hop.
       if (demoNear("monster", 150, 130)) jump = true;

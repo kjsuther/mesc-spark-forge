@@ -7177,7 +7177,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     };
 
     // ---- Practice checklist ---------------------------------------------
-    const done = { move: false, jump: false, collect: false };
+    const done = { move: false, jump: false, dbl: false, collect: false };
     let ready = false;
     let left = false;
 

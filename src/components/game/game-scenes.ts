@@ -6833,8 +6833,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         umbrellaState.up = nowUp;
       }
 
-      // Sheltering slows you down — you can walk, but not sprint, under it.
-      player.move(dir * MOVE_SPEED * (umbrellaState.up ? 0.45 : 1), 0);
+      // Sheltering slows you down — unless the Email power-up is carried, which
+      // is now its benefit: shelter at full walking speed.
+      {
+        const zoneNow = Math.floor(player.pos.x / BIOME_W);
+        const slow = umbrellaState.up && !powerUps.umbrellaActive(zoneNow) ? 0.45 : 1;
+        player.move(dir * MOVE_SPEED * slow, 0);
+      }
+
       if (dir > 0 && !zoneState.cutscene) player.score += 1;
 
       // A collapsing Zone 3 platform stops being ground the instant it lets

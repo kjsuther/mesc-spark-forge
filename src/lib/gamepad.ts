@@ -361,6 +361,69 @@ export function subscribeGamepad(fn: Listener): () => void {
   };
 }
 
+/** Face buttons that all count as "jump" on an arcade stick. */
+const FACE_BUTTONS = [0, 1, 2, 3];
+/** Buttons pressed since the last direct pull (sub-frame taps land here). */
+const pullLatched = new Set<number>();
+/** Buttons already held at the previous direct pull. */
+let pullPrev = new Set<number>();
+/** Whether the pad — rather than touch/keyboard — set each held direction. */
+let padOwnsLeft = false;
+let padOwnsRight = false;
+
+/**
+ * Read the controller synchronously and write straight into the game's shared
+ * input object. Called from the engine's own update loop so stick and button
+ * state is sampled microseconds before the hero moves — no extra frame of lag
+ * from the subscription pipeline.
+ *
+ * Touch and keyboard input share the same object, so directions the pad is not
+ * driving are left untouched.
+ */
+export function pumpGamepadInput(target: {
+  left: boolean;
+  right: boolean;
+  jumpReq: boolean;
+}): void {
+  if (typeof navigator === "undefined") return;
+  if (!connected && pads().length === 0) {
+    padOwnsLeft = padOwnsRight = false;
+    return;
+  }
+
+  sample();
+  heldLeft = hold(heldLeft, sampleX, -1);
+  heldRight = hold(heldRight, sampleX, 1);
+  if (heldLeft && heldRight) {
+    if (sampleX < 0) heldRight = false;
+    else heldLeft = false;
+  }
+
+  if (heldLeft) {
+    target.left = true;
+    padOwnsLeft = true;
+  } else if (padOwnsLeft) {
+    target.left = false;
+    padOwnsLeft = false;
+  }
+  if (heldRight) {
+    target.right = true;
+    padOwnsRight = true;
+  } else if (padOwnsRight) {
+    target.right = false;
+    padOwnsRight = false;
+  }
+
+  for (const i of FACE_BUTTONS) {
+    if ((pullLatched.has(i) || heldButtons.has(i)) && !pullPrev.has(i)) {
+      target.jumpReq = true;
+      break;
+    }
+  }
+  pullPrev = new Set(heldButtons);
+  pullLatched.clear();
+}
+
 export function isGamepadConnected(): boolean {
   return connected;
 }

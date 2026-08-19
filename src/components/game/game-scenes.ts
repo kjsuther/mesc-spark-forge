@@ -4361,7 +4361,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.onKeyPress(key as never, () => close()),
       );
       // Attract mode reads the briefing for the audience, then moves on.
-      if (DEMO) k.wait(3.2, () => close());
+      if (DEMO) k.wait(2.8, () => close());
       const blink = k.onUpdate(() => {
         if (promptNode) promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.3;
       });

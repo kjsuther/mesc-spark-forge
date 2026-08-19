@@ -6358,14 +6358,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         demoLastX = player.pos.x;
         demoLastProgressAt = now;
       }
-      // Last resort: wedged against something for a while.
+      // Last resort: wedged against something for a while. Hop first; only if
+      // that fails do we reposition — and then onto solid ground inside the
+      // current zone, never a blind 70px shove that can drop us into a pit.
       if (now - demoLastProgressAt > 2.5) jump = true;
-      if (now - demoLastProgressAt > 9) {
-        player.pos.x += 70;
-        player.pos.y = Math.min(player.pos.y, GROUND_Y - 40);
+      if (now - demoLastProgressAt > 7) {
+        const zoneStart = currentZone * BIOME_W + 60;
+        const zoneEnd = (currentZone + 1) * BIOME_W - 120;
+        player.pos.x = Math.min(zoneEnd, Math.max(zoneStart, player.pos.x + 40));
+        player.pos.y = GROUND_Y - 40;
+        player.vel = k.vec2(0, 0);
+        player.riding = null;
         demoLastX = player.pos.x;
         demoLastProgressAt = now;
       }
+
 
 
       if (jump && grounded) tryJump();

@@ -3977,6 +3977,8 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       glyph?: string;
       shape?: "platform" | "stairs";
       label: string;
+      /** Enemies/hazards: captioned in red with an AVOID tag. */
+      danger?: boolean;
     };
     type StepScreen = { title: string; subtitle: string; lines: string[]; icons: StepIcon[] };
     const STEP_SCREENS: StepScreen[] = [
@@ -3995,12 +3997,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         lines: [
           "Collect the Username item.",
           "Collect the Password item.",
-          "Jump over the Account Locks.",
+          "Account Locks hurt — jump over them or you lose a life.",
         ],
         icons: [
           { sprite: "username", label: "USERNAME" },
           { sprite: "password", label: "PASSWORD" },
-          { sprite: "padlock", label: "ACCOUNT LOCK" },
+          { sprite: "padlock", label: "ACCOUNT LOCK", danger: true },
         ],
       },
       {
@@ -4015,21 +4017,27 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       {
         title: "STEP 4 · GATHER YOUR DOCUMENTS",
         subtitle: "Gathering Supplies",
-        lines: ["Collect all 3 required documents.", "Jump over the Evil Clipboards."],
+        lines: [
+          "Collect all 3 required documents.",
+          "Evil Clipboards hurt — jump over them or you lose a life.",
+        ],
         icons: [
           { sprite: "id", label: "ID" },
           { sprite: "paystub", label: "INCOME" },
           { sprite: "envelope", label: "HOUSEHOLD" },
-          { sprite: "form-monster", label: "EVIL CLIPBOARD" },
+          { sprite: "form-monster", label: "EVIL CLIPBOARD", danger: true },
         ],
       },
       {
         title: "STEP 5 · RESPOND TO REQUEST",
         subtitle: "Answering the Call",
-        lines: ["Collect all 4 mailboxes.", "Jump over the Monster Envelopes."],
+        lines: [
+          "Collect all 4 mailboxes.",
+          "Monster Envelopes hurt — jump over them or you lose a life.",
+        ],
         icons: [
           { sprite: "mailbox", label: "MAILBOX" },
-          { sprite: "envelope-gremlin-0", label: "MONSTER ENVELOPE" },
+          { sprite: "envelope-gremlin-0", label: "MONSTER ENVELOPE", danger: true },
         ],
       },
       {
@@ -4037,11 +4045,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         subtitle: "Waiting Mountain",
         lines: [
           "Avoid the falling calendar dates for 10 seconds.",
-          "If a date hits you, the 10 seconds start over.",
+          "A date that touches you costs a life and restarts the 10 seconds.",
           "Make it 10 seconds and the dates stop falling —",
           "then walk right through the unlocked door.",
         ],
-        icons: [{ sprite: "calendar-page", label: "FALLING DATE" }],
+        icons: [{ sprite: "calendar-page", label: "FALLING DATE", danger: true }],
       },
       {
         title: "STEP 7 · SELECTING YOUR MANAGED CARE PLAN",

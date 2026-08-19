@@ -1571,7 +1571,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   // keeps the run alive.
   {
     const rawBody = k.body.bind(k) as Ctx["body"];
-    (k as unknown as { body: Ctx["body"] }).body = ((options?: unknown) => {
+    const guardedBody = ((options?: unknown) => {
       const comp = rawBody(options as never) as unknown as {
         update?: () => void;
         fixedUpdate?: () => void;
@@ -1589,7 +1589,19 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       return comp as ReturnType<Ctx["body"]>;
     }) as Ctx["body"];
+    // The context object can expose `body` as a non-writable property, so a
+    // plain assignment silently does nothing — define it explicitly.
+    try {
+      Object.defineProperty(k, "body", {
+        value: guardedBody,
+        writable: true,
+        configurable: true,
+      });
+    } catch {
+      (k as unknown as { body: Ctx["body"] }).body = guardedBody;
+    }
   }
+
 
 
   // Localization hook: every text component created from here on is routed

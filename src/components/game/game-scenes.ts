@@ -2487,6 +2487,12 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         item.pos.y = item.basY + Math.sin(k.time() * 2 + 1) * 5;
       });
       item.sign = addSpeech(k, px, py - 32, "PASSWORD", [30, 60, 130]);
+      markCollectible(k, item, {
+        label: "GRAB",
+        width: disp.w,
+        height: DISPLAY_H["password"],
+        topLift: 26,
+      });
     }
     // Password padlock enemy patrol.
     // Player-feedback fix: this lock used to sit RIGHT of the Z1 gap, which

@@ -2373,7 +2373,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
 
       // First real enemy of the run: a blinking coach caption rides above it
       // until the player has cleared it, so nobody learns the rule by dying.
-      let coach: AnyObj[] | null = addSpeech(k, px, GROUND_Y - ph - 46, "JUMP OVER ME!", [
+      let coach: AnyObj[] | null = addSpeech(k, px, GROUND_Y - ph - 46, "JUMP OVER — NO STOMPING!", [
         200, 40, 40,
       ]);
       const coachOffsets = coach.map((part) => ({
@@ -4030,7 +4030,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         lines: [
           "Collect the Username item.",
           "Collect the Password item.",
-          "Account Locks hurt — jump over them or you lose a life.",
+          "Account Locks hurt — jump OVER them; stomping does not work.",
         ],
         icons: [
           { sprite: "username", label: "USERNAME" },
@@ -4052,7 +4052,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         subtitle: "Gathering Supplies",
         lines: [
           "Collect all 3 required documents.",
-          "Evil Clipboards hurt — jump over them or you lose a life.",
+          "Evil Clipboards hurt — jump OVER them; stomping does not work.",
         ],
         icons: [
           { sprite: "id", label: "ID" },
@@ -4066,7 +4066,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         subtitle: "Answering the Call",
         lines: [
           "Collect all 4 mailboxes.",
-          "Monster Envelopes hurt — jump over them or you lose a life.",
+          "Monster Envelopes hurt — jump OVER them; stomping does not work.",
         ],
         icons: [
           { sprite: "mailbox", label: "MAILBOX" },
@@ -7056,22 +7056,35 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.z(LAYERS.ACTOR),
         { dir: 1 as 1 | -1 },
       ]) as AnyObj;
-      addSignPlaque(k, ENEMY_HOME, GROUND_Y - 250, "Jump over me — in the real zones I cost a life!", "ENEMY");
+      addSignPlaque(k, ENEMY_HOME, GROUND_Y - 250, "You can't squash me — jump OVER, not on me!", "ENEMY");
       let cleared = false;
       let bumped = 0;
       foe.onUpdate(() => {
         foe.pos.x += foe.dir * 46 * k.dt();
         if (foe.pos.x > ENEMY_HOME + 80) foe.dir = -1;
         if (foe.pos.x < ENEMY_HOME - 80) foe.dir = 1;
-        const overlapping =
-          Math.abs(hero.pos.x - foe.pos.x) < pw * 0.6 && hero.pos.y > GROUND_Y - ph;
-        if (overlapping && k.time() - bumped > 2) {
+        const nearX = Math.abs(hero.pos.x - foe.pos.x) < pw * 0.7;
+        // Landing on the head is the exact mistake this coach exists to stop,
+        // so it gets its own message before the generic contact one.
+        const onHead =
+          nearX &&
+          hero.pos.y <= GROUND_Y - ph * 0.55 &&
+          hero.pos.y >= GROUND_Y - ph - 26 &&
+          (hero.vel?.y ?? 0) >= -10;
+        const overlapping = nearX && hero.pos.y > GROUND_Y - ph;
+        if ((onHead || overlapping) && k.time() - bumped > 2) {
           bumped = k.time();
-          showBanner("That would have cost a life! Jump over enemies.", 3);
+          showBanner(
+            onHead
+              ? "Jumping ON an enemy still hurts — clear it with a full jump."
+              : "No stomping! That would have cost a life — jump over enemies.",
+            3,
+          );
         }
+
         if (!cleared && hero.pos.x > ENEMY_HOME + 120) {
           cleared = true;
-          showBanner("Perfect — that's how you get past an enemy.", 3);
+          showBanner("Perfect — over the top, never on top.", 3);
         }
       });
     }

@@ -79,14 +79,16 @@ async def clear_overlay(page):
     keyboard input, so a case that follows must clear it or it reads as a freeze.
     """
     try:
-        skip = page.get_by_role("button", name="SKIP")
-        if await skip.count() and await skip.first.is_visible():
-            await skip.first.click()
-            await page.wait_for_timeout(600)
         again = page.get_by_role("button", name="PLAY AGAIN")
         if await again.count() and await again.first.is_visible():
             await again.first.click()
             await page.wait_for_timeout(1500)
+            # PLAY AGAIN can land on the title card; press through it.
+            for _ in range(6):
+                if await page.evaluate("!!window.__gameDebug"):
+                    break
+                await page.keyboard.press("Enter")
+                await page.wait_for_timeout(800)
             await dismiss_prompts(page)
             return True
     except Exception:

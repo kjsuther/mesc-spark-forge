@@ -1559,6 +1559,51 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
   // stays crisp inside the GL pipeline; only the final present is smoothed.
   if (opts.canvas) opts.canvas.style.imageRendering = "auto";
 
+  // ---- Physics crash guard ------------------------------------------------
+  // Kaplay's `body` component interpolates between fixed-update steps using a
+  // seed position that is cleared at the start of every fixed step and only
+  // re-seeded on some frames. Freezing objects for a long pause (a briefing
+  // card, the Zone 7 boss cinematic) can leave a body whose render-frame
+  // update runs while that seed is missing, and the engine throws
+  // "Cannot read properties of null" from inside its own loop — which kills
+  // the entire frame loop, so the game silently stops responding to any input.
+  // Swallowing that one transient error costs a single interpolation frame and
+  // keeps the run alive.
+  {
+    const rawBody = k.body.bind(k) as Ctx["body"];
+    const guardedBody = ((options?: unknown) => {
+      const comp = rawBody(options as never) as unknown as {
+        update?: () => void;
+        fixedUpdate?: () => void;
+      };
+      for (const hook of ["update", "fixedUpdate"] as const) {
+        const original = comp[hook];
+        if (!original) continue;
+        comp[hook] = function guarded(this: unknown) {
+          try {
+            original.call(this);
+          } catch {
+            /* interpolation seed lost across a pause — skip this frame */
+          }
+        };
+      }
+      return comp as ReturnType<Ctx["body"]>;
+    }) as Ctx["body"];
+    // The context object can expose `body` as a non-writable property, so a
+    // plain assignment silently does nothing — define it explicitly.
+    try {
+      Object.defineProperty(k, "body", {
+        value: guardedBody,
+        writable: true,
+        configurable: true,
+      });
+    } catch {
+      (k as unknown as { body: Ctx["body"] }).body = guardedBody;
+    }
+  }
+
+
+
   // Localization hook: every text component created from here on is routed
   // through the translation dictionary, so scene code keeps its English
   // literals while the rendered glyphs follow the player's language choice.
@@ -3512,6 +3557,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         dead: false,
         lives: playerMgr.startingLives(),
         maxLives: playerMgr.startingLives(),
+        /** Extra lives earned from 1-UP pickups — survives flag reconciles. */
+        bonusLives: 0,
+
         facing: 1 as 1 | -1,
         invulnUntil: 0,
         lastGroundedAt: k.time(),
@@ -3549,6 +3597,9 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       player.score = resume.score;
       player.lives = Math.max(1, resume.lives);
       player.maxLives = Math.max(player.lives, resume.maxLives);
+      // Anything above the base allowance was earned from a 1-UP; keep it.
+      player.bonusLives = Math.max(0, player.maxLives - playerMgr.startingLives());
+
       player.docs = new Set(resume.docs);
       player.deaths = resume.deaths;
       player.distancePx = resume.distancePx;
@@ -3561,6 +3612,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     if (typeof window !== "undefined") {
       (window as unknown as { __gameDebug?: unknown }).__gameDebug = {
         k,
+        // Live loop gates — QA needs to see why input stopped being read.
+        gates: () => ({
+          paused: isPaused(),
+          transitioning,
+          stepScreenOpen,
+          cutscene: zoneState.cutscene,
+        }),
+
 
         player,
         doors,
@@ -5863,45 +5922,76 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     player.onCollide("water", () => loseLife("water"));
 
     // ================= 1-UP collectibles =================
-    // A 16-bit heart badge. Grabbing it grants an extra application (life);
-    // if the player is already carrying the maximum, it pays points instead so
-    // the pickup is never a dud.
+    // A 16-bit green health cross — the same "+" the briefing screens show.
+    // Grabbing it grants an extra application (life); if the player is already
+    // carrying the maximum it pays points instead so the pickup is never a dud.
     const LIFE_CAP = 5;
     function spawn1UP(x: number, y: number) {
+      // The badge itself is the white plate; the cross and caption ride along.
       const badge = k.add([
-        k.rect(30, 26, { radius: 4 }),
+        k.rect(30, 30, { radius: 4 }),
         k.pos(x, y),
         k.anchor("center"),
-        k.color(230, 60, 90),
-        k.outline(3, k.rgb(255, 245, 235)),
-        k.area({ shape: new k.Rect(k.vec2(0, 0), 30, 26) }),
+        k.color(240, 252, 238),
+        k.outline(3, k.rgb(24, 86, 42)),
+        k.area({ shape: new k.Rect(k.vec2(0, 0), 30, 30) }),
         k.z(LAYERS.EFFECT),
         "oneup",
         { baseY: y },
       ]) as AnyObj;
+      const piece = (w: number, h: number, col: [number, number, number], dz: number) =>
+        k.add([
+          k.rect(w, h),
+          k.pos(x, y),
+          k.anchor("center"),
+          k.color(col[0], col[1], col[2]),
+          k.z(LAYERS.EFFECT + dz),
+        ]) as AnyObj;
+      // Chunky green cross: dark base bar pair, brighter inner pair on top.
+      const crossV = piece(8, 20, [26, 132, 62], 1);
+      const crossH = piece(20, 8, [26, 132, 62], 1);
+      const shineV = piece(4, 16, [92, 214, 118], 2);
+      const shineH = piece(16, 4, [92, 214, 118], 2);
       const label = k.add([
-        k.text("1UP", { size: 11, font: UI_FONT }),
-        k.pos(x, y),
+        k.text("1UP", { size: 9, font: UI_FONT }),
+        k.pos(x, y + 24),
         k.anchor("center"),
-        k.color(255, 255, 255),
-        k.z(LAYERS.EFFECT + 1),
+        k.color(214, 255, 214),
+        k.outline(2, k.rgb(18, 60, 30)),
+        k.z(LAYERS.EFFECT + 2),
       ]) as AnyObj;
+      const parts: AnyObj[] = [crossV, crossH, shineV, shineH, label];
       badge.onUpdate(() => {
         badge.pos.y = badge.baseY + Math.sin(k.time() * 3) * 7;
-        label.pos = k.vec2(badge.pos.x, badge.pos.y);
+        crossV.pos = k.vec2(badge.pos.x, badge.pos.y);
+        crossH.pos = k.vec2(badge.pos.x, badge.pos.y);
+        // Highlight sits a pixel up-left, the classic 16-bit light source.
+        shineV.pos = k.vec2(badge.pos.x - 1, badge.pos.y - 1);
+        shineH.pos = k.vec2(badge.pos.x - 1, badge.pos.y - 1);
+        label.pos = k.vec2(badge.pos.x, badge.pos.y + 24);
       });
-      badge.onDestroy(() => label.destroy());
-      markCollectible(k, badge, { label: "EXTRA LIFE", width: 30, height: 26, topLift: 4 });
+      badge.onDestroy(() => {
+        for (const p of parts) {
+          try {
+            p.destroy();
+          } catch {
+            /* already gone */
+          }
+        }
+      });
+      markCollectible(k, badge, { label: "EXTRA LIFE", width: 30, height: 30, topLift: 4 });
       return badge;
     }
 
     player.onCollide("oneup", (o: AnyObj) => {
       o.destroy();
       playSfx("pickup");
-      sparkleBurst(player.pos.x, player.pos.y - 40, [255, 120, 150]);
+      sparkleBurst(player.pos.x, player.pos.y - 40, [120, 230, 140]);
       if (player.maxLives < LIFE_CAP) {
-        player.maxLives += 1;
-        player.lives += 1;
+        // Record the earned life so the feature reconciler can never undo it.
+        player.bonusLives += 1;
+        player.maxLives = playerMgr.maxLivesFor(player.bonusLives);
+        player.lives = Math.min(player.maxLives, player.lives + 1);
         showHint("Extra life! You're back in the game.");
       } else if (player.lives < player.maxLives) {
         player.lives += 1;
@@ -5912,6 +6002,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       updateHud();
     });
+
 
     // Two extra lives are hidden along the main trail, both reachable only
     // with a deliberate jump so they read as a reward, not a handout.

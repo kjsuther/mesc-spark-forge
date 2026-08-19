@@ -53,18 +53,27 @@ export const POWERUP_KINDS = Object.keys(POWERUP_DEFS) as PowerUpKind[];
 // ---------------------------------------------------------------- Player ---
 
 export class PlayerManager {
-  /** Lives the run starts with — and the cap the HUD renders. */
+  /** Hard ceiling on lives, upgrades and 1-UPs included. */
+  static readonly LIFE_CAP = 5;
+
+  /** Lives the run starts with — before any 1-UP found on the trail. */
   startingLives(): number {
     return FeatureFlags.isOn("moreWaysToReachCaseWorker") ? 5 : 3;
+  }
+
+  /** Base lives plus every extra life earned from a 1-UP pickup. */
+  maxLivesFor(bonusLives = 0): number {
+    return Math.min(PlayerManager.LIFE_CAP, this.startingLives() + Math.max(0, bonusLives));
   }
 
   /**
    * Applies a live toggle to an in-progress run. Turning the upgrade ON grants
    * the extra lives immediately; turning it OFF lowers the cap but never
-   * kills the player mid-run (clamped to at least 1).
+   * kills the player mid-run (clamped to at least 1). Lives earned from 1-UP
+   * pickups are counted in, so a reconcile can never take one back.
    */
-  reconcileLives(state: { lives: number; maxLives: number }): boolean {
-    const nextMax = this.startingLives();
+  reconcileLives(state: { lives: number; maxLives: number; bonusLives?: number }): boolean {
+    const nextMax = this.maxLivesFor(state.bonusLives ?? 0);
     if (nextMax === state.maxLives) return false;
     const delta = nextMax - state.maxLives;
     state.maxLives = nextMax;
@@ -72,6 +81,7 @@ export class PlayerManager {
     return true;
   }
 }
+
 
 // --------------------------------------------------------------- PowerUps ---
 

@@ -6272,14 +6272,47 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       if (player.isGrounded() || player.riding || canCoyote) {
         player.jump(JUMP_VEL);
         player.jumpBufferedAt = -1;
+        player.airJumpsLeft = 1;
         if (player.riding) {
           player.vel.x += player.riding.platformSpeed.x;
           player.riding = null;
         }
+      } else if (player.airJumpsLeft > 0) {
+        // Mid-air double jump: kill any downward speed first so it also
+        // rescues a fall, then boost.
+        player.airJumpsLeft -= 1;
+        if (player.vel.y > 0) player.vel.y = 0;
+        player.jump(AIR_JUMP_VEL);
+        player.jumpBufferedAt = -1;
+        airJumpPuff(player.pos.x, player.pos.y);
       } else {
         player.jumpBufferedAt = now;
       }
     }
+
+    /** Small pixel puff at the hero's feet so the air jump reads clearly. */
+    function airJumpPuff(x: number, y: number) {
+      for (let i = 0; i < 6; i++) {
+        const ang = (Math.PI / 5) * i + Math.PI * 0.1;
+        const puff = k.add([
+          k.rect(4, 4),
+          k.pos(x, y - 4),
+          k.anchor("center"),
+          k.color(255, 255, 255),
+          k.opacity(0.9),
+          k.z(LAYERS.PROP + 2),
+          { t: 0, vx: Math.cos(ang) * 70, vy: -Math.abs(Math.sin(ang)) * 20 + 30 },
+        ]) as AnyObj;
+        puff.onUpdate(() => {
+          puff.t += k.dt();
+          puff.pos.x += puff.vx * k.dt();
+          puff.pos.y += puff.vy * k.dt();
+          puff.opacity = Math.max(0, 0.9 - puff.t * 2.6);
+          if (puff.t > 0.4) k.destroy(puff);
+        });
+      }
+    }
+
 
     // ===== Feature-flag reconciliation =====
     // One place where a live toggle is applied to a run in progress. Called

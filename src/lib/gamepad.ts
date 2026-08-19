@@ -46,9 +46,9 @@ export type GamepadFrame = {
 type Listener = (frame: GamepadFrame) => void;
 
 /** Movement: engage early so the stick feels as immediate as a key press… */
-const MOVE_ON = 0.2;
+const MOVE_ON = 0.13;
 /** …and release a touch later so a stick resting on the threshold can't chatter. */
-const MOVE_OFF = 0.15;
+const MOVE_OFF = 0.09;
 /** Menu navigation needs a deliberate push: well above any resting drift. */
 const NAV_ZONE = 0.75;
 /** The stick must fall back below this before another menu move counts. */

@@ -3380,6 +3380,56 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       met: () => zoneState.firePoleDone,
     };
 
+    // ===== "Still needed" checklist (failure screen) =====
+    // What the player had left to do on the step they died on. Every entry is
+    // derived from the same `zoneState` the HUD objective badge reads, so the
+    // checklist can never disagree with what the badge said a frame earlier.
+    type StillNeeded = { done: boolean; label: string };
+    function remainingTasks(zone: number): StillNeeded[] {
+      const t = (done: boolean, label: string): StillNeeded => ({ done, label });
+      switch (zone) {
+        case 0:
+          return [t(zoneState.methodTouched, "Pick how you want to apply")];
+        case 1:
+          return [
+            t(zoneState.userGot, "Collect your username"),
+            t(zoneState.passGot, "Collect your password"),
+          ];
+        case 2:
+          return [t(zoneObjectives[2]?.met() ?? false, "Cross the river to the door")];
+        case 3:
+          return [
+            t(
+              zoneState.docsInZone >= 3,
+              `Gather ${Math.max(0, 3 - zoneState.docsInZone)} more verification document${
+                3 - zoneState.docsInZone === 1 ? "" : "s"
+              }`,
+            ),
+          ];
+        case 4: {
+          const left = Math.max(0, zoneState.repliesNeeded - zoneState.repliesGot);
+          return [
+            t(left === 0, `Send ${left} more repl${left === 1 ? "y" : "ies"} to the request`),
+          ];
+        }
+        case 5:
+          return [t(zoneObjectives[5]?.met() ?? false, "Survive the 10-second wait")];
+        case 6:
+          return [
+            t(zoneState.planPicked, "Pick a health plan"),
+            t(zoneState.bossDefeated, "Get past the bear"),
+            t(zoneState.hasKey, "Grab the key"),
+          ];
+        case 7:
+          return [
+            t(zoneState.idCardCollected, "Grab your medical ID card"),
+            t(zoneState.firePoleDone, "Slide down the pole to the clinic"),
+          ];
+        default:
+          return [];
+      }
+    }
+
     // ===== Checkpoint flags (Check Your Status Anytime) =====
     // Managed live: markers appear the moment the upgrade is switched on and
     // vanish the moment it is switched off.

@@ -257,7 +257,7 @@ function poll() {
   heldLeft = hold(heldLeft, sampleX, -1);
   heldRight = hold(heldRight, sampleX, 1);
   heldUp = hold(heldUp, sampleY, -1);
-  heldDown = hold(heldDown, sampleY, 1);
+  heldDown = heldDown ? sampleY > DOWN_OFF : sampleY > DOWN_ON;
   // Opposite directions can't both win (some hats briefly report both).
   if (heldLeft && heldRight) {
     if (sampleX < 0) heldRight = false;

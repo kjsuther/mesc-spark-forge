@@ -5199,6 +5199,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         "method",
         { methodLabel: brick.methodLabel, vy: -180, landed: false },
       ]) as AnyObj;
+      markCollectible(k, icon, { label: "GRAB", width: iw, height: ih });
       // 16-bit pixel art of the chosen channel, drawn as children so it
       // travels with the icon: letter / cell phone / office / laptop.
       for (const part of METHOD_ICON_PIXELS[brick.methodIcon] ?? []) {

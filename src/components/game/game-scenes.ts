@@ -2474,7 +2474,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { x: rx0 + 370, y: GROUND_Y - 124, label: "INCOME" },
         { x: rx0 + 540, y: GROUND_Y - 104, label: "SIGNATURE" },
       ];
-      const SHAKE_S = 0.28; // brief warning, then it lets go
+      const SHAKE_S = 0.55; // longer warning so the platform stays up before it drops
       const FALL_G = 900;
 
       for (const p of platforms) {

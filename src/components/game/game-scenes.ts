@@ -7063,12 +7063,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         foe.pos.x += foe.dir * 46 * k.dt();
         if (foe.pos.x > ENEMY_HOME + 80) foe.dir = -1;
         if (foe.pos.x < ENEMY_HOME - 80) foe.dir = 1;
-        const overlapping =
-          Math.abs(hero.pos.x - foe.pos.x) < pw * 0.6 && hero.pos.y > GROUND_Y - ph;
-        if (overlapping && k.time() - bumped > 2) {
+        const nearX = Math.abs(hero.pos.x - foe.pos.x) < pw * 0.7;
+        // Landing on the head is the exact mistake this coach exists to stop,
+        // so it gets its own message before the generic contact one.
+        const onHead =
+          nearX &&
+          hero.pos.y <= GROUND_Y - ph * 0.55 &&
+          hero.pos.y >= GROUND_Y - ph - 26 &&
+          (hero.vel?.y ?? 0) >= -10;
+        const overlapping = nearX && hero.pos.y > GROUND_Y - ph;
+        if ((onHead || overlapping) && k.time() - bumped > 2) {
           bumped = k.time();
-          showBanner("No stomping! That would have cost a life — jump over enemies.", 3);
+          showBanner(
+            onHead
+              ? "Jumping ON an enemy still hurts — clear it with a full jump."
+              : "No stomping! That would have cost a life — jump over enemies.",
+            3,
+          );
         }
+
         if (!cleared && hero.pos.x > ENEMY_HOME + 120) {
           cleared = true;
           showBanner("Perfect — over the top, never on top.", 3);

@@ -369,6 +369,19 @@ const OVERLAY_TITLES = [
   "PLAN NOT CHOSEN",
   "ALMOST ENROLLED",
 ] as const;
+// Plain-language name of each step, used by the failure screen to list the
+// parts of the journey the player never reached.
+const STEP_NAMES = [
+  "Choose how to apply",
+  "Create your account",
+  "Complete your application",
+  "Gather your documents",
+  "Respond to the request",
+  "Await the decision",
+  "Choose your health plan",
+  "Use your coverage",
+] as const;
+
 const FAILURE_MESSAGES: Record<number, string[]> = {
   0: [
     "Pick a way to apply before moving forward.",

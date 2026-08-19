@@ -2113,7 +2113,7 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
             ! WATCH OUT !
           </p>
           <p className="mt-2 text-[8px] leading-[1.9] sm:text-[10px]" style={{ color: "#ffb3ad" }}>
-            Touching an enemy costs a life — JUMP over them!
+            You CANNOT stomp enemies. Landing on one costs a life — jump OVER them, not on them.
           </p>
         </div>
 

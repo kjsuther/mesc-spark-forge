@@ -3206,6 +3206,13 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         { planLabel: p.label, bonus: 800 },
       ]) as AnyObj;
       void item;
+      markCollectible(k, item, {
+        label: "PICK ONE",
+        width: dw,
+        height: dh,
+        anchorBot: true,
+        topLift: 24,
+      });
       addSpeech(k, p.x, PLAN_PLAT_TOP - dh - 26, p.label, [30, 30, 60], "plan-choice-ui");
     }
     addSpeech(

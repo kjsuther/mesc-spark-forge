@@ -1799,12 +1799,22 @@ function PadButton({
  * Vertical movement is ignored so JUMP stays a separate, simultaneously
  * holdable button.
  */
-function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 | 1) => void }) {
+function JoystickPad({
+  size,
+  onChange,
+  onDownChange,
+}: {
+  size: number;
+  onChange: (dir: -1 | 0 | 1) => void;
+  onDownChange?: (held: boolean) => void;
+}) {
   const padRef = useRef<HTMLDivElement | null>(null);
   const activePointerRef = useRef<number | null>(null);
   const touchIdRef = useRef<number | null>(null);
   const originRef = useRef(0);
+  const originYRef = useRef(0);
   const dirRef = useRef<-1 | 0 | 1>(0);
+  const downRef = useRef(false);
   const [knob, setKnob] = useState(0);
   const [active, setActive] = useState(false);
 
@@ -1814,6 +1824,8 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
 
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onDownRef = useRef(onDownChange);
+  onDownRef.current = onDownChange;
 
   const emit = useCallback((dir: -1 | 0 | 1) => {
     if (dirRef.current === dir) return;
@@ -1821,20 +1833,32 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
     onChangeRef.current(dir);
   }, []);
 
+  /** Pulling the stick down raises the umbrella (waiting zone only). */
+  const emitDown = useCallback((held: boolean) => {
+    if (downRef.current === held) return;
+    downRef.current = held;
+    onDownRef.current?.(held);
+  }, []);
+
   const track = useCallback(
-    (clientX: number) => {
+    (clientX: number, clientY?: number) => {
       const dx = clientX - originRef.current;
       setKnob(Math.max(-maxTravel, Math.min(maxTravel, dx)));
+      const dy = clientY === undefined ? 0 : clientY - originYRef.current;
+      // Down wins only when the pull is clearly more vertical than horizontal,
+      // so steering never accidentally opens the umbrella.
+      emitDown(dy > deadZone * 1.6 && Math.abs(dy) > Math.abs(dx));
       emit(dx > deadZone ? 1 : dx < -deadZone ? -1 : 0);
     },
-    [emit, maxTravel, deadZone],
+    [emit, emitDown, maxTravel, deadZone],
   );
 
   const neutral = useCallback(() => {
     setActive(false);
     setKnob(0);
     emit(0);
-  }, [emit]);
+    emitDown(false);
+  }, [emit, emitDown]);
 
   const release = useCallback(
     (pointerId?: number) => {
@@ -1862,8 +1886,9 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
       touchIdRef.current = t.identifier;
       const box = el.getBoundingClientRect();
       originRef.current = box.left + box.width / 2;
+      originYRef.current = box.top + box.height / 2;
       setActive(true);
-      track(t.clientX);
+      track(t.clientX, t.clientY);
     };
     const findTouch = (list: TouchList) => {
       for (const t of Array.from(list)) if (t.identifier === touchIdRef.current) return t;
@@ -1874,7 +1899,7 @@ function JoystickPad({ size, onChange }: { size: number; onChange: (dir: -1 | 0 
       const t = findTouch(e.touches);
       if (!t) return;
       e.preventDefault();
-      track(t.clientX);
+      track(t.clientX, t.clientY);
     };
     const end = (e: TouchEvent) => {
       if (touchIdRef.current === null) return;

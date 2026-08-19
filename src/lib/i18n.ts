@@ -179,25 +179,27 @@ const ES: Record<string, string> = {
   EXIT: "SALIDA",
   "Walk into the door to rejoin the trail":
     "Entra por la puerta para volver al camino",
-  "Account Locks hurt — jump over them or you lose a life.":
+  "Account Locks hurt — jump OVER them; stomping does not work.":
     "Los Candados de Cuenta hacen daño: salta sobre ellos o pierdes una vida.",
-  "Evil Clipboards hurt — jump over them or you lose a life.":
+  "Evil Clipboards hurt — jump OVER them; stomping does not work.":
     "Los Portapapeles Malvados hacen daño: salta sobre ellos o pierdes una vida.",
-  "Monster Envelopes hurt — jump over them or you lose a life.":
+  "Monster Envelopes hurt — jump OVER them; stomping does not work.":
     "Los Sobres Monstruo hacen daño: salta sobre ellos o pierdes una vida.",
   "A date that touches you costs a life and restarts the 10 seconds.":
     "Una hoja que te toque te cuesta una vida y reinicia los 10 segundos.",
   "! NEVER TOUCH A RED-MARKED ENEMY — JUMP OVER IT !":
     "¡ NUNCA TOQUES A UN ENEMIGO MARCADO EN ROJO — SALTA SOBRE ÉL !",
   AVOID: "EVITAR",
-  "JUMP OVER ME!": "¡SALTA SOBRE MÍ!",
-  "Jump over me — in the real zones I cost a life!":
-    "Salta sobre mí: en las zonas reales te cuesto una vida.",
+  "JUMP OVER — NO STOMPING!": "¡SALTA POR ENCIMA — NO LO PISES!",
+  "You can't squash me — jump OVER, not on me!":
+    "No puedes aplastarme: salta POR ENCIMA, no sobre mí.",
+  "Jumping ON an enemy still hurts — clear it with a full jump.":
+    "Caer SOBRE un enemigo también hace daño: sáltalo por completo.",
   ENEMY: "ENEMIGO",
-  "That would have cost a life! Jump over enemies.":
-    "¡Eso te habría costado una vida! Salta sobre los enemigos.",
-  "Perfect — that's how you get past an enemy.":
-    "Perfecto: así se esquiva a un enemigo.",
+  "No stomping! That would have cost a life — jump over enemies.":
+    "¡No los pises! Eso te habría costado una vida: salta por encima de los enemigos.",
+  "Perfect — over the top, never on top.":
+    "Perfecto: por encima, nunca encima de él.",
   "Platforms fall away once you step on them — keep moving!":
     "Las plataformas caen al pisarlas: ¡no te detengas!",
   "Reaching the other side unlocks the exit door.":

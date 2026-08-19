@@ -6812,7 +6812,10 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       player.wasGrounded = groundedNow;
 
-      if (groundedNow) player.lastGroundedAt = now;
+      if (groundedNow) {
+        player.lastGroundedAt = now;
+        player.airJumpsLeft = 1;
+      }
 
       // ---- Animation state machine ----
       if (dir !== 0) {

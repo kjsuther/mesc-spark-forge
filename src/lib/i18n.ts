@@ -108,7 +108,6 @@ const ES: Record<string, string> = {
   GRAB: "TOMAR",
   KEY: "LLAVE",
   "PICK ONE": "ELIGE UNO",
-  "EXTRA LIFE": "VIDA EXTRA",
   "Practice here. Nothing can hurt you.": "Practica aquí. Nada puede hacerte daño.",
   "Practice here — nothing can hurt you. Move, jump and grab the pack.":
     "Practica aquí — nada puede hacerte daño. Muévete, salta y toma la mochila.",

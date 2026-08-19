@@ -7199,6 +7199,11 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         "ppack",
         { t: 0, baseY: brick.pos.y - 58 },
       ]) as AnyObj;
+      markCollectible(k, pack, {
+        label: "GRAB",
+        width: disp.w,
+        height: DISPLAY_H["backpack"],
+      });
       pack.onUpdate(() => {
         pack.t += k.dt();
         pack.pos.y = pack.baseY + Math.sin(pack.t * 3) * 6;

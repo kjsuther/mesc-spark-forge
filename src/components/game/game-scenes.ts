@@ -21,6 +21,8 @@ import { FeatureFlags } from "@/lib/game-features";
 import { t as tr } from "@/lib/i18n";
 import { computeFinalScore, zoneSpeedBonus } from "@/lib/game-score";
 import { pumpGamepadInput } from "@/lib/gamepad";
+import { stillNeededFor, type StillNeeded } from "./still-needed";
+
 
 import {
   PlayerManager,
@@ -3443,51 +3445,25 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
     // What the player had left to do on the step they died on. Every entry is
     // derived from the same `zoneState` the HUD objective badge reads, so the
     // checklist can never disagree with what the badge said a frame earlier.
-    type StillNeeded = { done: boolean; label: string };
+    // The mapping itself lives in `still-needed.ts` so it stays testable.
     function remainingTasks(zone: number): StillNeeded[] {
-      const t = (done: boolean, label: string): StillNeeded => ({ done, label });
-      switch (zone) {
-        case 0:
-          return [t(zoneState.methodTouched, "Pick how you want to apply")];
-        case 1:
-          return [
-            t(zoneState.userGot, "Collect your username"),
-            t(zoneState.passGot, "Collect your password"),
-          ];
-        case 2:
-          return [t(zoneObjectives[2]?.met() ?? false, "Cross the river to the door")];
-        case 3:
-          return [
-            t(
-              zoneState.docsInZone >= 3,
-              `Gather ${Math.max(0, 3 - zoneState.docsInZone)} more verification document${
-                3 - zoneState.docsInZone === 1 ? "" : "s"
-              }`,
-            ),
-          ];
-        case 4: {
-          const left = Math.max(0, zoneState.repliesNeeded - zoneState.repliesGot);
-          return [
-            t(left === 0, `Send ${left} more repl${left === 1 ? "y" : "ies"} to the request`),
-          ];
-        }
-        case 5:
-          return [t(zoneObjectives[5]?.met() ?? false, "Survive the 10-second wait")];
-        case 6:
-          return [
-            t(zoneState.planPicked, "Pick a health plan"),
-            t(zoneState.bossDefeated, "Get past the bear"),
-            t(zoneState.hasKey, "Grab the key"),
-          ];
-        case 7:
-          return [
-            t(zoneState.idCardCollected, "Grab your medical ID card"),
-            t(zoneState.firePoleDone, "Slide down the pole to the clinic"),
-          ];
-        default:
-          return [];
-      }
+      return stillNeededFor(zone, {
+        methodTouched: zoneState.methodTouched,
+        userGot: zoneState.userGot,
+        passGot: zoneState.passGot,
+        riverCrossed: zoneObjectives[2]?.met() ?? false,
+        docsInZone: zoneState.docsInZone,
+        repliesNeeded: zoneState.repliesNeeded,
+        repliesGot: zoneState.repliesGot,
+        waitSurvived: zoneObjectives[5]?.met() ?? false,
+        planPicked: zoneState.planPicked,
+        bossDefeated: zoneState.bossDefeated,
+        hasKey: zoneState.hasKey,
+        idCardCollected: zoneState.idCardCollected,
+        firePoleDone: zoneState.firePoleDone,
+      });
     }
+
 
     // ===== Checkpoint flags (Check Your Status Anytime) =====
     // Managed live: markers appear the moment the upgrade is switched on and
@@ -8153,7 +8129,10 @@ function addSignPlaque(
   tag?: string,
 ): AnyObj[] {
   const parts: AnyObj[] = [];
-  const tagged = tag ? [tag] : [];
+  // Every plaque part carries "signplaque" so the regression suite can query
+  // them and assert that no two coaching signs overlap on screen.
+  const tagged = tag ? ["signplaque", tag] : ["signplaque"];
+
   const T = UI_TEXT_SCALE;
   const badgeSize = Math.round(10 * T);
   const labelSize = Math.round(11 * T);

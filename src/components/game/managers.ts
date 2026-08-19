@@ -8,7 +8,10 @@
 // else in the engine.
 // ============================================================================
 
-import { FeatureFlags, type FeatureName, type GameFeatures } from "@/lib/game-features";
+// Relative + explicit extension so this module also loads in the Node-based
+// regression test runner, which has no path-alias resolution.
+import { FeatureFlags, type FeatureName, type GameFeatures } from "../../lib/game-features.ts";
+
 
 /** 0-based zone indices (Zone 1 in the UI == index 0). */
 export const ZONE_INDEX = {
@@ -152,7 +155,12 @@ export class PowerUpManager {
 export type DamageSource = "monster" | "boulder" | "water" | "boss";
 
 export class EnemyManager {
-  constructor(private powerups: PowerUpManager) {}
+  private powerups: PowerUpManager;
+
+  constructor(powerups: PowerUpManager) {
+    this.powerups = powerups;
+  }
+
 
   /**
    * Single arbitration point for "does this contact hurt the player?".
@@ -174,7 +182,12 @@ export class EnemyManager {
 // ------------------------------------------------------------------- Boss ---
 
 export class BossManager {
-  constructor(private powerups: PowerUpManager) {}
+  private powerups: PowerUpManager;
+
+  constructor(powerups: PowerUpManager) {
+    this.powerups = powerups;
+  }
+
 
   /** Navigator clears the boss on first contact — single use. */
   shouldAutoDefeat(): boolean {

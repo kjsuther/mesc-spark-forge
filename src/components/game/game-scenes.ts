@@ -7621,6 +7621,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       hudList.text =
         `${mark(done.move)} MOVE\n` +
         `${mark(done.jump)} JUMP\n` +
+        `${mark(done.dbl)} DOUBLE JUMP\n` +
         `${mark(done.collect)} COLLECT`;
       hudPanel.opacity = 0.92;
       hudTitle.opacity = 1;

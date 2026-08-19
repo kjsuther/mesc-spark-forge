@@ -369,6 +369,21 @@ const ES: Record<string, string> = {
 
   // ---- Secret bonus level --------------------------------------------
   "SECRET FOUND!": "¡SECRETO ENCONTRADO!",
+  "SECRET · PORTLAND WATERFRONT": "SECRETO · MALECÓN DE PORTLAND",
+  "You found the hidden trail!": "¡Encontraste el camino oculto!",
+  "There are no enemies here — nothing in this pocket can hurt you.":
+    "Aquí no hay enemigos: nada en este rincón puede hacerte daño.",
+  "Grab the coffee, donuts and cart snacks for extra points.":
+    "Recoge cafés, donas y antojitos de los carritos para ganar puntos.",
+  "Look up high for an extra life.": "Busca arriba una vida extra.",
+  "When you're done, walk into the EXIT door on the right.":
+    "Cuando termines, entra por la puerta de SALIDA a la derecha.",
+  "The door drops you at the start of Step 3.":
+    "La puerta te deja al inicio del Paso 3.",
+  TREATS: "ANTOJITOS",
+  "EXTRA LIFE": "VIDA EXTRA",
+  "EXIT DOOR": "PUERTA DE SALIDA",
+
   "PORTLAND BONUS": "BONUS DE PORTLAND",
   "BONUS STAGE": "NIVEL BONUS",
   "PORTLAND WATERFRONT": "MALECÓN DE PORTLAND",

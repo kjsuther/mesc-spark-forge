@@ -3297,6 +3297,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       idItem.onUpdate(() => {
         idItem.pos.y = idItem.basY + Math.sin(k.time() * 2.5) * 4;
       });
+      markCollectible(k, idItem, { label: "GRAB", width: idW, height: idH });
       // (No floating labels here — the paused Step 8 briefing covers the ID card.)
     }
 

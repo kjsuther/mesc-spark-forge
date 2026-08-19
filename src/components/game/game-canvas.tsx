@@ -1960,19 +1960,20 @@ function JoystickPad({
         }
         activePointerRef.current = e.pointerId;
         originRef.current = e.currentTarget.getBoundingClientRect().left + radius;
+        originYRef.current = e.currentTarget.getBoundingClientRect().top + radius;
         setActive(true);
         try {
           (e.currentTarget as HTMLDivElement).setPointerCapture?.(e.pointerId);
         } catch {
           /* noop */
         }
-        track(e.clientX);
+        track(e.clientX, e.clientY);
       }}
       onPointerMove={(e) => {
         if (e.pointerType === "touch") return;
         if (activePointerRef.current !== e.pointerId) return;
         e.preventDefault();
-        track(e.clientX);
+        track(e.clientX, e.clientY);
       }}
       onPointerUp={(e) => {
         if (e.pointerType === "touch") return;

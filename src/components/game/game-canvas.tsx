@@ -765,12 +765,15 @@ export function GameCanvas({ onWin, onLose, presentation = false }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [launchMode, error, advanceMenu]);
 
-  // Idle attract mode: after a minute untouched on the title screen the game
-  // starts playing itself so passers-by can see the trail in motion.
-  const DEMO_IDLE_MS = 60_000;
+  // Idle attract mode: after 30 seconds untouched on any pre-game menu screen
+  // the game starts playing itself so passers-by see the trail in motion.
+  const DEMO_IDLE_MS = 30_000;
   useEffect(() => {
     if (launchMode || error) return;
-    if (menuScreen !== "title") return;
+    // Any menu screen counts as idle — an abandoned session parked on the
+    // trail map or controls screen rolls into the demo too.
+    if (menuScreen === "scores") return;
+
     let last = Date.now();
     const bump = () => {
       last = Date.now();

@@ -4361,7 +4361,7 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         k.onKeyPress(key as never, () => close()),
       );
       // Attract mode reads the briefing for the audience, then moves on.
-      if (DEMO) k.wait(3.2, () => close());
+      if (DEMO) k.wait(2.8, () => close());
       const blink = k.onUpdate(() => {
         if (promptNode) promptNode.opacity = Math.floor(k.time() * 2) % 2 === 0 ? 1 : 0.3;
       });
@@ -6214,7 +6214,56 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       return 0;
     }
 
+
+    /** Attract mode only: hard cap on how long one zone may hold the loop. */
+    const DEMO_ZONE_TIMEOUT = 15;
+
+    /** Satisfy the zone's objective the same way play would, then open the
+     *  door, so the attract loop always advances instead of stalling. */
+    function demoForceZoneComplete(z: number) {
+      switch (z) {
+        case 0:
+          zoneState.methodTouched = true;
+          break;
+        case 1:
+          zoneState.userGot = true;
+          zoneState.passGot = true;
+          break;
+        case 2:
+          // Positional objective — nudge the hero to the far bank.
+          if (player.pos.x < BIOME_W * 3 - 150) {
+            player.pos.x = BIOME_W * 3 - 150;
+            player.pos.y = GROUND_Y - 40;
+            player.vel = k.vec2(0, 0);
+            player.riding = null;
+            resetRiverPlatforms();
+          }
+          break;
+        case 3:
+          zoneState.docsInZone = 3;
+          break;
+        case 4:
+          zoneState.repliesGot = Math.max(zoneState.repliesGot, zoneState.repliesNeeded);
+          break;
+        case 5:
+          if (zoneState.waitStart === 0) zoneState.waitStart = k.time() - zoneState.waitDur;
+          else zoneState.waitStart = Math.min(zoneState.waitStart, k.time() - zoneState.waitDur);
+          break;
+        case 6:
+          zoneState.planPicked = true;
+          zoneState.bossDefeated = true;
+          zoneState.hasKey = true;
+          break;
+        case 7:
+          zoneState.idCardCollected = true;
+          break;
+      }
+      const d = doors[z];
+      if (d && !d.unlocked) unlockDoor(z);
+    }
+
     function demoAutopilot(now: number): number {
+
       const grounded = player.isGrounded() || !!player.riding;
       // Keep the run honest about progress so a wedged bot can free itself.
       if (player.pos.x > demoLastX + 10) {
@@ -6223,15 +6272,17 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
       if (demoLastProgressAt === 0) demoLastProgressAt = now;
 
-      // Silent long-stop: only if the bot is genuinely wedged for a full
-      // minute does a zone open itself, so the normal demo shows real play.
+      // Safety valve: no zone may hold the attract loop for more than ~15s.
+      // The objective is satisfied the same way play would satisfy it, so the
+      // HUD, door and score bookkeeping all stay consistent.
       if (currentZone !== demoZoneWatched) {
         demoZoneWatched = currentZone;
         demoZoneEnteredAt = now;
-      } else if (now - demoZoneEnteredAt > 60) {
-        const d = doors[currentZone];
-        if (d && !d.unlocked) unlockDoor(currentZone);
+      } else if (now - demoZoneEnteredAt > DEMO_ZONE_TIMEOUT) {
+        demoForceZoneComplete(currentZone);
+        demoZoneEnteredAt = now;
       }
+
 
       // Boss battle takes over the whole lane while the bear is alive.
       if (currentZone === 6 && zoneState.planPicked && !zoneState.bossDefeated) {
@@ -6243,9 +6294,14 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
       }
 
 
+      // Zone 5 is a timed wait: make sure the clock is actually running (the
+      // briefing normally starts it) so the demo can't idle here forever.
+      if (currentZone === 5 && zoneState.waitStart === 0) zoneState.waitStart = k.time();
+
       let dir = 1;
       let jump = false;
       const target = demoTarget();
+      const openDoor = doors[currentZone];
       if (target) {
         const dx = target.x - player.pos.x;
         const dy = player.pos.y - target.y;
@@ -6264,13 +6320,20 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
           demoTargetSince = now;
         } else if (demoTargetSince === 0) {
           demoTargetSince = now;
-        } else if (now - demoTargetSince > 9) {
+        } else if (now - demoTargetSince > 6) {
           jump = true;
-          demoTargetSince = now - 5;
+          demoTargetSince = now - 3;
         }
+      } else if (openDoor?.unlocked && currentZone < 7) {
+        // Nothing left to collect: walk straight at the open doorway so the
+        // walk-through transition always fires.
+        const ddx = openDoor.obj.pos.x - player.pos.x;
+        dir = ddx < -8 ? -1 : 1;
+        demoTargetSince = 0;
       } else {
         demoTargetSince = 0;
       }
+
 
       // Enemies, incoming paperwork and pits all get the same answer: hop.
       if (demoNear("monster", 150, 130)) jump = true;
@@ -6295,14 +6358,21 @@ export async function startGame(opts: StartGameOpts): Promise<() => void> {
         demoLastX = player.pos.x;
         demoLastProgressAt = now;
       }
-      // Last resort: wedged against something for a while.
+      // Last resort: wedged against something for a while. Hop first; only if
+      // that fails do we reposition — and then onto solid ground inside the
+      // current zone, never a blind 70px shove that can drop us into a pit.
       if (now - demoLastProgressAt > 2.5) jump = true;
-      if (now - demoLastProgressAt > 9) {
-        player.pos.x += 70;
-        player.pos.y = Math.min(player.pos.y, GROUND_Y - 40);
+      if (now - demoLastProgressAt > 7) {
+        const zoneStart = currentZone * BIOME_W + 60;
+        const zoneEnd = (currentZone + 1) * BIOME_W - 120;
+        player.pos.x = Math.min(zoneEnd, Math.max(zoneStart, player.pos.x + 40));
+        player.pos.y = GROUND_Y - 40;
+        player.vel = k.vec2(0, 0);
+        player.riding = null;
         demoLastX = player.pos.x;
         demoLastProgressAt = now;
       }
+
 
 
       if (jump && grounded) tryJump();

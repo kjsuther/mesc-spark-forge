@@ -2102,9 +2102,21 @@ function ControlsScreen({ onContinue, onBack }: { onContinue: () => void; onBack
           </ul>
         </div>
 
+        <div
+          className="mt-4 border-4 px-3 py-3"
+          style={{ borderColor: "#ff786e", background: "rgba(255,80,70,0.16)" }}
+        >
+          <p className="text-[8px] leading-[1.8] text-accent-gold sm:text-[10px]">
+            ! WATCH OUT !
+          </p>
+          <p className="mt-2 text-[8px] leading-[1.9] sm:text-[10px]" style={{ color: "#ffb3ad" }}>
+            Touching an enemy costs a life — JUMP over them!
+          </p>
+        </div>
+
         <p className="mt-4 text-[7px] leading-[1.9] text-cream sm:text-[9px]">
-          Reach the clinic at the end of the trail. Collect your documents, dodge the barriers, and
-          don&apos;t give up.
+          Reach the clinic at the end of the trail. Collect your documents, jump over every enemy,
+          and don&apos;t give up.
         </p>
       </div>
       <div className="mx-auto flex max-w-xs flex-col gap-3">

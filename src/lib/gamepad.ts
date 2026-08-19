@@ -407,7 +407,7 @@ export function pumpGamepadInput(target: {
   sample();
   heldLeft = hold(heldLeft, sampleX, -1);
   heldRight = hold(heldRight, sampleX, 1);
-  heldDown = hold(heldDown, sampleY, 1);
+  heldDown = heldDown ? sampleY > DOWN_OFF : sampleY > DOWN_ON;
   if (heldLeft && heldRight) {
     if (sampleX < 0) heldRight = false;
     else heldLeft = false;
